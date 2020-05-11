@@ -9,6 +9,7 @@ dep_xlib = dependency('x11')
 dep_xrandr = dependency('xrandr')
 
 executable('xisxwayland',
+           'xisxwayland.c',
            'main.c',
            dependencies: [dep_xrandr, dep_xlib],
            install: true)
