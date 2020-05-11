@@ -14,3 +14,11 @@ executable('xisxwayland',
            dependencies: [dep_xrandr, dep_xlib],
            install: true)
 install_man('xisxwayland.1')
+
+t = executable('test-xisxwayland',
+		'test/test-xisxwayland.c',
+		'test/fakexlib.h',
+		'test/fakexlib.c',
+		'xisxwayland.c',
+		install: false)
+test('test-xiswayland', t)
