@@ -1,8 +1,8 @@
 project('xisxwayland', 'c',
         version: '1',
         license: 'MIT/Expat',
-	default_options: ['c_std=gnu99', 'warning_level=2'],
-	meson_version: '>= 0.41.0')
+        default_options: ['c_std=gnu99', 'warning_level=2'],
+        meson_version: '>= 0.41.0')
 
 pkgconfig = import('pkgconfig')
 dep_xlib = dependency('x11')
@@ -16,9 +16,9 @@ executable('xisxwayland',
 install_man('xisxwayland.1')
 
 t = executable('test-xisxwayland',
-		'test/test-xisxwayland.c',
-		'test/fakexlib.h',
-		'test/fakexlib.c',
-		'xisxwayland.c',
-		install: false)
+               'test/test-xisxwayland.c',
+               'test/fakexlib.h',
+               'test/fakexlib.c',
+               'xisxwayland.c',
+               install: false)
 test('test-xiswayland', t)
