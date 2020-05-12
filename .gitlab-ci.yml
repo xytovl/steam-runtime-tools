@@ -1,0 +1,37 @@
+.templates_sha: &templates_sha 59de540b620c45739871d1a073d76d5521989d11
+
+include:
+ - project: 'freedesktop/ci-templates'
+   ref: *templates_sha
+   file: '/templates/fedora.yml'
+
+stages:
+  - prep
+  - test
+
+.distro-defaults:
+  variables:
+    FDO_DISTRIBUTION_VERSION: 32
+    FDO_DISTRIBUTION_TAG: '2020-05-12.0'
+
+container-prep:
+  extends:
+  - .fdo.container-build@fedora
+  - .distro-defaults
+  stage: prep
+  variables:
+    FDO_DISTRIBUTION_PACKAGES: 'libX11-devel libXrandr-devel gcc meson ninja-build'
+    GIT_STRATEGY: none
+  allow_failure: true
+
+test:
+  extends:
+  - .fdo.distribution-image@fedora
+  - .distro-defaults
+  stage: test
+  needs:
+    - container-prep
+  script:
+    - meson builddir
+    - meson configure builddir
+    - ninja -C builddir test
