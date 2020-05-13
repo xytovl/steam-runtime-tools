@@ -21,6 +21,7 @@
  * USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -35,15 +36,16 @@
 static void usage(void)
 {
 	fprintf(stderr,
-		"Usage: xisxwayland\n"
+		"Usage: xisxwayland [-v|--verbose]\n"
+		"\n"
+		"Options:\n"
+		"  -v, --verbose ... verbose output\n"
 		"\n"
 		"Exit status:\n"
 		"  0 ... the X server is Xwayland\n"
 		"  1 ... the X server is not Xwayland\n"
 		"  2 ... invalid usage\n"
-		"  3 ... failed to connect to the X server\n"
-		"\n"
-		"This tool does not take any options or arguments\n");
+		"  3 ... failed to connect to the X server\n");
 	exit(EXIT_INVALID_USAGE);
 }
 
@@ -53,9 +55,15 @@ int xisxwayland(int argc, char **argv __attribute__((unused)))
 	XRRScreenResources *resources = NULL;
 	XRROutputInfo *output = NULL;
 	int rc = EXIT_ERROR;
+	bool verbose = false;
 
-	if (argc > 1)
-		usage();
+	if (argc > 1) {
+		if (argc == 2)
+			verbose = strcmp(argv[1], "-v") == 0 ||
+				  strcmp(argv[1], "--verbose") == 0;
+		if (!verbose)
+			usage();
+	}
 
 	dpy = XOpenDisplay(NULL);
 	if (!dpy) {
@@ -105,6 +113,19 @@ out:
 		XRRFreeScreenResources(resources);
 	if (dpy)
 		XCloseDisplay(dpy);
+
+	if (verbose) {
+		switch (rc) {
+		case EXIT_IS_XWAYLAND:
+			printf("Xwayland: YES\n");
+			break;
+		case EXIT_NOT_XWAYLAND:
+			printf("Xwayland: NO\n");
+			break;
+		default:
+			break;
+		}
+	}
 
 	return rc;
 }

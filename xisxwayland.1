@@ -4,13 +4,17 @@ xisxwayland \- tool to be used within shell scripts to determine whether the
 X server in use is Xwayland
 .
 .SH "SYNOPSIS"
-.B xisxwayland
+.B xisxwayland [\-v|\-\-verbose]
 .
 .SH "DESCRIPTION"
-Connects to the X server using the 
+Connects to the X server using the
 .B $DISPLAY
 environment variable and checks whether that server is an Xwayland server or
 not.
+.SH "OPTIONS"
+.TP 8
+.B \-\-verbose, \-v
+Print to stdout whether the X server is an Xwayland server or not
 .
 .SH "EXIT STATUS"
 .B xisxwayland
