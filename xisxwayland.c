@@ -49,7 +49,7 @@ static void usage(void)
 	exit(EXIT_INVALID_USAGE);
 }
 
-int xisxwayland(int argc, char **argv __attribute__((unused)))
+int xisxwayland(int argc, char **argv)
 {
 	Display *dpy = NULL;
 	XRRScreenResources *resources = NULL;

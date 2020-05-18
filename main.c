@@ -21,10 +21,9 @@
  * USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-extern int xisxwayland(int argc, char **argv __attribute__((unused)));
+extern int xisxwayland(int argc, char **argv);
 
 int main(int argc, char **argv)
 {
 	return xisxwayland(argc, argv);
 }
-
