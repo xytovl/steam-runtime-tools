@@ -53,7 +53,7 @@ int
 XCloseDisplay(Display *dpy)
 {
 	assert(dpy);
-	free(((_XPrivDisplay)&dpy)->screens);
+	free(((_XPrivDisplay)dpy)->screens);
 	free(dpy);
 	return 0;
 }
