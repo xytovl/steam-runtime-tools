@@ -9,7 +9,7 @@ Xwayland server and 1 otherwise. Any error results in an exit code of 3.
 The usual use-case would be like this:
 ```
 if [ -z "$DISPLAY" ]; then
-   echo "cannot check, DISPlAY is unset"
+   echo "cannot check, DISPLAY is unset"
    exit 1
 fi
 
