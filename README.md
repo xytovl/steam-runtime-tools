@@ -28,7 +28,7 @@ Reporting Bugs
 --------------
 
 Bugs can be filed in the freedesktop.org GitLab instance:
-https://gitlab.freedesktop.org/xorg/app/xisxwayland/issues/
+https://gitlab.freedesktop.org/xorg/app/xisxwayland/-/issues
 
 License
 -------
