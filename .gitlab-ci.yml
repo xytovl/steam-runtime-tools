@@ -13,6 +13,7 @@ include:
  - project: 'freedesktop/ci-templates'
    ref: *templates_sha
    file: '/templates/ci-fairy.yml'
+ - template: Security/SAST.gitlab-ci.yml
 
 stages:
   - prep
