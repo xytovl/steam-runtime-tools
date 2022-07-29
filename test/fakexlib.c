@@ -58,6 +58,16 @@ XCloseDisplay(Display *dpy)
 	return 0;
 }
 
+int
+XQueryExtension(Display *dpy,
+		const char *name,
+		int *opcode,
+		int *first_event,
+		int *firsterror)
+{
+	return !!(behavior_flags & FLAG_XWAYLAND_EXTENSION);
+}
+
 int XRRQueryExtension(Display *dpy, int *event_base, int *error_base)
 {
 	assert(dpy);

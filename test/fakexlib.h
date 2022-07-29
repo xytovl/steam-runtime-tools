@@ -37,6 +37,7 @@ enum lib_behaviors {
 	FLAG_RR_RESOURCES_FAIL = bit(3),
 	FLAG_RR_GET_OUTPUT_FAIL = bit(4),
 	FLAG_RR_OUTPUT_NAME_WAYLAND = bit(5),
+	FLAG_XWAYLAND_EXTENSION = bit(6),
 };
 
 #define FLAG(f_) (behavior_flags |= (f_))

@@ -85,6 +85,17 @@ test_not_xwayland(void)
 	assert(xisxwayland(1, no_args) == 1);
 }
 
+static void
+test_xwayland_ext(void)
+{
+	RESET_FLAGS();
+	FLAG(FLAG_XWAYLAND_EXTENSION);
+	/* just to make sure we don't pick up the fallback */
+	FLAG(FLAG_RR_EXT_FAIL);
+
+	assert(xisxwayland(1, no_args) == 0);
+}
+
 int main(void) {
 	test_no_dpy();
 	test_rr_extension_fail();
@@ -94,6 +105,7 @@ int main(void) {
 
 	test_xwayland();
 	test_not_xwayland();
+	test_xwayland_ext();
 
 	return 0;
 }

@@ -56,6 +56,7 @@ int xisxwayland(int argc, char **argv)
 	XRROutputInfo *output = NULL;
 	int rc = EXIT_ERROR;
 	bool verbose = false;
+	int opcode, event, error;
 
 	if (argc > 1) {
 		if (argc == 2)
@@ -68,6 +69,13 @@ int xisxwayland(int argc, char **argv)
 	dpy = XOpenDisplay(NULL);
 	if (!dpy) {
 		fprintf(stderr, "Failed to connect to X server\n");
+		goto out;
+	}
+	/* For new-enough servers, the XWAYLAND extension is the reliable
+	 * way to check for Xwayland.
+	 */
+	if (XQueryExtension(dpy, "XWAYLAND", &opcode, &event, &error)) {
+		rc = EXIT_IS_XWAYLAND;
 		goto out;
 	}
 
