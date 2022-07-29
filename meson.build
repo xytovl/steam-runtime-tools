@@ -1,5 +1,5 @@
 project('xisxwayland', 'c',
-        version: '1',
+        version: '2',
         license: 'MIT/Expat',
         default_options: ['c_std=gnu99', 'warning_level=2'],
         meson_version: '>= 0.41.0')
