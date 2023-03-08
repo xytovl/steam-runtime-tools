@@ -62,6 +62,7 @@ PvGraphicsProvider *pv_graphics_provider_new (const char *path_in_current_ns,
                                               GError **error);
 
 gchar *pv_graphics_provider_search_in_path_and_bin (PvGraphicsProvider *self,
+                                                    const gchar *search_paths,
                                                     const gchar *program_name);
 SrtSystemInfo *pv_graphics_provider_create_system_info (PvGraphicsProvider *self);
 

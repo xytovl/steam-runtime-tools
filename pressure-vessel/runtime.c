@@ -6002,8 +6002,13 @@ pv_runtime_finish_libc_family (PvRuntime *self,
           g_autofree char *target_path_alloc = NULL;
           const char *target_path = glibc_executables[i].target_path;
           TakeFromProviderFlags flags;
+          const gchar *search_paths = NULL;
+
+          if (g_str_equal (self->provider->path_in_current_ns, "/"))
+            search_paths = g_environ_getenv (self->original_environ, "PATH");
 
           provider_impl = pv_graphics_provider_search_in_path_and_bin (self->provider,
+                                                                       search_paths,
                                                                        executable);
 
           if (target_path == NULL)

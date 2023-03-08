@@ -188,34 +188,49 @@ pv_graphics_provider_class_init (PvGraphicsProviderClass *cls)
   g_object_class_install_properties (object_class, N_PROPERTIES, properties);
 }
 
+/*
+ * search_paths (nullable): List of colon separated paths where the program
+ *  should be searched into, in addition to the hardcoded common directories.
+ */
 gchar *
 pv_graphics_provider_search_in_path_and_bin (PvGraphicsProvider *self,
+                                             const gchar *search_paths,
                                              const gchar *program_name)
 {
-  const gchar * const common_bin_dirs[] =
-  {
-    "/usr/bin",
-    "/bin",
-    "/usr/sbin",
-    "/sbin",
-    NULL
-  };
+  g_autofree gchar *cwd = g_get_current_dir ();
+  g_autoptr(GPtrArray) paths_array = NULL;
+  g_auto(GStrv) paths = NULL;
+  gsize i;
 
   g_return_val_if_fail (PV_IS_GRAPHICS_PROVIDER (self), NULL);
   g_return_val_if_fail (program_name != NULL, NULL);
+  g_return_val_if_fail (strchr (program_name, G_DIR_SEPARATOR) == NULL, NULL);
 
-  if (g_strcmp0 (self->path_in_current_ns, "/") == 0)
+  /* Start with a large enough array to avoid frequent reallocations */
+  paths_array = g_ptr_array_sized_new (16);
+
+  if (search_paths != NULL)
     {
-      gchar *found_path = g_find_program_in_path (program_name);
-      if (found_path != NULL)
-        return found_path;
+      paths = g_strsplit (search_paths, ":", -1);
+      for (i = 0; paths[i] != NULL; i++)
+        g_ptr_array_add (paths_array, (gpointer) paths[i]);
     }
 
-  for (gsize i = 0; i < G_N_ELEMENTS (common_bin_dirs) - 1; i++)
+  /* Hardcoded common binary paths */
+  g_ptr_array_add (paths_array, (gpointer) "/usr/bin");
+  g_ptr_array_add (paths_array, (gpointer) "/bin");
+  g_ptr_array_add (paths_array, (gpointer) "/usr/sbin");
+  g_ptr_array_add (paths_array, (gpointer) "/sbin");
+
+  for (i = 0; i < paths_array->len; i++)
     {
-      g_autofree gchar *test_path = g_build_filename (common_bin_dirs[i],
-                                                      program_name,
-                                                      NULL);
+      g_autofree gchar *test_path = NULL;
+      const gchar *path = g_ptr_array_index(paths_array, i);
+      if (!g_path_is_absolute (path))
+        test_path = g_build_filename (cwd, path, program_name, NULL);
+      else
+        test_path = g_build_filename (path, program_name, NULL);
+
       if (_srt_file_test_in_sysroot (self->path_in_current_ns, self->fd,
                                      test_path, G_FILE_TEST_IS_EXECUTABLE))
         return g_steal_pointer (&test_path);
