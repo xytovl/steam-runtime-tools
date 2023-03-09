@@ -99,7 +99,7 @@ default:
         - docker
         - linux
         - x86_64
-        - isolated
+        - internal
 
 workflow:
     rules:
