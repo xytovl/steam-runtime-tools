@@ -100,6 +100,7 @@ default:
         - internal
         - linux
         - x86_64
+        - isolated
 
 workflow:
     rules:
