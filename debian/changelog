@@ -1,3 +1,22 @@
+steam-runtime-tools (0.20230309.0) UNRELEASED; urgency=medium
+
+  [ Simon McVittie ]
+  * pv-wrap: Stop providing /run/host/container-runtime.
+    This was never an intended way to detect the container environment:
+    the intended interface is to look for /run/host/container-manager, as
+    per <https://systemd.io/CONTAINER_INTERFACE/>.
+    Removing this will cause controller hotplug detection to regress in
+    games that bundled their own copy of SDL between 2.25.x (sometime
+    around September 2022) and 2.26.4. However, removing this can also
+    avoid a crash with some bundled SDL versions.
+    The regression can be avoided by not bundling SDL, and instead
+    relying on the Steam Runtime to provide a sufficiently recent version.
+
+  [ Simon McVittie, Miguel Casique Meneses ]
+  * Tests/CI adjustments (steamrt/tasks#248)
+
+ -- Simon McVittie <smcv@collabora.com>  Thu, 09 Mar 2023 19:49:24 +0000
+
 steam-runtime-tools (0.20230227.0) steamrt; urgency=medium
 
   [ Ludovico de Nittis ]
