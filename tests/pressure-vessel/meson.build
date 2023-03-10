@@ -49,12 +49,6 @@ compiled_tests = [
   'utils',
 ]
 
-# The wrap-setup test fails to link unless -lelf is forced in, with undefined
-# references to elf_version() etc. It isn't clear why... but this seems to work.
-force_libelf = declare_dependency(
-  link_args : ['-Wl,--no-as-needed,-lelf,--as-needed'],
-)
-
 foreach test_name : compiled_tests
   exe = executable(
     'test-' + test_name,
@@ -64,7 +58,6 @@ foreach test_name : compiled_tests
       libglnx_dep,
       test_utils_static_libsteamrt_dep,
       pressure_vessel_wrap_lib_dep,
-      force_libelf,
     ],
     include_directories : pv_include_dirs,
     install : false,
@@ -152,7 +145,6 @@ foreach helper : helpers
       helper + '.c',
     ],
     dependencies : [
-      force_libelf,
       gio_unix,
       json_glib,
       libglnx_dep,
