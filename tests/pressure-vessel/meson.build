@@ -43,6 +43,7 @@ tests = [
 
 compiled_tests = [
   'bwrap-lock',
+  'graphics-provider',
   'resolve-in-sysroot',
   'wait-for-child-processes',
   'wrap-setup',
@@ -56,8 +57,9 @@ foreach test_name : compiled_tests
     dependencies : [
       gio_unix,
       libglnx_dep,
-      test_utils_static_libsteamrt_dep,
+      # Keep libsteamrt_dep at the bottom to avoid linking errors with Scout
       pressure_vessel_wrap_lib_dep,
+      test_utils_static_libsteamrt_dep,
     ],
     include_directories : pv_include_dirs,
     install : false,

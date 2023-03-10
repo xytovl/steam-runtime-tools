@@ -226,6 +226,12 @@ pv_graphics_provider_search_in_path_and_bin (PvGraphicsProvider *self,
     {
       g_autofree gchar *test_path = NULL;
       const gchar *path = g_ptr_array_index(paths_array, i);
+      if (strstr (path, "/.linuxbrew/") != NULL)
+        {
+          g_debug ("Skipping over Homebrew's \"%s\" from PATH", path);
+          continue;
+        }
+
       if (!g_path_is_absolute (path))
         test_path = g_build_filename (cwd, path, program_name, NULL);
       else
