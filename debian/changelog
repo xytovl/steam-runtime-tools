@@ -12,10 +12,21 @@ steam-runtime-tools (0.20230309.0) UNRELEASED; urgency=medium
     The regression can be avoided by not bundling SDL, and instead
     relying on the Steam Runtime to provide a sufficiently recent version.
 
+  [ Ludovico de Nittis ]
+  * graphics-provider: Ignore Homebrew/Linuxbrew paths.
+    Older versions of Homebrew used to install `ldconfig` into the general
+    Homebrew bin directory that was usually prepended to PATH. This
+    could result in crashes, because ldconfig is tightly coupled to the
+    version of glibc in use, and we would try to use Homebrew's ldconfig
+    with the system glibc. Newer versions of Homebrew avoid this by not
+    putting their ldconfig in the PATH. (steam-runtime#569)
+  * wrap-setup: Preserve a custom XCURSOR_PATH values from the host
+    (steam-runtime#572)
+
   [ Simon McVittie, Miguel Casique Meneses ]
   * Tests/CI adjustments (steamrt/tasks#248)
 
- -- Simon McVittie <smcv@collabora.com>  Thu, 09 Mar 2023 19:49:24 +0000
+ -- Simon McVittie <smcv@collabora.com>  Mon, 13 Mar 2023 18:47:02 +0000
 
 steam-runtime-tools (0.20230227.0) steamrt; urgency=medium
 
