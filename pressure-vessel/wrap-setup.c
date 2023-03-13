@@ -436,6 +436,14 @@ pv_wrap_set_icons_env_vars (PvEnviron *container_env,
       pv_search_path_append (new_xcursor_path, "/usr/share/pixmaps");
       pv_search_path_append (new_xcursor_path, "/usr/X11R6/lib/X11/icons");
     }
+  else
+    {
+      /* Append the XCURSOR_PATH values from the host. This is expected to work
+       * only for the paths that have been bind-mounted to the same exact
+       * location inside the container. One example would be the home directory,
+       * unless pv was executed with the `--unshare-home` option. */
+      pv_search_path_append (new_xcursor_path, original_xcursor_path);
+    }
   /* Finally append the binded paths from the host */
   pv_search_path_append (new_xcursor_path, "/run/host/user-share/icons");
   pv_search_path_append (new_xcursor_path, "/run/host/share/icons");
