@@ -181,7 +181,7 @@ pv_bwrap_lock_new (int at_fd,
     }
 
   g_assert (ofd == 0 || ofd == 1);
-  return pv_bwrap_lock_new_take (glnx_steal_fd (&fd), ofd);
+  return pv_bwrap_lock_new_take (g_steal_fd (&fd), ofd);
 }
 
 /**
@@ -204,7 +204,7 @@ pv_bwrap_lock_new_take (int fd,
   g_return_val_if_fail (is_ofd == 0 || is_ofd == 1, NULL);
 
   self = g_slice_new0 (PvBwrapLock);
-  self->fd = glnx_steal_fd (&fd);
+  self->fd = g_steal_fd (&fd);
   self->is_ofd = is_ofd;
   return self;
 }
@@ -216,7 +216,7 @@ pv_bwrap_lock_free (PvBwrapLock *self)
 
   g_return_if_fail (self != NULL);
 
-  fd = glnx_steal_fd (&self->fd);
+  fd = g_steal_fd (&self->fd);
   g_slice_free (PvBwrapLock, self);
   /* fd is closed by glnx_autofd if necessary, and that releases the lock */
 }
@@ -225,7 +225,7 @@ int
 pv_bwrap_lock_steal_fd (PvBwrapLock *self)
 {
   g_return_val_if_fail (self != NULL, -1);
-  return glnx_steal_fd (&self->fd);
+  return g_steal_fd (&self->fd);
 }
 
 gboolean

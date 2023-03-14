@@ -1124,7 +1124,7 @@ pv_runtime_create_copy (PvRuntime *self,
   source_lock = g_steal_pointer (&self->runtime_lock);
   self->runtime_lock = g_steal_pointer (&copy_lock);
   self->mutable_sysroot = g_steal_pointer (&temp_dir);
-  self->mutable_sysroot_fd = glnx_steal_fd (&temp_dir_fd);
+  self->mutable_sysroot_fd = g_steal_fd (&temp_dir_fd);
 
   return TRUE;
 }
@@ -2430,7 +2430,7 @@ pv_runtime_get_capsule_capture_libs (PvRuntime *self,
                                     self->libcapsule_knowledge);
     }
 
-  flatpak_bwrap_add_fd (ret, glnx_steal_fd (&runtime_files_fd));
+  flatpak_bwrap_add_fd (ret, g_steal_fd (&runtime_files_fd));
   return g_steal_pointer (&ret);
 }
 
@@ -2642,7 +2642,7 @@ pv_runtime_capture_libraries (PvRuntime *self,
 
       flatpak_bwrap_add_arg_printf (temp_bwrap, "/proc/self/fd/%d/%s",
                                     fd, destination);
-      flatpak_bwrap_add_fd (temp_bwrap, glnx_steal_fd (&fd));
+      flatpak_bwrap_add_fd (temp_bwrap, g_steal_fd (&fd));
     }
 
   for (i = 0; i < n_patterns; i++)

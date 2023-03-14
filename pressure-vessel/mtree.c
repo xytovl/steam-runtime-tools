@@ -452,7 +452,7 @@ pv_mtree_apply (const char *mtree,
   if (!glnx_openat_rdonly (AT_FDCWD, mtree, TRUE, &mtree_fd, error))
     return FALSE;
 
-  istream = g_unix_input_stream_new (glnx_steal_fd (&mtree_fd), TRUE);
+  istream = g_unix_input_stream_new (g_steal_fd (&mtree_fd), TRUE);
 
   if (flags & PV_MTREE_APPLY_FLAGS_GZIP)
     {

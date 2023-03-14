@@ -1742,7 +1742,7 @@ _srt_open_elf (int dfd,
     return glnx_throw (error, "Error reading library \"%s\": %s",
                        file_path, elf_errmsg (elf_errno ()));
 
-  *fd = glnx_steal_fd (&file_fd);
+  *fd = g_steal_fd (&file_fd);
   *elf = g_steal_pointer (&local_elf);
 
   return TRUE;

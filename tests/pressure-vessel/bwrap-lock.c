@@ -116,7 +116,7 @@ test_locks (Fixture *f,
   g_clear_error (&error);
 
   /* We can make a new lock from an existing one */
-  read_lock1 = pv_bwrap_lock_new_take (glnx_steal_fd (&fd), is_ofd);
+  read_lock1 = pv_bwrap_lock_new_take (g_steal_fd (&fd), is_ofd);
   g_assert_nonnull (read_lock1);
   write_lock1 = pv_bwrap_lock_new (AT_FDCWD, lock, PV_BWRAP_LOCK_FLAGS_WRITE,
                                    &error);
