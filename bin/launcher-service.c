@@ -1264,7 +1264,7 @@ avoid_stdin (int fd,
           return -1;
         }
 
-      fd = glnx_steal_fd (&old_stdin);
+      fd = g_steal_fd (&old_stdin);
     }
 
   return fd;

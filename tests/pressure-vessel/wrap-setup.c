@@ -84,7 +84,7 @@ open_or_die (const char *path,
   glnx_autofd int fd = open (path, flags | O_CLOEXEC, mode);
 
   if (fd >= 0)
-    return glnx_steal_fd (&fd);
+    return g_steal_fd (&fd);
   else
     g_error ("open(%s, 0x%x): %s", path, flags, g_strerror (errno));
 }
@@ -144,7 +144,7 @@ fixture_create_exports (Fixture *f)
   g_autoptr(FlatpakExports) exports = flatpak_exports_new ();
   glnx_autofd int fd = open_or_die (f->mock_host, O_RDONLY | O_DIRECTORY, 0755);
 
-  flatpak_exports_take_host_fd (exports, glnx_steal_fd (&fd));
+  flatpak_exports_take_host_fd (exports, g_steal_fd (&fd));
   return g_steal_pointer (&exports);
 }
 

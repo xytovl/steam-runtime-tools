@@ -54,7 +54,7 @@ clear_fd (void *p)
 /*
  * Steal `*fdp` and append it to @fds.
  *
- * We can't just use g_array_append_val (fds, glnx_steal_fd (&fd))
+ * We can't just use g_array_append_val (fds, g_steal_fd (&fd))
  * because g_array_append_val is a macro that takes a pointer to its
  * argument.
  */
@@ -62,7 +62,7 @@ static inline void
 fd_array_take (GArray *fds,
                int *fdp)
 {
-  int fd = glnx_steal_fd (fdp);
+  int fd = g_steal_fd (fdp);
 
   g_array_append_val (fds, fd);
 }
@@ -371,7 +371,7 @@ _srt_resolve_in_sysroot (int sysroot,
       if (real_path_out != NULL)
         *real_path_out = g_string_free (g_steal_pointer (&current_path), FALSE);
 
-      return glnx_steal_fd (&fd);
+      return g_steal_fd (&fd);
     }
 
   if (real_path_out != NULL)
@@ -381,5 +381,5 @@ _srt_resolve_in_sysroot (int sysroot,
    * documented to work: g_array_index expands to fds->data[some_offset].
    * We need to steal ownership of the fd back from @fds so it won't be
    * closed with the rest of them when @fds is freed. */
-  return glnx_steal_fd (&g_array_index (fds, int, fds->len - 1));
+  return g_steal_fd (&g_array_index (fds, int, fds->len - 1));
 }

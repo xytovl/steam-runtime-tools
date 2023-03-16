@@ -313,7 +313,7 @@ copy_tree_helper (const char *fpath,
           }
 
         flatpak_bwrap_add_args_data_fd (nftw_data.bwrap,
-                                        "--ro-bind-data", glnx_steal_fd (&fd),
+                                        "--ro-bind-data", g_steal_fd (&fd),
                                         path_in_container);
         break;
 
