@@ -711,7 +711,7 @@ static void
 jsonify_container (JsonBuilder *builder,
                    SrtSystemInfo *info)
 {
-  SrtContainerInfo *container_info = srt_system_info_check_container (info);
+  g_autoptr(SrtContainerInfo) container_info = srt_system_info_check_container (info);
   SrtContainerType type = SRT_CONTAINER_TYPE_UNKNOWN;
   const gchar *flatpak_version = NULL;
   const gchar *host_directory = NULL;
