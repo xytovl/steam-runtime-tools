@@ -1018,7 +1018,7 @@ test_same_file (Fixture *f,
   hard_link_to = g_build_filename (temp, "hard-link-to", NULL);
   symlink_to_dev_null = g_build_filename (temp, "symlink", NULL);
 
-  g_file_set_contents (hard_link_from, "hello", -1, NULL);
+  g_file_set_contents (hard_link_from, "hello", -1, &error);
   g_assert_no_error (error);
 
   if (link (hard_link_from, hard_link_to) != 0)
