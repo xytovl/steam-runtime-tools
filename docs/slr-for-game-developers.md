@@ -168,6 +168,45 @@ This will automatically download *Steam Linux Runtime - soldier*,
 together with Proton and/or *Steam Linux Runtime*, into your default
 Steam library.
 
+## <span id="s-r-launch-options">Using steam-runtime-launch-options</span>
+
+[steam-runtime-launch-options]: #s-r-launch-options
+
+The Steam Runtime provides a developer tool called
+`steam-runtime-launch-options` which can adjust how Steam games are
+launched.
+To use this tool, ensure that Python 3, GTK 3, GObject-Introspection
+and PyGI are installed
+(for example `sudo apt install python3-gi gir1.2-gtk-3.0` on Debian,
+or `sudo pacman -Syu pygobject gtk3` on Arch Linux),
+then set a Steam game's [launch options][set launch options] to:
+
+```
+steam-runtime-launch-options -- %command%
+```
+
+The special token `%command%` should be typed literally: it changes Steam's
+interpretation of the launch options so that instead of appending the
+given launch options to the game's command-line, Steam will replace
+`%command%` with the complete command-line for the game, including any
+compatibility tool wrappers.
+See the [compatibility tool interface][] for more information on how
+this works.
+
+Then launch the game.
+Instead of the game itself, you will see a GUI window with various options
+that can be adjusted.
+Change whatever options are necessary, and then launch the game.
+
+This tool intentionally does not save configuration: every time it is
+run, it defaults to running the game in the same way that Steam
+normally would.
+Any special settings will need to be selected every time.
+
+This tool looks for possible runtimes and pressure-vessel versions in
+several likely locations including your Steam library directory,
+the current working directory, and `~/tmp`.
+
 ## Launching non-Steam games in a Steam Linux Runtime container
 
 First, install a Steam game and configure it to use the required
@@ -215,6 +254,19 @@ as a divider between its own options and the game's options.
 Anything before `--` will be parsed as a pressure-vessel option.
 Anything after `--` will be ignored by pressure-vessel, but will be
 passed to the game unaltered.
+
+The [steam-runtime-launch-options][] tool can be used from outside Steam
+by prefixing it to the command, like this:
+
+```
+$ ~/.steam/root/ubuntu12_32/steam-runtime/amd64/usr/bin/steam-runtime-launch-options \
+    -- \
+    /path/to/steamlibrary/steamapps/common/SteamLinuxRuntime_soldier/run \
+    $pressure_vessel_options \
+    -- \
+    ./my-game.sh \
+    $game_options
+```
 
 By default, the command to be run in the container gets `/dev/null` as
 its standard input, so it cannot be an interactive shell like `bash`.
