@@ -447,9 +447,13 @@ Recent versions of the various container runtimes include a feature that
 can be used to run arbitrary debugging commands inside the container.
 This feature requires a working D-Bus session bus.
 
-To activate this, set the `STEAM_COMPAT_LAUNCHER_SERVICE` environment
-variable to the `compatmanager_layer_name` listed in the `toolmanifest.vdf`
-of the compatibility tool used to run a game:
+If using [steam-runtime-launch-options][], this can be activated by
+setting the *Command injection* option to *SteamLinuxRuntime_...*,
+*any Proton version* or _any layered scout-on-* runtime_.
+
+Or, to activate this programmatically, set the `STEAM_COMPAT_LAUNCHER_SERVICE`
+environment variable to the `compatmanager_layer_name` listed in the
+`toolmanifest.vdf` of the compatibility tool used to run a game:
 
 * `container-runtime` for "Steam Linux Runtime - soldier" or
     "Steam Linux Runtime - sniper"
