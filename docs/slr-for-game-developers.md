@@ -791,6 +791,10 @@ To do this, you can download an archive named `pressure-vessel-bin.tar.gz`
 or `pressure-vessel-bin+src.tar.gz`, unpack it, and use it to replace the
 `steamapps/common/SteamLinuxRuntime_soldier/pressure-vessel/` directory.
 
+Alternatively, [steam-runtime-launch-options][] will look for copies of
+pressure-vessel in several likely locations, including `./pressure-vessel`
+and `~/tmp/pressure-vessel`, and offer them as choices.
+
 Official releases of pressure-vessel are available from
 <https://repo.steampowered.com/pressure-vessel/snapshots/>.
 If you are comfortable with using untested pre-release software, it is
