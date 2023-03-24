@@ -726,8 +726,10 @@ $ mkdir -p sdk
 $ tar -C sdk -xf ~/Downloads/com.valvesoftware.SteamRuntime.Sdk-amd64,i386-soldier-runtime.tar.gz
 ```
 
-You can now use this runtime by passing the option `--runtime=sdk` to
-the `SteamLinuxRuntime_soldier/run` script, for example:
+You can now use this runtime by selecting it from the *Container runtime*
+drop-down list in [steam-runtime-launch-options][], or by
+passing the option `--runtime=sdk` to the `SteamLinuxRuntime_soldier/run`
+script, for example:
 
 ```
 $ cd /builds/my-game
