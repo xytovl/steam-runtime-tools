@@ -718,7 +718,13 @@ In the `SteamLinuxRuntime_soldier` directory in your
 Steam library, create a directory `SteamLinuxRuntime_soldier/sdk` and unpack the
 archive into it, so that you have files like
 `steamapps/common/SteamLinuxRuntime_soldier/sdk/files/lib/os-release` and
-`steamapps/common/SteamLinuxRuntime_soldier/sdk/metadata`.
+`steamapps/common/SteamLinuxRuntime_soldier/sdk/metadata`:
+
+```
+$ cd .../SteamLinuxRuntime_soldier
+$ mkdir -p sdk
+$ tar -C sdk -xf ~/Downloads/com.valvesoftware.SteamRuntime.Sdk-amd64,i386-soldier-runtime.tar.gz
+```
 
 You can now use this runtime by passing the option `--runtime=sdk` to
 the `SteamLinuxRuntime_soldier/run` script, for example:
