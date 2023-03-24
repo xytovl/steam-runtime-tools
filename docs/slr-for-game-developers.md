@@ -385,40 +385,10 @@ By default, the Steam Linux Runtime will just launch the game, but this
 is not always convenient.
 
 You can get an interactive shell inside the container instead of running
-your game, by exporting the environment variable
-`PRESSURE_VESSEL_SHELL=instead` or using the equivalent command-line option
-`--shell=instead`.
-
-When running games through Steam, you can either export
-`PRESSURE_VESSEL_SHELL=instead` for the whole Steam process, or
-[change an individual game's launch options][set launch options] to
-`PRESSURE_VESSEL_SHELL=instead %command%`.
-
-The special token `%command%` should be typed literally: it changes Steam's
-interpretation of the launch options so that instead of appending the
-given launch options to the game's command-line, Steam will replace
-`%command%` with the complete command-line for the game, including any
-compatibility tool wrappers.
-See the [compatibility tool interface][] for more information on how
-this works.
-
-When launching the Steam Linux Runtime separately, you can either set
-the same environment variable, or use the command-line option like this:
-
-```
-$ cd /builds/my-game
-$ /path/to/steamlibrary/steamapps/common/SteamLinuxRuntime_soldier/run \
-    --shell=instead \
-    -- \
-    ./my-game.sh \
-    $game_options
-```
-
-By default, the interactive shell runs in an `xterm` terminal emulator
-which is included in the container runtime.
-If you ran Steam or the game from a terminal or `ssh` session, you can
-use `PRESSURE_VESSEL_TERMINAL=tty` or `--terminal=tty` to put the
-interactive shell in the same place as your previous shell session.
+your game, by using [steam-runtime-launch-options][] and
+setting the *Interactive shell* option to *Instead of running the command*,
+or by exporting the environment variable `PRESSURE_VESSEL_SHELL=instead`,
+or by using the equivalent command-line option `--shell=instead`.
 
 When the interactive shell starts, the game's command-line is placed
 in the special variable `"$@"`, as though you had run a command similar
@@ -438,6 +408,35 @@ prompt to help you to recognise the container shell, for example:
 
 Code similar to [Debian's /etc/bash.bashrc][] can be used to provide
 this behaviour on other distributions, if desired.
+
+When running games through Steam, you can either export
+`PRESSURE_VESSEL_SHELL=instead` for the whole Steam process, or
+[change an individual game's launch options][set launch options] to
+`PRESSURE_VESSEL_SHELL=instead %command%`.
+As with [steam-runtime-launch-options][],
+The special token `%command%` should be typed literally.
+
+When launching the Steam Linux Runtime separately, you can either set
+the same environment variable, or use the command-line option like this:
+
+```
+$ cd /builds/my-game
+$ /path/to/steamlibrary/steamapps/common/SteamLinuxRuntime_soldier/run \
+    --shell=instead \
+    -- \
+    ./my-game.sh \
+    $game_options
+```
+
+By default, the interactive shell runs in an `xterm` terminal emulator
+which is included in the container runtime.
+If you ran Steam or the game from a terminal or `ssh` session, you can
+use `PRESSURE_VESSEL_TERMINAL=tty` or `--terminal=tty` to put the
+interactive shell in the same place as your previous shell session.
+
+It is also possible to ask for an interactive shell after running the
+command (replace `instead` with `after`), or only if the command exits
+with a nonzero status (replace `instead` with `fail`).
 
 [set launch options]: https://help.steampowered.com/en/faqs/view/7D01-D2DD-D75E-2955
 [Debian's /etc/bash.bashrc]: https://sources.debian.org/src/bash/5.1-2/debian/etc.bash.bashrc/
