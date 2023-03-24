@@ -744,6 +744,37 @@ $ /path/to/steamlibrary/steamapps/common/SteamLinuxRuntime_soldier/run \
 You will find that tools like `gdb` and `strace` are available in the SDK
 environment.
 
+## Running in a modified Platform or SDK environment
+
+The default `Platform` environment provided by *Steam Linux Runtime - soldier*
+and *Steam Linux Runtime - sniper* in the `soldier_platform_*` or
+`sniper_platform_*` directory is in a format that has been optimized
+for distribution through the Steampipe CDN, and cannot easily be modified:
+most files' names, permissions and checksums are checked against a manifest
+file during container setup, and some files do not exist in `*_platform_*`
+at all and are dynamically created from the manifest file during container
+setup.
+
+During game or runtime development, it is sometimes useful to use a
+modified runtime.
+This is unsupported, and should not be used as a production environment.
+
+To use a locally-modified SDK environment, start by downloading and
+unpacking the SDK as described above.
+You can modify the `sdk` directory before running the game, for example
+by unpacking a `.deb` file with `dpkg-deb -x` and copying the necessary
+files into place.
+
+To use a locally-modified Platform environment, proceed as if for the SDK,
+but download
+`com.valvesoftware.SteamRuntime.Platform-amd64,i386-soldier-runtime.tar.gz`
+and unpack it into `SteamLinuxRuntime_soldier/platform`,
+so that you have files like
+`steamapps/common/SteamLinuxRuntime_soldier/platform/files/lib/os-release` and
+`steamapps/common/SteamLinuxRuntime_soldier/platform/metadata`.
+Then you can proceed as if for the SDK, but use `--runtime=platform`
+instead of `--runtime=sdk`.
+
 ## Upgrading pressure-vessel
 
 [Upgrading pressure-vessel]: #upgrading-pressure-vessel
