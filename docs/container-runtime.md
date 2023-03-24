@@ -134,6 +134,17 @@ It can also be installed by running this command:
 Documentation in the `steamrt` "metapackage" provides
 [more information about sniper](https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/sniper/README.md).
 
+## Steam Runtime 4, `medic`
+
+Steam Runtime 4, `medic`, is a prototype runtime currently based on Debian 12
+(which is expected to be released in mid 2023).
+Like `sniper`, it is structurally similar to `soldier`, but with a newer
+base distribution.
+
+`medic` is not yet available as a compatibility tool, and its
+contents are subject to change depending on testing results and game
+requirements.
+
 ## <span id="why">Why the container runtimes are necessary</span>
 
 The [traditional `LD_LIBRARY_PATH` runtime](ld-library-path-runtime.md)
