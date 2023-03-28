@@ -96,7 +96,6 @@ DIFFERENT_COPYRIGHT_FILES = [
 ]
 SCRIPTS = [
     'pressure-vessel-locale-gen',
-    'pressure-vessel-test-ui',
     'pressure-vessel-unruntime',
     'steam-runtime-launch-options',
 ]

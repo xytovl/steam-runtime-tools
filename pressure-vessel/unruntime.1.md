@@ -55,11 +55,6 @@ One option is special:
 `PRESSURE_VESSEL_BATCH`
 :   If set to 1, it is equivalent to `--batch`.
 
-`PRESSURE_VESSEL_WRAP_GUI`
-:   If set, and `--batch` is not active, run the
-    **pressure-vessel-test-ui** testing/development user
-    interface instead of running **pressure-vessel-wrap** immediately.
-
 `STEAM_RUNTIME`
 :   Unset.
 
@@ -75,8 +70,8 @@ One option is special:
 # SIGNALS
 
 The **pressure-vessel-unruntime** process replaces itself with
-**pressure-vessel-test-ui** or **pressure-vessel-wrap**, so signal
-handling is the same as for those programs.
+**pressure-vessel-wrap**, so signal
+handling is the same as for **pressure-vessel-wrap**.
 
 # EXIT STATUS
 

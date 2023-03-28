@@ -44,7 +44,6 @@ pv_warning_cflags = [
 
 scripts = [
   'pressure-vessel-locale-gen',
-  'pressure-vessel-test-ui',
   'pressure-vessel-unruntime',
 ]
 
@@ -207,7 +206,6 @@ if build_man_pages
   foreach tool : [
     'adverb',
     'locale-gen',
-    'test-ui',
     'try-setlocale',
     'unruntime',
     'wrap',

@@ -48,10 +48,6 @@ which is generated as a side-effect of running `populate-depot.py`.
     [flatdeb-steam](https://gitlab.steamos.cloud/steamrt/flatdeb-steam)
     by assembling .deb packages into a complete runtime environment.
 
-    Technically you can have more than one runtime in a depot and use
-    `pressure-vessel-test-ui` to switch between them, but the official
-    releases only contain one runtime each.
-
     These are downloaded by `populate-depot.py` during build.
 
 * `presure-vessel`: A bundled, relocatable pressure-vessel binary build.

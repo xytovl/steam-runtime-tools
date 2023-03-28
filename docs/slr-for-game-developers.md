@@ -168,6 +168,45 @@ This will automatically download *Steam Linux Runtime - soldier*,
 together with Proton and/or *Steam Linux Runtime*, into your default
 Steam library.
 
+## <span id="s-r-launch-options">Using steam-runtime-launch-options</span>
+
+[steam-runtime-launch-options]: #s-r-launch-options
+
+The Steam Runtime provides a developer tool called
+`steam-runtime-launch-options` which can adjust how Steam games are
+launched.
+To use this tool, ensure that Python 3, GTK 3, GObject-Introspection
+and PyGI are installed
+(for example `sudo apt install python3-gi gir1.2-gtk-3.0` on Debian,
+or `sudo pacman -Syu pygobject gtk3` on Arch Linux),
+then set a Steam game's [launch options][set launch options] to:
+
+```
+steam-runtime-launch-options -- %command%
+```
+
+The special token `%command%` should be typed literally: it changes Steam's
+interpretation of the launch options so that instead of appending the
+given launch options to the game's command-line, Steam will replace
+`%command%` with the complete command-line for the game, including any
+compatibility tool wrappers.
+See the [compatibility tool interface][] for more information on how
+this works.
+
+Then launch the game.
+Instead of the game itself, you will see a GUI window with various options
+that can be adjusted.
+Change whatever options are necessary, and then launch the game.
+
+This tool intentionally does not save configuration: every time it is
+run, it defaults to running the game in the same way that Steam
+normally would.
+Any special settings will need to be selected every time.
+
+This tool looks for possible runtimes and pressure-vessel versions in
+several likely locations including your Steam library directory,
+the current working directory, and `~/tmp`.
+
 ## Launching non-Steam games in a Steam Linux Runtime container
 
 First, install a Steam game and configure it to use the required
@@ -215,6 +254,19 @@ as a divider between its own options and the game's options.
 Anything before `--` will be parsed as a pressure-vessel option.
 Anything after `--` will be ignored by pressure-vessel, but will be
 passed to the game unaltered.
+
+The [steam-runtime-launch-options][] tool can be used from outside Steam
+by prefixing it to the command, like this:
+
+```
+$ ~/.steam/root/ubuntu12_32/steam-runtime/amd64/usr/bin/steam-runtime-launch-options \
+    -- \
+    /path/to/steamlibrary/steamapps/common/SteamLinuxRuntime_soldier/run \
+    $pressure_vessel_options \
+    -- \
+    ./my-game.sh \
+    $game_options
+```
 
 By default, the command to be run in the container gets `/dev/null` as
 its standard input, so it cannot be an interactive shell like `bash`.
@@ -333,40 +385,10 @@ By default, the Steam Linux Runtime will just launch the game, but this
 is not always convenient.
 
 You can get an interactive shell inside the container instead of running
-your game, by exporting the environment variable
-`PRESSURE_VESSEL_SHELL=instead` or using the equivalent command-line option
-`--shell=instead`.
-
-When running games through Steam, you can either export
-`PRESSURE_VESSEL_SHELL=instead` for the whole Steam process, or
-[change an individual game's launch options][set launch options] to
-`PRESSURE_VESSEL_SHELL=instead %command%`.
-
-The special token `%command%` should be typed literally: it changes Steam's
-interpretation of the launch options so that instead of appending the
-given launch options to the game's command-line, Steam will replace
-`%command%` with the complete command-line for the game, including any
-compatibility tool wrappers.
-See the [compatibility tool interface][] for more information on how
-this works.
-
-When launching the Steam Linux Runtime separately, you can either set
-the same environment variable, or use the command-line option like this:
-
-```
-$ cd /builds/my-game
-$ /path/to/steamlibrary/steamapps/common/SteamLinuxRuntime_soldier/run \
-    --shell=instead \
-    -- \
-    ./my-game.sh \
-    $game_options
-```
-
-By default, the interactive shell runs in an `xterm` terminal emulator
-which is included in the container runtime.
-If you ran Steam or the game from a terminal or `ssh` session, you can
-use `PRESSURE_VESSEL_TERMINAL=tty` or `--terminal=tty` to put the
-interactive shell in the same place as your previous shell session.
+your game, by using [steam-runtime-launch-options][] and
+setting the *Interactive shell* option to *Instead of running the command*,
+or by exporting the environment variable `PRESSURE_VESSEL_SHELL=instead`,
+or by using the equivalent command-line option `--shell=instead`.
 
 When the interactive shell starts, the game's command-line is placed
 in the special variable `"$@"`, as though you had run a command similar
@@ -387,6 +409,35 @@ prompt to help you to recognise the container shell, for example:
 Code similar to [Debian's /etc/bash.bashrc][] can be used to provide
 this behaviour on other distributions, if desired.
 
+When running games through Steam, you can either export
+`PRESSURE_VESSEL_SHELL=instead` for the whole Steam process, or
+[change an individual game's launch options][set launch options] to
+`PRESSURE_VESSEL_SHELL=instead %command%`.
+As with [steam-runtime-launch-options][],
+The special token `%command%` should be typed literally.
+
+When launching the Steam Linux Runtime separately, you can either set
+the same environment variable, or use the command-line option like this:
+
+```
+$ cd /builds/my-game
+$ /path/to/steamlibrary/steamapps/common/SteamLinuxRuntime_soldier/run \
+    --shell=instead \
+    -- \
+    ./my-game.sh \
+    $game_options
+```
+
+By default, the interactive shell runs in an `xterm` terminal emulator
+which is included in the container runtime.
+If you ran Steam or the game from a terminal or `ssh` session, you can
+use `PRESSURE_VESSEL_TERMINAL=tty` or `--terminal=tty` to put the
+interactive shell in the same place as your previous shell session.
+
+It is also possible to ask for an interactive shell after running the
+command (replace `instead` with `after`), or only if the command exits
+with a nonzero status (replace `instead` with `fail`).
+
 [set launch options]: https://help.steampowered.com/en/faqs/view/7D01-D2DD-D75E-2955
 [Debian's /etc/bash.bashrc]: https://sources.debian.org/src/bash/5.1-2/debian/etc.bash.bashrc/
 
@@ -396,9 +447,13 @@ Recent versions of the various container runtimes include a feature that
 can be used to run arbitrary debugging commands inside the container.
 This feature requires a working D-Bus session bus.
 
-To activate this, set the `STEAM_COMPAT_LAUNCHER_SERVICE` environment
-variable to the `compatmanager_layer_name` listed in the `toolmanifest.vdf`
-of the compatibility tool used to run a game:
+If using [steam-runtime-launch-options][], this can be activated by
+setting the *Command injection* option to *SteamLinuxRuntime_...*,
+*any Proton version* or _any layered scout-on-* runtime_.
+
+Or, to activate this programmatically, set the `STEAM_COMPAT_LAUNCHER_SERVICE`
+environment variable to the `compatmanager_layer_name` listed in the
+`toolmanifest.vdf` of the compatibility tool used to run a game:
 
 * `container-runtime` for "Steam Linux Runtime - soldier" or
     "Steam Linux Runtime - sniper"
@@ -663,10 +718,18 @@ In the `SteamLinuxRuntime_soldier` directory in your
 Steam library, create a directory `SteamLinuxRuntime_soldier/sdk` and unpack the
 archive into it, so that you have files like
 `steamapps/common/SteamLinuxRuntime_soldier/sdk/files/lib/os-release` and
-`steamapps/common/SteamLinuxRuntime_soldier/sdk/metadata`.
+`steamapps/common/SteamLinuxRuntime_soldier/sdk/metadata`:
 
-You can now use this runtime by passing the option `--runtime=sdk` to
-the `SteamLinuxRuntime_soldier/run` script, for example:
+```
+$ cd .../SteamLinuxRuntime_soldier
+$ mkdir -p sdk
+$ tar -C sdk -xf ~/Downloads/com.valvesoftware.SteamRuntime.Sdk-amd64,i386-soldier-runtime.tar.gz
+```
+
+You can now use this runtime by selecting it from the *Container runtime*
+drop-down list in [steam-runtime-launch-options][], or by
+passing the option `--runtime=sdk` to the `SteamLinuxRuntime_soldier/run`
+script, for example:
 
 ```
 $ cd /builds/my-game
@@ -680,6 +743,37 @@ $ /path/to/steamlibrary/steamapps/common/SteamLinuxRuntime_soldier/run \
 
 You will find that tools like `gdb` and `strace` are available in the SDK
 environment.
+
+## Running in a modified Platform or SDK environment
+
+The default `Platform` environment provided by *Steam Linux Runtime - soldier*
+and *Steam Linux Runtime - sniper* in the `soldier_platform_*` or
+`sniper_platform_*` directory is in a format that has been optimized
+for distribution through the Steampipe CDN, and cannot easily be modified:
+most files' names, permissions and checksums are checked against a manifest
+file during container setup, and some files do not exist in `*_platform_*`
+at all and are dynamically created from the manifest file during container
+setup.
+
+During game or runtime development, it is sometimes useful to use a
+modified runtime.
+This is unsupported, and should not be used as a production environment.
+
+To use a locally-modified SDK environment, start by downloading and
+unpacking the SDK as described above.
+You can modify the `sdk` directory before running the game, for example
+by unpacking a `.deb` file with `dpkg-deb -x` and copying the necessary
+files into place.
+
+To use a locally-modified Platform environment, proceed as if for the SDK,
+but download
+`com.valvesoftware.SteamRuntime.Platform-amd64,i386-soldier-runtime.tar.gz`
+and unpack it into `SteamLinuxRuntime_soldier/platform`,
+so that you have files like
+`steamapps/common/SteamLinuxRuntime_soldier/platform/files/lib/os-release` and
+`steamapps/common/SteamLinuxRuntime_soldier/platform/metadata`.
+Then you can proceed as if for the SDK, but use `--runtime=platform`
+instead of `--runtime=sdk`.
 
 ## Upgrading pressure-vessel
 
@@ -696,6 +790,10 @@ make use of new features or try out new bug-fixes.
 To do this, you can download an archive named `pressure-vessel-bin.tar.gz`
 or `pressure-vessel-bin+src.tar.gz`, unpack it, and use it to replace the
 `steamapps/common/SteamLinuxRuntime_soldier/pressure-vessel/` directory.
+
+Alternatively, [steam-runtime-launch-options][] will look for copies of
+pressure-vessel in several likely locations, including `./pressure-vessel`
+and `~/tmp/pressure-vessel`, and offer them as choices.
 
 Official releases of pressure-vessel are available from
 <https://repo.steampowered.com/pressure-vessel/snapshots/>.

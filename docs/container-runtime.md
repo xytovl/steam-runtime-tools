@@ -55,13 +55,15 @@ At the time of writing, soldier is used as a runtime environment for
 Proton 5.13 or later, which are compiled against the newer library stack
 and would not be compatible with scout.
 
-Native Linux games that require soldier cannot yet be released on Steam.
-This will hopefully become possible in future.
+Native Linux games that require soldier cannot currently be released on Steam.
+The next-generation runtime for native Linux games is intended to be
+Steam Runtime 3 `sniper` (see below).
 
 The *Steam Linux Runtime - soldier* compatibility tool, app ID 1391110,
 is automatically downloaded to your Steam library as
 `steamapps/common/SteamLinuxRuntime_soldier` when you select a version
-of Proton that requires it.
+of Proton that requires it, or the *Steam Linux Runtime* compatibility
+tool which requires it (see below).
 It can also be installed by running this command:
 
     steam steam://install/1391110
@@ -97,10 +99,12 @@ It can also be installed by running this command:
 It is implemented by entering a `soldier` container, and then setting up
 a `scout` `LD_LIBRARY_PATH` runtime inside that container.
 
-Dota 2 recently started to
+Many native Linux games are run under this compatibility tool on the
+Steam Deck.
+On desktop Linux, Dota 2 recently started to
 [use the Steam Linux Runtime compatibility tool by default](https://store.steampowered.com/news/app/570/view/4978168332488878344).
-This mechanism is not yet available for third-party games, but will
-hopefully become available in future.
+This mechanism is not currently available for third-party games on
+desktop Linux.
 
 ## Steam Runtime 3, `sniper`
 
@@ -109,9 +113,16 @@ Steam Runtime 3, `sniper`, is another newer runtime based on Debian 11
 It is very similar to `soldier`, except for its base distribution being
 2 years newer: this means its core libraries and compiler are also
 approximately 2 years newer.
+It is likely that future versions of Proton will move from soldier to
+sniper to take advantage of this newer base.
 
-Games that require sniper cannot yet be released on Steam.
-This will hopefully become possible in future.
+Native Linux games that require sniper can be released on Steam.
+The intention is that this will become available as a "self-service"
+feature via the Steamworks partner web interface, which can be used by
+any game that benefits from a newer library stack.
+However, as of early 2023, this mechanism is not yet ready, so configuring
+a game to run in sniper requires manual setup by a Valve developer.
+Please contact Valve for more information.
 
 The *Steam Linux Runtime - sniper* compatibility tool, app ID 1628350,
 will automatically be downloaded to your Steam library as
@@ -122,6 +133,17 @@ It can also be installed by running this command:
 
 Documentation in the `steamrt` "metapackage" provides
 [more information about sniper](https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/sniper/README.md).
+
+## Steam Runtime 4, `medic`
+
+Steam Runtime 4, `medic`, is a prototype runtime currently based on Debian 12
+(which is expected to be released in mid 2023).
+Like `sniper`, it is structurally similar to `soldier`, but with a newer
+base distribution.
+
+`medic` is not yet available as a compatibility tool, and its
+contents are subject to change depending on testing results and game
+requirements.
 
 ## <span id="why">Why the container runtimes are necessary</span>
 
