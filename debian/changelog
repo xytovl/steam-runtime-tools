@@ -1,3 +1,23 @@
+steam-runtime-tools (0.20230329.0) UNRELEASED; urgency=medium
+
+  [ Simon McVittie ]
+  * pressure-vessel: Remove pv-test-ui.
+    This has been superseded by steam-runtime-launch-options.
+    Please see docs/slr-for-game-developers.md for more information.
+  * Documentation updates, especially in docs/slr-for-game-developers.md
+    - Describe how to use steam-runtime-launch-options
+    - Clarify how to unpack the soldier SDK
+    - Describe how to use a locally-modified Platform or SDK
+  * Update bundled projects:
+    - bubblewrap v0.8.0
+    - libglnx to 2023-02-27
+
+  [ Ludovico de Nittis ]
+  * system-info: Fix a minor memory leak
+  * Test improvements
+
+ -- Simon McVittie <smcv@collabora.com>  Wed, 29 Mar 2023 18:14:11 +0100
+
 steam-runtime-tools (0.20230314.0) steamrt; urgency=medium
 
   [ Simon McVittie ]
