@@ -3642,6 +3642,7 @@ ensure_driver_environment (SrtSystemInfo *self)
       gchar **env_list = self->env;
       /* This is the list of well-known driver-selection environment variables,
        * plus __GLX_FORCE_VENDOR_LIBRARY_%d that will be searched with a regex.
+       * It doesn't include the variables already listed in _str_check_display().
        * Please keep in LC_ALL=C alphabetical order. */
       static const gchar * const drivers_env[] =
       {
@@ -3656,7 +3657,6 @@ ensure_driver_environment (SrtSystemInfo *self)
         "DISABLE_MANGOHUD",
         "DISABLE_PRIMUS_LAYER",
         "DISABLE_VKBASALT",
-        "DISPLAY",
         "DRI_PRIME",
         "EGL_PLATFORM",
         "ENABLE_DEVICE_CHOOSER_LAYER",
@@ -3728,7 +3728,6 @@ ensure_driver_environment (SrtSystemInfo *self)
         "SDL_RENDER_OPENGL_SHADERS",
         "SDL_RENDER_SCALE_QUALITY",
         "SDL_RENDER_VSYNC",
-        "SDL_VIDEODRIVER",
         "SDL_VIDEO_ALLOW_SCREENSAVER",
         "SDL_VIDEO_DOUBLE_BUFFER",
         "SDL_VIDEO_EGL_DRIVER",
@@ -3759,7 +3758,6 @@ ensure_driver_environment (SrtSystemInfo *self)
         "VK_ICD_FILENAMES",
         "VK_LAYER_PATH",
         "VULKAN_DEVICE_INDEX",
-        "WAYLAND_DISPLAY",
         "WINEESYNC",
         "WINEFSYNC",
         "WINE_FULLSCREEN_INTEGER_SCALING",
