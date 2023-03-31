@@ -62,12 +62,31 @@ typedef enum
   SRT_DISPLAY_WAYLAND_ISSUES_MISSING_SOCKET = (1 << 1),
 } SrtDisplayWaylandIssues;
 
+/**
+ * SrtDisplayX11Type:
+ * @SRT_DISPLAY_X11_TYPE_UNKNOWN: Unknown X11 display type
+ * @SRT_DISPLAY_X11_TYPE_MISSING: There isn't an X11 display
+ * @SRT_DISPLAY_X11_TYPE_NATIVE: There is a native X11 display server
+ * @SRT_DISPLAY_X11_TYPE_XWAYLAND: The X11 display server is Xwayland
+ */
+typedef enum
+{
+  SRT_DISPLAY_X11_TYPE_UNKNOWN = 0,
+  SRT_DISPLAY_X11_TYPE_MISSING,
+  SRT_DISPLAY_X11_TYPE_NATIVE,
+  SRT_DISPLAY_X11_TYPE_XWAYLAND,
+} SrtDisplayX11Type;
+
 _SRT_PUBLIC
 const gchar * const *srt_display_info_get_environment_list (SrtDisplayInfo *self);
 _SRT_PUBLIC
 gboolean srt_display_info_is_wayland_session (SrtDisplayInfo *self);
 _SRT_PUBLIC
 SrtDisplayWaylandIssues srt_display_info_get_wayland_issues (SrtDisplayInfo *self);
+_SRT_PUBLIC
+SrtDisplayX11Type srt_display_info_get_x11_type (SrtDisplayInfo *self);
+_SRT_PUBLIC
+const char *srt_display_info_get_x11_messages (SrtDisplayInfo *self);
 
 #ifdef G_DEFINE_AUTOPTR_CLEANUP_FUNC
 G_DEFINE_AUTOPTR_CLEANUP_FUNC (SrtDisplayInfo, g_object_unref)

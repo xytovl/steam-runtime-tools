@@ -110,7 +110,8 @@
     "wayland-issues" : [
       "missing-socket",
       "unknown"
-    ]
+    ],
+    "x11-type" : "native"
   },
   "xdg-portals" : {
     "issues" : [

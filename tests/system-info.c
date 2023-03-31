@@ -2608,6 +2608,8 @@ typedef struct
   const gchar *environment[8];
   gboolean wayland_session;
   SrtDisplayWaylandIssues wayland_issues;
+  SrtDisplayX11Type x11_type;
+  const gchar *x11_messages;
 } DisplayInfoTest;
 
 typedef struct
@@ -2934,6 +2936,7 @@ static JsonTest json_test[] =
         NULL
       },
       .wayland_session = TRUE,
+      .x11_type = SRT_DISPLAY_X11_TYPE_XWAYLAND,
     },
 
     .xdg_portal =
@@ -3101,6 +3104,7 @@ static JsonTest json_test[] =
     {
       .environment = {"DISPLAY=:0", NULL},
       .wayland_issues = SRT_DISPLAY_WAYLAND_ISSUES_MISSING_SOCKET | SRT_DISPLAY_WAYLAND_ISSUES_UNKNOWN,
+      .x11_type = SRT_DISPLAY_X11_TYPE_NATIVE,
     },
     .xdg_portal =
     {
@@ -3164,6 +3168,8 @@ static JsonTest json_test[] =
     .display_info =
     {
       .wayland_issues = SRT_DISPLAY_WAYLAND_ISSUES_UNKNOWN,
+      .x11_type = SRT_DISPLAY_X11_TYPE_MISSING,
+      .x11_messages = "Failed to connect to X server\n",
     },
     .xdg_portal =
     {
@@ -3209,6 +3215,7 @@ static JsonTest json_test[] =
     .display_info =
     {
       .wayland_issues = SRT_DISPLAY_WAYLAND_ISSUES_UNKNOWN,
+      .x11_type = SRT_DISPLAY_X11_TYPE_UNKNOWN,
     },
     .xdg_portal =
     {
@@ -3259,6 +3266,7 @@ static JsonTest json_test[] =
     .display_info =
     {
       .wayland_issues = SRT_DISPLAY_WAYLAND_ISSUES_UNKNOWN,
+      .x11_type = SRT_DISPLAY_X11_TYPE_UNKNOWN,
     },
     .xdg_portal =
     {
@@ -3966,6 +3974,10 @@ json_parsing (Fixture *f,
                        srt_display_info_is_wayland_session (display_info));
       g_assert_cmpint (t->display_info.wayland_issues, ==,
                        srt_display_info_get_wayland_issues (display_info));
+      g_assert_cmpint (t->display_info.x11_type, ==,
+                       srt_display_info_get_x11_type (display_info));
+      g_assert_cmpstr (t->display_info.x11_messages, ==,
+                       srt_display_info_get_x11_messages (display_info));
 
       portal_interfaces = srt_system_info_list_xdg_portal_interfaces (info);
       for (j = 0, iter = portal_interfaces; iter != NULL; iter = iter->next, j++)

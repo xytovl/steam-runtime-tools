@@ -52,6 +52,8 @@ struct _SrtDisplayInfo
   GStrv display_environ;
   gboolean wayland_session;
   SrtDisplayWaylandIssues wayland_issues;
+  SrtDisplayX11Type x11_type;
+  gchar *x11_messages;
 };
 
 struct _SrtDisplayInfoClass
@@ -65,6 +67,8 @@ enum {
   PROP_DISPLAY_ENVIRON,
   PROP_WAYLAND_SESSION,
   PROP_WAYLAND_ISSUES,
+  PROP_X11_TYPE,
+  PROP_X11_MESSAGES,
   N_PROPERTIES,
 };
 
@@ -95,6 +99,14 @@ srt_display_info_get_property (GObject *object,
 
       case PROP_WAYLAND_ISSUES:
         g_value_set_flags (value, self->wayland_issues);
+        break;
+
+      case PROP_X11_TYPE:
+        g_value_set_enum (value, self->x11_type);
+        break;
+
+      case PROP_X11_MESSAGES:
+        g_value_set_string (value, self->x11_messages);
         break;
 
       default:
@@ -135,6 +147,18 @@ srt_display_info_set_property (GObject *object,
         self->wayland_issues = g_value_get_flags (value);
         break;
 
+      case PROP_X11_TYPE:
+        /* Construct-only */
+        g_return_if_fail (self->x11_type == 0);
+        self->x11_type = g_value_get_enum (value);
+        break;
+
+      case PROP_X11_MESSAGES:
+        /* Construct-only */
+        g_return_if_fail (self->x11_messages == NULL);
+        self->x11_messages = g_value_dup_string (value);
+        break;
+
       default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
     }
@@ -146,6 +170,7 @@ srt_display_info_finalize (GObject *object)
   SrtDisplayInfo *self = SRT_DISPLAY_INFO (object);
 
   g_strfreev (self->display_environ);
+  g_free (self->x11_messages);
 
   G_OBJECT_CLASS (srt_display_info_parent_class)->finalize (object);
 }
@@ -183,23 +208,53 @@ srt_display_info_class_init (SrtDisplayInfoClass *cls)
                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
                         G_PARAM_STATIC_STRINGS);
 
+  interface_properties[PROP_X11_TYPE] =
+    g_param_spec_enum ("x11-type", "X11 type",
+                       "X11 display type",
+                       SRT_TYPE_DISPLAY_X11_TYPE, SRT_DISPLAY_X11_TYPE_UNKNOWN,
+                       G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+                       G_PARAM_STATIC_STRINGS);
+
+  interface_properties[PROP_X11_MESSAGES] =
+    g_param_spec_string ("x11-messages", "X11 messages",
+                         "Diagnostic messages produced while checking the X11 display type",
+                         NULL,
+                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+                         G_PARAM_STATIC_STRINGS);
+
   g_object_class_install_properties (object_class, N_PROPERTIES, interface_properties);
 }
 
 /**
  * _srt_check_display:
  * @envp: (not nullable): Environment variables to use
+ * @helpers_path: An optional path to find check-xdg-portal helper, PATH
+ *  is used if %NULL.
+ * @test_flags: Flags used during automated testing
+ * @multiarch_tuple: (not nullable): Multiarch tuple of helper executable to use
  *
  * Returns: A SrtDisplayInfo object containing the details of the check
  */
 SrtDisplayInfo *
-_srt_check_display (gchar **envp)
+_srt_check_display (gchar **envp,
+                    const char *helpers_path,
+                    SrtTestFlags test_flags,
+                    const char *multiarch_tuple)
 {
   GPtrArray *builder;
   g_auto(GStrv) display_environ = NULL;
+  g_autoptr(GPtrArray) argv = NULL;
+  g_autoptr(GError) local_error = NULL;
+  g_autofree gchar *x11_messages = NULL;
   const gchar *name;
+  int wait_status = -1;
+  int exit_status = -1;
+  int terminating_signal = 0;
   gboolean wayland_session = FALSE;
   SrtDisplayWaylandIssues wayland_issues = SRT_DISPLAY_WAYLAND_ISSUES_NONE;
+  SrtDisplayX11Type x11_type = SRT_DISPLAY_X11_TYPE_UNKNOWN;
+  SrtHelperFlags helper_flags = (SRT_HELPER_FLAGS_TIME_OUT
+                                 | SRT_HELPER_FLAGS_SEARCH_PATH);
   static const gchar * const display_env[] =
   {
     "CLUTTER_BACKEND",
@@ -215,8 +270,14 @@ _srt_check_display (gchar **envp)
     NULL
   };
 
-  g_return_val_if_fail (envp != NULL, _srt_display_info_new (NULL, FALSE,
-                                                             SRT_DISPLAY_WAYLAND_ISSUES_UNKNOWN));
+  g_return_val_if_fail (envp != NULL,
+                        _srt_display_info_new (NULL, FALSE,
+                                               SRT_DISPLAY_WAYLAND_ISSUES_UNKNOWN,
+                                               SRT_DISPLAY_X11_TYPE_UNKNOWN, NULL));
+  g_return_val_if_fail (multiarch_tuple != NULL,
+                        _srt_display_info_new (NULL, FALSE,
+                                               SRT_DISPLAY_WAYLAND_ISSUES_UNKNOWN,
+                                               SRT_DISPLAY_X11_TYPE_UNKNOWN, NULL));
 
   builder = g_ptr_array_new_with_free_func (g_free);
 
@@ -270,7 +331,66 @@ _srt_check_display (gchar **envp)
         }
     }
 
-  return _srt_display_info_new (display_environ, wayland_session, wayland_issues);
+  if (test_flags & SRT_TEST_FLAGS_TIME_OUT_SOONER)
+    helper_flags |= SRT_HELPER_FLAGS_TIME_OUT_SOONER;
+
+  argv = _srt_get_helper (helpers_path, multiarch_tuple, "is-x-server-xwayland",
+                          helper_flags, &local_error);
+
+  if (argv == NULL)
+    {
+      g_debug ("An error occurred trying to check if the X server was XWayland: %s",
+               local_error->message);
+      x11_messages = g_strdup (local_error->message);
+      goto out;
+    }
+
+  /* NULL terminate the array */
+  g_ptr_array_add (argv, NULL);
+
+  if (!g_spawn_sync (NULL,    /* working directory */
+                     (gchar **) argv->pdata,
+                     envp,
+                     G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL,
+                     _srt_child_setup_unblock_signals,
+                     NULL,    /* user data */
+                     NULL,    /* stdout */
+                     &x11_messages,
+                     &wait_status,
+                     &local_error))
+    {
+      g_debug ("An error occurred calling the helper: %s", local_error->message);
+      x11_messages = g_strdup (local_error->message);
+      goto out;
+    }
+
+  /* Normalize the empty string (expected to be common) to NULL */
+  if (x11_messages != NULL && x11_messages[0] == '\0')
+    g_clear_pointer (&x11_messages, g_free);
+
+  if (wait_status != 0)
+    {
+      g_debug ("... wait status %d", wait_status);
+      if (_srt_process_timeout_wait_status (wait_status, &exit_status, &terminating_signal))
+        goto out;
+    }
+  else
+    {
+      exit_status = 0;
+    }
+
+  if (exit_status == SRT_DISPLAY_EXIT_STATUS_IS_XWAYLAND)
+    x11_type = SRT_DISPLAY_X11_TYPE_XWAYLAND;
+  else if (exit_status == SRT_DISPLAY_EXIT_STATUS_NOT_XWAYLAND)
+    x11_type = SRT_DISPLAY_X11_TYPE_NATIVE;
+  else if (exit_status == SRT_DISPLAY_EXIT_STATUS_ERROR)
+    /* An error opening the X11 display server is assumed to mean that we don't
+     * have a working X11 server */
+    x11_type = SRT_DISPLAY_X11_TYPE_MISSING;
+
+out:
+  return _srt_display_info_new (display_environ, wayland_session, wayland_issues,
+                                x11_type, x11_messages);
 }
 
 /**
@@ -321,6 +441,39 @@ srt_display_info_get_wayland_issues (SrtDisplayInfo *self)
 }
 
 /**
+ * srt_display_info_get_x11_type:
+ * @self: A SrtDisplayInfo object
+ *
+ * Return a recognized X11 server type that is currently available, or
+ * %SRT_DISPLAY_X11_TYPE_MISSING if there isn't an X11 server, or
+ * %SRT_DISPLAY_X11_TYPE_UNKNOWN if unsure.
+ *
+ * Returns: #SrtDisplayInfo:x11_type
+ */
+SrtDisplayX11Type
+srt_display_info_get_x11_type (SrtDisplayInfo *self)
+{
+  g_return_val_if_fail (SRT_IS_DISPLAY_INFO (self), SRT_DISPLAY_X11_TYPE_UNKNOWN);
+  return self->x11_type;
+}
+
+/**
+ * srt_display_info_get_x11_messages:
+ * @self: an SrtDisplayInfo object
+ *
+ * Return the diagnostic messages shown by the X11 type check, or %NULL if
+ * none. The returned pointer is valid as long as a reference to @self is held.
+ *
+ * Returns: (nullable) (transfer none): #SrtDisplayInfo:x11_messages
+ */
+const char *
+srt_display_info_get_x11_messages (SrtDisplayInfo *self)
+{
+  g_return_val_if_fail (SRT_IS_DISPLAY_INFO (self), NULL);
+  return self->x11_messages;
+}
+
+/**
  * _srt_display_info_get_from_report:
  * @json_obj: (not nullable): A JSON Object used to search for the display info
  *
@@ -330,9 +483,12 @@ SrtDisplayInfo *
 _srt_display_info_get_from_report (JsonObject *json_obj)
 {
   SrtDisplayWaylandIssues wayland_issues = SRT_DISPLAY_WAYLAND_ISSUES_UNKNOWN;
+  SrtDisplayX11Type x11_type = SRT_DISPLAY_X11_TYPE_UNKNOWN;
   gboolean wayland_session = FALSE;
   GPtrArray *builder;
   g_auto(GStrv) display_environ = NULL;
+  const gchar *x11_string = NULL;
+  g_autofree gchar *x11_messages = NULL;
   JsonObject *json_sub_obj;
   JsonArray *array;
 
@@ -376,8 +532,18 @@ _srt_display_info_get_from_report (JsonObject *json_obj)
                                                       json_sub_obj,
                                                       "wayland-issues",
                                                       SRT_DISPLAY_WAYLAND_ISSUES_UNKNOWN);
+
+      G_STATIC_ASSERT (sizeof (SrtDisplayX11Type) == sizeof (gint));
+      x11_string = json_object_get_string_member_with_default (json_sub_obj,
+                                                               "x11-type", NULL);
+
+      if (x11_string != NULL)
+        srt_enum_from_nick (SRT_TYPE_DISPLAY_X11_TYPE, x11_string, (gint *) &x11_type, NULL);
+
+      x11_messages = _srt_json_object_dup_array_of_lines_member (json_sub_obj, "x11-messages");
   }
 
 out:
-  return _srt_display_info_new (display_environ, wayland_session, wayland_issues);
+  return _srt_display_info_new (display_environ, wayland_session, wayland_issues,
+                                x11_type, x11_messages);
 }

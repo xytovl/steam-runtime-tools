@@ -36,6 +36,8 @@
  * @display_environ: (nullable): Environment variables relevant to the display server
  * @wayland_session: %TRUE if this is a Wayland session
  * @wayland_issues: Problems with Wayland
+ * @x11_type: X11 display type
+ * @x11_messages: X11 display type diagnostic messages
  *
  * Inline convenience function to create a new SrtDisplayInfo.
  * This is not part of the public API.
@@ -44,22 +46,40 @@
  */
 static inline SrtDisplayInfo *_srt_display_info_new (GStrv display_environ,
                                                      gboolean wayland_session,
-                                                     SrtDisplayWaylandIssues wayland_issues);
+                                                     SrtDisplayWaylandIssues wayland_issues,
+                                                     SrtDisplayX11Type x11_type,
+                                                     const char *x11_messages);
 
 #ifndef __GTK_DOC_IGNORE__
 static inline SrtDisplayInfo *
 _srt_display_info_new (GStrv display_environ,
                        gboolean wayland_session,
-                       SrtDisplayWaylandIssues wayland_issues)
+                       SrtDisplayWaylandIssues wayland_issues,
+                       SrtDisplayX11Type x11_type,
+                       const char *x11_messages)
 {
   return g_object_new (SRT_TYPE_DISPLAY_INFO,
                        "display-environ", display_environ,
                        "wayland-session", wayland_session,
                        "wayland-issues", wayland_issues,
+                       "x11-type", x11_type,
+                       "x11-messages", x11_messages,
                        NULL);
 }
 #endif
 
-SrtDisplayInfo *_srt_check_display (gchar **envp);
+/* Please keep them in sync with xisxwayland.c */
+typedef enum
+{
+  SRT_DISPLAY_EXIT_STATUS_IS_XWAYLAND = 0,
+  SRT_DISPLAY_EXIT_STATUS_NOT_XWAYLAND = 1,
+  SRT_DISPLAY_EXIT_STATUS_INVALID_USAGE = 2,
+  SRT_DISPLAY_EXIT_STATUS_ERROR = 3,
+} SrtDisplayExitStatus;
+
+SrtDisplayInfo *_srt_check_display (gchar **envp,
+                                    const char *helpers_path,
+                                    SrtTestFlags test_flags,
+                                    const char *multiarch_tuple);
 
 SrtDisplayInfo *_srt_display_info_get_from_report (JsonObject *json_obj);

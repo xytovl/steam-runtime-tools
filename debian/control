@@ -25,6 +25,7 @@ Build-Depends:
  libx11-dev,
  libxau-dev,
  libxcb1-dev,
+ libxrandr-dev,
  locales <!nocheck> | locales-all <!nocheck>,
  meson (>= 0.56.2),
  pandoc,

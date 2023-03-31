@@ -768,11 +768,15 @@ jsonify_display (JsonBuilder *builder,
   g_autoptr(SrtDisplayInfo) display_info = srt_system_info_check_display (info);
   gboolean wayland_session;
   SrtDisplayWaylandIssues wayland_issues = SRT_DISPLAY_WAYLAND_ISSUES_UNKNOWN;
+  SrtDisplayX11Type x11_type = SRT_DISPLAY_X11_TYPE_UNKNOWN;
+  const gchar *x11_messages;
   const gchar *const *environment_list = NULL;
 
   wayland_session = srt_display_info_is_wayland_session (display_info);
   wayland_issues = srt_display_info_get_wayland_issues (display_info);
   environment_list = srt_display_info_get_environment_list (display_info);
+  x11_type = srt_display_info_get_x11_type (display_info);
+  x11_messages = srt_display_info_get_x11_messages (display_info);
 
   json_builder_set_member_name (builder, "display");
   json_builder_begin_object (builder);
@@ -786,6 +790,12 @@ jsonify_display (JsonBuilder *builder,
       json_builder_begin_array (builder);
       jsonify_display_wayland_issues (builder, wayland_issues);
       json_builder_end_array (builder);
+
+      json_builder_set_member_name (builder, "x11-type");
+      jsonify_enum (builder, SRT_TYPE_DISPLAY_X11_TYPE, x11_type);
+
+      if (x11_messages != NULL)
+        _srt_json_builder_add_array_of_lines (builder, "x11-messages", x11_messages);
     }
   json_builder_end_object (builder);
 }

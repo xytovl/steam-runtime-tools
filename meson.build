@@ -331,6 +331,10 @@ xlib = dependency(
   'x11'
 )
 
+xrandr = dependency(
+  'xrandr'
+)
+
 libdl = c_compiler.find_library('dl', required : false)
 
 libglnx_dep = subproject('libglnx').get_variable('libglnx_dep')

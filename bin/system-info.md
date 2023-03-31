@@ -858,6 +858,28 @@ keys:
         :   The Wayland socket from "WAYLAND_DISPLAY" or the default fallback
             "wayland-0", if unset, was not available in the filesystem.
 
+    **x11-type**
+    :   The type of the X11 server.
+
+        **unknown**
+        :   There was an unknown, or internal, error while checking the X11
+            server.
+
+        **missing**
+        :   There wasn't an X11 server. This is likely a pure Wayland
+            environment.
+
+        **native**
+        :   The server is a native X11 server.
+
+        **xwayland**
+        :   The X11 server is an XWayland server.
+
+    **x11-messages**
+    :   Human-readable array of lines with error messages about the X11
+        display server. This element will not be printed if there aren't any
+        error messages.
+
 **xdg-portals**
 :   An object describing the XDG portal support. Whether `xdg-desktop-portal`
     is installed, and working, and which portal backend implementations are

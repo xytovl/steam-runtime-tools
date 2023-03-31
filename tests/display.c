@@ -70,6 +70,9 @@ test_object (Fixture *f,
   g_autoptr(SrtDisplayInfo) display = NULL;
   gboolean wayland_session;
   SrtDisplayWaylandIssues wayland_issues;
+  SrtDisplayX11Type x11_type;
+  g_autofree gchar *x11_messages_got;
+  const gchar *x11_messages = "Additional info";
   g_auto(GStrv) environment_variables = NULL;
 
   const gchar *expected_variables[] =
@@ -82,23 +85,32 @@ test_object (Fixture *f,
 
   display = _srt_display_info_new ((GStrv) expected_variables,
                                    FALSE,
-                                   SRT_DISPLAY_WAYLAND_ISSUES_MISSING_SOCKET);
+                                   SRT_DISPLAY_WAYLAND_ISSUES_MISSING_SOCKET,
+                                   SRT_DISPLAY_X11_TYPE_XWAYLAND,
+                                   x11_messages);
 
   g_assert_true (g_strv_equal (srt_display_info_get_environment_list (display), expected_variables));
   g_assert_false (srt_display_info_is_wayland_session (display));
   g_assert_cmpint (srt_display_info_get_wayland_issues (display), ==,
                    SRT_DISPLAY_WAYLAND_ISSUES_MISSING_SOCKET);
+  g_assert_cmpint (srt_display_info_get_x11_type (display), ==,
+                   SRT_DISPLAY_X11_TYPE_XWAYLAND);
+  g_assert_cmpstr (srt_display_info_get_x11_messages (display), ==, x11_messages);
 
   g_object_get (display,
                 "display-environ", &environment_variables,
                 "wayland-session", &wayland_session,
                 "wayland-issues", &wayland_issues,
+                "x11-type", &x11_type,
+                "x11-messages", &x11_messages_got,
                 NULL);
 
   g_assert_true (g_strv_equal ((const gchar *const *) environment_variables, expected_variables));
   g_assert_false (wayland_session);
   g_assert_cmpint (wayland_issues, ==,
                    SRT_DISPLAY_WAYLAND_ISSUES_MISSING_SOCKET);
+  g_assert_cmpint (x11_type, ==, SRT_DISPLAY_X11_TYPE_XWAYLAND);
+  g_assert_cmpstr (x11_messages_got, ==, x11_messages);
 }
 
 /*

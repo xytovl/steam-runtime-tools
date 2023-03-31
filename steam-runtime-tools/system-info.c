@@ -4016,7 +4016,10 @@ ensure_display_info (SrtSystemInfo *self)
   g_return_if_fail (SRT_IS_SYSTEM_INFO (self));
 
   if (self->display_info == NULL && !self->immutable_values)
-    self->display_info = _srt_check_display (self->env);
+    self->display_info = _srt_check_display (self->env,
+                                             self->helpers_path,
+                                             self->test_flags,
+                                             srt_system_info_get_primary_multiarch_tuple (self));
 }
 
 /**

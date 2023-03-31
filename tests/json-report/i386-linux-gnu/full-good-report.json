@@ -350,7 +350,8 @@
       "WAYLAND_DISPLAY=wayland-0"
     ],
     "wayland-session" : true,
-    "wayland-issues" : []
+    "wayland-issues" : [],
+    "x11-type" : "xwayland"
   },
   "xdg-portals" : {
     "details" : {
