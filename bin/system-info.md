@@ -4,7 +4,7 @@ section: 1
 ...
 
 <!-- This document:
-Copyright 2019-2021 Collabora Ltd.
+Copyright 2019-2023 Collabora Ltd.
 SPDX-License-Identifier: MIT
 -->
 
@@ -832,6 +832,31 @@ keys:
 
     **steam_uri_handler**
     :   A boolean value indicating whether this entry can open `steam:` URIs.
+
+**display**
+:   An object describing the display server that is currently in use.
+    The keys are the strings:
+
+    **environment**
+    :   Environment variables that are usually responsible to affect the
+        display server, represented as an array of strings in the form of
+        "VARIABLE=VALUE".
+
+    **wayland-session**
+    :   A boolean value indicating whether the current session is using
+        Wayland.
+
+    **wayland-issues**
+    :   An array of strings representing problems with the Wayland session.
+        If empty, no problems were found.
+
+        **unknown**
+        :   There was an unknown, or internal, error while checking Wayland
+            status.
+
+        **missing-socket**
+        :   The Wayland socket from "WAYLAND_DISPLAY" or the default fallback
+            "wayland-0", if unset, was not available in the filesystem.
 
 **xdg-portals**
 :   An object describing the XDG portal support. Whether `xdg-desktop-portal`

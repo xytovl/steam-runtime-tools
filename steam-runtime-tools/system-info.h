@@ -1,5 +1,5 @@
 /*
- * Copyright © 2019 Collabora Ltd.
+ * Copyright © 2019-2023 Collabora Ltd.
  *
  * SPDX-License-Identifier: MIT
  *
@@ -34,6 +34,7 @@
 
 #include <steam-runtime-tools/container.h>
 #include <steam-runtime-tools/cpu-feature.h>
+#include <steam-runtime-tools/display.h>
 #include <steam-runtime-tools/graphics.h>
 #include <steam-runtime-tools/library.h>
 #include <steam-runtime-tools/locale.h>
@@ -250,6 +251,9 @@ gchar **srt_system_info_list_driver_environment (SrtSystemInfo *self);
 
 _SRT_PUBLIC
 GList *srt_system_info_list_desktop_entries (SrtSystemInfo *self);
+
+_SRT_PUBLIC
+SrtDisplayInfo *srt_system_info_check_display (SrtSystemInfo *self);
 
 _SRT_PUBLIC
 SrtX86FeatureFlags srt_system_info_get_x86_features (SrtSystemInfo *self);
