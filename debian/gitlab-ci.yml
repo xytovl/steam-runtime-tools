@@ -25,6 +25,7 @@ variables:
         libxau-dev
         libxcb1-dev
         libxcomposite-dev
+        libxrandr-dev
         locales
         meson
         pandoc

@@ -341,6 +341,18 @@
       "steam_uri_handler" : true
     }
   ],
+  "display" : {
+    "environment" : [
+      "DISPLAY=:0",
+      "XDG_CURRENT_DESKTOP=GNOME",
+      "XDG_RUNTIME_DIR=/run/user/1000",
+      "XDG_SESSION_TYPE=wayland",
+      "WAYLAND_DISPLAY=wayland-0"
+    ],
+    "wayland-session" : true,
+    "wayland-issues" : [],
+    "x11-type" : "xwayland"
+  },
   "xdg-portals" : {
     "details" : {
       "interfaces" : {

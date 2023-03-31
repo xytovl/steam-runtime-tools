@@ -164,6 +164,15 @@ executable(
 )
 
 executable(
+  multiarch + '-is-x-server-xwayland',
+  'is-x-server-xwayland.c',
+  include_directories : project_include_dirs,
+  dependencies : [xlib, xrandr],
+  install : true,
+  install_dir : pkglibexecdir,
+)
+
+executable(
   multiarch + '-detect-lib',
   'detect.c',
   c_args : [

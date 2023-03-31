@@ -49,5 +49,12 @@
     ]
   },
   "vulkan" : {
-  }
+  },
+  "display" : {
+    "x11-type" : "missing",
+    "x11-messages": [
+      "Failed to connect to X server"
+    ]
+  },
+
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2019 Collabora Ltd.
+ * Copyright © 2019-2023 Collabora Ltd.
  *
  * SPDX-License-Identifier: MIT
  *
@@ -2605,6 +2605,15 @@ typedef struct
 
 typedef struct
 {
+  const gchar *environment[8];
+  gboolean wayland_session;
+  SrtDisplayWaylandIssues wayland_issues;
+  SrtDisplayX11Type x11_type;
+  const gchar *x11_messages;
+} DisplayInfoTest;
+
+typedef struct
+{
   XdgPortalInfoTest interfaces[3];
   XdgPortalInfoTest backends[3];
   SrtXdgPortalIssues issues;
@@ -2631,6 +2640,7 @@ typedef struct
   LayerTest vulkan_explicit_layer[3];
   LayerTest vulkan_implicit_layer[3];
   DesktopEntryTest desktop_entry[3];
+  DisplayInfoTest display_info;
   XdgPortalTest xdg_portal;
   SrtX86FeatureFlags x86_features;
   SrtX86FeatureFlags x86_known;
@@ -2914,6 +2924,21 @@ static JsonTest json_test[] =
       },
     },
 
+    .display_info =
+    {
+      .environment =
+      {
+        "DISPLAY=:0",
+        "XDG_CURRENT_DESKTOP=GNOME",
+        "XDG_RUNTIME_DIR=/run/user/1000",
+        "XDG_SESSION_TYPE=wayland",
+        "WAYLAND_DISPLAY=wayland-0",
+        NULL
+      },
+      .wayland_session = TRUE,
+      .x11_type = SRT_DISPLAY_X11_TYPE_XWAYLAND,
+    },
+
     .xdg_portal =
     {
       .interfaces =
@@ -3075,6 +3100,12 @@ static JsonTest json_test[] =
         .issues = SRT_LOADABLE_ISSUES_CANNOT_LOAD,
       },
     },
+    .display_info =
+    {
+      .environment = {"DISPLAY=:0", NULL},
+      .wayland_issues = SRT_DISPLAY_WAYLAND_ISSUES_MISSING_SOCKET | SRT_DISPLAY_WAYLAND_ISSUES_UNKNOWN,
+      .x11_type = SRT_DISPLAY_X11_TYPE_NATIVE,
+    },
     .xdg_portal =
     {
       .issues = SRT_XDG_PORTAL_ISSUES_TIMEOUT,
@@ -3134,6 +3165,12 @@ static JsonTest json_test[] =
         .error_message = "(missing error message)",
       },
     },
+    .display_info =
+    {
+      .wayland_issues = SRT_DISPLAY_WAYLAND_ISSUES_UNKNOWN,
+      .x11_type = SRT_DISPLAY_X11_TYPE_MISSING,
+      .x11_messages = "Failed to connect to X server\n",
+    },
     .xdg_portal =
     {
       .issues = SRT_XDG_PORTAL_ISSUES_UNKNOWN,
@@ -3175,6 +3212,11 @@ static JsonTest json_test[] =
       },
     },
     .locale_issues = SRT_LOCALE_ISSUES_UNKNOWN,
+    .display_info =
+    {
+      .wayland_issues = SRT_DISPLAY_WAYLAND_ISSUES_UNKNOWN,
+      .x11_type = SRT_DISPLAY_X11_TYPE_UNKNOWN,
+    },
     .xdg_portal =
     {
       .issues = SRT_XDG_PORTAL_ISSUES_UNKNOWN,
@@ -3221,6 +3263,11 @@ static JsonTest json_test[] =
       },
     },
     .locale_issues = SRT_LOCALE_ISSUES_C_UTF8_MISSING | SRT_LOCALE_ISSUES_UNKNOWN,
+    .display_info =
+    {
+      .wayland_issues = SRT_DISPLAY_WAYLAND_ISSUES_UNKNOWN,
+      .x11_type = SRT_DISPLAY_X11_TYPE_UNKNOWN,
+    },
     .xdg_portal =
     {
       .issues = SRT_XDG_PORTAL_ISSUES_UNKNOWN,
@@ -3547,6 +3594,7 @@ json_parsing (Fixture *f,
       g_autoptr(SrtObjectList) explicit_layers = NULL;
       g_autoptr(SrtObjectList) implicit_layers = NULL;
       g_autoptr(SrtContainerInfo) container = NULL;
+      g_autoptr(SrtDisplayInfo) display_info = NULL;
       g_autoptr(SrtVirtualizationInfo) virt = NULL;
       g_autofree gchar *portal_messages = NULL;
       g_autofree gchar *steamscript_path = NULL;
@@ -3918,6 +3966,18 @@ json_parsing (Fixture *f,
           g_assert_cmpint (t->desktop_entry[j].steam_handler, ==,
                            srt_desktop_entry_is_steam_handler (iter->data));
         }
+
+      display_info = srt_system_info_check_display (info);
+      assert_equal_strings_arrays (t->display_info.environment,
+                                   srt_display_info_get_environment_list (display_info));
+      g_assert_cmpint (t->display_info.wayland_session, ==,
+                       srt_display_info_is_wayland_session (display_info));
+      g_assert_cmpint (t->display_info.wayland_issues, ==,
+                       srt_display_info_get_wayland_issues (display_info));
+      g_assert_cmpint (t->display_info.x11_type, ==,
+                       srt_display_info_get_x11_type (display_info));
+      g_assert_cmpstr (t->display_info.x11_messages, ==,
+                       srt_display_info_get_x11_messages (display_info));
 
       portal_interfaces = srt_system_info_list_xdg_portal_interfaces (info);
       for (j = 0, iter = portal_interfaces; iter != NULL; iter = iter->next, j++)

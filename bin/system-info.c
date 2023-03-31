@@ -1,5 +1,5 @@
 /*
- * Copyright © 2019 Collabora Ltd.
+ * Copyright © 2019-2023 Collabora Ltd.
  *
  * SPDX-License-Identifier: MIT
  *
@@ -250,6 +250,13 @@ jsonify_xdg_portal_issues (JsonBuilder *builder,
                            SrtXdgPortalIssues issues)
 {
   jsonify_flags (builder, SRT_TYPE_XDG_PORTAL_ISSUES, issues);
+}
+
+static void
+jsonify_display_wayland_issues (JsonBuilder *builder,
+                                SrtDisplayWaylandIssues issues)
+{
+  jsonify_flags (builder, SRT_TYPE_DISPLAY_WAYLAND_ISSUES, issues);
 }
 
 static void
@@ -750,6 +757,45 @@ jsonify_container (JsonBuilder *builder,
             }
           json_builder_end_object (builder);
         }
+    }
+  json_builder_end_object (builder);
+}
+
+static void
+jsonify_display (JsonBuilder *builder,
+                 SrtSystemInfo *info)
+{
+  g_autoptr(SrtDisplayInfo) display_info = srt_system_info_check_display (info);
+  gboolean wayland_session;
+  SrtDisplayWaylandIssues wayland_issues = SRT_DISPLAY_WAYLAND_ISSUES_UNKNOWN;
+  SrtDisplayX11Type x11_type = SRT_DISPLAY_X11_TYPE_UNKNOWN;
+  const gchar *x11_messages;
+  const gchar *const *environment_list = NULL;
+
+  wayland_session = srt_display_info_is_wayland_session (display_info);
+  wayland_issues = srt_display_info_get_wayland_issues (display_info);
+  environment_list = srt_display_info_get_environment_list (display_info);
+  x11_type = srt_display_info_get_x11_type (display_info);
+  x11_messages = srt_display_info_get_x11_messages (display_info);
+
+  json_builder_set_member_name (builder, "display");
+  json_builder_begin_object (builder);
+    {
+      _srt_json_builder_add_strv_value (builder, "environment", environment_list, TRUE);
+
+      json_builder_set_member_name (builder, "wayland-session");
+      json_builder_add_boolean_value (builder, wayland_session);
+
+      json_builder_set_member_name (builder, "wayland-issues");
+      json_builder_begin_array (builder);
+      jsonify_display_wayland_issues (builder, wayland_issues);
+      json_builder_end_array (builder);
+
+      json_builder_set_member_name (builder, "x11-type");
+      jsonify_enum (builder, SRT_TYPE_DISPLAY_X11_TYPE, x11_type);
+
+      if (x11_messages != NULL)
+        _srt_json_builder_add_array_of_lines (builder, "x11-messages", x11_messages);
     }
   json_builder_end_object (builder);
 }
@@ -1481,6 +1527,8 @@ main (int argc,
       g_list_free_full (desktop_entries, g_object_unref);
     }
   json_builder_end_array (builder);
+
+  jsonify_display (builder, info);
 
   json_builder_set_member_name (builder, "xdg-portals");
   json_builder_begin_object (builder);

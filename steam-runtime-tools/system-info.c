@@ -1,5 +1,5 @@
 /*
- * Copyright © 2019 Collabora Ltd.
+ * Copyright © 2019-2023 Collabora Ltd.
  *
  * SPDX-License-Identifier: MIT
  *
@@ -35,6 +35,7 @@
 #include "steam-runtime-tools/container-internal.h"
 #include "steam-runtime-tools/cpu-feature-internal.h"
 #include "steam-runtime-tools/desktop-entry-internal.h"
+#include "steam-runtime-tools/display-internal.h"
 #include "steam-runtime-tools/graphics.h"
 #include "steam-runtime-tools/graphics-internal.h"
 #include "steam-runtime-tools/json-report-internal.h"
@@ -121,6 +122,7 @@ struct _SrtSystemInfo
   gboolean immutable_values;
   GHashTable *cached_hidden_deps;
   SrtContainerInfo *container_info;
+  SrtDisplayInfo *display_info;
   SrtVirtualizationInfo *virtualization_info;
   SrtSteam *steam_data;
   SrtXdgPortal *xdg_portal_data;
@@ -440,6 +442,15 @@ forget_container_info (SrtSystemInfo *self)
 }
 
 /*
+ * Forget any cached information about the display.
+ */
+static void
+forget_display_info (SrtSystemInfo *self)
+{
+  g_clear_object (&self->display_info);
+}
+
+/*
  * Forget any cached information about locales.
  */
 static void
@@ -547,6 +558,7 @@ srt_system_info_finalize (GObject *object)
   SrtSystemInfo *self = SRT_SYSTEM_INFO (object);
 
   forget_desktop_entries (self);
+  forget_display_info (self);
   forget_container_info (self);
   forget_drivers (self);
   forget_locales (self);
@@ -855,6 +867,7 @@ srt_system_info_new_from_json (const char *path,
   _srt_os_release_populate_from_report (json_obj, &info->os_release);
 
   info->container_info = _srt_container_info_get_from_report (json_obj);
+  info->display_info = _srt_display_info_get_from_report (json_obj);
   info->virtualization_info = _srt_virtualization_info_get_from_report (json_obj);
 
   info->cached_driver_environment = _srt_system_info_driver_environment_from_report (json_obj);
@@ -2012,6 +2025,7 @@ srt_system_info_set_environ (SrtSystemInfo *self,
   g_return_if_fail (SRT_IS_SYSTEM_INFO (self));
   g_return_if_fail (!self->immutable_values);
 
+  forget_display_info (self);
   forget_graphics_modules (self);
   forget_libraries (self);
   forget_graphics_results (self);
@@ -3628,6 +3642,7 @@ ensure_driver_environment (SrtSystemInfo *self)
       gchar **env_list = self->env;
       /* This is the list of well-known driver-selection environment variables,
        * plus __GLX_FORCE_VENDOR_LIBRARY_%d that will be searched with a regex.
+       * It doesn't include the variables already listed in _str_check_display().
        * Please keep in LC_ALL=C alphabetical order. */
       static const gchar * const drivers_env[] =
       {
@@ -3642,7 +3657,6 @@ ensure_driver_environment (SrtSystemInfo *self)
         "DISABLE_MANGOHUD",
         "DISABLE_PRIMUS_LAYER",
         "DISABLE_VKBASALT",
-        "DISPLAY",
         "DRI_PRIME",
         "EGL_PLATFORM",
         "ENABLE_DEVICE_CHOOSER_LAYER",
@@ -3714,7 +3728,6 @@ ensure_driver_environment (SrtSystemInfo *self)
         "SDL_RENDER_OPENGL_SHADERS",
         "SDL_RENDER_SCALE_QUALITY",
         "SDL_RENDER_VSYNC",
-        "SDL_VIDEODRIVER",
         "SDL_VIDEO_ALLOW_SCREENSAVER",
         "SDL_VIDEO_DOUBLE_BUFFER",
         "SDL_VIDEO_EGL_DRIVER",
@@ -3745,7 +3758,6 @@ ensure_driver_environment (SrtSystemInfo *self)
         "VK_ICD_FILENAMES",
         "VK_LAYER_PATH",
         "VULKAN_DEVICE_INDEX",
-        "WAYLAND_DISPLAY",
         "WINEESYNC",
         "WINEFSYNC",
         "WINE_FULLSCREEN_INTEGER_SCALING",
@@ -3994,6 +4006,37 @@ srt_system_info_list_desktop_entries (SrtSystemInfo *self)
     ret = g_list_prepend (ret, g_object_ref (iter->data));
 
   return g_list_reverse (ret);
+}
+
+static void
+ensure_display_info (SrtSystemInfo *self)
+{
+  g_return_if_fail (SRT_IS_SYSTEM_INFO (self));
+
+  if (self->display_info == NULL && !self->immutable_values)
+    self->display_info = _srt_check_display (self->env,
+                                             self->helpers_path,
+                                             self->test_flags,
+                                             srt_system_info_get_primary_multiarch_tuple (self));
+}
+
+/**
+ * srt_system_info_check_display:
+ * @self: The #SrtSystemInfo object
+ *
+ * Gather and return information about the display server that is currently
+ * in use.
+ *
+ * Returns: (transfer full): An #SrtDisplayInfo object.
+ *  Free with g_object_unref().
+ */
+SrtDisplayInfo *
+srt_system_info_check_display (SrtSystemInfo *self)
+{
+  g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
+
+  ensure_display_info (self);
+  return g_object_ref (self->display_info);
 }
 
 static void

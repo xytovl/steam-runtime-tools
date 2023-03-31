@@ -12,6 +12,7 @@ base-devel \
 git \
 lib32-glibc \
 lib32-mesa \
+libxrandr \
 python \
 python-chardet \
 python-six \

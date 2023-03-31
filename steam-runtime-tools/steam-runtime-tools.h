@@ -1,5 +1,5 @@
 /*
- * Copyright © 2019 Collabora Ltd.
+ * Copyright © 2019-2023 Collabora Ltd.
  *
  * SPDX-License-Identifier: MIT
  *
@@ -31,6 +31,7 @@
 #include <steam-runtime-tools/container.h>
 #include <steam-runtime-tools/cpu-feature.h>
 #include <steam-runtime-tools/desktop-entry.h>
+#include <steam-runtime-tools/display.h>
 #include <steam-runtime-tools/enums.h>
 #include <steam-runtime-tools/graphics.h>
 #include <steam-runtime-tools/graphics-drivers-dri.h>

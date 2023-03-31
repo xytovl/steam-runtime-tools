@@ -1,0 +1,25 @@
+.TH "xisxwayland" "1"
+.SH "NAME"
+xisxwayland \- tool to be used within shell scripts to check for Xwayland
+.
+.SH "SYNOPSIS"
+.B xisxwayland [\-v|\-\-verbose]
+.
+.SH "DESCRIPTION"
+Connects to the X server using the
+.B $DISPLAY
+environment variable and checks whether that server is an Xwayland server.
+.SH "OPTIONS"
+.TP 8
+.B \-\-verbose, \-v
+Print to stdout whether the X server is an Xwayland server or not
+.
+.SH "EXIT STATUS"
+.B xisxwayland
+exits with status 0 if the X server is Xwayland or 1 otherwise. Where an
+error is encountered,
+.B xisxwayland
+exits with status 3.
+.
+.SH AUTHOR
+Peter Hutterer, <peter.hutterer@redhat.com>

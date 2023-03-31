@@ -105,6 +105,17 @@
       }
     ]
   },
+  "display" : {
+    "environment" : [
+      "DISPLAY=:0"
+    ],
+    "wayland-session" : false,
+    "wayland-issues" : [
+      "missing-socket",
+      "unknown"
+    ],
+    "x11-type" : "native"
+  },
   "xdg-portals" : {
     "issues" : [
       "timeout"
