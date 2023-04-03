@@ -4,6 +4,12 @@ Container based Steam Runtime 3 'sniper'
 This container-based release of the Steam Runtime is used for native
 Linux games, and potentially for future releases of Proton.
 
+Release notes
+-------------
+
+Please see
+<https://gitlab.steamos.cloud/steamrt/steamrt/-/wikis/Sniper-release-notes>
+
 Known issues
 ------------
 

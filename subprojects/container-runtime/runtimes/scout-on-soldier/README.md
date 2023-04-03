@@ -14,6 +14,12 @@ running the traditional `LD_LIBRARY_PATH`-based Steam Runtime on a
 Debian 10 system, so games that work in that environment are likely to
 work in this container too.
 
+Release notes
+-------------
+
+Please see
+<https://gitlab.steamos.cloud/steamrt/steamrt/-/wikis/SteamLinuxRuntime-container-release-notes>
+
 Known issues
 ------------
 

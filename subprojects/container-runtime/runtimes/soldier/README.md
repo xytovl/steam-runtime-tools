@@ -3,6 +3,12 @@ Container based Steam Runtime 2 'soldier'
 
 This container-based release of the Steam Runtime is used for Proton 5.13+.
 
+Release notes
+-------------
+
+Please see
+<https://gitlab.steamos.cloud/steamrt/steamrt/-/wikis/Soldier-release-notes>
+
 Known issues
 ------------
 
