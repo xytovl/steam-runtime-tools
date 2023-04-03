@@ -8,6 +8,12 @@ steam-runtime-tools (0.20230403.0) UNRELEASED; urgency=medium
     - Describe how to use steam-runtime-launch-options
     - Clarify how to unpack the soldier SDK
     - Describe how to use a locally-modified Platform or SDK
+    - Document more required and recommended libraries
+    - Put more emphasis on sniper and less on soldier
+    - Add some advice on debugging SLR on new distributions
+    - Expand READMEs for SteamLinuxRuntime and SteamLinuxRuntime_soldier
+    - Add a README for SteamLinuxRuntime_sniper
+    - Improve cross-references
   * Update bundled projects:
     - bubblewrap v0.8.0
     - libglnx to 2023-02-27
@@ -20,7 +26,7 @@ steam-runtime-tools (0.20230403.0) UNRELEASED; urgency=medium
   * system-info: Fix a minor memory leak
   * Test improvements
 
- -- Simon McVittie <smcv@collabora.com>  Mon, 03 Apr 2023 11:57:49 +0100
+ -- Simon McVittie <smcv@collabora.com>  Mon, 03 Apr 2023 18:00:14 +0100
 
 steam-runtime-tools (0.20230314.0) steamrt; urgency=medium
 
