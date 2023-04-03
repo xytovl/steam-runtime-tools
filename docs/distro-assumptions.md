@@ -247,12 +247,34 @@ On operating systems that make extensive use of these headers, such as
 NixOS, it will be necessary to copy or symlink the required libraries into
 a location that appears in the search path.
 
-The shared libraries found in those locations need to include at least:
+The shared libraries found in those locations need to include at least
+these, for both the `x86_64-linux-gnu` and `i386-linux-gnu` ABIs:
 
 * glibc itself
-* Graphics drivers (see below)
+* `libcrypt.so.1` (historically part of glibc, but now provided by
+    compiling [libxcrypt][] with binary backwards-compatibility enabled)
+* Graphics drivers (see below), in particular:
+    * `libGL.so.1`
 * All of the dependencies of the above, recursively, all the way down
     the stack to `libc.so.6`
+
+At least the following libraries are recommended, and might be required
+by some Steam features or by some games, for both the `x86_64-linux-gnu`
+and `i386-linux-gnu` ABIs:
+
+* `libEGL.so.1`
+* `libdrm.so.2`
+* `libgbm.so.1`
+* `libgcc_s.so.1` from gcc
+* `libstdc++.so.6` from gcc
+* `libudev.so.0` from [libudev0-shim][]
+* `libudev.so.1` from [systemd][], or a fully-compatible reimplementation
+    of the same ABI (for example [eudev][])
+* `libva-drm.so.2`
+* `libva-glx.so.2`
+* `libva-x11.so.2`
+* `libva.so.2`
+* `libvulkan.so.1`
 
 The Steam Runtime assumes that running `/sbin/ldconfig -XNv` will list
 all of the directories that were searched while building the `ld.so`
@@ -303,11 +325,21 @@ across distributions.
 
 ## Graphics drivers
 
+The Steam Runtime is not able to provide graphics drivers that are
+compatible with every host operating system, so the operating system
+must provide these.
+Libraries that are tightly coupled to the graphics drivers, such as
+Mesa's `libgbm.so.1`, must also be provided by the host operating system.
+
 The operating system needs to provide GLX drivers, for which a GLVND-based
 driver stack is recommended.
 For a GLVND-based driver stack, the driver libraries `libGLX_*.so.0`
 need to be be in the dynamic linker search path (`ld.so` cache or
 `LD_LIBRARY_PATH`).
+
+Mesa's `libgbm.so.1` is required for some Steam features and some games,
+and must be in the dynamic linker search path
+(`ld.so` cache or `LD_LIBRARY_PATH`).
 
 EGL drivers are recommended.
 They are located in the same way that is documented for the upstream
@@ -525,13 +557,17 @@ these checks when run outside Steam.
 [Vulkan Driver Interface]: https://github.com/KhronosGroup/Vulkan-Loader/blob/sdk-1.2.198/docs/LoaderDriverInterface.md
 [bubblewrap]: https://github.com/containers/bubblewrap
 [container runtime]: container-runtime.md
+[eudev]: https://github.com/eudev-project/eudev
 [heavy]: https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/heavy/README.md
 [ldlp]: ld-library-path-runtime.md
 [libcapsule]: https://gitlab.collabora.com/vivek/libcapsule
+[libxcrypt]: https://github.com/besser82/libxcrypt
+[libudev0-shim]: https://github.com/archlinux/libudev0-shim
 [multiarch tuple]: https://wiki.debian.org/Multiarch/Tuples
 [pressure-vessel]: pressure-vessel.md
 [scout-on-soldier]: container-runtime.md#scout-on-soldier
 [scout]: https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/scout/README.md
 [sniper]: https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/sniper/README.md
 [soldier]: https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/soldier/README.md
+[systemd]: https://systemd.io/
 [user namespace requirements]: https://github.com/flatpak/flatpak/wiki/User-namespace-requirements
