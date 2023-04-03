@@ -1,5 +1,5 @@
-Container based Steam Runtime v1 'scout'
-========================================
+Container-based Steam Runtime v1 'scout' (scout-on-soldier)
+===========================================================
 
 This experimental container-based release of the Steam Runtime
 is enabled on a per-title basis by forcing its use in the title's
@@ -18,13 +18,13 @@ Known issues
 ------------
 
 Please see
-https://github.com/ValveSoftware/steam-runtime/blob/master/doc/steamlinuxruntime-known-issues.md
+<https://github.com/ValveSoftware/steam-runtime/blob/master/doc/steamlinuxruntime-known-issues.md>
 
 Reporting bugs
 --------------
 
 Please see
-https://github.com/ValveSoftware/steam-runtime/blob/master/doc/reporting-steamlinuxruntime-bugs.md
+<https://github.com/ValveSoftware/steam-runtime/blob/master/doc/reporting-steamlinuxruntime-bugs.md>
 
 Development and debugging
 -------------------------
@@ -47,6 +47,16 @@ in the same Steam library, you can use `run-in-scout-on-soldier` to test
 commands in the scout-on-soldier environment, for example:
 
     .../steamapps/common/SteamLinuxRuntime/run-in-scout-on-soldier -- xterm
+
+Please see
+<https://gitlab.steamos.cloud/steamrt/steam-runtime-tools/-/blob/main/docs/distro-assumptions.md>
+for details of assumptions made about the host operating system, and some
+advice on debugging the container runtime on new Linux distributions.
+
+Game developers who are interested in targeting this environment should
+check the SDK documentation <https://gitlab.steamos.cloud/steamrt/scout/sdk>
+and general information for game developers
+<https://gitlab.steamos.cloud/steamrt/steam-runtime-tools/-/blob/main/docs/slr-for-game-developers.md>.
 
 Licensing and copyright
 -----------------------

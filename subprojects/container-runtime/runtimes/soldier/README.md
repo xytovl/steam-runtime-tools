@@ -1,5 +1,5 @@
-Container based Steam Runtime
-=============================
+Container based Steam Runtime 2 'soldier'
+=========================================
 
 This container-based release of the Steam Runtime is used for Proton 5.13+.
 
@@ -7,13 +7,13 @@ Known issues
 ------------
 
 Please see
-https://github.com/ValveSoftware/steam-runtime/blob/master/doc/steamlinuxruntime-known-issues.md
+<https://github.com/ValveSoftware/steam-runtime/blob/master/doc/steamlinuxruntime-known-issues.md>
 
 Reporting bugs
 --------------
 
 Please see
-https://github.com/ValveSoftware/steam-runtime/blob/master/doc/reporting-steamlinuxruntime-bugs.md
+<https://github.com/ValveSoftware/steam-runtime/blob/master/doc/reporting-steamlinuxruntime-bugs.md>
 
 Development and debugging
 -------------------------
@@ -30,12 +30,19 @@ recently.
 either to a log file (if `STEAM_LINUX_RUNTIME_LOG=1` is also used) or to
 the same place as `steam` output (otherwise).
 
-Some more advanced environment variables (subject to change):
+`PRESSURE_VESSEL_SHELL=instead` runs an interactive shell in the
+container instead of running the game.
 
-* `PRESSURE_VESSEL_SHELL=instead` runs an interactive shell in the
-    container instead of running the game.
+Please see
+<https://gitlab.steamos.cloud/steamrt/steam-runtime-tools/-/blob/main/docs/distro-assumptions.md>
+for details of assumptions made about the host operating system, and some
+advice on debugging the container runtime on new Linux distributions.
 
-* See the pressure-vessel source code for more.
+Steam Runtime 2 'soldier' is not intended to be used directly for native
+Linux games. Native Linux games should either target Steam Runtime 1
+'scout', or target Steam Runtime 3 'sniper' and be specifically marked
+to run under sniper. For more information, please see
+<https://gitlab.steamos.cloud/steamrt/steam-runtime-tools/-/blob/main/docs/slr-for-game-developers.md#soldier>.
 
 Licensing and copyright
 -----------------------

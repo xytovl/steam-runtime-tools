@@ -61,7 +61,7 @@ The Steam Linux Runtime can be used to run three categories of games:
   * Native Linux games on future runtimes: soldier, sniper, etc.
   * Windows games, using Proton
 
-### Native Linux games targeting Steam Runtime 1 'scout'
+### <span id="scout">Native Linux games targeting Steam Runtime 1 'scout'</span>
 
 In theory all pre-2022 native Linux games on Steam are built to target
 Steam Runtime version 1, codenamed scout, which is based on
@@ -116,14 +116,17 @@ If it is useful to run in a newer container during development,
 the *Steam Linux Runtime - sniper* compatibility tool can be used to
 achieve this.
 
-#### Native Linux games targeting Steam Runtime 2 'soldier'
+#### <span id="soldier">Native Linux games targeting Steam Runtime 2 'soldier'</span>
 
 Native Linux games that require soldier cannot be released on Steam.
 The next-generation runtime for native Linux games is intended to be
-Steam Runtime 3 `sniper`.
-For development, debugging and experiments, if it is useful to run a
-game under `soldier`, replacing `sniper` with `soldier` in instructions
-that refer to `sniper` should usually work.
+[Steam Runtime 3 `sniper`](#sniper).
+All older native Linux games should be compiled for
+[Steam Runtime 1 `scout`](#scout).
+
+However, for development, debugging and experiments, if it is useful
+to run a game under `soldier`, replacing `sniper` with `soldier` in
+instructions that refer to `sniper` should usually work.
 
 ### Windows games, using Proton
 
