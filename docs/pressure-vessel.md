@@ -12,9 +12,9 @@ games. It is used by Steam's [container runtime](container-runtime.md)
 compatibility tools to run games in individual game-specific containers.
 For more information on pressure-vessel, please see:
 
-* <https://archive.fosdem.org/2020/schedule/event/containers_steam/>
-* <https://steamcommunity.com/app/221410/discussions/0/1638675549018366706/>
-* [the source code](https://gitlab.steamos.cloud/steamrt/steam-runtime-tools/-/tree/HEAD/pressure-vessel)
+* [Containers and Steam][]
+* [Steam for Linux client adds support for Linux namespaces][]
+* [the source code][pressure-vessel source]
 
 Use cases
 ---------
@@ -27,7 +27,7 @@ available over `/usr`, `/lib*`, `/bin`, `/sbin`, analogous to Flatpak
 runtimes, using some or all of the host system's graphics stack.
 
 In particular, this avoids or mitigates the following problems with
-the [`LD_LIBRARY_PATH`-based Steam Runtime](ld-library-path-runtime.md):
+the [`LD_LIBRARY_PATH`-based Steam Runtime][ldlp]:
 
 * The Steam Runtime cannot contain glibc, because the path to
     [`ld.so(8)`][ld.so] is hard-coded into all executables (it is the ELF
@@ -84,9 +84,6 @@ games at all, and in particular allow game logic to use the Runtime's
 libstdc++ while the host system graphics driver uses a different,
 newer libstdc++. This is not yet implemented.
 
-[ld.so]: https://linux.die.net/man/8/ld.so
-[libcapsule]: https://gitlab.collabora.com/vivek/libcapsule/
-
 ### Protecting `$HOME`
 
 (This feature is not being actively developed right now.)
@@ -102,12 +99,12 @@ that won't be synchronised, other than /tmp or similar.
 Building and testing pressure-vessel
 ------------------------------------
 
-Please see [../CONTRIBUTING.md](../CONTRIBUTING.md) for general
+Please see [../CONTRIBUTING.md][CONTRIBUTING] for general
 information.
 
 The script `build-aux/many-builds.py` can be used to compile and test
 steam-runtime-tools, including pressure-vessel. Please see
-[../build-aux/many-builds.md](../build-aux/many-builds.md) for details.
+[../build-aux/many-builds.md][many-builds] for details.
 
 Design constraints
 ------------------
@@ -135,14 +132,9 @@ Design constraints
   *AppID* (for example 70 for [Half-Life][]). These are not correlated
   in any obvious way.
 
-  [Half-Life]: https://store.steampowered.com/app/70/HalfLife/
-
 * Some games have distinct app IDs but share data: for example,
   [X3: Terran Conflict][] (ID 2820) and [X3: Albion Prelude][] (ID 201310)
   share `SteamApps/common/X3 Terran Conflict`.
-
-  [X3: Terran Conflict]: https://store.steampowered.com/app/2820/X3_Terran_Conflict/
-  [X3: Albion Prelude]: https://store.steampowered.com/app/201310/X3_Albion_Prelude/
 
 * The Steam client and client library need to be able to communicate
   via shared memory and SysV semaphores.
@@ -208,8 +200,6 @@ has not undergone the [/usr merge][].
 Either way, selected paths from the host system are exposed in `/run/host`,
 the same as for `flatpak run --filesystem=host` in Flatpak.
 
-[/usr merge]: https://fedoraproject.org/wiki/Features/UsrMove
-
 ### Interactive debugging
 
 `--tty`, `--xterm` and the `--shell` options work by wrapping an
@@ -222,7 +212,7 @@ increasingly long "adverb" command around the command to be run.
 Each game gets a private home directory in `~/.var/app`, the same as
 Flatpak apps do. The name of the private home directory follows the
 [naming recommendations from the freedesktop.org Desktop Entry
-Specification](https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#file-naming).
+Specification][].
 For Steam apps, unless a better name has been specified, the app's
 freedesktop.org app ID is based on its Steam AppID, for example
 `com.steampowered.App70` for Half-Life.
@@ -253,8 +243,6 @@ Anything that hard-codes a path relative to `$HOME` (including `.config`,
   `~/.var/app/com.steampowered.App445220/.avorion/` in the real home
   directory
 
-  [Avorion]: https://store.steampowered.com/app/445220/Avorion/
-
 If more than one game is meant to share a private home directory, then
 they need to be run with `--freedesktop-app-id=` or `--steam-app-id=`
 to set that up.
@@ -265,3 +253,22 @@ to set that up.
 
 The app is not currently made available read-only on `/app` (as it
 would be in Flatpak). It could be, if desired.
+
+<!-- References: -->
+
+[/usr merge]: https://fedoraproject.org/wiki/Features/UsrMove
+[Avorion]: https://store.steampowered.com/app/445220/Avorion/
+[CONTRIBUTING]: ../CONTRIBUTING.md
+[Containers and Steam]: https://archive.fosdem.org/2020/schedule/event/containers_steam/
+[Half-Life]: https://store.steampowered.com/app/70/HalfLife/
+[Steam Linux Runtime]: container-runtime.md
+[Steam for Linux client adds support for Linux namespaces]: https://steamcommunity.com/app/221410/discussions/0/1638675549018366706/
+[X3: Albion Prelude]: https://store.steampowered.com/app/201310/X3_Albion_Prelude/
+[X3: Terran Conflict]: https://store.steampowered.com/app/2820/X3_Terran_Conflict/
+[container runtime]: container-runtime.md
+[ld.so]: https://linux.die.net/man/8/ld.so
+[ldlp]: ld-library-path-runtime.md
+[libcapsule]: https://gitlab.collabora.com/vivek/libcapsule/
+[many-builds]: ../build-aux/many-builds.md
+[naming recommendations from the freedesktop.org Desktop Entry Specification]: https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#file-naming
+[pressure-vessel source]: https://gitlab.steamos.cloud/steamrt/steam-runtime-tools/-/tree/main/pressure-vessel

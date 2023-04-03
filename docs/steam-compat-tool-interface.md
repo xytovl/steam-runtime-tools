@@ -8,8 +8,7 @@ SPDX-License-Identifier: MIT
 ## Compatibility tool declaration
 
 Compatibility tools are declared by a file `compatibilitytool.vdf`,
-which is a [VDF](https://developer.valvesoftware.com/wiki/KeyValues)
-text file in this format:
+which is a [VDF][] text file in this format:
 
 ```
 "compatibilitytools"
@@ -71,8 +70,7 @@ absolute path to the tool's installation directory.
 ## Tool manifest
 
 Each compatibility tool has a *tool manifest*, `toolmanifest.vdf`, which
-is a [VDF](https://developer.valvesoftware.com/wiki/KeyValues) text
-file with one top-level entry, `manifest`.
+is a [VDF][] text file with one top-level entry, `manifest`.
 
 `manifest` has the following known fields:
 
@@ -111,9 +109,9 @@ file with one top-level entry, `manifest`.
 
         The container runtime environment that sets up the
         Steam Runtime 1 'scout'
-        [`LD_LIBRARY_PATH` runtime](ld-library-path-runtime.md)
+        [`LD_LIBRARY_PATH` runtime][ldlp]
         as a layer over a `container-runtime`
-        (see [Steam Linux Runtime (scout-on-soldier)][scout-on-soldier]
+        (see [Steam Linux Runtime (scout-on-soldier)][scout-on-soldier])
 
 * `require_tool_appid`:
 
@@ -140,10 +138,6 @@ file with one top-level entry, `manifest`.
     If set to `1`, Steam will send `SIGINT` to the compatibility tool
     instead of proceeding directly to `SIGKILL`, to give it a chance
     to do graceful cleanup.
-
-[scout-on-soldier]: container-runtime.md#steam-linux-runtime-scout-on-soldier
-[soldier]: container-runtime.md#steam-runtime-2-soldier
-[sniper]: container-runtime.md#steam-runtime-3-sniper
 
 ## Command-line
 
@@ -302,7 +296,7 @@ Some environment variables are set by Steam, including:
 
     The same as `STEAM_COMPAT_APP_ID`, but only when running the actual
     game; not set when running
-    [install scripts](https://partner.steamgames.com/doc/sdk/installscripts)
+    [install scripts][]
     or other setup commands. The Steamworks API assumes that every process
     with this environment variable set is part of the actual game.
 
@@ -318,17 +312,13 @@ scout libraries. After setting up the container, it runs the "inner"
 compatibility tool (Proton) with an entirely new `LD_LIBRARY_PATH`
 pointing to mixed host and soldier libraries.
 
-[install folder]: https://partner.steamgames.com/doc/store/application/depots
-
 ## Native Linux Steam games
 
 This is the simplest situation and can be considered to be the baseline.
 
 In recent versions of Steam, the game process is wrapped in a `reaper`
 process which sets itself as a subreaper using `PR_SET_CHILD_SUBREAPER`
-(see
-[**prctl**(2)](https://manpages.debian.org/unstable/manpages-dev/prctl.2.en.html)
-for details).
+(see [**prctl**(2)][prctl] for details).
 
 Version 1 compat tools are not invoked specially.
 
@@ -352,8 +342,6 @@ is set to the game's top-level [install folder][].
 For example, Dota 2 (app ID 570) runs from its top-level install folder
 `dota 2 beta`, even though its main executable is in the `game`
 subdirectory.
-
-[Steamworks launch options]: https://partner.steamgames.com/doc/sdk/uploading
 
 Either way, the compatibility tool is expected to preserve this
 working directory when running the actual game.
@@ -389,7 +377,7 @@ The [launch options](#launch-options) are used.
 ## Windows games with an install script (since Steam beta 1623823138)
 
 Other Windows games, such as Everquest (205710), have an
-[install script](https://partner.steamgames.com/doc/sdk/installscripts),
+[install script][]
 conventionally named `installscript.vdf`, which must be run by an
 interpreter.
 
@@ -522,3 +510,16 @@ Steam Linux Runtime (pressure-vessel) containers will not work as expected
 unless this is set to the game's top-level directory.
 
 [Launch options](#launch-options) behave the same as for Steam games.
+
+<!-- References: -->
+
+[Steamworks launch options]: https://partner.steamgames.com/doc/sdk/uploading
+[VDF]: https://developer.valvesoftware.com/wiki/KeyValues
+[install folder]: https://partner.steamgames.com/doc/store/application/depots
+[install script]: https://partner.steamgames.com/doc/sdk/installscripts
+[install scripts]: https://partner.steamgames.com/doc/sdk/installscripts
+[ldlp]: ld-library-path-runtime.md
+[prctl]: https://manpages.debian.org/unstable/manpages-dev/prctl.2.en.html
+[scout-on-soldier]: container-runtime.md#steam-linux-runtime-scout-on-soldier
+[sniper]: container-runtime.md#steam-runtime-3-sniper
+[soldier]: container-runtime.md#steam-runtime-2-soldier

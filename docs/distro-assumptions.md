@@ -11,8 +11,7 @@ SPDX-License-Identifier: MIT
 
 This document describes some assumptions that are known to be made by
 the Steam Runtime, the Steam container runtime framework
-([Steam Linux Runtime](container-runtime.md),
-[pressure-vessel](pressure-vessel.md)),
+([Steam Linux Runtime][], [pressure-vessel][]),
 and/or Steam itself.
 
 As a general, high-level rule of thumb, if something is true in all of
@@ -25,31 +24,32 @@ available to use as a reference for how it normally fits together.
 There are two main components involved in providing libraries to Steam and
 Steam games:
 
-- The [traditional Steam Runtime](ld-library-path-runtime.md),
+- The [traditional Steam Runtime][ldlp],
     implemented in terms of `LD_LIBRARY_PATH`.
     Instances of this can be found in
     `~/.steam/root/ubuntu12_32/steam-runtime` and
     `~/.steam/root/ubuntu12_64/steam-runtime-heavy` in a working Steam
     installation.
     `~/.steam/root/ubuntu12_32/steam-runtime` provides
-    [Steam Runtime 1 'scout'](https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/scout/README.md),
+    [Steam Runtime 1 'scout'][scout],
     based on Ubuntu 12.04.
     `~/.steam/root/ubuntu12_64/steam-runtime-heavy` provides
-    [Steam Runtime 1½ 'heavy'](https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/heavy/README.md),
+    [Steam Runtime 1½ 'heavy'][heavy],
     based on Debian 8.
 
-- The [container runtime framework](container-runtime.md),
+- The [container runtime framework][container runtime],
     implemented in terms of containers launched by the pressure-vessel tool.
     Instances of this can be found in
     `.../steamapps/common/SteamLinuxRuntime_soldier` and perhaps
     `.../steamapps/common/SteamLinuxRuntime_sniper`.
-    [Steam Runtime 2 'soldier'](https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/soldier/README.md)
+    [Steam Runtime 2 'soldier'][soldier]
     is based on Debian 10.
-    [Steam Runtime 3 'sniper'](https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/sniper/README.md)
+    [Steam Runtime 3 'sniper'][sniper]
     is based on Debian 11.
 
 To improve long-term compatibility with older native Linux games, there
-is also a special container runtime `.../steamapps/common/SteamLinuxRuntime`,
+is also a special container runtime
+[`.../steamapps/common/SteamLinuxRuntime`][scout-on-soldier],
 which starts a Steam Runtime 2 'soldier' container and then uses a
 Steam Runtime 1 'scout' environment inside that container.
 This behaves like a combination of 'soldier' and 'scout'.
@@ -68,7 +68,7 @@ we can discuss whether it can be avoided.
 For example, the container runtime framework has several special cases
 intended to benefit Flatpak, Exherbo, NixOS and Guix.
 Please contact the Steam Runtime maintainers via
-[its Github issue tracker](https://github.com/ValveSoftware/steam-runtime/issues)
+[its Github issue tracker][Steam Runtime issues]
 if a similar special-case would be beneficial.
 
 ## Execution environment
@@ -87,12 +87,11 @@ automatically detects Flatpak, and uses the same interfaces as the
 on its behalf.
 
 The container runtime framework has the same
-[user namespace requirements](https://github.com/flatpak/flatpak/wiki/User-namespace-requirements)
+[user namespace requirements][]
 as Flatpak, as a result of using much of the same code to start its
 containers.
 The container runtime framework will use its own included copy of the
-[bubblewrap](https://github.com/containers/bubblewrap) tool, `pv-bwrap`,
-if possible.
+[bubblewrap][] tool, `pv-bwrap`, if possible.
 In operating systems where a setuid version of the bubblewrap executable
 is required, it is assumed to be available in the `PATH` as `bwrap`, or
 installed at `/usr/local/libexec/flatpak-bwrap`, `/usr/libexec/flatpak-bwrap`
@@ -101,8 +100,7 @@ or `/usr/lib/flatpak/flatpak-bwrap` as part of Flatpak.
 ## Filesystem layout
 
 In general, Steam assumes that it is run in a filesystem layout that is
-approximately
-[FHS](https://en.wikipedia.org/wiki/Filesystem_Hierarchy_Standard)-compliant,
+approximately [FHS][]-compliant,
 with some minor variation such as the names of architecture-specific library
 directories.
 Non-FHS operating systems such as NixOS and Guix are likely to need to
@@ -120,7 +118,7 @@ of the following sets of paths:
 * `/usr/x86_64-pc-linux-gnu/lib` and `/usr/i686-pc-linux-gnu/lib`,
     as used on Exherbo
 * more paths can be added if necessary,
-    [contact the maintainers](https://github.com/ValveSoftware/steam-runtime/issues)
+    [contact the maintainers][Steam Runtime issues]
 
 The container runtime assumes that the canonicalized paths of all
 libraries in those locations are below either those locations (preferred),
@@ -133,7 +131,7 @@ assumed to be found in one of the following paths:
 * `/usr/x86_64-pc-linux-gnu/lib/locale` and/or
     `/usr/i686-pc-linux-gnu/lib/locale`, as used on Exherbo
 * more paths can be added if necessary,
-    [contact the maintainers](https://github.com/ValveSoftware/steam-runtime/issues)
+    [contact the maintainers][Steam Runtime issues]
 
 The glibc locale data conventionally stored in `/usr/share/i18n` is
 assumed to be found in that directory.
@@ -184,8 +182,7 @@ Both 32-bit and 64-bit x86 libraries are needed.
 The 64-bit libraries need to be compatible with the `x86_64-linux-gnu`
 GNU system type, also known as `x86_64` or AMD64.
 More formally, they need to be compatible with the ABI of the
-`x86_64-linux-gnu` [multiarch tuple](https://wiki.debian.org/Multiarch/Tuples)
-as used in Debian.
+`x86_64-linux-gnu` [multiarch tuple][] as used in Debian.
 The container runtime framework uses multiarch tuples as its preferred
 internal representation for ABIs, so you will see it appearing in various
 paths, even when running on a non-Debian-derived operating system.
@@ -222,7 +219,7 @@ ELF interpreter:
 * `/usr/i686-pc-linux-gnu/lib/ld-linux.so.2`, as used on Exherbo
 * A path below `/gnu/store` or `/nix`
 * more paths can be added if necessary,
-    [contact the maintainers](https://github.com/ValveSoftware/steam-runtime/issues)
+    [contact the maintainers][Steam Runtime issues]
 
 ## Shared libraries
 
@@ -240,10 +237,10 @@ There are two ways this can happen:
     - `/etc/ld-x86_64-pc-linux-gnu.cache` or
         `/etc/ld-i686-pc-linux-gnu.cache`, as used on Exherbo
     - more paths can be added if necessary,
-        [contact the maintainers](https://github.com/ValveSoftware/steam-runtime/issues)
+        [contact the maintainers][Steam Runtime issues]
 
 As a result of implementation limitations in
-[libcapsule](https://gitlab.collabora.com/vivek/libcapsule), the
+[libcapsule][], the
 container runtime does not currently support following the `DT_RUNPATH`
 and `DT_RPATH` ELF headers.
 On operating systems that make extensive use of these headers, such as
@@ -314,8 +311,7 @@ need to be be in the dynamic linker search path (`ld.so` cache or
 
 EGL drivers are recommended.
 They are located in the same way that is documented for the upstream
-libglvnd project:
-[EGL ICD enumeration](https://github.com/NVIDIA/libglvnd/blob/v1.4.0/src/EGL/icd_enumeration.md).
+libglvnd project: [EGL ICD enumeration][].
 If the operating system patches GLVND to have a non-standard search path,
 the container runtime will not usually be able to find drivers whose
 JSON manifests appear in non-standard locations.
@@ -327,7 +323,7 @@ Vulkan drivers are recommended, and will usually be needed for newer
 games and for Proton.
 They are located in the same way that is documented for the upstream
 Vulkan-Loader:
-[Driver Interface](https://github.com/KhronosGroup/Vulkan-Loader/blob/sdk-1.2.198/docs/LoaderDriverInterface.md).
+[Driver Interface][Vulkan Driver Interface].
 If the operating system patches Vulkan-Loader to have a non-standard
 search path, the container runtime will not usually find drivers whose
 JSON manifests appear in non-standard locations.
@@ -519,3 +515,23 @@ environment, but in this case it is not:
 
 A future version of the diagnostic tool might provide a way to suppress
 these checks when run outside Steam.
+
+<!-- References -->
+
+[EGL ICD enumeration]: https://github.com/NVIDIA/libglvnd/blob/v1.4.0/src/EGL/icd_enumeration.md
+[FHS]: https://en.wikipedia.org/wiki/Filesystem_Hierarchy_Standard
+[Steam Linux Runtime]: container-runtime.md
+[Steam Runtime issues]: https://github.com/ValveSoftware/steam-runtime/issues
+[Vulkan Driver Interface]: https://github.com/KhronosGroup/Vulkan-Loader/blob/sdk-1.2.198/docs/LoaderDriverInterface.md
+[bubblewrap]: https://github.com/containers/bubblewrap
+[container runtime]: container-runtime.md
+[heavy]: https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/heavy/README.md
+[ldlp]: ld-library-path-runtime.md
+[libcapsule]: https://gitlab.collabora.com/vivek/libcapsule
+[multiarch tuple]: https://wiki.debian.org/Multiarch/Tuples
+[pressure-vessel]: pressure-vessel.md
+[scout-on-soldier]: container-runtime.md#scout-on-soldier
+[scout]: https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/scout/README.md
+[sniper]: https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/sniper/README.md
+[soldier]: https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/soldier/README.md
+[user namespace requirements]: https://github.com/flatpak/flatpak/wiki/User-namespace-requirements

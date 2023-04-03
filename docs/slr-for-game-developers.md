@@ -21,8 +21,6 @@ used by Steam customers to play released games.
 Please consult official [Steam support documentation][] for help with
 playing released games on Linux.
 
-[Steam support documentation]: https://help.steampowered.com/
-
 ## Introduction
 
 The *Steam Linux Runtime* is a collection of container environments
@@ -114,8 +112,6 @@ A development branch of Battle for Wesnoth is the first example of
 [a game using the sniper container runtime][wesnoth-sniper].
 We hope this will become available for general use in future.
 
-[wesnoth-sniper]: https://github.com/ValveSoftware/steam-runtime/issues/508#issuecomment-1147665747
-
 If it is useful to run in a newer container during development,
 the *Steam Linux Runtime - soldier* or
 *Steam Linux Runtime - sniper* compatibility tools can be used to
@@ -146,9 +142,6 @@ This is the same as [switching a game to a beta branch][], except that
 instead of accessing the properties of the game, you would access the
 properties of a compatibility tool such as *Steam Linux Runtime - soldier*
 or *Proton 6.3*.
-
-[add a Steam Library folder]: https://help.steampowered.com/en/faqs/view/4BD4-4528-6B2E-8327
-[switching a game to a beta branch]: https://help.steampowered.com/en/faqs/view/5A86-0DF4-C59E-8C4A
 
 ## Launching Steam games in a Steam Linux Runtime container
 
@@ -377,8 +370,6 @@ runtime's log file, but Proton's output will not, and neither will the
 game's output.
 See [Proton documentation][] for more details.
 
-[Proton documentation]: https://github.com/ValveSoftware/Proton/
-
 ## Running in an interactive shell
 
 By default, the Steam Linux Runtime will just launch the game, but this
@@ -437,9 +428,6 @@ interactive shell in the same place as your previous shell session.
 It is also possible to ask for an interactive shell after running the
 command (replace `instead` with `after`), or only if the command exits
 with a nonzero status (replace `instead` with `fail`).
-
-[set launch options]: https://help.steampowered.com/en/faqs/view/7D01-D2DD-D75E-2955
-[Debian's /etc/bash.bashrc]: https://sources.debian.org/src/bash/5.1-2/debian/etc.bash.bashrc/
 
 ## Inserting debugging commands into the container
 
@@ -658,8 +646,6 @@ $ /path/to/steamlibrary/steamapps/common/SteamLinuxRuntime_soldier/run \
     +set extra_texture_path /resources/my-game/textures
 ```
 
-[compatibility tool interface]: steam-compat-tool-interface.md
-
 ## Developer mode
 
 The `--devel` option puts `pressure-vessel` into a "developer mode"
@@ -744,6 +730,8 @@ $ /path/to/steamlibrary/steamapps/common/SteamLinuxRuntime_soldier/run \
 You will find that tools like `gdb` and `strace` are available in the SDK
 environment.
 
+[sniper][] is exactly the same, but with `sniper` instead of `soldier`.
+
 ## Running in a modified Platform or SDK environment
 
 The default `Platform` environment provided by *Steam Linux Runtime - soldier*
@@ -775,6 +763,8 @@ so that you have files like
 Then you can proceed as if for the SDK, but use `--runtime=platform`
 instead of `--runtime=sdk`.
 
+[sniper][] is exactly the same, but with `sniper` instead of `soldier`.
+
 ## Upgrading pressure-vessel
 
 [Upgrading pressure-vessel]: #upgrading-pressure-vessel
@@ -805,8 +795,6 @@ documented here.
 To return to the recommended version of `pressure-vessel`, simply delete
 the `steamapps/common/SteamLinuxRuntime_soldier/pressure-vessel/`
 directory and use Steam's [Verify integrity][] feature to re-download it.
-
-[Verify integrity]: https://help.steampowered.com/en/faqs/view/0C48-FCBD-DA71-93EB
 
 ## Attaching a debugger by using gdbserver
 
@@ -957,8 +945,6 @@ Ubuntu does not yet provide a `debuginfod` server.
 For Ubuntu, you will need to install special `-dbgsym` packages that
 contain the detached debug symbols.
 
-[debuginfod]: https://sourceware.org/elfutils/Debuginfod.html
-
 ### For the container runtime
 
 There is currently no public `debuginfod` instance for the Steam Runtime.
@@ -1032,9 +1018,6 @@ characters.
 * Good: `steamapps/common/my-great-game` or `steamapps/common/MyGreatGame`
 * Might cause issues: `steamapps/common/My Great Game™... 😹 Edition!`
 
-[install folder]: https://partner.steamgames.com/doc/store/application/depots
-[launch options]: https://partner.steamgames.com/doc/sdk/uploading
-
 ### Configuration and state
 
 *Windows or Linux-native*
@@ -1056,23 +1039,20 @@ For example, the Unity engine has [Application.persistentDataPath][]
 and the SDL library has [SDL\_GetPrefPath][SDL_GetPrefPath], both of
 which are suitable.
 
-[Steam Cloud API]: https://partner.steamgames.com/doc/features/cloud
-[basedirs]: https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
-[Application.persistentDataPath]: https://docs.unity3d.com/ScriptReference/Application-persistentDataPath.html
-[SDL_GetPrefPath]: https://wiki.libsdl.org/SDL_GetPrefPath
-
 ### Build environment
 
 *Linux-native only*
 
 For best results, compile Linux-native games in the official
-[Steam Runtime SDK Docker container][] using [Docker][] or [Podman][].
-The [SDK documentation][Steam Runtime SDK Docker container] has more
-information about this.
+Steam Runtime SDK Docker container using [Docker][], [Podman][]
+or [Toolbx][].
+The SDK documentation has more information about this.
 
-[Steam Runtime SDK Docker container]: https://gitlab.steamos.cloud/steamrt/scout/sdk/-/blob/master/README.md
-[Docker]: https://www.docker.com/
-[Podman]: https://podman.io/
+Linux-native games released on Steam can be compiled for either
+[Steam Runtime 1 'scout'][scout SDK] or
+[Steam Runtime 3 'sniper'][sniper SDK].
+Steam Runtime 2 'soldier' also has [a similar SDK][soldier SDK],
+but releasing games compiled for soldier on Steam is not supported.
 
 ### Detecting the container environment
 
@@ -1091,8 +1071,6 @@ The same file can be used to detect Flatpak ≥ 1.10.x, which
 are identified as `flatpak` followed by a newline.
 To support Flatpak 1.8.x or older, check whether the file `/.flatpak-info`
 exists.
-
-[os-release(5)]: https://www.freedesktop.org/software/systemd/man/os-release.html
 
 ### Input devices
 
@@ -1117,10 +1095,6 @@ enumerate input devices by reading `/dev` and `/sys`, with
 change-notification by monitoring `/dev` using [inotify][].
 Please see the [Linux joystick implementation in SDL][], specifically
 the `ENUMERATION_FALLBACK` code paths, for sample code.
-
-[Steam Input]: https://partner.steamgames.com/doc/features/steam_controller
-[inotify]: https://man7.org/linux/man-pages/man7/inotify.7.html
-[Linux joystick implementation in SDL]: https://github.com/libsdl-org/SDL/blob/main/src/joystick/linux/SDL_sysjoystick.c
 
 ### Shared libraries
 
@@ -1176,4 +1150,33 @@ Similar to Debian and Ubuntu, the `/bin/sh` in the container is not
 Basic shell utilities are available in the container runtime, but more
 advanced utilities might not be present.
 
+<!-- References: -->
+
+[Application.persistentDataPath]: https://docs.unity3d.com/ScriptReference/Application-persistentDataPath.html
 [Debian Policy]: https://www.debian.org/doc/debian-policy/ch-files.html#scripts
+[Debian's /etc/bash.bashrc]: https://sources.debian.org/src/bash/5.1-2/debian/etc.bash.bashrc/
+[Docker]: https://www.docker.com/
+[Linux joystick implementation in SDL]: https://github.com/libsdl-org/SDL/blob/main/src/joystick/linux/SDL_sysjoystick.c
+[Podman]: https://podman.io/
+[Proton documentation]: https://github.com/ValveSoftware/Proton/
+[SDL_GetPrefPath]: https://wiki.libsdl.org/SDL_GetPrefPath
+[Steam Cloud API]: https://partner.steamgames.com/doc/features/cloud
+[Steam Input]: https://partner.steamgames.com/doc/features/steam_controller
+[Steam support documentation]: https://help.steampowered.com/
+[Verify integrity]: https://help.steampowered.com/en/faqs/view/0C48-FCBD-DA71-93EB
+[add a Steam Library folder]: https://help.steampowered.com/en/faqs/view/4BD4-4528-6B2E-8327
+[basedirs]: https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
+[compatibility tool interface]: steam-compat-tool-interface.md
+[debuginfod]: https://sourceware.org/elfutils/Debuginfod.html
+[inotify]: https://man7.org/linux/man-pages/man7/inotify.7.html
+[install folder]: https://partner.steamgames.com/doc/store/application/depots
+[launch options]: https://partner.steamgames.com/doc/sdk/uploading
+[os-release(5)]: https://www.freedesktop.org/software/systemd/man/os-release.html
+[scout SDK]: https://gitlab.steamos.cloud/steamrt/scout/sdk/-/blob/master/README.md
+[set launch options]: https://help.steampowered.com/en/faqs/view/7D01-D2DD-D75E-2955
+[sniper SDK]: https://gitlab.steamos.cloud/steamrt/sniper/sdk/-/blob/master/README.md
+[sniper]: https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/sniper/README.md
+[soldier SDK]: https://gitlab.steamos.cloud/steamrt/soldier/sdk/-/blob/master/README.md
+[soldier]: https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/soldier/README.md
+[switching a game to a beta branch]: https://help.steampowered.com/en/faqs/view/5A86-0DF4-C59E-8C4A
+[wesnoth-sniper]: https://github.com/ValveSoftware/steam-runtime/issues/508#issuecomment-1147665747

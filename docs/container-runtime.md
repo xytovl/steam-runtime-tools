@@ -24,10 +24,10 @@ FOSDEM 2020:
 Many of the features described as future work in that talk have now been
 implemented and are in active use.
 
-## `pressure-vessel`
+## <span id="pressure-vessel">`pressure-vessel`</span>
 
 The core of all of these compatibility tools is
-[pressure-vessel](pressure-vessel.md),
+[pressure-vessel][],
 which combines application-level libraries from the Steam Runtime
 with graphics drivers from the host operating system, resulting in a
 system that is as compatible as possible with the Steam Runtime
@@ -37,10 +37,12 @@ GPU hardware.
 The Steam Play compatibility tools automatically run pressure-vessel
 when necessary.
 
-## Steam Runtime 2, `soldier`
+## <span id="soldier">Steam Runtime 2, `soldier`</span>
+
+[soldier]: #soldier
 
 Steam Runtime 2, `soldier`, is a newer runtime than
-[scout](ld-library-path-runtime.md), based on Debian 10 (released in 2019).
+[scout][ldlp], based on Debian 10 (released in 2019).
 Most of its libraries are taken directly from Debian, and can benefit
 from Debian's long-term security support.
 Selected libraries that are particularly important for games, such as
@@ -49,7 +51,7 @@ from newer branches of Debian.
 
 soldier is designed to be used as a container runtime for `pressure-vessel`,
 and [cannot be used](#why) as a
-[`LD_LIBRARY_PATH` runtime](ld-library-path-runtime.md).
+[`LD_LIBRARY_PATH` runtime][ldlp].
 
 At the time of writing, soldier is used as a runtime environment for
 Proton 5.13 or later, which are compiled against the newer library stack
@@ -57,7 +59,7 @@ and would not be compatible with scout.
 
 Native Linux games that require soldier cannot currently be released on Steam.
 The next-generation runtime for native Linux games is intended to be
-Steam Runtime 3 `sniper` (see below).
+Steam Runtime 3 `sniper` (see [below][sniper]).
 
 The *Steam Linux Runtime - soldier* compatibility tool, app ID 1391110,
 is automatically downloaded to your Steam library as
@@ -71,12 +73,14 @@ It can also be installed by running this command:
 Documentation in the `steamrt` "metapackage" provides
 [more information about soldier](https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/soldier/README.md).
 
-## Steam Linux Runtime (scout-on-soldier)
+## <span id="scout-on-soldier">Steam Linux Runtime (scout-on-soldier)</span>
+
+[scout-on-soldier]: #scout-on-soldier
 
 Steam offers a large number of older native Linux games.
 Some of these games, such as Team Fortress 2, were carefully compiled in
 a strict `scout` environment, so that they can run in the
-[scout `LD_LIBRARY_PATH` runtime](ld-library-path-runtime.md),
+[scout `LD_LIBRARY_PATH` runtime][ldlp],
 or in any environment that provides at least the same libraries as scout.
 
 Unfortunately, many native Linux games have been compiled in a newer
@@ -96,22 +100,26 @@ It can also be installed by running this command:
 
     steam steam://install/1070560
 
-It is implemented by entering a `soldier` container, and then setting up
-a `scout` `LD_LIBRARY_PATH` runtime inside that container.
+It is implemented by entering a [`soldier`](#soldier) container, and then
+setting up a [`scout` `LD_LIBRARY_PATH` runtime][ldlp] inside that container.
 
-Many native Linux games are run under this compatibility tool on the
-Steam Deck.
-On desktop Linux, Dota 2 recently started to
-[use the Steam Linux Runtime compatibility tool by default](https://store.steampowered.com/news/app/570/view/4978168332488878344).
+The Steam Deck automatically uses the Steam Linux Runtime container for
+many native Linux games.
+Some games also default to being run in this container on Linux desktop
+systems, for example [Dota 2][]
+since [its January 2022 update][Dota 2 scout SLR].
 This mechanism is not currently available for third-party games on
-desktop Linux.
+desktop Linux, but users can opt-in to running specific games in the
+Steam Linux Runtime container via *Properties* → *Compatibility*.
 
-## Steam Runtime 3, `sniper`
+## <span id="sniper">Steam Runtime 3, `sniper`</span>
+
+[sniper]: #sniper
 
 Steam Runtime 3, `sniper`, is another newer runtime based on Debian 11
 (released in 2021).
-It is very similar to `soldier`, except for its base distribution being
-2 years newer: this means its core libraries and compiler are also
+It is very similar to [`soldier`](#soldier), except for its base distribution
+being 2 years newer: this means its core libraries and compiler are also
 approximately 2 years newer.
 It is likely that future versions of Proton will move from soldier to
 sniper to take advantage of this newer base.
@@ -134,11 +142,13 @@ It can also be installed by running this command:
 Documentation in the `steamrt` "metapackage" provides
 [more information about sniper](https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/sniper/README.md).
 
-## Steam Runtime 4, `medic`
+## <span id="medic">Steam Runtime 4, `medic`</span>
+
+[medic]: #medic
 
 Steam Runtime 4, `medic`, is a prototype runtime currently based on Debian 12
 (which is expected to be released in mid 2023).
-Like `sniper`, it is structurally similar to `soldier`, but with a newer
+Like [`sniper`][sniper], it is structurally similar to `soldier`, but with a newer
 base distribution.
 
 `medic` is not yet available as a compatibility tool, and its
@@ -147,7 +157,9 @@ requirements.
 
 ## <span id="why">Why the container runtimes are necessary</span>
 
-The [traditional `LD_LIBRARY_PATH` runtime](ld-library-path-runtime.md)
+[why]: #why
+
+The [traditional `LD_LIBRARY_PATH` runtime][ldlp]
 only works because modern host OSs are strictly newer than it.
 Making a `LD_LIBRARY_PATH`-based runtime reliable is difficult, especially
 since we want it to be runnable on host OSs that have some packages that
@@ -174,19 +186,31 @@ runtime's libraries sidesteps both these problems.
 ## Reporting issues
 
 Bugs and issues in the Steam Runtime should be reported to the
-[steam-runtime project on Github](https://github.com/ValveSoftware/steam-runtime).
+[steam-runtime project on Github][Steam Runtime issues].
 
 ## Acknowledgements
 
 The libraries included in the container runtimes are derived
-from [Debian](https://www.debian.org/) and [Ubuntu](https://ubuntu.com/)
+from [Debian][] and [Ubuntu][]
 packages, and indirectly from various upstream projects.
 See the copyright information included in the Steam Runtime for details.
 
 The container technology used in `pressure-vessel` is heavily based on
-code from [Flatpak](https://flatpak.org/), and makes use of the
-lower-level components [bubblewrap](https://github.com/containers/bubblewrap)
-and [libcapsule](https://gitlab.collabora.com/vivek/libcapsule/).
+code from [Flatpak][], and makes use of the
+lower-level components [bubblewrap][] and [libcapsule][].
 libcapsule is heavily based on internal code from glibc's dynamic linker,
 and of course, all of this container/namespace juggling relies on features
 contributed to the Linux kernel.
+
+<!-- References -->
+
+[Debian]: https://www.debian.org/
+[Dota 2 scout SLR]: https://store.steampowered.com/news/app/570/view/4978168332488878344
+[Dota 2]: https://store.steampowered.com/app/570/Dota_2/
+[Flatpak]: https://flatpak.org/
+[Steam Runtime issues]: https://github.com/ValveSoftware/steam-runtime/issues
+[Ubuntu]: https://ubuntu.com/
+[bubblewrap]: https://github.com/containers/bubblewrap
+[ldlp]: ld-library-path-runtime.md
+[libcapsule]: https://gitlab.collabora.com/vivek/libcapsule
+[pressure-vessel]: pressure-vessel.md

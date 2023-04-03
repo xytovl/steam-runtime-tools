@@ -9,7 +9,7 @@ SPDX-License-Identifier: MIT
 
 ## Introduction
 
-When using the [Steam container runtime framework](container-runtime.md),
+When using the [Steam container runtime framework][],
 not all filesystem paths in a game's container are the same as for the
 host system.
 
@@ -26,7 +26,6 @@ The sharing and unsharing is implemented in the `pressure-vessel` tool.
 ## If under Flatpak
 
 [under Flatpak]: #if-under-flatpak
-[Steam Flatpak app]: https://github.com/flathub/com.valvesoftware.Steam
 
 If Steam was run as a [Flatpak app][Steam Flatpak app],
 and the container runtime was run from inside that Flatpak app, then the
@@ -348,3 +347,8 @@ This assumes Steam is not running [under Flatpak][].
 * `/overrides`: used internally by [the runtime][]
 * Custom non-FHS top-level directories, e.g. `/large-disk-drive`:
     [usually not shared][]
+
+<!-- References: -->
+
+[Steam Flatpak app]: https://github.com/flathub/com.valvesoftware.Steam
+[Steam container runtime framework]: container-runtime.md
