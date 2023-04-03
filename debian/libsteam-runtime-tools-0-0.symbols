@@ -28,6 +28,8 @@ libsteam-runtime-tools-0.so.0 libsteam-runtime-tools-0-0 #MINVER#
  srt_display_info_get_x11_messages@Base 0.20230403.0
  srt_display_info_get_x11_type@Base 0.20230403.0
  srt_display_info_is_wayland_session@Base 0.20230403.0
+ srt_display_wayland_issues_get_type@Base 0.20230403.0
+ srt_display_x11_type_get_type@Base 0.20230403.0
  srt_dri_driver_get_library_path@Base 0.20200109.0
  srt_dri_driver_get_type@Base 0.20200109.0
  srt_dri_driver_is_extra@Base 0.20200109.0
