@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20230331.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20230403.0) UNRELEASED; urgency=medium
 
   [ Simon McVittie ]
   * pressure-vessel: Remove pv-test-ui.
@@ -13,12 +13,14 @@ steam-runtime-tools (0.20230331.0) UNRELEASED; urgency=medium
     - libglnx to 2023-02-27
 
   [ Ludovico de Nittis ]
+  * pv-wrap: Share Discord "Rich Presence" IPC sockets with the container
+    (steam-runtime-tools#102)
   * system-info: Detect whether the desktop session is X11 or Wayland,
     and related information (steamrt/tasks#235)
   * system-info: Fix a minor memory leak
   * Test improvements
 
- -- Simon McVittie <smcv@collabora.com>  Fri, 31 Mar 2023 17:39:29 +0100
+ -- Simon McVittie <smcv@collabora.com>  Mon, 03 Apr 2023 11:57:49 +0100
 
 steam-runtime-tools (0.20230314.0) steamrt; urgency=medium
 
