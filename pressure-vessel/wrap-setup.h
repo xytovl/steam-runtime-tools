@@ -29,6 +29,7 @@
 #include "flatpak-bwrap-private.h"
 #include "flatpak-exports-private.h"
 #include "runtime.h"
+#include "wrap-discord.h"
 #include "wrap-pipewire.h"
 
 typedef enum

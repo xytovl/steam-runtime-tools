@@ -342,6 +342,7 @@ pv_wrap_share_sockets (PvEnviron *container_env,
       flatpak_run_add_resolved_args (sharing_bwrap);
       flatpak_run_add_journal_args (sharing_bwrap);
       pv_wrap_add_pipewire_args (sharing_bwrap, container_env);
+      pv_wrap_add_discord_args (sharing_bwrap);
     }
 
   flatpak_bwrap_populate_runtime_dir (sharing_bwrap, NULL);
