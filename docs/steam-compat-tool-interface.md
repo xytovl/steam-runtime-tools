@@ -429,6 +429,11 @@ Since Steam beta 1623823138, these games are run like this:
 
 ## Historical behaviour of Windows games (session mode v2)
 
+Before Steam beta 1623823138, Windows games had more complicated
+launch behaviour.
+
+<details><summary>Historical details</summary>
+
 Before Steam beta 1623823138, each Windows game had several setup commands
 to run before it could be launched. They were invoked like this:
 
@@ -483,6 +488,8 @@ to run before it could be launched. They were invoked like this:
     are both set to the app-ID of the game as usual.
 
     The [launch options](#launch-options) are used, as usual.
+
+</details>
 
 ## Non-Steam games
 
