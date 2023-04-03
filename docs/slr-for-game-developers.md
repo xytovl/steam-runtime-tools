@@ -225,7 +225,7 @@ For a more scriptable version of this, run one of these commands:
   * Proton 6.3: `steam steam://install/1580130`
   * Proton 5.13: `steam steam://install/1420170`
 
-### Running commands in sniper, soldier, etc.
+### <span id="commands">Running commands in sniper, soldier, etc.</span>
 
 The simplest scenario for using the Steam Linux Runtime framework is to
 run commands in a newer runtime such as sniper.
@@ -287,7 +287,7 @@ $ /path/to/steamlibrary/steamapps/common/SteamLinuxRuntime_sniper/run \
 Exporting the environment variable `PRESSURE_VESSEL_TERMINAL=tty` is
 equivalent to using the `--terminal=tty` option.
 
-### Running commands in the scout Steam Linux Runtime environment
+### <span id="commands-in-scout-on-soldier">Running commands in the scout Steam Linux Runtime environment</span>
 
 Running a game that was compiled for Steam Runtime 1 'scout' in the
 scout-on-soldier container is similar to a pure soldier container, but an
@@ -382,7 +382,7 @@ runtime's log file, but Proton's output will not, and neither will the
 game's output.
 See [Proton documentation][] for more details.
 
-## Running in an interactive shell
+## <span id="shell">Running in an interactive shell</span>
 
 By default, the Steam Linux Runtime will just launch the game, but this
 is not always convenient.
@@ -441,7 +441,7 @@ It is also possible to ask for an interactive shell after running the
 command (replace `instead` with `after`), or only if the command exits
 with a nonzero status (replace `instead` with `fail`).
 
-## Inserting debugging commands into the container
+## <span id="command-injection">Inserting debugging commands into the container</span>
 
 Recent versions of the various container runtimes include a feature that
 can be used to run arbitrary debugging commands inside the container.
@@ -543,7 +543,7 @@ container, or an interactive tool like `gdb` or `python3` or a
 non-interactive tool like `ls` can be placed directly after the `--`
 separator.
 
-### Debugging a game that is crashing on startup
+### <span id="crash-on-startup">Debugging a game that is crashing on startup</span>
 
 Normally, the debug interface used by `steam-runtime-launch-client`
 exits when the game does.
@@ -577,7 +577,7 @@ $ .../SteamLinuxRuntime_sniper/pressure-vessel/bin/steam-runtime-launch-client \
     --terminate
 ```
 
-## Layout of the container runtime
+## <span id="layout">Layout of the container runtime</span>
 
 In general, the container runtime is similar to Debian and Ubuntu.
 In particular, the standard directories for C/C++ libraries are

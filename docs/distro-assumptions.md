@@ -548,12 +548,72 @@ environment, but in this case it is not:
 A future version of the diagnostic tool might provide a way to suppress
 these checks when run outside Steam.
 
+## Debugging the container runtime on unusual distributions
+
+If the container runtime is not working correctly on a particular
+distribution, please contact the Steam Runtime maintainers via
+[its Github issue tracker][Steam Runtime issues]
+and provide the information requested in the issue template
+(see [Reporting SteamLinuxRuntime bugs][]).
+
+It is usually best to start by trying a relatively small and simple
+native Linux game, preferably a well-known free or demo game,
+by forcing it to run under the "Steam Linux Runtime" compatibility tool.
+Some games that have been particularly useful in the past for this include:
+
+* [Floating Point][] (very small, low hardware requirements, 32-bit, OpenGL)
+* [Team Fortress 2][] (32-bit, OpenGL)
+* [Life is Strange, episode 1][Life is Strange] (32-bit, OpenGL)
+* [Counter-Strike: Global Offensive][CSGO]
+    (64-bit, normally OpenGL, Vulkan with `-vulkan` option)
+* [Aperture Desk Job][] (64-bit, Vulkan)
+
+Setting the environment variable `STEAM_LINUX_RUNTIME_LOG=1` makes
+the Steam Linux Runtime infrastructure write more verbose output to a
+log file, matching the pattern
+`steamapps/common/SteamLinuxRuntime_*/var/slr-*.log`.
+The log file's name will include the Steam app ID, if available.
+The game's standard output and standard error are also redirected to
+this log file.
+A symbolic link `steamapps/common/SteamLinuxRuntime_*/var/slr-latest.log`
+is also created, pointing to the most recently-created log.
+
+The environment variable `STEAM_LINUX_RUNTIME_VERBOSE=1` can be exported
+to make the Steam Linux Runtime even more verbose, which is useful when
+debugging an issue.
+This variable does not change the logging destination: if
+`STEAM_LINUX_RUNTIME_LOG` is set to `1`, the Steam Linux Runtime will
+write messages to its log file, or if not, it will write messages to
+whatever standard error stream it inherits from Steam.
+
+*After* native Linux games work well, it's time to move on to Proton and
+repeat the debugging process if necessary.
+See [Proton documentation][] for more details of how to generate
+additional debugging output from Proton.
+
+Some of the information in the [guide for game developers][]
+will also be useful for Linux distribution maintainers debugging the
+container runtime on a new distribution, in particular:
+
+* [Logging](slr-for-game-developers.md#logging)
+* [Running in an interactive shell](slr-for-game-developers.md#shell)
+* [Inserting debugging commands into the container](slr-for-game-developers.md#command-injection)
+* [Layout of the container runtime](slr-for-game-developers.md#layout)
+
 <!-- References -->
 
+[guide for game developers]: slr-for-game-developers.md
+[Aperture Desk Job]: https://store.steampowered.com/app/1902490/Aperture_Desk_Job/
+[CSGO]: https://store.steampowered.com/app/730/CounterStrike_Global_Offensive/
 [EGL ICD enumeration]: https://github.com/NVIDIA/libglvnd/blob/v1.4.0/src/EGL/icd_enumeration.md
 [FHS]: https://en.wikipedia.org/wiki/Filesystem_Hierarchy_Standard
+[Floating Point]: https://store.steampowered.com/app/302380/Floating_Point/
+[Life is Strange]: https://store.steampowered.com/app/319630/Life_is_Strange__Episode_1/
+[Proton documentation]: https://github.com/ValveSoftware/Proton/
+[Reporting SteamLinuxRuntime bugs]: https://github.com/ValveSoftware/steam-runtime/blob/master/doc/reporting-steamlinuxruntime-bugs.md
 [Steam Linux Runtime]: container-runtime.md
 [Steam Runtime issues]: https://github.com/ValveSoftware/steam-runtime/issues
+[Team Fortress 2]: https://store.steampowered.com/app/440/Team_Fortress_2/
 [Vulkan Driver Interface]: https://github.com/KhronosGroup/Vulkan-Loader/blob/sdk-1.2.198/docs/LoaderDriverInterface.md
 [bubblewrap]: https://github.com/containers/bubblewrap
 [container runtime]: container-runtime.md
@@ -561,8 +621,8 @@ these checks when run outside Steam.
 [heavy]: https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/heavy/README.md
 [ldlp]: ld-library-path-runtime.md
 [libcapsule]: https://gitlab.collabora.com/vivek/libcapsule
-[libxcrypt]: https://github.com/besser82/libxcrypt
 [libudev0-shim]: https://github.com/archlinux/libudev0-shim
+[libxcrypt]: https://github.com/besser82/libxcrypt
 [multiarch tuple]: https://wiki.debian.org/Multiarch/Tuples
 [pressure-vessel]: pressure-vessel.md
 [scout-on-soldier]: container-runtime.md#scout-on-soldier
