@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20230403.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20230403.0) steamrt; urgency=medium
 
   [ Simon McVittie ]
   * pressure-vessel: Remove pv-test-ui.
@@ -26,7 +26,7 @@ steam-runtime-tools (0.20230403.0) UNRELEASED; urgency=medium
   * system-info: Fix a minor memory leak
   * Test improvements
 
- -- Simon McVittie <smcv@collabora.com>  Mon, 03 Apr 2023 18:00:14 +0100
+ -- Simon McVittie <smcv@collabora.com>  Mon, 03 Apr 2023 19:55:55 +0100
 
 steam-runtime-tools (0.20230314.0) steamrt; urgency=medium
 

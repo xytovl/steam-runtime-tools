@@ -22,6 +22,12 @@ libsteam-runtime-tools-0.so.0 libsteam-runtime-tools-0-0 #MINVER#
  srt_desktop_entry_get_type@Base 0.20200415.0
  srt_desktop_entry_is_default_handler@Base 0.20200415.0
  srt_desktop_entry_is_steam_handler@Base 0.20200415.0
+ srt_display_info_get_environment_list@Base 0.20230403.0
+ srt_display_info_get_type@Base 0.20230403.0
+ srt_display_info_get_wayland_issues@Base 0.20230403.0
+ srt_display_info_get_x11_messages@Base 0.20230403.0
+ srt_display_info_get_x11_type@Base 0.20230403.0
+ srt_display_info_is_wayland_session@Base 0.20230403.0
  srt_dri_driver_get_library_path@Base 0.20200109.0
  srt_dri_driver_get_type@Base 0.20200109.0
  srt_dri_driver_is_extra@Base 0.20200109.0
@@ -152,6 +158,7 @@ libsteam-runtime-tools-0.so.0 libsteam-runtime-tools-0-0 #MINVER#
  srt_system_info_can_write_to_uinput@Base 0.20190801.0
  srt_system_info_check_all_graphics@Base 0.20190822.0
  srt_system_info_check_container@Base 0.20210430.0
+ srt_system_info_check_display@Base 0.20230403.0
  srt_system_info_check_graphics@Base 0.20190822.0
  srt_system_info_check_libraries@Base 0.20190802.0
  srt_system_info_check_library@Base 0.20190802.0
