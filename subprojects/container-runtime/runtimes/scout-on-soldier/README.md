@@ -1,18 +1,12 @@
 Container-based Steam Runtime v1 'scout' (scout-on-soldier)
 ===========================================================
 
-This experimental container-based release of the Steam Runtime
-is enabled on a per-title basis by forcing its use in the title's
-Properties dialog.
+This container-based release of the Steam Runtime is enabled on a
+per-title basis by forcing its use in the title's Properties dialog,
+and is used by default for native Linux games on Steam Deck.
 
-This version of the Steam Runtime uses the traditional
-`LD_LIBRARY_PATH`-based Steam Runtime, but launches it in a container
-using the "Steam Linux Runtime - soldier" compatibility tool, for
-compatibility with games that were not compiled in a correct
-Steam Runtime 1 'scout' environment. This produces a result similar to
-running the traditional `LD_LIBRARY_PATH`-based Steam Runtime on a
-Debian 10 system, so games that work in that environment are likely to
-work in this container too.
+For general information please see
+<https://gitlab.steamos.cloud/steamrt/steam-runtime-tools/-/blob/main/docs/container-runtime.md>
 
 Release notes
 -------------
