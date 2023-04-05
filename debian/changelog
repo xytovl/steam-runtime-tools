@@ -1,3 +1,19 @@
+steam-runtime-tools (0.20230405.0) UNRELEASED; urgency=medium
+
+  [ Ludovico de Nittis ]
+  * pressure-vessel: Ignore the Discord IPC socket if it's a dangling
+    symlink, fixing a regression in 0.20230403.0 for users of the
+    Discord Flatpak app (steam-runtime#581)
+
+  [ Simon McVittie ]
+  * Add some missing symbols to the ABI tracking
+  * Documentation updates
+    - container-runtimes: Add release notes link
+    - container-runtimes: Link to container-runtime.md for general info
+    - slr-for-game-developers: Fix some broken links
+
+ -- Simon McVittie <smcv@collabora.com>  Wed, 05 Apr 2023 13:31:07 +0100
+
 steam-runtime-tools (0.20230403.0) steamrt; urgency=medium
 
   [ Simon McVittie ]
