@@ -1200,6 +1200,7 @@ advanced utilities might not be present.
 [Steam Cloud API]: https://partner.steamgames.com/doc/features/cloud
 [Steam Input]: https://partner.steamgames.com/doc/features/steam_controller
 [Steam support documentation]: https://help.steampowered.com/
+[Toolbx]: https://containertoolbx.org/
 [Verify integrity]: https://help.steampowered.com/en/faqs/view/0C48-FCBD-DA71-93EB
 [Wesnoth on sniper]: https://github.com/ValveSoftware/steam-runtime/issues/508#issuecomment-1147665747
 [add a Steam Library folder]: https://help.steampowered.com/en/faqs/view/4BD4-4528-6B2E-8327
@@ -1210,11 +1211,11 @@ advanced utilities might not be present.
 [install folder]: https://partner.steamgames.com/doc/store/application/depots
 [launch options]: https://partner.steamgames.com/doc/sdk/uploading
 [os-release(5)]: https://www.freedesktop.org/software/systemd/man/os-release.html
-[scout SDK]: https://gitlab.steamos.cloud/steamrt/scout/sdk/-/blob/master/README.md
+[scout SDK]: https://gitlab.steamos.cloud/steamrt/scout/sdk/-/blob/steamrt/scout/README.md
 [scout-on-soldier]: container-runtime.md#scout-on-soldier
 [set launch options]: https://help.steampowered.com/en/faqs/view/7D01-D2DD-D75E-2955
-[sniper SDK]: https://gitlab.steamos.cloud/steamrt/sniper/sdk/-/blob/master/README.md
+[sniper SDK]: https://gitlab.steamos.cloud/steamrt/sniper/sdk/-/blob/steamrt/sniper/README.md
 [sniper]: https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/sniper/README.md
-[soldier SDK]: https://gitlab.steamos.cloud/steamrt/soldier/sdk/-/blob/master/README.md
+[soldier SDK]: https://gitlab.steamos.cloud/steamrt/soldier/sdk/-/blob/steamrt/soldier/README.md
 [soldier]: https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/soldier/README.md
 [switching a game to a beta branch]: https://help.steampowered.com/en/faqs/view/5A86-0DF4-C59E-8C4A
