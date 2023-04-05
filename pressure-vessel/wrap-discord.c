@@ -66,14 +66,26 @@ pv_wrap_add_discord_args (FlatpakBwrap *sharing_bwrap)
        member = g_dir_read_name (dir))
     {
       /* Bind the Discord Rich Presence IPC sockets. They are expected to be
-       * called `discord-ipc-`, followed by a number.
-        */
+       * called `discord-ipc-`, followed by a number. */
       if (g_str_has_prefix (member, "discord-ipc-"))
         {
+          struct stat stat_buf;
           g_autofree gchar *host_socket =
             g_build_filename (temp_dir, member, NULL);
           g_autofree gchar *container_socket =
             g_strdup_printf ("/run/user/%d/%s", getuid (), member);
+
+          /* The Flatpak version of Discord suggests users to manually create the symlink
+           * $XDG_RUNTIME_DIR/discord-ipc-0 -> $XDG_RUNTIME_DIR/app/discordapp.Discord/discord-ipc-0.
+           * However that symlink could be dangling when the Discord app is not
+           * running. So we need to ensure the symlink is pointing to an existing
+           * file before proceeding. */
+          if (stat (host_socket, &stat_buf) != 0)
+            {
+              g_debug ("Failed to get info about %s, skipping the Discord socket: %s",
+                       host_socket, g_strerror (errno));
+              continue;
+            }
 
           flatpak_bwrap_add_args (sharing_bwrap,
                                   "--ro-bind",
