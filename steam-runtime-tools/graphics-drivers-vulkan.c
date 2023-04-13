@@ -70,6 +70,7 @@ enum
   VULKAN_ICD_PROP_ISSUES,
   VULKAN_ICD_PROP_JSON_PATH,
   VULKAN_ICD_PROP_LIBRARY_PATH,
+  VULKAN_ICD_PROP_LIBRARY_ARCH,
   VULKAN_ICD_PROP_RESOLVED_LIBRARY_PATH,
   VULKAN_ICD_PROP_PORTABILITY_DRIVER,
   N_VULKAN_ICD_PROPERTIES
@@ -110,6 +111,10 @@ srt_vulkan_icd_get_property (GObject *object,
 
       case VULKAN_ICD_PROP_LIBRARY_PATH:
         g_value_set_string (value, self->icd.library_path);
+        break;
+
+      case VULKAN_ICD_PROP_LIBRARY_ARCH:
+        g_value_set_string (value, self->icd.library_arch);
         break;
 
       case VULKAN_ICD_PROP_RESOLVED_LIBRARY_PATH:
@@ -160,6 +165,11 @@ srt_vulkan_icd_set_property (GObject *object,
       case VULKAN_ICD_PROP_LIBRARY_PATH:
         g_return_if_fail (self->icd.library_path == NULL);
         self->icd.library_path = g_value_dup_string (value);
+        break;
+
+      case VULKAN_ICD_PROP_LIBRARY_ARCH:
+        g_return_if_fail (self->icd.library_arch == NULL);
+        self->icd.library_arch = g_value_dup_string (value);
         break;
 
       case VULKAN_ICD_PROP_PORTABILITY_DRIVER:
@@ -258,6 +268,15 @@ srt_vulkan_icd_class_init (SrtVulkanIcdClass *cls)
                          G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
                          G_PARAM_STATIC_STRINGS);
 
+  vulkan_icd_properties[VULKAN_ICD_PROP_LIBRARY_ARCH] =
+    g_param_spec_string ("library-arch", "Library architecture",
+                         "Architecture of the library implementing this ICD. "
+                         "The values allowed by the specification are \"32\" "
+                         "and \"64\", but other values are possible.",
+                         NULL,
+                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+                         G_PARAM_STATIC_STRINGS);
+
   vulkan_icd_properties[VULKAN_ICD_PROP_RESOLVED_LIBRARY_PATH] =
     g_param_spec_string ("resolved-library-path", "Resolved library path",
                          "Library implementing this ICD, expressed as a "
@@ -285,6 +304,8 @@ srt_vulkan_icd_class_init (SrtVulkanIcdClass *cls)
  * @json_path: (transfer none): the absolute path to the JSON file
  * @api_version: (transfer none): the API version
  * @library_path: (transfer none): the path to the library
+ * @library_arch: (transfer none) (nullable): the architecture of
+ *  @library_path
  * @portability_driver: Whether the ICD is a portability driver or not
  * @issues: problems with this ICD
  *
@@ -294,6 +315,7 @@ SrtVulkanIcd *
 srt_vulkan_icd_new (const gchar *json_path,
                     const gchar *api_version,
                     const gchar *library_path,
+                    const gchar *library_arch,
                     gboolean portability_driver,
                     SrtLoadableIssues issues)
 {
@@ -305,6 +327,7 @@ srt_vulkan_icd_new (const gchar *json_path,
                        "api-version", api_version,
                        "json-path", json_path,
                        "library-path", library_path,
+                       "library-arch", library_arch,
                        "portability-driver", portability_driver,
                        "issues", issues,
                        NULL);
@@ -403,6 +426,27 @@ srt_vulkan_icd_get_library_path (SrtVulkanIcd *self)
 {
   g_return_val_if_fail (SRT_IS_VULKAN_ICD (self), NULL);
   return self->icd.library_path;
+}
+
+/**
+ * srt_vulkan_icd_get_library_arch:
+ * @self: The ICD
+ *
+ * Return a string that describes the architecture of this ICD.
+ * The values allowed by the Vulkan specification are `32` and `64`,
+ * indicating the size of a pointer, but the reference Vulkan-Loader
+ * accepts any value (and therefore so does steam-runtime-tools).
+ *
+ * This is an optional field, so if it was not available in the JSON,
+ * or if the ICD could not be loaded, %NULL will be returned.
+ *
+ * Returns: (type filename) (transfer none) (nullable): #SrtVulkanIcd:library-arch
+ */
+const gchar *
+srt_vulkan_icd_get_library_arch (SrtVulkanIcd *self)
+{
+  g_return_val_if_fail (SRT_IS_VULKAN_ICD (self), NULL);
+  return self->icd.library_arch;
 }
 
 /**
@@ -515,6 +559,7 @@ srt_vulkan_icd_new_replace_library_path (SrtVulkanIcd *self,
   return srt_vulkan_icd_new (self->icd.json_path,
                              self->icd.api_version,
                              path,
+                             self->icd.library_arch,
                              self->icd.portability_driver,
                              self->icd.issues);
 }
@@ -787,6 +832,7 @@ enum
   VULKAN_LAYER_PROP_NAME,
   VULKAN_LAYER_PROP_TYPE,
   VULKAN_LAYER_PROP_LIBRARY_PATH,
+  VULKAN_LAYER_PROP_LIBRARY_ARCH,
   VULKAN_LAYER_PROP_API_VERSION,
   VULKAN_LAYER_PROP_IMPLEMENTATION_VERSION,
   VULKAN_LAYER_PROP_DESCRIPTION,
@@ -833,6 +879,10 @@ srt_vulkan_layer_get_property (GObject *object,
 
       case VULKAN_LAYER_PROP_LIBRARY_PATH:
         g_value_set_string (value, self->layer.library_path);
+        break;
+
+      case VULKAN_LAYER_PROP_LIBRARY_ARCH:
+        g_value_set_string (value, self->layer.library_arch);
         break;
 
       case VULKAN_LAYER_PROP_API_VERSION:
@@ -896,6 +946,11 @@ srt_vulkan_layer_set_property (GObject *object,
       case VULKAN_LAYER_PROP_LIBRARY_PATH:
         g_return_if_fail (self->layer.library_path == NULL);
         self->layer.library_path = g_value_dup_string (value);
+        break;
+
+      case VULKAN_LAYER_PROP_LIBRARY_ARCH:
+        g_return_if_fail (self->layer.library_arch == NULL);
+        self->layer.library_arch = g_value_dup_string (value);
         break;
 
       case VULKAN_LAYER_PROP_API_VERSION:
@@ -1034,6 +1089,15 @@ srt_vulkan_layer_class_init (SrtVulkanLayerClass *cls)
                          G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
                          G_PARAM_STATIC_STRINGS);
 
+  vulkan_layer_properties[VULKAN_LAYER_PROP_LIBRARY_ARCH] =
+    g_param_spec_string ("library-arch", "Library architecture",
+                         "Architecture of the library binary that implements "
+                         "this layer. The values allowed by the specification "
+                         "are \"32\" and \"64\", but other values are possible.",
+                         NULL,
+                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+                         G_PARAM_STATIC_STRINGS);
+
   vulkan_layer_properties[VULKAN_LAYER_PROP_API_VERSION] =
     g_param_spec_string ("api-version", "API version",
                          "The version number of the Vulkan API that the "
@@ -1073,6 +1137,8 @@ srt_vulkan_layer_class_init (SrtVulkanLayerClass *cls)
  * @name: (transfer none): the layer unique name
  * @type: (transfer none): the type of the layer
  * @library_path: (transfer none): the path to the library
+ * @library_arch: (transfer none) (nullable): the architecture of the binary
+ *  in @library_path
  * @api_version: (transfer none): the API version
  * @implementation_version: (transfer none): the version of the implemented
  *  layer
@@ -1091,6 +1157,7 @@ srt_vulkan_layer_new (const gchar *json_path,
                       const gchar *name,
                       const gchar *type,
                       const gchar *library_path,
+                      const gchar *library_arch,
                       const gchar *api_version,
                       const gchar *implementation_version,
                       const gchar *description,
@@ -1115,6 +1182,7 @@ srt_vulkan_layer_new (const gchar *json_path,
                        "name", name,
                        "type", type,
                        "library-path", library_path,
+                       "library-arch", library_arch,
                        "api-version", api_version,
                        "implementation-version", implementation_version,
                        "description", description,
@@ -1197,6 +1265,7 @@ vulkan_layer_parse_json (const gchar *path,
   const gchar *name = NULL;
   const gchar *type = NULL;
   const gchar *library_path = NULL;
+  const gchar *library_arch = NULL;
   const gchar *api_version = NULL;
   const gchar *implementation_version = NULL;
   const gchar *description = NULL;
@@ -1220,6 +1289,9 @@ vulkan_layer_parse_json (const gchar *path,
 
   type = json_object_get_string_member_with_default (json_layer, "type", NULL);
   library_path = json_object_get_string_member_with_default (json_layer, "library_path", NULL);
+  /* In theory only "32" and "64" are valid values here. However the Vulkan-Loader
+   * doesn't enforce it, so we don't do that either. */
+  library_arch = json_object_get_string_member_with_default (json_layer, "library_arch", NULL);
   api_version = json_object_get_string_member_with_default (json_layer, "api_version", NULL);
   implementation_version = json_object_get_string_member_with_default (json_layer,
                                                                        "implementation_version",
@@ -1257,9 +1329,9 @@ vulkan_layer_parse_json (const gchar *path,
       return srt_vulkan_layer_new_error (path, SRT_LOADABLE_ISSUES_CANNOT_LOAD, error);
     }
 
-  vulkan_layer = srt_vulkan_layer_new (path, name, type, library_path, api_version,
-                                       implementation_version, description, component_layers,
-                                       SRT_LOADABLE_ISSUES_NONE);
+  vulkan_layer = srt_vulkan_layer_new (path, name, type, library_path, library_arch,
+                                       api_version, implementation_version, description,
+                                       component_layers, SRT_LOADABLE_ISSUES_NONE);
 
   vulkan_layer->layer.file_format_version = g_strdup (file_format_version);
 
@@ -1454,8 +1526,8 @@ load_vulkan_layer_json (const gchar *sysroot,
     }
 
   /* At the time of writing the latest layer manifest file version is
-   * 1.2.0 and forward compatibility is not guaranteed */
-  if (strverscmp (file_format_version, "1.2.0") <= 0)
+   * 1.2.1 and forward compatibility is not guaranteed */
+  if (strverscmp (file_format_version, "1.2.1") <= 0)
     {
       g_debug ("file_format_version is \"%s\"", file_format_version);
     }
@@ -1674,6 +1746,7 @@ vulkan_layer_dup (SrtVulkanLayer *self)
 
   SrtVulkanLayer *ret = srt_vulkan_layer_new (self->layer.json_path, self->layer.name,
                                               self->layer.type, self->layer.library_path,
+                                              self->layer.library_arch,
                                               self->layer.api_version,
                                               self->layer.implementation_version,
                                               self->layer.description,
@@ -1823,6 +1896,26 @@ srt_vulkan_layer_get_library_path (SrtVulkanLayer *self)
 {
   g_return_val_if_fail (SRT_IS_VULKAN_LAYER (self), NULL);
   return self->layer.library_path;
+}
+
+/**
+ * srt_vulkan_layer_get_library_arch:
+ * @self: The Vulkan layer
+ *
+ * Return a string that describes the architecture of the binary
+ * associated with #SrtVulkanLayer:library-path.
+ * The meaning is the same as for srt_vulkan_icd_get_library_arch().
+ *
+ * This is an optional field, so if it was not available in the JSON,
+ * or if the layer description could not be loaded, %NULL will be returned.
+ *
+ * Returns: (type filename) (transfer none) (nullable): #SrtVulkanLayer:library-arch
+ */
+const gchar *
+srt_vulkan_layer_get_library_arch (SrtVulkanLayer *self)
+{
+  g_return_val_if_fail (SRT_IS_VULKAN_LAYER (self), NULL);
+  return self->layer.library_arch;
 }
 
 /**

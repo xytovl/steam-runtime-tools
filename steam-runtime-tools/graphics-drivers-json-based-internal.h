@@ -60,6 +60,7 @@ typedef struct
   gchar *json_path;
   /* Either a filename, or a relative/absolute path in the sysroot */
   gchar *library_path;
+  gchar *library_arch;
   gchar *file_format_version;
   gchar *name;
   gchar *type;

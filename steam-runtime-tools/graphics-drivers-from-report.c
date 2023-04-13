@@ -303,6 +303,7 @@ get_driver_loadables_from_json_report (JsonObject *json_obj,
               const gchar *type = NULL;
               const gchar *description = NULL;
               const gchar *library_path = NULL;
+              const gchar *library_arch = NULL;
               const gchar *api_version = NULL;
               const gchar *implementation_version = NULL;
               gboolean portability_driver = FALSE;
@@ -348,6 +349,9 @@ get_driver_loadables_from_json_report (JsonObject *json_obj,
               library_path = json_object_get_string_member_with_default (json_elem_obj,
                                                                          "library_path",
                                                                          NULL);
+              library_arch = json_object_get_string_member_with_default (json_elem_obj,
+                                                                         "library_arch",
+                                                                         NULL);
               api_version = json_object_get_string_member_with_default (json_elem_obj,
                                                                         "api_version",
                                                                         NULL);
@@ -376,8 +380,8 @@ get_driver_loadables_from_json_report (JsonObject *json_obj,
                      (library_path == NULL && component_layers != NULL) )))
                 {
                   layer = srt_vulkan_layer_new (json_path, name, type,
-                                                library_path, api_version,
-                                                implementation_version,
+                                                library_path, library_arch,
+                                                api_version, implementation_version,
                                                 description, component_layers,
                                                 issues);
                   driver_info = g_list_prepend (driver_info, layer);
@@ -399,6 +403,7 @@ get_driver_loadables_from_json_report (JsonObject *json_obj,
                     driver_info = g_list_prepend (driver_info, srt_vulkan_icd_new (json_path,
                                                                                    api_version,
                                                                                    library_path,
+                                                                                   library_arch,
                                                                                    portability_driver,
                                                                                    issues));
                   else

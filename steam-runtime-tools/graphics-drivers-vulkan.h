@@ -56,6 +56,8 @@ const gchar *srt_vulkan_icd_get_json_path (SrtVulkanIcd *self);
 _SRT_PUBLIC
 const gchar *srt_vulkan_icd_get_library_path (SrtVulkanIcd *self);
 _SRT_PUBLIC
+const gchar *srt_vulkan_icd_get_library_arch (SrtVulkanIcd *self);
+_SRT_PUBLIC
 SrtLoadableIssues srt_vulkan_icd_get_issues (SrtVulkanIcd *self);
 _SRT_PUBLIC
 gchar *srt_vulkan_icd_resolve_library_path (SrtVulkanIcd *self);
@@ -86,6 +88,8 @@ _SRT_PUBLIC
 const gchar *srt_vulkan_layer_get_json_path (SrtVulkanLayer *self);
 _SRT_PUBLIC
 const gchar *srt_vulkan_layer_get_library_path (SrtVulkanLayer *self);
+_SRT_PUBLIC
+const gchar *srt_vulkan_layer_get_library_arch (SrtVulkanLayer *self);
 _SRT_PUBLIC
 const gchar *srt_vulkan_layer_get_name (SrtVulkanLayer *self);
 _SRT_PUBLIC

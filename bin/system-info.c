@@ -830,6 +830,7 @@ print_layer_details (JsonBuilder *builder,
   GList *iter;
   const gchar *member_name;
   const gchar *library_path;
+  const gchar *library_arch;
   const gchar *const *component_layers;
   SrtLoadableIssues loadable_issues = SRT_LOADABLE_ISSUES_NONE;
 
@@ -880,6 +881,13 @@ print_layer_details (JsonBuilder *builder,
                     json_builder_add_string_value (builder, tmp);
                   }
               }
+            library_arch = srt_vulkan_layer_get_library_arch (iter->data);
+            if (library_arch != NULL)
+              {
+                json_builder_set_member_name (builder, "library_arch");
+                json_builder_add_string_value (builder, library_arch);
+              }
+
             component_layers = srt_vulkan_layer_get_component_layers (iter->data);
             _srt_json_builder_add_strv_value (builder, "component_layers",
                                               (const gchar * const *) component_layers,
@@ -1446,11 +1454,20 @@ main (int argc,
       if (srt_vulkan_icd_check_error (icd_iter->data, &error))
         {
           const gchar *library;
+          const gchar *library_arch;
           gchar *tmp;
 
           library = srt_vulkan_icd_get_library_path (icd_iter->data);
           json_builder_set_member_name (builder, "library_path");
           json_builder_add_string_value (builder, library);
+
+          library_arch = srt_vulkan_icd_get_library_arch (icd_iter->data);
+          if (library_arch != NULL)
+            {
+              json_builder_set_member_name (builder, "library_arch");
+              json_builder_add_string_value (builder, library_arch);
+            }
+
           json_builder_set_member_name (builder, "api_version");
           json_builder_add_string_value (builder,
                                          srt_vulkan_icd_get_api_version (icd_iter->data));
