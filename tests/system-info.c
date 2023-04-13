@@ -2565,6 +2565,7 @@ typedef struct
 {
   const gchar *json_path;
   const gchar *library_path;
+  const gchar *library_arch;
   const gchar *api_version;
   SrtLoadableIssues issues;
   const gchar *error_domain;
@@ -2581,6 +2582,7 @@ typedef struct
   const gchar *api_version;
   const gchar *implementation_version;
   const gchar *library_path;
+  const gchar *library_arch;
   SrtLoadableIssues issues;
   const gchar *error_domain;
   const gchar *error_message;
@@ -2877,6 +2879,7 @@ static JsonTest json_test[] =
       {
         .json_path = "/usr/share/vulkan/icd.d/amd_icd64.json",
         .library_path = "/usr/lib/amdvlk64.so",
+        .library_arch = "64",
         .api_version = "1.2.136",
       },
       {
@@ -3080,13 +3083,14 @@ static JsonTest json_test[] =
         .issues = SRT_LOADABLE_ISSUES_DUPLICATED,
       },
       {
-        .json_path = "/usr/share/vulkan/explicit_layer.d/VkLayer_new.json",
+        .json_path = "/usr/share/vulkan/explicit_layer.d/VkLayer_new_64.json",
         .name = "VK_LAYER_MESA_overlay",
         .description = "Mesa Overlay layer",
         .type = "GLOBAL",
         .api_version = "1.1.73",
         .implementation_version = "1",
         .library_path = "/usr/lib/libVkLayer_MESA_overlay.so",
+        .library_arch = "64",
         .issues = SRT_LOADABLE_ISSUES_DUPLICATED,
       },
     },
@@ -3877,6 +3881,8 @@ json_parsing (Fixture *f,
             {
               g_assert_cmpstr (t->vulkan_icd[j].library_path, ==,
                                srt_vulkan_icd_get_library_path (iter->data));
+              g_assert_cmpstr (t->vulkan_icd[j].library_arch, ==,
+                               srt_vulkan_icd_get_library_arch (iter->data));
               g_assert_cmpstr (t->vulkan_icd[j].api_version, ==,
                                srt_vulkan_icd_get_api_version (iter->data));
             }
@@ -3911,6 +3917,8 @@ json_parsing (Fixture *f,
                                srt_vulkan_layer_get_implementation_version (iter->data));
               g_assert_cmpstr (t->vulkan_explicit_layer[j].library_path, ==,
                                srt_vulkan_layer_get_library_path (iter->data));
+              g_assert_cmpstr (t->vulkan_explicit_layer[j].library_arch, ==,
+                               srt_vulkan_layer_get_library_arch (iter->data));
             }
           else
             {
@@ -3943,6 +3951,8 @@ json_parsing (Fixture *f,
                                srt_vulkan_layer_get_implementation_version (iter->data));
               g_assert_cmpstr (t->vulkan_implicit_layer[j].library_path, ==,
                                srt_vulkan_layer_get_library_path (iter->data));
+              g_assert_cmpstr (t->vulkan_implicit_layer[j].library_arch, ==,
+                               srt_vulkan_layer_get_library_arch (iter->data));
             }
           else
             {

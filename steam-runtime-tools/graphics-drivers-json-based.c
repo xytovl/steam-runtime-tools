@@ -39,6 +39,7 @@ srt_loadable_clear (SrtLoadable *self)
   g_clear_pointer (&self->api_version, g_free);
   g_clear_pointer (&self->json_path, g_free);
   g_clear_pointer (&self->library_path, g_free);
+  g_clear_pointer (&self->library_arch, g_free);
   g_clear_pointer (&self->file_format_version, g_free);
   g_clear_pointer (&self->name, g_free);
   g_clear_pointer (&self->type, g_free);
@@ -158,9 +159,10 @@ srt_loadable_write_to_file (const SrtLoadable *self,
 
           /* We parse and store all the information defined in file format
            * version 1.0.0 and 1.0.1. We use the file format 1.0.1 only if
-           * the field "is_portability_driver" is set, because that is the
-           * only change that has been introduced with 1.0.1. */
-          if (self->portability_driver)
+           * either the field "is_portability_driver" or "library_arch" are
+           * set, because those are the only changes that have been
+           * introduced with 1.0.1. */
+          if (self->portability_driver || self->library_arch)
             json_builder_add_string_value (builder, "1.0.1");
           else
             json_builder_add_string_value (builder, "1.0.0");
@@ -173,6 +175,12 @@ srt_loadable_write_to_file (const SrtLoadable *self,
 
               json_builder_set_member_name (builder, "api_version");
               json_builder_add_string_value (builder, self->api_version);
+
+              if (self->library_arch)
+                {
+                  json_builder_set_member_name (builder, "library_arch");
+                  json_builder_add_string_value (builder, self->library_arch);
+                }
 
               if (self->portability_driver)
                 {
@@ -750,6 +758,7 @@ load_icd_from_json (GType type,
   const char *file_format_version;
   const char *api_version = NULL;
   const char *library_path = NULL;
+  const char *library_arch = NULL;
   gboolean portability_driver = FALSE;
   SrtLoadableIssues issues = SRT_LOADABLE_ISSUES_NONE;
 
@@ -857,6 +866,7 @@ load_icd_from_json (GType type,
 
   if (type == SRT_TYPE_VULKAN_ICD)
     {
+      library_arch = _srt_json_object_get_string_member (icd_object, "library_arch");
       api_version = _srt_json_object_get_string_member (icd_object, "api_version");
       if (api_version == NULL)
         {
@@ -888,8 +898,8 @@ out:
     {
       if (error == NULL)
         *list = g_list_prepend (*list, srt_vulkan_icd_new (filename, api_version,
-                                                           library_path, portability_driver,
-                                                           issues));
+                                                           library_path, library_arch,
+                                                           portability_driver, issues));
       else
         *list = g_list_prepend (*list, srt_vulkan_icd_new_error (filename, issues, error));
     }

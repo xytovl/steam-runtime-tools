@@ -779,11 +779,19 @@ keys:
 :   An object describing Vulkan support. Currently the keys are **icds**,
     **external_layers** and **internal_layers**. For **icds**, its value is an
     array of objects describing ICDs, with the same keys and values as for EGL
-    ICDs, plus one extra key:
+    ICDs, plus the following extra keys:
 
     **api_version**
     :   Vulkan API version implemented by this ICD as a dotted-decimal
         string, for example **1.1.90**
+
+    **library_arch**
+    :   Optional key that specifies the architecture of the library
+        associated with this ICD. The Vulkan specification only allows
+        values **32** and **64**, but the reference Vulkan-Loader does
+        not validate strictly, so other values here are possible.
+        If this entry was not provided by the ICD, **library_arch** will be
+        omitted.
 
     Instead, the value of **external_layers**, and **internal_layers**, is an
     array of objects, where the former describes external Vulkan layers and
