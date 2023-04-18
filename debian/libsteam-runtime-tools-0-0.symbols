@@ -245,6 +245,7 @@ libsteam-runtime-tools-0.so.0 libsteam-runtime-tools-0-0 #MINVER#
  srt_vulkan_icd_get_api_version@Base 0.20190926.0
  srt_vulkan_icd_get_issues@Base 0.20210305.0
  srt_vulkan_icd_get_json_path@Base 0.20190926.0
+ srt_vulkan_icd_get_library_arch@Base 0.20230418.0
  srt_vulkan_icd_get_library_path@Base 0.20190926.0
  srt_vulkan_icd_get_type@Base 0.20190926.0
  srt_vulkan_icd_new_replace_library_path@Base 0.20190926.0
@@ -257,6 +258,7 @@ libsteam-runtime-tools-0.so.0 libsteam-runtime-tools-0-0 #MINVER#
  srt_vulkan_layer_get_implementation_version@Base 0.20201124.0
  srt_vulkan_layer_get_issues@Base 0.20210305.0
  srt_vulkan_layer_get_json_path@Base 0.20201124.0
+ srt_vulkan_layer_get_library_arch@Base 0.20230418.0
  srt_vulkan_layer_get_library_path@Base 0.20201124.0
  srt_vulkan_layer_get_name@Base 0.20201124.0
  srt_vulkan_layer_get_type@Base 0.20201124.0

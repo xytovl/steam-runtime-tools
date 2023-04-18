@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20230405.1) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20230418.0) steamrt; urgency=medium
 
   [ Ludovico de Nittis ]
   * system-info, pressure-vessel: Support Vulkan layer manifest version 1.2.1
@@ -6,7 +6,7 @@ steam-runtime-tools (0.20230405.1) UNRELEASED; urgency=medium
     - In pressure-vessel, copy the library_arch field (if present)
     (steam-runtime-tools#103)
 
- -- Simon McVittie <smcv@collabora.com>  Thu, 13 Apr 2023 19:10:35 +0100
+ -- Simon McVittie <smcv@collabora.com>  Tue, 18 Apr 2023 20:22:36 +0100
 
 steam-runtime-tools (0.20230405.0) steamrt; urgency=medium
 
