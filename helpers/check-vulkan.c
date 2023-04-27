@@ -405,12 +405,18 @@ create_logical_device (Renderer *renderer,
     indices.graphicsFamily,
     indices.presentFamily
   };
+  uint32_t n_unique_queue_families = G_N_ELEMENTS (unique_queue_families);
   VkDeviceQueueCreateInfo queueCreateInfos[G_N_ELEMENTS (unique_queue_families)];
   float queuePriority = 1.0f;
 
   g_return_val_if_fail (renderer != NULL, FALSE);
 
-  for (i = 0; i < G_N_ELEMENTS (unique_queue_families); i++)
+  /* The general way to do this would be to use some more complicated
+   * data structure as a set, but since we only have two items... */
+  if (unique_queue_families[1] == unique_queue_families[0])
+    n_unique_queue_families = 1;
+
+  for (i = 0; i < n_unique_queue_families; i++)
     {
       VkDeviceQueueCreateInfo queueCreateInfo =
       {
@@ -427,7 +433,7 @@ create_logical_device (Renderer *renderer,
   VkDeviceCreateInfo createInfo =
   {
     .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-    .queueCreateInfoCount = G_N_ELEMENTS (unique_queue_families),
+    .queueCreateInfoCount = n_unique_queue_families,
     .pQueueCreateInfos = queueCreateInfos,
     .pEnabledFeatures = &deviceFeatures,
     .enabledExtensionCount = G_N_ELEMENTS (device_extensions),
@@ -439,6 +445,7 @@ create_logical_device (Renderer *renderer,
     return FALSE;
 
   vkGetDeviceQueue (renderer->device, indices.graphicsFamily, 0, &renderer->graphics_queue);
+  /* Possibly the same as the graphics_queue, but that's OK */
   vkGetDeviceQueue (renderer->device, indices.presentFamily, 0, &renderer->present_queue);
 
   return TRUE;
