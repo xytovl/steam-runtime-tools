@@ -413,6 +413,7 @@ create_logical_device (Renderer *renderer,
 
   /* The general way to do this would be to use some more complicated
    * data structure as a set, but since we only have two items... */
+  G_STATIC_ASSERT (G_N_ELEMENTS (unique_queue_families) == 2);
   if (unique_queue_families[1] == unique_queue_families[0])
     n_unique_queue_families = 1;
 
