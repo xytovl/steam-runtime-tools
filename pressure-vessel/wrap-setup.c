@@ -1230,6 +1230,17 @@ pv_share_temp_dir (FlatpakExports *exports,
           continue;
         }
 
+      /* Snap sets TMPDIR=$XDG_RUNTIME_DIR/snap.steam, but won't allow us
+       * to bind-mount that path into our container. Unset TMPDIR in that
+       * case, so that applications (and pv-adverb) will fall back to /tmp. */
+      if (_srt_get_path_after (value, "run/user") != NULL)
+        {
+          g_debug ("%s '%s' is in /run/user, unsetting it",
+                   var, value);
+          pv_environ_setenv (container_env, var, NULL);
+          continue;
+        }
+
       /* Otherwise, try to share the directory with the container. */
       flatpak_exports_add_path_expose (exports,
                                        FLATPAK_FILESYSTEM_MODE_READ_WRITE,
