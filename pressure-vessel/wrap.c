@@ -1968,11 +1968,7 @@ main (int argc,
     }
 
   if (exports != NULL)
-    /* Always export /tmp for now. SteamVR uses this as a rendezvous
-     * directory for IPC. */
-    flatpak_exports_add_path_expose (exports,
-                                     FLATPAK_FILESYSTEM_MODE_READ_WRITE,
-                                     "/tmp");
+    pv_share_temp_dir (exports, container_env);
 
   if (flatpak_subsandbox != NULL)
     {

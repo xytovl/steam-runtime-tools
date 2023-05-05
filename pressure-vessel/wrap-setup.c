@@ -1187,3 +1187,63 @@ pv_wrap_detect_virtualization (gchar **interpreter_root_out,
       *interpreter_root_out = g_strdup (val);
     }
 }
+
+/**
+ * pv_share_temp_dir:
+ * @exports: exported directories
+ * @container_env: environment variables for the container
+ *
+ * Ensure that temporary directories are available.
+ */
+void
+pv_share_temp_dir (FlatpakExports *exports,
+                   PvEnviron *container_env)
+{
+  static const char * const temp_dir_vars[] =
+  {
+    "TEMP",
+    "TEMPDIR",
+    "TMP",
+    "TMPDIR",
+  };
+  gsize i;
+
+  /* Always export /tmp for now. SteamVR uses this as a rendezvous
+   * directory for IPC. */
+  flatpak_exports_add_path_expose (exports,
+                                   FLATPAK_FILESYSTEM_MODE_READ_WRITE,
+                                   "/tmp");
+
+  for (i = 0; i < G_N_ELEMENTS (temp_dir_vars); i++)
+    {
+      const char *var = temp_dir_vars[i];
+      const char *value = g_getenv (var);
+
+      if (value == NULL)
+        continue;
+
+      if (value[0] != '/')
+        {
+          /* There's not much we can do with this... */
+          g_warning ("%s is a relative path '%s', is this really intentional?",
+                     var, value);
+          continue;
+        }
+
+      /* Snap sets TMPDIR=$XDG_RUNTIME_DIR/snap.steam, but won't allow us
+       * to bind-mount that path into our container. Unset TMPDIR in that
+       * case, so that applications (and pv-adverb) will fall back to /tmp. */
+      if (_srt_get_path_after (value, "run/user") != NULL)
+        {
+          g_debug ("%s '%s' is in /run/user, unsetting it",
+                   var, value);
+          pv_environ_setenv (container_env, var, NULL);
+          continue;
+        }
+
+      /* Otherwise, try to share the directory with the container. */
+      flatpak_exports_add_path_expose (exports,
+                                       FLATPAK_FILESYSTEM_MODE_READ_WRITE,
+                                       value);
+    }
+}
