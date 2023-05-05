@@ -1,3 +1,18 @@
+steam-runtime-tools (0.20230505.0) UNRELEASED; urgency=medium
+
+  * check-vulkan: Avoid out-of-spec behaviour that caused a crash with
+    some versions of the Nvidia proprietary driver (steamrt/tasks#294).
+    Thanks to James Jones.
+  * pv-wrap: Try to share TMPDIR, etc. with the container.
+    We share /tmp with the container, so it's consistent if we also
+    share $TMPDIR and so on.
+  * pv-wrap: Don't use temporary directories below $XDG_RUNTIME_DIR.
+    Canonical's unofficial Snap packaging of Steam sets this up, but then
+    doesn't allow pressure-vessel to bind-mount that location
+    (steam-runtime#586)
+
+ -- Simon McVittie <smcv@collabora.com>  Fri, 05 May 2023 11:49:23 +0100
+
 steam-runtime-tools (0.20230418.0) steamrt; urgency=medium
 
   [ Ludovico de Nittis ]
