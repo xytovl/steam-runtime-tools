@@ -1316,7 +1316,7 @@ pv_launcher_server_set_up_exit_on_readable (PvLauncherServer *server,
   return TRUE;
 }
 
-static gchar **opt_bus_names = NULL;
+static GPtrArray *opt_bus_names = NULL;
 static gboolean opt_exec_fallback = FALSE;
 static gint opt_exit_on_readable_fd = -1;
 static gboolean opt_hint = FALSE;
@@ -1338,19 +1338,38 @@ opt_session_cb (const gchar *option_name G_GNUC_UNUSED,
 {
   /* We use opt_bus_names != NULL as the signal that we will be connecting
    * to the session bus, so we can allocate an empty array here.
-   * Allocate it with space for the automatically-chosen bus name,
-   * a unique per-app-instance bus name and NULL, so that the
-   * g_realloc_n() later will be a no-op. */
+   * Allocate it with space for a global bus name, the automatically-chosen
+   * per-app bus name, a unique per-app-instance bus name and NULL, so that
+   * the reallocation later will be a no-op. */
   if (opt_bus_names == NULL)
-    opt_bus_names = g_new0 (gchar *, 3);
+    opt_bus_names = g_ptr_array_new_full (4, g_free);
 
+  return TRUE;
+}
+
+static gboolean
+opt_bus_name_cb (G_GNUC_UNUSED const gchar *option_name,
+                 const gchar *value,
+                 G_GNUC_UNUSED gpointer data,
+                 GError **error)
+{
+  opt_session_cb (NULL, NULL, NULL, NULL);
+
+  if (!g_dbus_is_name (value))
+    {
+      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
+                   "\"%s\" is not a valid D-Bus name", value);
+      return FALSE;
+    }
+
+  g_ptr_array_add (opt_bus_names, g_strdup (value));
   return TRUE;
 }
 
 static GOptionEntry options[] =
 {
   { "bus-name", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_STRING_ARRAY, &opt_bus_names,
+    G_OPTION_FLAG_NONE, G_OPTION_ARG_CALLBACK, opt_bus_name_cb,
     "Use this well-known name on the D-Bus session bus. [may repeat]",
     "NAME" },
   { "exec-fallback", '\0',
@@ -1439,6 +1458,7 @@ main (int argc,
   char **wrapped_command = NULL;
   FILE *info_fh = NULL;
   FILE *original_stdout = NULL;
+  const char * const *bus_names = NULL;
 
   server->exit_status = EX_USAGE;
   server->listener = _srt_portal_listener_new ();
@@ -1599,31 +1619,29 @@ main (int argc,
                                                         (GDestroyNotify) pid_data_free);
 
   /* Choose a bus name automatically for --session */
-  if (opt_bus_names != NULL && opt_bus_names[0] == NULL)
+  if (opt_bus_names != NULL && opt_bus_names->len == 0)
     {
+      g_autofree gchar *per_app_name = NULL;
       g_autofree gchar *instance_name = NULL;
       const char *steam_appid = _srt_get_steam_app_id ();
-
-      opt_bus_names = g_realloc_n (opt_bus_names, 3, sizeof (gchar *));
+      const char *prefix = LAUNCHER_INSIDE_APP_PREFIX;
 
       if (steam_appid == NULL)
         steam_appid = "0";
 
-      opt_bus_names[0] = g_strdup_printf ("com.steampowered.App%s", steam_appid);
+      per_app_name = g_strdup_printf ("%s%s", prefix, steam_appid);
 
       /* Force it to be a valid bus name if necessary */
-      if (G_UNLIKELY (!g_dbus_is_name (opt_bus_names[0])))
+      if (G_UNLIKELY (!g_dbus_is_name (per_app_name)))
         {
           char *p;
 
-          for (p = opt_bus_names[0] + strlen ("com.steampowered.App");
-               *p != '\0';
-               p++)
+          for (p = per_app_name + strlen (prefix); *p != '\0'; p++)
             {
               if (!g_ascii_isalnum (*p))
                 *p = '_';
 
-              if (p - opt_bus_names[0] > 255)
+              if (p - per_app_name > 255)
                 {
                   *p = '\0';
                   break;
@@ -1631,16 +1649,26 @@ main (int argc,
             }
         }
 
+      g_ptr_array_add (opt_bus_names, g_steal_pointer (&per_app_name));
+
+      g_assert (opt_bus_names->len > 0);
       instance_name = g_strdup_printf ("%s.Instance%u",
-                                       opt_bus_names[0],
+                                       (const char *) g_ptr_array_index (opt_bus_names,
+                                                                         opt_bus_names->len - 1),
                                        (unsigned int) getpid ());
 
       if (G_LIKELY (g_dbus_is_name (instance_name)))
-        opt_bus_names[1] = g_steal_pointer (&instance_name);
+        g_ptr_array_add (opt_bus_names, g_steal_pointer (&instance_name));
+    }
+
+  if (opt_bus_names != NULL)
+    {
+      g_ptr_array_add (opt_bus_names, NULL);
+      bus_names = (const char * const *) opt_bus_names->pdata;
     }
 
   if (!_srt_portal_listener_check_socket_arguments (server->listener,
-                                                    (const char * const *) opt_bus_names,
+                                                    bus_names,
                                                     opt_socket,
                                                     opt_socket_directory,
                                                     error))
@@ -1681,7 +1709,7 @@ main (int argc,
    * If that has happened, then pv_launcher_server_finish_startup()
    * will already have been called before this returns. */
   if (!_srt_portal_listener_listen (server->listener,
-                                    (const char * const *) opt_bus_names,
+                                    bus_names,
                                     flags,
                                     opt_socket,
                                     opt_socket_directory,
@@ -1697,7 +1725,7 @@ out:
   if (local_error != NULL)
     _srt_log_failure ("%s", local_error->message);
 
-  g_strfreev (opt_bus_names);
+  g_clear_pointer (&opt_bus_names, g_ptr_array_unref);
   g_free (opt_socket);
   g_free (opt_socket_directory);
 

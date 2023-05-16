@@ -37,6 +37,7 @@
 #define DBUS_INTERFACE_DBUS DBUS_NAME_DBUS
 #define DBUS_PATH_DBUS "/org/freedesktop/DBus"
 
+#define LAUNCHER_INSIDE_APP_PREFIX "com.steampowered.App"
 #define LAUNCHER_IFACE "com.steampowered.PressureVessel.Launcher1"
 #define LAUNCHER_PATH "/com/steampowered/PressureVessel/Launcher1"
 
