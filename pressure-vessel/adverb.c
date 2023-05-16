@@ -136,9 +136,11 @@ child_setup_cb (gpointer user_data)
    * gets terminated prematurely, we want the child to terminate too.
    * The child could reset this, but we assume it usually won't.
    * This makes it exit even if we are killed by SIGKILL, unless it
-   * takes steps not to be. */
+   * takes steps not to be.
+   * Note that we can't use the GError here, because a GSpawnChildSetupFunc
+   * needs to follow signal-safety(7) rules. */
   if (opt_exit_with_parent
-      && prctl (PR_SET_PDEATHSIG, SIGTERM, 0, 0, 0) != 0)
+      && !_srt_raise_on_parent_death (SIGTERM, NULL))
     _srt_async_signal_safe_error ("Failed to set up parent-death signal\n",
                                   LAUNCH_EX_FAILED);
 
@@ -1069,12 +1071,8 @@ main (int argc,
     {
       g_debug ("Setting up to exit when parent does");
 
-      if (prctl (PR_SET_PDEATHSIG, SIGTERM, 0, 0, 0) != 0)
-        {
-          glnx_throw_errno_prefix (error,
-                                   "Unable to set parent death signal");
-          goto out;
-        }
+      if (!_srt_raise_on_parent_death (SIGTERM, error))
+        goto out;
     }
 
   if ((opt_subreaper || opt_terminate_timeout >= 0)

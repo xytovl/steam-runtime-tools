@@ -29,7 +29,9 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <gelf.h>
+#include <signal.h>
 #include <stdio.h>
+#include <sys/prctl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
@@ -432,3 +434,26 @@ _srt_dir_iter_clear (SrtDirIter *self)
 }
 
 G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(SrtDirIter, _srt_dir_iter_clear)
+
+/*
+ * _srt_raise_on_parent_death:
+ * @signal_number: A signal number, typically `SIGTERM`
+ *
+ * Wrapper for prctl PR_SET_PDEATHSIG.
+ * This function is async-signal-safe if and only if error is NULL.
+ *
+ * Returns: TRUE on success, FALSE with errno set on failure.
+ */
+static inline gboolean
+_srt_raise_on_parent_death (int signal_number,
+                            GError **error)
+{
+  if (prctl (PR_SET_PDEATHSIG, signal_number, 0, 0, 0) == 0)
+    return TRUE;
+
+  if (error != NULL)
+    return glnx_throw_errno_prefix (error,
+                                    "Unable to set parent death signal");
+
+  return FALSE;
+}
