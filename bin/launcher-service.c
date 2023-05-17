@@ -1294,8 +1294,9 @@ pv_launcher_server_set_up_exit_on_readable (PvLauncherServer *server,
 
   if (fd == STDOUT_FILENO || fd == STDERR_FILENO)
     {
-      return glnx_throw (error,
-                         "--exit-on-readable fd cannot be stdout or stderr");
+      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
+                   "--exit-on-readable fd cannot be stdout or stderr");
+      return FALSE;
     }
 
   fd = avoid_stdin (fd, error);
@@ -1555,7 +1556,11 @@ main (int argc,
                                                        opt_exit_on_readable_fd,
                                                        error))
         {
-          server->exit_status = EX_OSERR;
+          if (local_error->domain == G_OPTION_ERROR)
+            server->exit_status = EX_USAGE;
+          else
+            server->exit_status = EX_OSERR;
+
           goto out;
         }
     }
