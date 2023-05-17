@@ -35,6 +35,7 @@
 
 #define DBUS_NAME_DBUS "org.freedesktop.DBus"
 #define DBUS_INTERFACE_DBUS DBUS_NAME_DBUS
+#define DBUS_INTERFACE_PEER DBUS_INTERFACE_DBUS ".Peer"
 #define DBUS_PATH_DBUS "/org/freedesktop/DBus"
 
 #define LAUNCHER_INSIDE_APP_PREFIX "com.steampowered.App"
