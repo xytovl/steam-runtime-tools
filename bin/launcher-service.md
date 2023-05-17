@@ -128,7 +128,7 @@ unless prevented by **--no-stop-on-exit** or
     before terminating.
     This is the default.
 
-    With **--no-stop-on-name-loss** and a *COMMAND*, do not do this:
+    With **--no-stop-on-exit** and a *COMMAND*, do not do this:
     the server will still be contactable via D-Bus using its unique bus name
     until it is terminated, for example with **SIGTERM** or
     **steam-runtime-launch-client --bus-name=:1.xx --terminate**.
