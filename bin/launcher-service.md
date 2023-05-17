@@ -150,6 +150,18 @@ unless prevented by **--no-stop-on-exit** or
 
     These parameters have no effect if **--bus-name** is not used.
 
+**--[no-]stop-on-parent-exit**
+:   With **--stop-on-parent-exit**, the server will terminate
+    other launched processes and prepare to exit when its parent
+    process exits.
+    As with **--stop-on-exit**, if launched processes continue to run after
+    receiving the **SIGTERM** signal, the server will still wait for them
+    to exit.
+
+    With **--no-stop-on-parent-exit**, continue to run when reparented
+    to init or a subreaper.
+    This is the default.
+
 **--verbose**
 :   Be more verbose.
 

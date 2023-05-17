@@ -1165,6 +1165,10 @@ signal_handler (int sfd,
     }
   else
     {
+      g_debug ("Received signal %u '%s' from process %u",
+                info.ssi_signo,
+                strsignal (info.ssi_signo),
+                info.ssi_pid);
       pv_launcher_server_stop (server, info.ssi_signo);
     }
 
@@ -1322,6 +1326,7 @@ static gchar *opt_socket = NULL;
 static gchar *opt_socket_directory = NULL;
 static gboolean opt_stop_on_exit = TRUE;
 static gboolean opt_stop_on_name_loss = TRUE;
+static gboolean opt_stop_on_parent_exit = TRUE;
 static gboolean opt_verbose = FALSE;
 static gboolean opt_version = FALSE;
 
@@ -1395,6 +1400,14 @@ static GOptionEntry options[] =
   { "no-stop-on-name-loss", '\0',
     G_OPTION_FLAG_REVERSE, G_OPTION_ARG_NONE, &opt_stop_on_name_loss,
     "Continue to run after the --bus-name is lost.",
+    NULL, },
+  { "stop-on-parent-exit", '\0',
+    G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_stop_on_parent_exit,
+    "Stop when the parent process exits.",
+    NULL, },
+  { "no-stop-on-parent-exit", '\0',
+    G_OPTION_FLAG_REVERSE, G_OPTION_ARG_NONE, &opt_stop_on_parent_exit,
+    "Continue to run after the parent process exits [default].",
     NULL, },
   { "socket-directory", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_FILENAME, &opt_socket_directory,
@@ -1498,6 +1511,10 @@ main (int argc,
     server->flags |= PV_LAUNCHER_SERVER_FLAGS_STOP_ON_NAME_LOSS;
   else
     server->listener->flags |= SRT_PORTAL_LISTENER_FLAGS_PREFER_UNIQUE_NAME;
+
+  if (opt_stop_on_parent_exit
+      && !_srt_raise_on_parent_death (SIGTERM, error))
+    goto out;
 
   if ((result = _srt_set_compatible_resource_limits (0)) < 0)
     g_warning ("Unable to set normal resource limits: %s",
