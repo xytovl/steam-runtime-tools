@@ -1011,7 +1011,7 @@ class TestLauncher(BaseTest):
             unique = str(uuid.uuid4())
 
             if invalid_name:
-                unique = unique.replace('-', '.')
+                unique = unique.replace('-', '.') + '.0'
                 well_known_name = 'com.steampowered.App' + unique.replace(
                     '.', '_',
                 )
