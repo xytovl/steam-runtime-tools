@@ -1115,6 +1115,53 @@ class TestLauncher(BaseTest):
             )
             self.assertEqual(completed.stdout, b'hello')
 
+            if mode in ('--host', '--alongside-steam'):
+                argv = self.clean_up_env + set_app_id + self.launch + [
+                    mode_arg,
+                    '--',
+                    'printf', '%s', mode,
+                ]
+                logger.debug('Should be able to launch command via %r', argv)
+                completed = run_subprocess(
+                    argv,
+                    check=True,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=2,
+                )
+                self.assertEqual(completed.stdout, mode.encode('utf-8'))
+            elif mode == 'outside-custom':
+                # --alongside-steam can get the specific bus name from
+                # $SRT_LAUNCHER_SERVICE_ALONGSIDE_STEAM
+                argv = self.clean_up_env + set_app_id + self.launch + [
+                    '--alongside-steam',
+                    '--',
+                    'printf', '%s', mode,
+                ]
+                logger.debug('Should be able to launch command via %r', argv)
+                completed = run_subprocess(
+                    argv,
+                    check=True,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=2,
+                )
+                self.assertEqual(completed.stdout, mode.encode('utf-8'))
+            elif not invalid_name:
+                logger.debug('Should be able to launch command via --inside-app')
+                completed = run_subprocess(
+                    self.clean_up_env + self.launch + [
+                        '--inside-app', unique,
+                        '--',
+                        'printf', '%s', 'inside',
+                    ],
+                    check=True,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=2,
+                )
+                self.assertEqual(completed.stdout, b'inside')
+
             proc.terminate()
             proc.wait(timeout=10)
             self.assertEqual(proc.returncode, 0)
