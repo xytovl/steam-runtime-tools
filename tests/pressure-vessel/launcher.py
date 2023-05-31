@@ -37,6 +37,10 @@ DBUS_NAME_DBUS = "org.freedesktop.DBus"
 DBUS_INTERFACE_DBUS = DBUS_NAME_DBUS
 DBUS_PATH_DBUS = "/org/freedesktop/DBus"
 
+EX_USAGE = 64
+EX_UNAVAILABLE = 69
+EX_OSERR = 71
+
 
 @contextlib.contextmanager
 def ensure_terminated(proc):
@@ -1011,7 +1015,7 @@ class TestLauncher(BaseTest):
             unique = str(uuid.uuid4())
 
             if invalid_name:
-                unique = unique.replace('-', '.')
+                unique = unique.replace('-', '.') + '.0'
                 well_known_name = 'com.steampowered.App' + unique.replace(
                     '.', '_',
                 )
@@ -1116,6 +1120,8 @@ class TestLauncher(BaseTest):
                     '--bus-name', well_known_name,
                     '--bus-name', only_first_well_known_name,
                     '--exit-on-readable=0',
+                    '--hint',
+                    '--verbose',
                     stop_on_name_loss_arg,
                 ],
                 stdin=subprocess.PIPE,
@@ -1400,6 +1406,58 @@ class TestLauncher(BaseTest):
 
     def test_exit_on_stdin(self) -> None:
         self.test_exit_on_readable(use_stdin=True)
+
+    def test_invalid_arguments(self) -> None:
+        for test, code in [
+            # --exec-fallback requires a command
+            ('--bus-name=com.example.Nope --exec-fallback', EX_USAGE),
+            # Not a valid D-Bus name
+            ('--bus-name=not!a!dbus!name', EX_USAGE),
+            # Not a valid --exit-on-readable fd
+            ('--bus-name=com.example.Nope --exit-on-readable=1', EX_USAGE),
+            ('--bus-name=com.example.Nope --exit-on-readable=2', EX_USAGE),
+            # Syntactically valid --exit-on-readable fd, but isn't open
+            ('--bus-name=com.example.Nope --exit-on-readable=42',
+             EX_UNAVAILABLE),
+            # Not a valid --info-fd
+            ('--bus-name=com.example.Nope --info-fd=0', EX_USAGE),
+            ('--bus-name=com.example.Nope --info-fd=2', EX_USAGE),
+            # Not a valid --info-fd if there is a command
+            ('--bus-name=com.example.Nope --info-fd=1 -- true', EX_USAGE),
+            # Syntactically valid --info-fd, but isn't open
+            ('--bus-name=com.example.Nope --info-fd=42', EX_OSERR),
+            # Mutually exclusive options
+            ('--socket=@/tmp/nope --session', EX_USAGE),
+        ]:
+            with contextlib.ExitStack() as stack:
+                args = test.split()
+                stack.enter_context(
+                    self.show_location(
+                        'test_invalid_arguments(%r)' % args
+                    )
+                )
+                proc = subprocess.Popen(
+                    self.launcher + args,
+                    stdout=2,
+                    stderr=2,
+                    universal_newlines=True,
+                )
+                stack.enter_context(ensure_terminated(proc))
+                proc.communicate(input='', timeout=10)
+                self.assertEqual(proc.returncode, code)
+
+    def test_version(self) -> None:
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(self.show_location('test_version'))
+            proc = subprocess.Popen(
+                self.launcher + ['--version'],
+                stdout=2,
+                stderr=2,
+                universal_newlines=True,
+            )
+            stack.enter_context(ensure_terminated(proc))
+            proc.communicate(input='', timeout=10)
+            self.assertEqual(proc.returncode, 0)
 
     def tearDown(self) -> None:
         super().tearDown()

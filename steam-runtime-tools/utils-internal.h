@@ -29,11 +29,15 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <gelf.h>
+#include <signal.h>
 #include <stdio.h>
+#include <sys/prctl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
 #include <glib.h>
+#include <glib-unix.h>
+#include <glib/gstdio.h>
 
 #include <steam-runtime-tools/macros.h>
 #include <steam-runtime-tools/glib-backports-internal.h>
@@ -432,3 +436,94 @@ _srt_dir_iter_clear (SrtDirIter *self)
 }
 
 G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC(SrtDirIter, _srt_dir_iter_clear)
+
+/*
+ * _srt_raise_on_parent_death:
+ * @signal_number: A signal number, typically `SIGTERM`
+ *
+ * Wrapper for prctl PR_SET_PDEATHSIG.
+ * This function is async-signal-safe if and only if error is NULL.
+ *
+ * Returns: TRUE on success, FALSE with errno set on failure.
+ */
+static inline gboolean
+_srt_raise_on_parent_death (int signal_number,
+                            GError **error)
+{
+  if (prctl (PR_SET_PDEATHSIG, signal_number, 0, 0, 0) == 0)
+    return TRUE;
+
+  if (error != NULL)
+    return glnx_throw_errno_prefix (error,
+                                    "Unable to set parent death signal");
+
+  return FALSE;
+}
+
+/*
+ * A Unix pipe. The advantage of this type over int[2] is that it can
+ * be closed automatically when it goes out of scope, using g_auto(SrtPipe).
+ */
+typedef struct
+{
+  int fds[2];
+} SrtPipe;
+
+typedef enum
+{
+  _SRT_PIPE_END_READ = 0,
+  _SRT_PIPE_END_WRITE = 1
+} SrtPipeEnd;
+
+/* Initializer for a closed pipe */
+#define _SRT_PIPE_INIT { { -1, -1 } }
+
+/*
+ * Open a pipe, as if via pipe2 with O_CLOEXEC.
+ */
+static inline gboolean
+_srt_pipe_open (SrtPipe *self,
+                GError **error)
+{
+  return g_unix_open_pipe (self->fds, FD_CLOEXEC, error);
+}
+
+/*
+ * Return one of the ends of the pipe. It remains owned by @self.
+ * This function is async-signal safe and preserves the value of `errno`.
+ */
+static inline int
+_srt_pipe_get (SrtPipe *self,
+               SrtPipeEnd end)
+{
+  return self->fds[end];
+}
+
+/*
+ * Return one of the ends of the pipe. It becomes owned by the caller,
+ * and the file descriptor in the data structure is set to `-1`,
+ * similar to g_steal_fd().
+ * This function is async-signal safe and preserves the value of `errno`.
+ */
+static inline int
+_srt_pipe_steal (SrtPipe *self,
+                 SrtPipeEnd end)
+{
+  return g_steal_fd (&self->fds[end]);
+}
+
+/*
+ * Close both ends of the pipe, unless they have already been closed or
+ * stolen. Any errors are ignored: use g_clear_fd() if error-handling
+ * is required.
+ * This function is async-signal safe and preserves the value of `errno`.
+ */
+static inline void
+_srt_pipe_clear (SrtPipe *self)
+{
+  /* Note that glnx_close_fd preserves errno */
+  glnx_close_fd (&self->fds[0]);
+  glnx_close_fd (&self->fds[1]);
+}
+
+G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC (SrtPipe, _srt_pipe_clear)
