@@ -197,9 +197,12 @@ static struct
   SrtLogFlags flags;
   /* Non-NULL if and only if stderr was set up to be the Journal */
   type_of_sd_journal_send journal_send;
+  /* \r\n or \n */
+  const char *newline;
 } log_settings =
 {
   .pid = -1,
+  .newline = "\n",
 };
 
 /*
@@ -308,10 +311,11 @@ log_handler (const gchar *log_domain,
 
   if (log_settings.journal_send == NULL)
     {
-      g_printerr ("%s%s[%d]: %s: %s\n",
+      g_printerr ("%s%s[%d]: %s: %s%s",
                   (timestamp_prefix ?: ""),
                   log_settings.prgname, log_settings.pid,
-                  get_level_prefix (log_level), message);
+                  get_level_prefix (log_level), message,
+                  log_settings.newline);
     }
 
   if (log_level & (G_LOG_FLAG_RECURSION
@@ -668,6 +672,11 @@ _srt_util_set_glib_log_handler (const char *prgname,
       || !set_up_output (STDOUT_FILENO, original_stdout_out, error)
       || !set_up_output (STDERR_FILENO, original_stderr_out, error))
     return FALSE;
+
+  /* Avoid "stairstep" effect when using SrtPtyBridge, by sending CRLF
+   * at the end of diagnostic messages */
+  if (isatty (STDERR_FILENO))
+    log_settings.newline = "\r\n";
 
   if (log_settings.flags & SRT_LOG_FLAGS_DIVERT_STDOUT)
     {
