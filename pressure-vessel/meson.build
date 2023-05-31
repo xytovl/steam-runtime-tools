@@ -104,6 +104,8 @@ pressure_vessel_utils_dep = declare_dependency(
 pressure_vessel_adverb_lib = static_library(
   'pressure-vessel-adverb-lib',
   sources : [
+    'adverb-preload.c',
+    'adverb-preload.h',
     'per-arch-dirs.c',
     'per-arch-dirs.h',
     'wrap-interactive.c',

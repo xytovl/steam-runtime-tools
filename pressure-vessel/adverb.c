@@ -42,6 +42,7 @@
 #include "steam-runtime-tools/utils-internal.h"
 #include "libglnx.h"
 
+#include "adverb-preload.h"
 #include "bwrap-lock.h"
 #include "flatpak-utils-base-private.h"
 #include "per-arch-dirs.h"
@@ -77,52 +78,8 @@ typedef struct
   int *pass_fds;
 } ChildSetupData;
 
-typedef enum
-{
-  PRELOAD_VARIABLE_INDEX_LD_AUDIT,
-  PRELOAD_VARIABLE_INDEX_LD_PRELOAD,
-} PreloadVariableIndex;
-
-/* Indexed by PreloadVariableIndex */
-static const char *preload_variables[] =
-{
-  "LD_AUDIT",
-  "LD_PRELOAD",
-};
-
-typedef struct
-{
-  char *name;
-  gsize index_in_preload_variables;
-  /* An index in pv_multiarch_details, or G_MAXSIZE if unspecified */
-  gsize abi_index;
-} AdverbPreloadModule;
-
-static void
-adverb_preload_module_clear (gpointer p)
-{
-  AdverbPreloadModule *self = p;
-
-  g_free (self->name);
-}
-
+/* (element-type PvAdverbPreloadModule) */
 static GArray *opt_preload_modules = NULL;
-
-static gpointer
-generic_strdup (gpointer p)
-{
-  return g_strdup (p);
-}
-
-static void
-ptr_array_add_unique (GPtrArray *arr,
-                      const void *item,
-                      GEqualFunc equal_func,
-                      GBoxedCopyFunc copy_func)
-{
-  if (!g_ptr_array_find_with_equal_func (arr, item, equal_func, NULL))
-    g_ptr_array_add (arr, copy_func ((gpointer) item));
-}
 
 static void
 child_setup_cb (gpointer user_data)
@@ -257,7 +214,7 @@ opt_ld_something (const char *option,
                   gpointer data,
                   GError **error)
 {
-  AdverbPreloadModule module = { NULL, 0, G_MAXSIZE };
+  PvAdverbPreloadModule module = { NULL, 0, G_MAXSIZE };
   g_auto(GStrv) parts = NULL;
   const char *architecture = NULL;
 
@@ -306,8 +263,8 @@ opt_ld_something (const char *option,
 
   if (opt_preload_modules == NULL)
     {
-      opt_preload_modules = g_array_new (FALSE, FALSE, sizeof (AdverbPreloadModule));
-      g_array_set_clear_func (opt_preload_modules, adverb_preload_module_clear);
+      opt_preload_modules = g_array_new (FALSE, FALSE, sizeof (PvAdverbPreloadModule));
+      g_array_set_clear_func (opt_preload_modules, pv_adverb_preload_module_clear);
     }
 
   module.index_in_preload_variables = index_in_preload_variables;
@@ -322,7 +279,7 @@ opt_ld_audit_cb (const gchar *option_name,
                  gpointer data,
                  GError **error)
 {
-  return opt_ld_something (option_name, PRELOAD_VARIABLE_INDEX_LD_AUDIT,
+  return opt_ld_something (option_name, PV_PRELOAD_VARIABLE_INDEX_LD_AUDIT,
                            value, data, error);
 }
 
@@ -332,7 +289,7 @@ opt_ld_preload_cb (const gchar *option_name,
                    gpointer data,
                    GError **error)
 {
-  return opt_ld_something (option_name, PRELOAD_VARIABLE_INDEX_LD_PRELOAD,
+  return opt_ld_something (option_name, PV_PRELOAD_VARIABLE_INDEX_LD_PRELOAD,
                            value, data, error);
 }
 
@@ -803,12 +760,6 @@ terminate_child_cb (int signum)
     }
 }
 
-static void
-append_to_search_path (const gchar *item, GString *search_path)
-{
-  pv_search_path_append (search_path, item);
-}
-
 static GOptionEntry options[] =
 {
   { "batch", '\0',
@@ -1149,115 +1100,13 @@ main (int argc,
       g_clear_error (error);
     }
 
-  if (opt_preload_modules != NULL)
-    {
-      GPtrArray *preload_search_paths[G_N_ELEMENTS (preload_variables)] = { NULL };
-
-      /* Iterate through all modules, populating preload_search_paths */
-      for (i = 0; i < opt_preload_modules->len; i++)
-        {
-          const AdverbPreloadModule *module = &g_array_index (opt_preload_modules,
-                                                              AdverbPreloadModule, i);
-          GPtrArray *search_path = preload_search_paths[module->index_in_preload_variables];
-          const char *preload = module->name;
-          const char *base;
-          gsize abi_index = module->abi_index;
-
-          g_assert (preload != NULL);
-
-          if (*preload == '\0')
-            continue;
-
-          base = glnx_basename (preload);
-
-          if (search_path == NULL)
-            {
-              preload_search_paths[module->index_in_preload_variables]
-                = search_path
-                = g_ptr_array_new_full (opt_preload_modules->len, g_free);
-            }
-
-          /* If we were not able to create the temporary library
-           * directories, we simply avoid any adjustment and try to continue */
-          if (lib_temp_dirs == NULL)
-            {
-              g_ptr_array_add (search_path, g_strdup (preload));
-              continue;
-            }
-
-          if (abi_index == G_MAXSIZE
-              && module->index_in_preload_variables == PRELOAD_VARIABLE_INDEX_LD_PRELOAD
-              && strcmp (base, "gameoverlayrenderer.so") == 0)
-            {
-              for (gsize abi = 0; abi < PV_N_SUPPORTED_ARCHITECTURES; abi++)
-                {
-                  g_autofree gchar *expected_suffix = g_strdup_printf ("/%s/gameoverlayrenderer.so",
-                                                                       pv_multiarch_details[abi].gameoverlayrenderer_dir);
-
-                  if (g_str_has_suffix (preload, expected_suffix))
-                    {
-                      abi_index = abi;
-                      break;
-                    }
-                }
-
-              if (abi_index == G_MAXSIZE)
-                {
-                  g_debug ("Preloading %s from an unexpected path \"%s\", "
-                           "just leave it as is without adjusting",
-                           base, preload);
-                }
-            }
-
-          if (abi_index != G_MAXSIZE)
-            {
-              g_autofree gchar *link = NULL;
-              g_autofree gchar *platform_path = NULL;
-
-              g_debug ("Module %s is for %s",
-                       preload, pv_multiarch_details[abi_index].tuple);
-              platform_path = g_build_filename (lib_temp_dirs->libdl_token_path,
-                                                base, NULL);
-              link = g_build_filename (lib_temp_dirs->abi_paths[abi_index],
-                                       base, NULL);
-
-              if (symlink (preload, link) != 0)
-                {
-                  /* This might also happen if the same gameoverlayrenderer.so
-                   * was given multiple times. We don't expect this under normal
-                   * circumstances, so we bail out. */
-                  glnx_throw_errno_prefix (error,
-                                           "Unable to create symlink %s -> %s",
-                                           link, preload);
-                  goto out;
-                }
-
-              g_debug ("created symlink %s -> %s", link, preload);
-              ptr_array_add_unique (search_path, platform_path,
-                                    g_str_equal, generic_strdup);
-            }
-          else
-            {
-              g_debug ("Module %s is for all architectures", preload);
-              g_ptr_array_add (search_path, g_strdup (preload));
-            }
-        }
-
-      /* Serialize search_paths[PRELOAD_VARIABLE_INDEX_LD_AUDIT] into
-       * LD_AUDIT, etc. */
-      for (i = 0; i < G_N_ELEMENTS (preload_variables); i++)
-        {
-          GPtrArray *search_path = preload_search_paths[i];
-          g_autoptr(GString) buffer = g_string_new ("");
-          const char *variable = preload_variables[i];
-
-          if (search_path != NULL)
-            g_ptr_array_foreach (search_path, (GFunc) append_to_search_path, buffer);
-
-          if (buffer->len != 0)
-            flatpak_bwrap_set_env (wrapped_command, variable, buffer->str, TRUE);
-        }
-    }
+  if (opt_preload_modules != NULL
+      && !pv_adverb_set_up_preload_modules (wrapped_command,
+                                            lib_temp_dirs,
+                                            (const PvAdverbPreloadModule *) opt_preload_modules->data,
+                                            opt_preload_modules->len,
+                                            error))
+    goto out;
 
   if (opt_regenerate_ld_so_cache != NULL
       && opt_regenerate_ld_so_cache[0] != '\0')
