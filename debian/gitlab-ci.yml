@@ -190,7 +190,7 @@ build:devel:
             ninja -C _build/devel install
             G_MESSAGES_DEBUG=all meson test -C _build/devel
 
-            ci/scout-layered.sh
+            build-aux/scout-layered.sh
 
     artifacts:
         paths:
