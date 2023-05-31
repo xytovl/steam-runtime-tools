@@ -240,12 +240,10 @@ main () {
     # Steam client itself, but let's try keeping 32-bit games consistent
     # with 64-bit games.
 
-    if command -v steam-runtime-launcher-interface-0 >/dev/null; then
-        set -- \
-            steam-runtime-launcher-interface-0 \
-            scout-in-container:scout-on-soldier \
-            "$@"
-    fi
+    set -- \
+        steam-runtime-launcher-interface-0 \
+        scout-in-container:scout-on-soldier \
+        "$@"
 
     if [ -n "$saved_ld_preload" ]; then
         case "$1" in
