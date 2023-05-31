@@ -45,6 +45,7 @@ _build/
         scout_sysroot/          scout sysroot for builds
     host-artifacts/             Additional test logs
     scout-DESTDIR/              Staging directory for scout builds
+    scout-layered/              Staging directory for scout-on-soldier
     scout-relocatable/          Staging directory for relocatable scout builds
 
     # Special-purpose meson/ninja build directories
@@ -429,6 +430,14 @@ class Environment:
     def install(self, args: List[str]) -> None:
         self.run_scout_builds('install', args)
 
+        subprocess.run(
+            [
+                str(self.abs_srcdir / 'build-aux' / 'scout-layered.sh'),
+                str(self.builddir_parent / 'scout-layered'),
+            ],
+            check=True,
+        )
+
         pv = self.containers / 'pressure-vessel'
 
         with suppress(FileNotFoundError):
@@ -448,6 +457,12 @@ class Environment:
             'rsync -avzP --delete {}/ '
             'machine:.../steamapps/common/'
             'SteamLinuxRuntime_soldier/pressure-vessel/'.format(pv)
+        )
+        print(
+            'rsync -avzP --delete {}/scout-layered/steam-container-runtime/depot/ '
+            'machine:.../steamapps/common/SteamLinuxRuntime/'.format(
+                self.builddir_parent,
+            )
         )
 
 
