@@ -147,6 +147,19 @@ _srt_portal_listener_check_socket_arguments (SrtPortalListener *listener,
       return FALSE;
     }
 
+  if (opt_bus_names != NULL)
+    {
+      for (i = 0; opt_bus_names[i] != NULL; i++)
+        {
+          if (!g_dbus_is_name (opt_bus_names[i]))
+            {
+              g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
+                           "\"%s\" is not a valid D-Bus name", opt_bus_names[i]);
+              return FALSE;
+            }
+        }
+    }
+
   /* --socket argument needs to be printable so we can print
    * "socket=%s\n" without escaping */
   if (opt_socket != NULL)
