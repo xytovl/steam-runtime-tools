@@ -464,3 +464,64 @@ out:
   g_clear_error (&error);
   return issues;
 }
+
+/*
+ * _srt_environ_escape_steam_runtime:
+ * env: (array zero-terminated=1) (element-type filename) (transfer full):
+ *  The original environment
+ *
+ * Returns: (array zero-terminated=1) (element-type filename) (transfer full):
+ *  The new environment
+ */
+GStrv
+_srt_environ_escape_steam_runtime (GStrv env)
+{
+  const char *path;
+  const char *steam_runtime = g_environ_getenv (env, "STEAM_RUNTIME");
+  const char *system_ldlp;
+  const char *system_path;
+
+  if (steam_runtime == NULL || steam_runtime[0] != '/')
+    return env;
+
+  system_ldlp = g_environ_getenv (env, "SYSTEM_LD_LIBRARY_PATH");
+
+  /* Restore the system LD_LIBRARY_PATH, or unset it */
+  if (system_ldlp != NULL)
+    env = g_environ_setenv (env, "LD_LIBRARY_PATH", system_ldlp, TRUE);
+  else
+    env = g_environ_unsetenv (env, "LD_LIBRARY_PATH");
+
+  path = g_environ_getenv (env, "PATH");
+  system_path = g_environ_getenv (env, "SYSTEM_PATH");
+
+  /* Restore the system PATH if we can, or edit out whatever items in it
+   * start with the Steam Runtime directory. */
+  if (system_path != NULL)
+    {
+      env = g_environ_setenv (env, "PATH", system_path, TRUE);
+    }
+  else if (path != NULL)
+    {
+      g_autoptr(GString) buf = g_string_new ("");
+      g_auto(GStrv) bits = g_strsplit (path, ":", -1);
+      char **p;
+
+      for (p = bits; *p != NULL; p++)
+        {
+          if (!g_str_has_prefix (*p, steam_runtime))
+            {
+              if (buf->len > 0)
+                g_string_append_c (buf, ':');
+
+              g_string_append (buf, *p);
+            }
+        }
+
+      env = g_environ_setenv (env, "PATH", buf->str, TRUE);
+    }
+
+  env = g_environ_unsetenv (env, "STEAM_RUNTIME");
+  env = g_environ_unsetenv (env, "STEAM_ZENITY");
+  return env;
+}

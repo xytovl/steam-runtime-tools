@@ -36,6 +36,7 @@
 
 #include "steam-runtime-tools/glib-backports-internal.h"
 #include "steam-runtime-tools/input-device-internal.h"
+#include "steam-runtime-tools/runtime-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
 #include "test-utils.h"
 
@@ -234,6 +235,93 @@ test_dir_iter (Fixture *f,
       g_assert_cmpstr (dent->d_name, !=, "..");
       g_test_message ("ino#%lld %s",
                       (long long) dent->d_ino, dent->d_name);
+    }
+}
+
+typedef struct
+{
+  const char *name;
+  /* Arbitrary size sufficient for our test data, increase as required */
+  const char * const before[10];
+  /* Assumed to be sorted in strcmp order */
+  const char * const expected[10];
+} EscapeSteamRuntimeTest;
+
+static void
+test_escape_steam_runtime (Fixture *f,
+                           gconstpointer context)
+{
+  static const EscapeSteamRuntimeTest tests[] =
+  {
+      {
+        .name = "with system variables",
+        .before = {
+          "STEAM_RUNTIME=/steam-runtime",
+          "SYSTEM_PATH=/usr/local/bin:/usr/bin:/bin",
+          "PATH=/usr/local/bin:/steam-runtime/amd64/bin:/usr/bin:/bin",
+          "SYSTEM_LD_LIBRARY_PATH=/opt/lib",
+          "LD_LIBRARY_PATH=/steam-runtime/lib/...:/opt/lib",
+          "STEAM_ZENITY=zenity",
+          NULL
+        },
+        .expected = {
+          "LD_LIBRARY_PATH=/opt/lib",
+          "PATH=/usr/local/bin:/usr/bin:/bin",
+          "SYSTEM_LD_LIBRARY_PATH=/opt/lib",
+          "SYSTEM_PATH=/usr/local/bin:/usr/bin:/bin",
+          NULL
+        },
+      },
+      {
+        .name = "without system variables",
+        .before = {
+          "STEAM_RUNTIME=/steam-runtime",
+          "PATH=/usr/local/bin:/steam-runtime/amd64/bin:/usr/bin:/bin",
+          "LD_LIBRARY_PATH=/steam-runtime/lib/...:/opt/lib",
+          "STEAM_ZENITY=zenity",
+          NULL
+        },
+        .expected = {
+          "PATH=/usr/local/bin:/usr/bin:/bin",
+          NULL
+        },
+      },
+      {
+        .name = "not using Steam Runtime",
+        .before = {
+          "LD_LIBRARY_PATH=/whatever/lib/...:/opt/lib",
+          "PATH=/usr/local/bin:/whatever/amd64/bin:/usr/bin:/bin",
+          NULL
+        },
+        .expected = {
+          "LD_LIBRARY_PATH=/whatever/lib/...:/opt/lib",
+          "PATH=/usr/local/bin:/whatever/amd64/bin:/usr/bin:/bin",
+          NULL
+        },
+      },
+  };
+  gsize i;
+
+  for (i = 0; i < G_N_ELEMENTS (tests); i++)
+    {
+      g_auto(GStrv) env = g_strdupv ((GStrv) tests[i].before);
+      gsize j;
+
+      env = _srt_environ_escape_steam_runtime (env);
+
+      g_test_message ("%s", tests[i].name);
+      g_test_message ("Expected:");
+
+      for (j = 0; tests[i].expected[j] != NULL; j++)
+        g_test_message ("\t%s", tests[i].expected[j]);
+
+      qsort (env, g_strv_length (env), sizeof (char *), _srt_indirect_strcmp0);
+      g_test_message ("Got:");
+
+      for (j = 0; env[j] != NULL; j++)
+        g_test_message ("\t%s", env[j]);
+
+      g_assert_cmpstrv (env, tests[i].expected);
     }
 }
 
@@ -1123,6 +1211,8 @@ main (int argc,
               setup, test_bits_set, teardown);
   g_test_add ("/utils/dir-iter", Fixture, NULL,
               setup, test_dir_iter, teardown);
+  g_test_add ("/utils/escape_steam_runtime", Fixture, NULL,
+              setup, test_escape_steam_runtime, teardown);
   g_test_add ("/utils/evdev-bits", Fixture, NULL,
               setup, test_evdev_bits, teardown);
   g_test_add ("/utils/test-file-in-sysroot", Fixture, NULL,

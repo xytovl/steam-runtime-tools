@@ -37,3 +37,6 @@ SrtRuntimeIssues _srt_runtime_check (const char *bin32,
                                      const GStrv custom_environ,
                                      gchar **version_out,
                                      gchar **path_out);
+
+G_GNUC_INTERNAL
+GStrv _srt_environ_escape_steam_runtime (GStrv env);
