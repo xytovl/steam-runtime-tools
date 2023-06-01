@@ -214,7 +214,7 @@ opt_ld_something (const char *option,
                   gpointer data,
                   GError **error)
 {
-  PvAdverbPreloadModule module = { NULL, 0, G_MAXSIZE };
+  PvAdverbPreloadModule module = { NULL, 0, PV_UNSPECIFIED_ABI };
   g_auto(GStrv) parts = NULL;
   const char *architecture = NULL;
 
@@ -241,7 +241,7 @@ opt_ld_something (const char *option,
                     }
                 }
 
-              if (module.abi_index == G_MAXSIZE)
+              if (module.abi_index == PV_UNSPECIFIED_ABI)
                 {
                   g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
                                "Unsupported ABI %s",

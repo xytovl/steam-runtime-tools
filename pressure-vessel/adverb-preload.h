@@ -18,11 +18,13 @@ typedef enum
   PV_PRELOAD_VARIABLE_INDEX_LD_PRELOAD,
 } PvPreloadVariableIndex;
 
+#define PV_UNSPECIFIED_ABI (G_MAXSIZE)
+
 typedef struct
 {
   char *name;
   gsize index_in_preload_variables;
-  /* An index in pv_multiarch_details, or G_MAXSIZE if unspecified */
+  /* An index in pv_multiarch_details, or PV_UNSPECIFIED_ABI if unspecified */
   gsize abi_index;
 } PvAdverbPreloadModule;
 

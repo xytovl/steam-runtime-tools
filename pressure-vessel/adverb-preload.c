@@ -79,7 +79,7 @@ pv_adverb_set_up_preload_modules (FlatpakBwrap *wrapped_command,
           continue;
         }
 
-      if (abi_index == G_MAXSIZE
+      if (abi_index == PV_UNSPECIFIED_ABI
           && module->index_in_preload_variables == PV_PRELOAD_VARIABLE_INDEX_LD_PRELOAD
           && strcmp (base, "gameoverlayrenderer.so") == 0)
         {
@@ -95,7 +95,7 @@ pv_adverb_set_up_preload_modules (FlatpakBwrap *wrapped_command,
                 }
             }
 
-          if (abi_index == G_MAXSIZE)
+          if (abi_index == PV_UNSPECIFIED_ABI)
             {
               g_debug ("Preloading %s from an unexpected path \"%s\", "
                        "just leave it as is without adjusting",
@@ -103,7 +103,7 @@ pv_adverb_set_up_preload_modules (FlatpakBwrap *wrapped_command,
             }
         }
 
-      if (abi_index != G_MAXSIZE)
+      if (abi_index != PV_UNSPECIFIED_ABI)
         {
           g_autofree gchar *link = NULL;
           g_autofree gchar *platform_path = NULL;
