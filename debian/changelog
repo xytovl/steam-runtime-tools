@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20230601.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20230601.0) steamrt; urgency=medium
 
   * pressure-vessel:
     - Cope gracefully with duplicate modules in LD_PRELOAD/LD_AUDIT
@@ -18,7 +18,7 @@ steam-runtime-tools (0.20230601.0) UNRELEASED; urgency=medium
     - Make sure we generate an invalid D-Bus name when needed
     - Expand test coverage for launcher-service options
 
- -- Simon McVittie <smcv@collabora.com>  Thu, 01 Jun 2023 19:22:21 +0100
+ -- Simon McVittie <smcv@collabora.com>  Thu, 01 Jun 2023 19:29:57 +0100
 
 steam-runtime-tools (0.20230509.0) steamrt; urgency=medium
 
