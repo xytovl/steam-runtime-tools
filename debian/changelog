@@ -1,3 +1,25 @@
+steam-runtime-tools (0.20230601.0) UNRELEASED; urgency=medium
+
+  * pressure-vessel:
+    - Cope gracefully with duplicate modules in LD_PRELOAD/LD_AUDIT
+      (steamrt/tasks#302)
+  * scout-on-soldier:
+    - Remove compatibility with very old soldier releases
+  * steam-runtime-tools library:
+    - Use CRLF line endings for diagnostic messages if stderr is a terminal,
+      fixing stair-stepping when running s-r-launch-client with debug enabled
+  * launcher-service:
+    - Add --stop-on-parent-exit option
+    - Validate bus names properly
+    - Improve exit status for a wrong --exit-on-readable
+    - Fix a typo in the man page
+  * Automated tests:
+    - Restructure pv-adverb code so we can unit-test it
+    - Make sure we generate an invalid D-Bus name when needed
+    - Expand test coverage for launcher-service options
+
+ -- Simon McVittie <smcv@collabora.com>  Thu, 01 Jun 2023 19:22:21 +0100
+
 steam-runtime-tools (0.20230509.0) steamrt; urgency=medium
 
   * check-vulkan: Avoid out-of-spec behaviour that caused a crash with
