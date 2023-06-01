@@ -1411,6 +1411,10 @@ static GOptionEntry options[] =
     "Replace a previous instance with the same bus name. "
     "Ignored if --bus-name is not used.",
     NULL },
+  { "no-replace", '\0',
+    G_OPTION_FLAG_REVERSE, G_OPTION_ARG_NONE, &opt_replace,
+    "Fail if a previous instance has the same bus name [default].",
+    NULL },
   { "session", '\0',
     G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK, opt_session_cb,
     "Like --bus-name, but automatically select a unique or well-known "
