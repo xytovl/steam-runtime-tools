@@ -92,8 +92,6 @@ static guint signal_ids[N_SIGNALS] = { 0 };
 void
 _srt_portal_listener_init (SrtPortalListener *self)
 {
-  self->original_environ = g_get_environ ();
-  _srt_get_current_dirs (NULL, &self->original_cwd_l);
 }
 
 /*
@@ -699,8 +697,6 @@ _srt_portal_listener_finalize (GObject *object)
   SrtPortalListener *self = _SRT_PORTAL_LISTENER (object);
 
   g_clear_pointer (&self->server_socket, g_free);
-  g_clear_pointer (&self->original_environ, g_strfreev);
-  g_clear_pointer (&self->original_cwd_l, g_free);
 
   G_OBJECT_CLASS (_srt_portal_listener_parent_class)->finalize (object);
 }

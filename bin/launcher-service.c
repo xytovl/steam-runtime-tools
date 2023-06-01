@@ -85,6 +85,8 @@ typedef struct
 {
   GObject parent;
   SrtPortalListener *listener;
+  GStrv child_environ;
+  gchar *original_cwd_l;
   GHashTable *client_pid_data_hash;
   PvLauncher1 *launcher;
   char **wrapped_command;
@@ -125,6 +127,8 @@ pv_launcher_server_init (PvLauncherServer *self)
 {
   g_return_if_fail (PV_IS_LAUNCHER_SERVER (self));
   self->exit_status = -1;
+  self->child_environ = g_get_environ ();
+  _srt_get_current_dirs (NULL, &self->original_cwd_l);
 }
 
 static gboolean
@@ -171,11 +175,23 @@ pv_launcher_server_dispose (GObject *object)
 }
 
 static void
+pv_launcher_server_finalize (GObject *object)
+{
+  PvLauncherServer *self = PV_LAUNCHER_SERVER (object);
+
+  g_clear_pointer (&self->child_environ, g_strfreev);
+  g_clear_pointer (&self->original_cwd_l, g_free);
+
+  G_OBJECT_CLASS (pv_launcher_server_parent_class)->finalize (object);
+}
+
+static void
 pv_launcher_server_class_init (PvLauncherServerClass *cls)
 {
   GObjectClass *object_class = G_OBJECT_CLASS (cls);
 
   object_class->dispose = pv_launcher_server_dispose;
+  object_class->finalize = pv_launcher_server_finalize;
 }
 
 static void
@@ -541,7 +557,7 @@ handle_launch (PvLauncher1           *object,
     }
   else
     {
-      env = g_strdupv (self->listener->original_environ);
+      env = g_strdupv (self->child_environ);
     }
 
   if (self->main_pid_str != NULL)
@@ -576,7 +592,7 @@ handle_launch (PvLauncher1           *object,
     }
 
   if (arg_cwd_path == NULL)
-    env = g_environ_setenv (env, "PWD", self->listener->original_cwd_l,
+    env = g_environ_setenv (env, "PWD", self->original_cwd_l,
                             TRUE);
   else
     env = g_environ_setenv (env, "PWD", arg_cwd_path, TRUE);

@@ -72,12 +72,10 @@ typedef struct
 struct _SrtPortalListener
 {
   GObject parent;
-  GStrv original_environ;
   FILE *original_stdout;
   FILE *info_fh;
   GDBusConnection *session_bus;
   GDBusServer *server;
-  gchar *original_cwd_l;
   gchar *server_socket;
   GArray *bus_names;
   SrtPortalListenerFlags flags;
