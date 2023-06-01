@@ -63,10 +63,14 @@ This uses **$SHELL** if available in the container, falling back to
     network namespace, is shared between all containers that are in
     the same network namespace, and cannot be shared across network
     namespace boundaries.
+    This option is deprecated: using a bus name on the well-known D-Bus
+    session bus is preferred.
 
 **--dbus-address** *ADDRESS*
 :   The same as **--socket**, but the socket is specified in the form
     of a D-Bus address.
+    This option is deprecated: using a bus name on the well-known D-Bus
+    session bus is preferred.
 
 **--bus-name** *NAME*
 :   Connect to the well-known D-Bus session bus and send commands to

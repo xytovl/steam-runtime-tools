@@ -1182,6 +1182,7 @@ main (int argc,
           goto out;
         }
 
+      _srt_log_warning ("The --dbus-address option is deprecated. Prefer to use the session bus.");
       peer_connection = g_dbus_connection_new_for_address_sync (opt_dbus_address,
                                                                 G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT,
                                                                 NULL,
@@ -1217,6 +1218,7 @@ main (int argc,
           goto out;
         }
 
+      _srt_log_warning ("The --socket option is deprecated. Prefer to use the session bus.");
       peer_connection = g_dbus_connection_new_for_address_sync (address,
                                                                 G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT,
                                                                 NULL,
