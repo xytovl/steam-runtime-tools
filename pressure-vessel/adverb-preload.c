@@ -107,6 +107,7 @@ pv_adverb_set_up_preload_modules (FlatpakBwrap *wrapped_command,
         {
           g_autofree gchar *link = NULL;
           g_autofree gchar *platform_path = NULL;
+          int saved_errno;
 
           g_debug ("Module %s is for %s",
                    preload, pv_multiarch_details[abi_index].tuple);
@@ -115,19 +116,35 @@ pv_adverb_set_up_preload_modules (FlatpakBwrap *wrapped_command,
           link = g_build_filename (lib_temp_dirs->abi_paths[abi_index],
                                    base, NULL);
 
-          if (symlink (preload, link) != 0)
+          if (symlink (preload, link) == 0)
             {
-              /* This might also happen if the same gameoverlayrenderer.so
-               * was given multiple times. We don't expect this under normal
-               * circumstances, so we bail out. */
-              return glnx_throw_errno_prefix (error,
-                                              "Unable to create symlink %s -> %s",
-                                              link, preload);
+              g_debug ("created symlink %s -> %s", link, preload);
+              ptr_array_add_unique (search_path, platform_path,
+                                    g_str_equal, generic_strdup);
+              continue;
             }
 
-          g_debug ("created symlink %s -> %s", link, preload);
-          ptr_array_add_unique (search_path, platform_path,
-                                g_str_equal, generic_strdup);
+          saved_errno = errno;
+
+          if (saved_errno == EEXIST)
+            {
+              g_autofree gchar *found = NULL;
+
+              found = glnx_readlinkat_malloc (-1, link, NULL, NULL);
+
+              if (g_strcmp0 (found, preload) == 0)
+                {
+                  g_debug ("Already created symlink %s -> %s", link, preload);
+                  ptr_array_add_unique (search_path, platform_path,
+                                        g_str_equal, generic_strdup);
+                  continue;
+                }
+            }
+
+          /* Use the object as-is instead of trying to do anything clever */
+          g_debug ("Unable to create symlink %s -> %s: %s",
+                   link, preload, g_strerror (saved_errno));
+          g_ptr_array_add (search_path, g_strdup (preload));
         }
       else
         {
