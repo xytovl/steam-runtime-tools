@@ -44,6 +44,7 @@
 #include "steam-runtime-tools/launcher-internal.h"
 #include "steam-runtime-tools/log-internal.h"
 #include "steam-runtime-tools/portal-listener-internal.h"
+#include "steam-runtime-tools/runtime-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
 #include "libglnx.h"
 
@@ -51,6 +52,22 @@
 
 /* Absence of GConnectFlags; slightly more readable than a magic number */
 #define CONNECT_FLAGS_NONE (0)
+
+/*
+ * Purpose:
+ * @PURPOSE_UNSPECIFIED: the default
+ * @PURPOSE_INSIDE_APP: service is listening inside a pressure-vessel
+ *  per-app container
+ * @PURPOSE_ALONGSIDE_STEAM: service is listening outside the pressure-vessel
+ *  container (alongside the Steam client), but not necessarily on the
+ *  host system
+ */
+typedef enum
+{
+  PURPOSE_UNSPECIFIED = 0,
+  PURPOSE_INSIDE_APP,
+  PURPOSE_ALONGSIDE_STEAM,
+} Purpose;
 
 /*
  * ExportState:
@@ -101,6 +118,7 @@ typedef struct
   ExportState export_state;
   int exit_status;
   PvLauncherServerFlags flags;
+  Purpose purpose;
 } PvLauncherServer;
 
 typedef struct
@@ -940,6 +958,23 @@ pv_launcher_server_finish_startup (PvLauncherServer *self,
     {
       g_autofree char *launch_client = find_launch_client_shell_quoted ();
       const char *bus_name = _srt_portal_listener_get_suggested_bus_name (self->listener);
+      const char *where;
+
+      switch (self->purpose)
+        {
+          case PURPOSE_ALONGSIDE_STEAM:
+            where = "alongside the Steam client";
+            break;
+
+          case PURPOSE_INSIDE_APP:
+            where = "in the per-app container";
+            break;
+
+          case PURPOSE_UNSPECIFIED:
+          default:
+            where = "in its environment";
+            break;
+        }
 
       /* This is an unstructured hint for users, so write it to stderr
        * rather than anywhere machine-readable. Don't put any special
@@ -947,7 +982,7 @@ pv_launcher_server_finish_startup (PvLauncherServer *self,
       g_printerr ("\n");
       g_printerr ("Starting program with command-launcher service.\n");
       g_printerr ("\n");
-      g_printerr ("To inject commands into the container, use a command like:\n");
+      g_printerr ("To run commands %s, use a command like:\n", where);
       g_printerr ("\n");
       g_printerr ("%s \\\n", launch_client);
 
@@ -1337,6 +1372,7 @@ static gboolean opt_exec_fallback = FALSE;
 static gint opt_exit_on_readable_fd = -1;
 static gboolean opt_hint = FALSE;
 static gint opt_info_fd = -1;
+static Purpose opt_purpose = PURPOSE_UNSPECIFIED;
 static gboolean opt_replace = FALSE;
 static gchar *opt_socket = NULL;
 static gchar *opt_socket_directory = NULL;
@@ -1382,8 +1418,47 @@ opt_bus_name_cb (G_GNUC_UNUSED const gchar *option_name,
   return TRUE;
 }
 
+static gboolean
+opt_purpose_cb (const char *option_name,
+                const char *value G_GNUC_UNUSED,
+                gpointer data G_GNUC_UNUSED,
+                GError **error)
+{
+  opt_session_cb (NULL, NULL, NULL, NULL);
+
+  if (opt_purpose != PURPOSE_UNSPECIFIED)
+    {
+      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_FAILED,
+                   "Only one of --inside-app or --alongside-steam can be used");
+      return FALSE;
+    }
+
+  if (g_str_equal (option_name, "--inside-app"))
+    {
+      opt_purpose = PURPOSE_INSIDE_APP;
+    }
+  else if (g_str_equal (option_name, "--alongside-steam"))
+    {
+      opt_purpose = PURPOSE_ALONGSIDE_STEAM;
+      opt_replace = TRUE;
+      opt_stop_on_parent_exit = TRUE;
+    }
+  else
+    {
+      g_assert_not_reached ();
+    }
+
+  return TRUE;
+}
+
 static GOptionEntry options[] =
 {
+  { "alongside-steam", '\0',
+    G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK, opt_purpose_cb,
+    "The launcher service is running alongside the Steam client, outside any "
+    "per-Steam-app pressure-vessel container, but possibly inside some other "
+    "sandbox such as Flatpak or Snap.",
+    NULL },
   { "bus-name", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_CALLBACK, opt_bus_name_cb,
     "Use this well-known name on the D-Bus session bus. [may repeat]",
@@ -1406,14 +1481,20 @@ static GOptionEntry options[] =
     "Indicate readiness and print details of how to connect on this "
     "file descriptor instead of stdout.",
     "FD" },
+  { "inside-app", '\0',
+    G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK, opt_purpose_cb,
+    "The launcher service is running inside a per-app pressure-vessel container.",
+    NULL },
   { "replace", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_replace,
     "Replace a previous instance with the same bus name. "
+    "Default if --alongside-steam. "
     "Ignored if --bus-name is not used.",
     NULL },
   { "no-replace", '\0',
     G_OPTION_FLAG_REVERSE, G_OPTION_ARG_NONE, &opt_replace,
-    "Fail if a previous instance has the same bus name [default].",
+    "Fail if a previous instance has the same bus name. "
+    "Default if not --alongside-steam.",
     NULL },
   { "session", '\0',
     G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK, opt_session_cb,
@@ -1541,6 +1622,8 @@ main (int argc,
         goto out;
     }
 
+  server->purpose = opt_purpose;
+
   if (opt_verbose || opt_hint)
     server->flags |= PV_LAUNCHER_SERVER_FLAGS_HINT;
 
@@ -1638,38 +1721,60 @@ main (int argc,
   server->client_pid_data_hash = g_hash_table_new_full (NULL, NULL, NULL,
                                                         (GDestroyNotify) pid_data_free);
 
+  if (server->purpose == PURPOSE_ALONGSIDE_STEAM)
+    server->child_environ = _srt_environ_escape_steam_runtime (server->child_environ);
+
   /* Choose a bus name automatically for --session */
   if (opt_bus_names != NULL && opt_bus_names->len == 0)
     {
-      g_autofree gchar *per_app_name = NULL;
       g_autofree gchar *instance_name = NULL;
       const char *steam_appid = _srt_get_steam_app_id ();
-      const char *prefix = LAUNCHER_INSIDE_APP_PREFIX;
+      const char *prefix = NULL;
 
       if (steam_appid == NULL)
         steam_appid = "0";
 
-      per_app_name = g_strdup_printf ("%s%s", prefix, steam_appid);
-
-      /* Force it to be a valid bus name if necessary */
-      if (G_UNLIKELY (!g_dbus_is_name (per_app_name)))
+      switch (server->purpose)
         {
-          char *p;
+          case PURPOSE_ALONGSIDE_STEAM:
+            if (g_file_test ("/run/pressure-vessel", G_FILE_TEST_EXISTS))
+              _srt_log_warning ("Using --alongside-steam inside pressure-vessel is misleading");
 
-          for (p = per_app_name + strlen (prefix); *p != '\0'; p++)
-            {
-              if (!g_ascii_isalnum (*p))
-                *p = '_';
+            g_ptr_array_add (opt_bus_names, g_strdup (LAUNCHER_NAME_ALONGSIDE_STEAM));
+            break;
 
-              if (p - per_app_name > 255)
-                {
-                  *p = '\0';
-                  break;
-                }
-            }
+          case PURPOSE_INSIDE_APP:
+          case PURPOSE_UNSPECIFIED:
+          default:
+            prefix = LAUNCHER_INSIDE_APP_PREFIX;
         }
 
-      g_ptr_array_add (opt_bus_names, g_steal_pointer (&per_app_name));
+      if (prefix != NULL)
+        {
+          g_autofree gchar *per_app_name = NULL;
+
+          per_app_name = g_strdup_printf ("%s%s", prefix, steam_appid);
+
+          /* Force it to be a valid bus name if necessary */
+          if (G_UNLIKELY (!g_dbus_is_name (per_app_name)))
+            {
+              char *p;
+
+              for (p = per_app_name + strlen (prefix); *p != '\0'; p++)
+                {
+                  if (!g_ascii_isalnum (*p))
+                    *p = '_';
+
+                  if (p - per_app_name > 255)
+                    {
+                      *p = '\0';
+                      break;
+                    }
+                }
+            }
+
+          g_ptr_array_add (opt_bus_names, g_steal_pointer (&per_app_name));
+        }
 
       g_assert (opt_bus_names->len > 0);
       instance_name = g_strdup_printf ("%s.Instance%u",

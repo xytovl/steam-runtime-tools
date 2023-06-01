@@ -1428,6 +1428,8 @@ class TestLauncher(BaseTest):
             ('--bus-name=com.example.Nope --info-fd=42', EX_OSERR),
             # Mutually exclusive options
             ('--socket=@/tmp/nope --session', EX_USAGE),
+            # Mutually exclusive options
+            ('--inside-app --alongside-steam', EX_USAGE),
         ]:
             with contextlib.ExitStack() as stack:
                 args = test.split()
