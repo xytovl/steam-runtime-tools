@@ -302,6 +302,154 @@ test_gameoverlayrenderer (Fixture *f,
 #endif
 }
 
+/*
+ * steamrt/tasks#302: pv-adverb would fail if /usr/$LIB/libMangoHud.so
+ * was (uselessly) added to the LD_PRELOAD path more than once.
+ * This test exercises the same thing for gameoverlayrenderer.so, too.
+ */
+static void
+test_repetition (Fixture *f,
+                 gconstpointer context)
+{
+  static const PvAdverbPreloadModule modules[] =
+  {
+    { (char *) "/opt/lib0/libfirst.so", PV_PRELOAD_VARIABLE_INDEX_LD_PRELOAD, 0 },
+    { (char *) "/opt/lib0/one/same-basename.so",
+      PV_PRELOAD_VARIABLE_INDEX_LD_PRELOAD, 0 },
+    { (char *) "/opt/lib0/two/same-basename.so",
+      PV_PRELOAD_VARIABLE_INDEX_LD_PRELOAD, 0 },
+    { (char *) "/opt/lib0/libpreload.so", PV_PRELOAD_VARIABLE_INDEX_LD_PRELOAD, 0 },
+#if PV_N_SUPPORTED_ARCHITECTURES > 1
+    { (char *) "/opt/lib1/libpreload.so", PV_PRELOAD_VARIABLE_INDEX_LD_PRELOAD, 1 },
+#endif
+#if defined(__x86_64__) || defined(__i386__)
+    { (char *) "/opt/steam/ubuntu12_32/gameoverlayrenderer.so",
+      PV_PRELOAD_VARIABLE_INDEX_LD_PRELOAD, PV_UNSPECIFIED_ABI },
+    { (char *) "/opt/steam/ubuntu12_64/gameoverlayrenderer.so",
+      PV_PRELOAD_VARIABLE_INDEX_LD_PRELOAD, PV_UNSPECIFIED_ABI },
+#endif
+    { (char *) "/opt/lib0/libmiddle.so", PV_PRELOAD_VARIABLE_INDEX_LD_PRELOAD, 0 },
+    { (char *) "/opt/lib0/libpreload.so", PV_PRELOAD_VARIABLE_INDEX_LD_PRELOAD, 0 },
+#if PV_N_SUPPORTED_ARCHITECTURES > 1
+    { (char *) "/opt/lib1/libpreload.so", PV_PRELOAD_VARIABLE_INDEX_LD_PRELOAD, 1 },
+#endif
+#if defined(__x86_64__) || defined(__i386__)
+    { (char *) "/opt/steam/ubuntu12_32/gameoverlayrenderer.so",
+      PV_PRELOAD_VARIABLE_INDEX_LD_PRELOAD, PV_UNSPECIFIED_ABI },
+    { (char *) "/opt/steam/ubuntu12_64/gameoverlayrenderer.so",
+      PV_PRELOAD_VARIABLE_INDEX_LD_PRELOAD, PV_UNSPECIFIED_ABI },
+#endif
+    { (char *) "/opt/lib0/liblast.so", PV_PRELOAD_VARIABLE_INDEX_LD_PRELOAD, 0 },
+  };
+  g_autoptr(GError) local_error = NULL;
+  g_autoptr(GString) expected = g_string_new ("");
+  g_autoptr(GString) path = g_string_new ("");
+  gboolean ret;
+  gsize i;
+
+  if (f->lib_temp_dirs == NULL)
+    return;
+
+  ret = pv_adverb_set_up_preload_modules (f->bwrap,
+                                          f->lib_temp_dirs,
+                                          modules,
+                                          G_N_ELEMENTS (modules),
+                                          &local_error);
+  g_assert_no_error (local_error);
+  g_assert_true (ret);
+
+  flatpak_bwrap_sort_envp (f->bwrap);
+  g_assert_nonnull (f->bwrap->envp);
+  i = 0;
+
+  g_string_assign (expected, "LD_PRELOAD=");
+  g_string_append_printf (expected, "%s/libfirst.so",
+                          f->lib_temp_dirs->libdl_token_path);
+  g_string_append_c (expected, ':');
+  g_string_append_printf (expected, "%s/same-basename.so",
+                          f->lib_temp_dirs->libdl_token_path);
+  g_string_append_c (expected, ':');
+  /* We don't do the per-architecture split if there's a basename
+   * collision */
+  g_string_append (expected, "/opt/lib0/two/same-basename.so");
+  g_string_append_c (expected, ':');
+  g_string_append_printf (expected, "%s/libpreload.so",
+                          f->lib_temp_dirs->libdl_token_path);
+#if defined(__x86_64__) || defined(__i386__)
+  g_string_append_c (expected, ':');
+  g_string_append_printf (expected, "%s/gameoverlayrenderer.so",
+                          f->lib_temp_dirs->libdl_token_path);
+#endif
+  g_string_append_c (expected, ':');
+  g_string_append_printf (expected, "%s/libmiddle.so",
+                          f->lib_temp_dirs->libdl_token_path);
+  g_string_append_c (expected, ':');
+  /* The duplicates don't appear in the search path a second time */
+  g_string_append_printf (expected, "%s/liblast.so",
+                          f->lib_temp_dirs->libdl_token_path);
+  g_assert_cmpstr (f->bwrap->envp[i], ==, expected->str);
+  i++;
+
+  g_assert_cmpstr (f->bwrap->envp[i], ==, NULL);
+
+  /* The symlinks get created (but only once) */
+
+  for (i = 0; i < MIN (PV_N_SUPPORTED_ARCHITECTURES, 2); i++)
+    {
+      gsize j;
+
+      for (j = 0; j < G_N_ELEMENTS (modules); j++)
+        {
+          g_autofree gchar *target = NULL;
+
+          if (modules[j].abi_index != i)
+            {
+              g_test_message ("Not expecting a %s symlink for %s",
+                              pv_multiarch_tuples[i], modules[j].name);
+              continue;
+            }
+
+          if (g_str_equal (modules[j].name, "/opt/lib0/two/same-basename.so"))
+            {
+              g_test_message ("Not expecting a symlink for %s because it "
+                              "collides with a basename seen earlier",
+                              modules[j].name);
+              continue;
+            }
+
+          g_string_assign (path, f->lib_temp_dirs->abi_paths[i]);
+          g_string_append_c (path, G_DIR_SEPARATOR);
+          g_string_append (path, glnx_basename (modules[j].name));
+
+          target = flatpak_readlink (path->str, &local_error);
+          g_assert_no_error (local_error);
+          g_test_message ("%s -> %s", path->str, target);
+
+          g_assert_cmpstr (target, ==, modules[j].name);
+        }
+    }
+
+#if defined(__x86_64__) || defined(__i386__)
+  for (i = 0; i < PV_N_SUPPORTED_ARCHITECTURES; i++)
+    {
+      g_autofree gchar *target = NULL;
+
+      g_string_assign (path, f->lib_temp_dirs->abi_paths[i]);
+      g_string_append_c (path, G_DIR_SEPARATOR);
+      g_string_append (path, "gameoverlayrenderer.so");
+
+      target = flatpak_readlink (path->str, &local_error);
+      g_assert_no_error (local_error);
+      g_test_message ("%s -> %s", path->str, target);
+
+      g_string_assign (expected, "");
+      g_string_append_printf (expected, "/opt/steam/%s/gameoverlayrenderer.so",
+                              pv_multiarch_details[i].gameoverlayrenderer_dir);
+      g_assert_cmpstr (target, ==, expected->str);
+    }
+#endif
+}
+
 int
 main (int argc,
       char **argv)
@@ -320,6 +468,8 @@ main (int argc,
               setup, test_biarch, teardown);
   g_test_add ("/gameoverlayrenderer", Fixture, NULL,
               setup, test_gameoverlayrenderer, teardown);
+  g_test_add ("/repetition", Fixture, NULL,
+              setup, test_repetition, teardown);
 
   return g_test_run ();
 }
