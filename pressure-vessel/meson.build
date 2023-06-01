@@ -78,6 +78,8 @@ pressure_vessel_utils = static_library(
     'flatpak-utils-private.h',
     'mtree.c',
     'mtree.h',
+    'supported-architectures.c',
+    'supported-architectures.h',
     'tree-copy.c',
     'tree-copy.h',
     'utils.c',
@@ -99,20 +101,36 @@ pressure_vessel_utils_dep = declare_dependency(
   sources : [enums[1]],
 )
 
-executable(
-  'pressure-vessel-adverb',
+pressure_vessel_adverb_lib = static_library(
+  'pressure-vessel-adverb-lib',
   sources : [
-    'adverb.c',
+    'adverb-preload.c',
+    'adverb-preload.h',
     'per-arch-dirs.c',
     'per-arch-dirs.h',
-    'supported-architectures.c',
-    'supported-architectures.h',
     'wrap-interactive.c',
     'wrap-interactive.h',
   ],
   c_args : pv_c_args,
   dependencies : [
     pressure_vessel_utils_dep,
+    gio_unix,
+    libglnx_dep,
+  ],
+  include_directories : pv_include_dirs,
+)
+pressure_vessel_adverb_lib_dep = declare_dependency(
+  link_with : pressure_vessel_adverb_lib,
+)
+
+executable(
+  'pressure-vessel-adverb',
+  sources : [
+    'adverb.c',
+  ],
+  c_args : pv_c_args,
+  dependencies : [
+    pressure_vessel_adverb_lib_dep,
     threads,
     gio_unix,
     libglnx_dep,
@@ -145,8 +163,6 @@ pressure_vessel_wrap_lib = static_library(
     'graphics-provider.h',
     'runtime.c',
     'runtime.h',
-    'supported-architectures.c',
-    'supported-architectures.h',
     'wrap-discord.c',
     'wrap-discord.h',
     'wrap-flatpak.c',

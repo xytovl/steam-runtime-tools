@@ -42,15 +42,29 @@ tests = [
 ]
 
 compiled_tests = [
-  'bwrap-lock',
-  'graphics-provider',
-  'resolve-in-sysroot',
-  'wait-for-child-processes',
-  'wrap-setup',
-  'utils',
+  {'name': 'adverb-preload', 'adverb': true},
+  {'name': 'bwrap-lock'},
+  {'name': 'graphics-provider', 'wrap': true},
+  {'name': 'resolve-in-sysroot'},
+  {'name': 'wait-for-child-processes'},
+  {'name': 'wrap-setup', 'wrap': true},
+  {'name': 'utils'},
 ]
 
-foreach test_name : compiled_tests
+foreach test_info : compiled_tests
+  test_name = test_info['name']
+
+  # For whatever reason, linking to both -adverb and -wrap code in a Scout
+  # environment results in the json-glib dependency not being found.
+  # None of our tests actually need both, so only link to one (or neither).
+  if test_info.get('adverb', false)
+    pv_dep = pressure_vessel_adverb_lib_dep
+  elif test_info.get('wrap', false)
+    pv_dep = pressure_vessel_wrap_lib_dep
+  else
+    pv_dep = pressure_vessel_utils_dep
+  endif
+
   exe = executable(
     'test-' + test_name,
     files(test_name + '.c'),
@@ -58,7 +72,7 @@ foreach test_name : compiled_tests
       gio_unix,
       libglnx_dep,
       # Keep libsteamrt_dep at the bottom to avoid linking errors with Scout
-      pressure_vessel_wrap_lib_dep,
+      pv_dep,
       test_utils_static_libsteamrt_dep,
     ],
     include_directories : pv_include_dirs,
