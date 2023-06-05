@@ -1,3 +1,26 @@
+steam-runtime-tools (0.20230605.0) steamrt; urgency=medium
+
+  * launch-client:
+    - Add --inside-app=APPID option.
+      This attempts to run the command inside Steam app/game APPID,
+      similar to --bus-name=com.steampowered.AppAPPID.
+    - Add --alongside-steam option.
+      This attempts to run the command in the same execution environment
+      as Steam, without the Steam Runtime, similar to how Steam implements
+      non-Steam game shortcuts. (steamrt/tasks#293, steam-runtime-tools#107)
+    - Add --host option.
+      This attempts to run the command on the host system from inside a
+      Flatpak or Snap app, similar to flatpak-spawn --host.
+    - Officially deprecate --dbus-address and --socket
+    - Refactoring
+  * launcher-service:
+    - Add --alongside-steam option
+      (steamrt-tasks#293, steam-runtime-tools#107)
+    - Add --no-replace option
+    - Refactoring
+
+ -- Simon McVittie <smcv@collabora.com>  Mon, 05 Jun 2023 11:52:06 +0100
+
 steam-runtime-tools (0.20230601.0) steamrt; urgency=medium
 
   * pressure-vessel:
