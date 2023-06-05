@@ -273,6 +273,7 @@ main (int argc, char **argv)
       if (argz_add (&argz, &argz_len, launcher_service) != 0
           || argz_add (&argz, &argz_len, "--exec-fallback")
           || argz_add (&argz, &argz_len, "--hint")
+          || argz_add (&argz, &argz_len, "--inside-app")
           || argz_add (&argz, &argz_len, "--no-stop-on-name-loss")
           || argz_add (&argz, &argz_len, "--replace")
           || argz_add (&argz, &argz_len, "--session")

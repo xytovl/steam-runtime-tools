@@ -98,7 +98,6 @@ static const Api subsandbox_api =
 };
 
 static const Api *api = NULL;
-static const char *service_bus_name = NULL;
 
 typedef GUnixFDList AutoUnixFDList;
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(AutoUnixFDList, g_object_unref)
@@ -228,7 +227,7 @@ forward_signal (int sig)
     to_process_group = TRUE;
 
   reply = g_dbus_connection_call_sync (bus_or_peer_connection,
-                                       service_bus_name,        /* NULL if p2p */
+                                       api->service_bus_name, /* NULL if p2p */
                                        api->service_obj_path,
                                        api->service_iface,
                                        api->send_signal_method,
@@ -335,12 +334,12 @@ name_owner_changed (G_GNUC_UNUSED GDBusConnection *connection,
   const char *name, *from, *to;
 
   g_return_if_fail (api != NULL);
-  g_return_if_fail (service_bus_name != NULL);
+  g_return_if_fail (api->service_bus_name != NULL);
 
   g_variant_get (parameters, "(&s&s&s)", &name, &from, &to);
 
   /* Check if the service dies, then we exit, because we can't track it anymore */
-  if (strcmp (name, service_bus_name) == 0 &&
+  if (strcmp (name, api->service_bus_name) == 0 &&
       strcmp (to, "") == 0)
     {
       g_debug ("portal exited");
@@ -383,7 +382,7 @@ get_portal_version (void)
       g_autoptr(GError) error = NULL;
       g_autoptr(GVariant) reply =
         g_dbus_connection_call_sync (bus_or_peer_connection,
-                                     service_bus_name,
+                                     api->service_bus_name,
                                      api->service_obj_path,
                                      "org.freedesktop.DBus.Properties",
                                      "Get",
@@ -437,7 +436,7 @@ get_portal_supports (void)
       if (get_portal_version () >= 3)
         {
           reply = g_dbus_connection_call_sync (bus_or_peer_connection,
-                                               service_bus_name,
+                                               api->service_bus_name,
                                                api->service_obj_path,
                                                "org.freedesktop.DBus.Properties",
                                                "Get",
@@ -621,7 +620,8 @@ list_servers (FILE *original_stdout,
 
   for (i = 0; running[i] != NULL; i++)
     {
-      if (g_str_has_prefix (running[i], "com.steampowered.App"))
+      if (g_str_has_prefix (running[i], LAUNCHER_INSIDE_APP_PREFIX)
+          || g_str_equal (running[i], LAUNCHER_NAME_ALONGSIDE_STEAM))
         fprintf (original_stdout, "--bus-name=%s\n", running[i]);
     }
 
@@ -635,8 +635,116 @@ list_servers (FILE *original_stdout,
   return 0;
 }
 
+/*
+ * @session_bus_p: (out) (not optional):
+ * @service_bus_name_p: (out) (not optional):
+ */
+static const Api *
+choose_implementation (GPtrArray *possible_names,
+                       GDBusConnection **session_bus_p,
+                       gchar **service_bus_name_p,
+                       GError **error)
+{
+  gsize i;
+
+  if (possible_names->len == 0)
+    {
+      g_assert (launcher_api.service_bus_name == NULL);
+      return &launcher_api;
+    }
+
+  for (i = 0; i < possible_names->len; i++)
+    {
+      const char *name = g_ptr_array_index (possible_names, i);
+      g_autoptr(GError) local_error = NULL;
+      g_autoptr(GVariant) reply = NULL;
+
+      /* Do this inside the loop, so that if no bus names were specified
+       * (in which case we'll be using a peer-to-peer socket),
+       * it isn't an error to have no session bus. */
+      if (*session_bus_p == NULL)
+        *session_bus_p = g_bus_get_sync (G_BUS_TYPE_SESSION, NULL, error);
+
+      if (*session_bus_p == NULL)
+        {
+          glnx_prefix_error (error, "Can't find session bus");
+          return NULL;
+        }
+
+      if (g_str_equal (name, host_api.service_bus_name)
+          || g_str_equal (name, subsandbox_api.service_bus_name))
+        {
+          /* The Flatpak services are stateless and might be
+           * service-activatable */
+          reply = g_dbus_connection_call_sync (*session_bus_p,
+                                               name,
+                                               "/",
+                                               DBUS_INTERFACE_PEER,
+                                               "Ping",
+                                               NULL,
+                                               G_VARIANT_TYPE ("()"),
+                                               G_DBUS_CALL_FLAGS_NONE,
+                                               -1, NULL, &local_error);
+
+          if (reply != NULL)
+            {
+              if (g_str_equal (name, host_api.service_bus_name))
+                {
+                  g_info ("Connected to flatpak-session-helper: %s", name);
+                  return &host_api;
+                }
+              else
+                {
+                  g_info ("Connected to flatpak-portal: %s", name);
+                  return &subsandbox_api;
+                }
+            }
+        }
+      else
+        {
+          /* steam-runtime-launcher-service is stateful, so we want to bind
+           * to a specific unique bus name (specific instance) and expect signals
+           * from there.
+           *
+           * It also isn't service-activatable, so we don't need to worry about
+           * whether it is already running or whether it needs to be
+           * service-activated: we know that service activation is going to fail
+           * in any case.
+           *
+           * We can do this even for unique names: the owner of a unique name
+           * is itself. */
+          reply = g_dbus_connection_call_sync (*session_bus_p,
+                                               DBUS_NAME_DBUS,
+                                               DBUS_PATH_DBUS,
+                                               DBUS_INTERFACE_DBUS,
+                                               "GetNameOwner",
+                                               g_variant_new ("(s)", name),
+                                               G_VARIANT_TYPE ("(s)"),
+                                               G_DBUS_CALL_FLAGS_NONE,
+                                               -1, NULL, &local_error);
+
+          if (reply != NULL)
+            {
+              g_variant_get (reply, "(s)", service_bus_name_p);
+              launcher_api.service_bus_name = *service_bus_name_p;
+              g_info ("Connected to steam-runtime-launcher-service: %s (%s)",
+                      name, launcher_api.service_bus_name);
+              return &launcher_api;
+            }
+        }
+
+      g_dbus_error_strip_remote_error (local_error);
+      g_info ("Unable to connect to %s: %s", name, local_error->message);
+    }
+
+  glnx_throw (error,
+              "Unable to connect to any of the specified bus names");
+  return FALSE;
+}
+
 static gchar **forward_fds = NULL;
 static gchar *opt_app_path = NULL;
+static GPtrArray *opt_bus_names = NULL;
 static gboolean opt_clear_env = FALSE;
 static gchar *opt_dbus_address = NULL;
 static gchar *opt_directory = NULL;
@@ -843,6 +951,84 @@ option_env_fd_cb (G_GNUC_UNUSED const gchar *option_name,
   return TRUE;
 }
 
+static gboolean
+opt_bus_name_cb (G_GNUC_UNUSED const gchar *option_name,
+                 const gchar *value,
+                 G_GNUC_UNUSED gpointer data,
+                 GError **error)
+{
+  g_assert (opt_bus_names != NULL);
+
+  if (!g_dbus_is_name (value))
+    {
+      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
+                   "\"%s\" is not a valid D-Bus name", value);
+      return FALSE;
+    }
+
+  g_ptr_array_add (opt_bus_names, g_strdup (value));
+  return TRUE;
+}
+
+static gboolean
+opt_host_cb (G_GNUC_UNUSED const gchar *option_name,
+             G_GNUC_UNUSED const gchar *value,
+             G_GNUC_UNUSED gpointer data,
+             G_GNUC_UNUSED GError **error)
+{
+  g_assert (opt_bus_names != NULL);
+
+  launcher_api.default_dir_is_cwd = TRUE;
+
+  /* There is currently no conventional name for a s-r-l-s process on the
+   * host system, so --host is effectively syntactic sugar for talking
+   * to flatpak-session-helper */
+  g_ptr_array_add (opt_bus_names,
+                   g_strdup (FLATPAK_SESSION_HELPER_BUS_NAME));
+  return TRUE;
+}
+
+static gboolean
+opt_inside_cb (G_GNUC_UNUSED const gchar *option_name,
+               const gchar *value,
+               G_GNUC_UNUSED gpointer data,
+               GError **error)
+{
+  g_assert (opt_bus_names != NULL);
+
+  g_ptr_array_add (opt_bus_names,
+                   g_strdup_printf ("%s%s",
+                                    LAUNCHER_INSIDE_APP_PREFIX, value));
+  return TRUE;
+}
+
+static gboolean
+opt_alongside_steam_cb (G_GNUC_UNUSED const gchar *option_name,
+                        G_GNUC_UNUSED const gchar *value,
+                        G_GNUC_UNUSED gpointer data,
+                        GError **error)
+{
+  const char *bus_name = g_getenv ("SRT_LAUNCHER_SERVICE_ALONGSIDE_STEAM");
+  struct stat stat_buf;
+
+  g_assert (opt_bus_names != NULL);
+
+  launcher_api.default_dir_is_cwd = TRUE;
+
+  if (bus_name != NULL && bus_name[0] != '\0')
+    g_ptr_array_add (opt_bus_names, g_strdup (bus_name));
+
+  g_ptr_array_add (opt_bus_names, g_strdup (LAUNCHER_NAME_ALONGSIDE_STEAM));
+
+  /* In a Flatpak environment, launching a new subsandbox might be the
+   * closest we can get to launching alongside Steam */
+  if (stat ("/.flatpak-info", &stat_buf) == 0
+      && g_strcmp0 (g_getenv ("FLATPAK_ID"), "com.valvesoftware.Steam") == 0)
+    g_ptr_array_add (opt_bus_names, g_strdup (FLATPAK_PORTAL_BUS_NAME));
+
+  return TRUE;
+}
+
 static const GOptionEntry options[] =
 {
   { "app-path", '\0',
@@ -850,8 +1036,13 @@ static const GOptionEntry options[] =
     "Use DIR as the /app for a Flatpak sub-sandbox. "
     "Requires '--bus-name=org.freedesktop.portal.Flatpak'.",
     "DIR" },
+  { "alongside-steam", '\0',
+    G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK, opt_alongside_steam_cb,
+    "Connect to a service running alongside the Steam client, outside the "
+    "container for the current Steam app.",
+    NULL },
   { "bus-name", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_STRING, &launcher_api.service_bus_name,
+    G_OPTION_FLAG_NONE, G_OPTION_ARG_CALLBACK, opt_bus_name_cb,
     "Connect to a Launcher service with this name on the session bus.",
     "NAME" },
   { "dbus-address", '\0',
@@ -875,6 +1066,10 @@ static const GOptionEntry options[] =
     "Connect a file descriptor to the launched process. "
     "fds 0, 1 and 2 are automatically forwarded.",
     "FD" },
+  { "host", '\0',
+    G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK, opt_host_cb,
+    "Connect to a service running on the host system.",
+    NULL },
   { "inherit-env", '\0',
     G_OPTION_FLAG_FILENAME, G_OPTION_ARG_CALLBACK, opt_env_cb,
     "Undo a previous --env, --unset-env, --pass-env, etc.", "VAR" },
@@ -882,6 +1077,10 @@ static const GOptionEntry options[] =
     G_OPTION_FLAG_FILENAME, G_OPTION_ARG_CALLBACK, opt_env_cb,
     "Undo previous --env, --unset-env, etc. matching a shell-style wildcard",
     "WILDCARD" },
+  { "inside-app", '\0',
+    G_OPTION_FLAG_NONE, G_OPTION_ARG_CALLBACK, opt_inside_cb,
+    "Connect to a service running inside the container for the given Steam app.",
+    "APPID" },
   { "list", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_list,
     "List some of the available servers and then exit.",
@@ -956,7 +1155,7 @@ main (int argc,
   GHashTableIter iter;
   gpointer key, value;
   g_autofree char *home_realpath = NULL;
-  g_autofree char *service_unique_name = NULL;
+  g_autofree char *service_bus_name = NULL;
   const char *flatpak_id = NULL;
   static const char * const run_interactive_shell[] =
   {
@@ -1013,6 +1212,9 @@ main (int argc,
 
   g_option_context_add_main_entries (context, options, NULL);
   opt_env = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
+  /* Guess we might need up to 4 names + NULL, which is enough for
+   * "--alongside-steam --host" without reallocation */
+  opt_bus_names = g_ptr_array_new_full (5, g_free);
   opt_unsetenv = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
   opt_verbose = _srt_boolean_environment ("PRESSURE_VESSEL_VERBOSE", FALSE);
 
@@ -1078,22 +1280,17 @@ main (int argc,
   if (flatpak_id != NULL)
     home_realpath = realpath (g_get_home_dir (), NULL);
 
-  if (launcher_api.service_bus_name != NULL && opt_socket != NULL)
+  if (opt_bus_names->len > 0 && opt_socket != NULL)
     {
       glnx_throw (error, "--bus-name and --socket cannot both be used");
       goto out;
     }
 
-  if (g_strcmp0 (launcher_api.service_bus_name,
-                 host_api.service_bus_name) == 0)
-    api = &host_api;
-  else if (g_strcmp0 (launcher_api.service_bus_name,
-                      subsandbox_api.service_bus_name) == 0)
-    api = &subsandbox_api;
-  else
-    api = &launcher_api;
+  api = choose_implementation (opt_bus_names,
+                               &session_bus, &service_bus_name, error);
 
-  service_bus_name = api->service_bus_name;
+  if (api == NULL)
+    goto out;
 
   if (api != &launcher_api && opt_terminate)
     {
@@ -1151,8 +1348,7 @@ main (int argc,
   launch_exit_status = LAUNCH_EX_FAILED;
   loop = g_main_loop_new (NULL, FALSE);
 
-  g_assert (api != NULL);
-  if (service_bus_name != NULL)
+  if (api->service_bus_name != NULL)
     {
       if (opt_dbus_address != NULL || opt_socket != NULL)
         {
@@ -1163,13 +1359,8 @@ main (int argc,
           goto out;
         }
 
-      session_bus = g_bus_get_sync (G_BUS_TYPE_SESSION, NULL, error);
-      if (session_bus == NULL)
-        {
-          glnx_prefix_error (error, "Can't find session bus");
-          goto out;
-        }
-
+      /* choose_implementation() already connected */
+      g_assert (session_bus != NULL);
       bus_or_peer_connection = session_bus;
     }
   else if (opt_dbus_address != NULL)
@@ -1182,6 +1373,7 @@ main (int argc,
           goto out;
         }
 
+      _srt_log_warning ("The --dbus-address option is deprecated. Prefer to use the session bus.");
       peer_connection = g_dbus_connection_new_for_address_sync (opt_dbus_address,
                                                                 G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT,
                                                                 NULL,
@@ -1217,6 +1409,7 @@ main (int argc,
           goto out;
         }
 
+      _srt_log_warning ("The --socket option is deprecated. Prefer to use the session bus.");
       peer_connection = g_dbus_connection_new_for_address_sync (address,
                                                                 G_DBUS_CONNECTION_FLAGS_AUTHENTICATION_CLIENT,
                                                                 NULL,
@@ -1232,7 +1425,7 @@ main (int argc,
     }
   else
     {
-      glnx_throw (error, "--bus-name or --dbus-address or --socket is required");
+      glnx_throw (error, "At least one of --host, --inside-app, --alongside-steam, --bus-name, --dbus-address or --socket is required");
       launch_exit_status = LAUNCH_EX_USAGE;
       goto out;
     }
@@ -1244,7 +1437,7 @@ main (int argc,
       g_assert (opt_terminate);   /* already checked */
 
       reply = g_dbus_connection_call_sync (bus_or_peer_connection,
-                                           service_bus_name,
+                                           api->service_bus_name,
                                            api->service_obj_path,
                                            api->service_iface,
                                            "Terminate",
@@ -1263,47 +1456,9 @@ main (int argc,
       goto out;
     }
 
-  if (api == &launcher_api
-      && service_bus_name != NULL
-      && service_bus_name[0] != ':')
-    {
-      g_autoptr(GVariant) owner_reply = NULL;
-
-      /* steam-runtime-launcher-service is stateful, so we want to bind
-       * to a specific unique bus name (specific instance) and expect signals
-       * from there.
-       *
-       * It also isn't service-activatable, so we don't need to worry about
-       * whether it is already running or whether it needs to be
-       * service-activated: we know that service activation is going to fail
-       * in any case.
-       *
-       * We don't need to do this if we were given a unique name already,
-       * like steam-runtime-launch-client --bus-name=:1.42 -- ... */
-      owner_reply = g_dbus_connection_call_sync (bus_or_peer_connection,
-                                                 DBUS_NAME_DBUS,
-                                                 DBUS_PATH_DBUS,
-                                                 DBUS_INTERFACE_DBUS,
-                                                 "GetNameOwner",
-                                                 g_variant_new ("(s)",
-                                                                service_bus_name),
-                                                 G_VARIANT_TYPE ("(s)"),
-                                                 G_DBUS_CALL_FLAGS_NONE,
-                                                 -1, NULL, error);
-
-      if (owner_reply == NULL)
-        {
-          g_dbus_error_strip_remote_error (local_error);
-          goto out;
-        }
-
-      g_variant_get (owner_reply, "(s)", &service_unique_name);
-      service_bus_name = service_unique_name;
-    }
-
   g_assert (command_and_args != NULL);
   g_dbus_connection_signal_subscribe (bus_or_peer_connection,
-                                      service_bus_name,         /* NULL if p2p */
+                                      api->service_bus_name,  /* NULL if p2p */
                                       api->service_iface,
                                       api->exit_signal,
                                       api->service_obj_path,
@@ -1648,7 +1803,7 @@ main (int argc,
     g_assert (fd_list_len == g_unix_fd_list_get_length (fd_list));
 
     reply = g_dbus_connection_call_with_unix_fd_list_sync (bus_or_peer_connection,
-                                                           service_bus_name,
+                                                           api->service_bus_name,
                                                            api->service_obj_path,
                                                            api->service_iface,
                                                            api->launch_method,
@@ -1693,6 +1848,7 @@ out:
   g_free (opt_shell_command);
   g_free (opt_directory);
   g_free (opt_socket);
+  g_ptr_array_unref (opt_bus_names);
   g_hash_table_unref (opt_env);
   g_hash_table_unref (opt_unsetenv);
   g_free (opt_usr_path);

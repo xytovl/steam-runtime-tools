@@ -44,6 +44,7 @@
 #include "steam-runtime-tools/launcher-internal.h"
 #include "steam-runtime-tools/log-internal.h"
 #include "steam-runtime-tools/portal-listener-internal.h"
+#include "steam-runtime-tools/runtime-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
 #include "libglnx.h"
 
@@ -51,6 +52,22 @@
 
 /* Absence of GConnectFlags; slightly more readable than a magic number */
 #define CONNECT_FLAGS_NONE (0)
+
+/*
+ * Purpose:
+ * @PURPOSE_UNSPECIFIED: the default
+ * @PURPOSE_INSIDE_APP: service is listening inside a pressure-vessel
+ *  per-app container
+ * @PURPOSE_ALONGSIDE_STEAM: service is listening outside the pressure-vessel
+ *  container (alongside the Steam client), but not necessarily on the
+ *  host system
+ */
+typedef enum
+{
+  PURPOSE_UNSPECIFIED = 0,
+  PURPOSE_INSIDE_APP,
+  PURPOSE_ALONGSIDE_STEAM,
+} Purpose;
 
 /*
  * ExportState:
@@ -85,6 +102,8 @@ typedef struct
 {
   GObject parent;
   SrtPortalListener *listener;
+  GStrv child_environ;
+  gchar *original_cwd_l;
   GHashTable *client_pid_data_hash;
   PvLauncher1 *launcher;
   char **wrapped_command;
@@ -99,6 +118,7 @@ typedef struct
   ExportState export_state;
   int exit_status;
   PvLauncherServerFlags flags;
+  Purpose purpose;
 } PvLauncherServer;
 
 typedef struct
@@ -125,6 +145,8 @@ pv_launcher_server_init (PvLauncherServer *self)
 {
   g_return_if_fail (PV_IS_LAUNCHER_SERVER (self));
   self->exit_status = -1;
+  self->child_environ = g_get_environ ();
+  _srt_get_current_dirs (NULL, &self->original_cwd_l);
 }
 
 static gboolean
@@ -171,11 +193,23 @@ pv_launcher_server_dispose (GObject *object)
 }
 
 static void
+pv_launcher_server_finalize (GObject *object)
+{
+  PvLauncherServer *self = PV_LAUNCHER_SERVER (object);
+
+  g_clear_pointer (&self->child_environ, g_strfreev);
+  g_clear_pointer (&self->original_cwd_l, g_free);
+
+  G_OBJECT_CLASS (pv_launcher_server_parent_class)->finalize (object);
+}
+
+static void
 pv_launcher_server_class_init (PvLauncherServerClass *cls)
 {
   GObjectClass *object_class = G_OBJECT_CLASS (cls);
 
   object_class->dispose = pv_launcher_server_dispose;
+  object_class->finalize = pv_launcher_server_finalize;
 }
 
 static void
@@ -541,7 +575,7 @@ handle_launch (PvLauncher1           *object,
     }
   else
     {
-      env = g_strdupv (self->listener->original_environ);
+      env = g_strdupv (self->child_environ);
     }
 
   if (self->main_pid_str != NULL)
@@ -576,7 +610,7 @@ handle_launch (PvLauncher1           *object,
     }
 
   if (arg_cwd_path == NULL)
-    env = g_environ_setenv (env, "PWD", self->listener->original_cwd_l,
+    env = g_environ_setenv (env, "PWD", self->original_cwd_l,
                             TRUE);
   else
     env = g_environ_setenv (env, "PWD", arg_cwd_path, TRUE);
@@ -924,6 +958,23 @@ pv_launcher_server_finish_startup (PvLauncherServer *self,
     {
       g_autofree char *launch_client = find_launch_client_shell_quoted ();
       const char *bus_name = _srt_portal_listener_get_suggested_bus_name (self->listener);
+      const char *where;
+
+      switch (self->purpose)
+        {
+          case PURPOSE_ALONGSIDE_STEAM:
+            where = "alongside the Steam client";
+            break;
+
+          case PURPOSE_INSIDE_APP:
+            where = "in the per-app container";
+            break;
+
+          case PURPOSE_UNSPECIFIED:
+          default:
+            where = "in its environment";
+            break;
+        }
 
       /* This is an unstructured hint for users, so write it to stderr
        * rather than anywhere machine-readable. Don't put any special
@@ -931,7 +982,7 @@ pv_launcher_server_finish_startup (PvLauncherServer *self,
       g_printerr ("\n");
       g_printerr ("Starting program with command-launcher service.\n");
       g_printerr ("\n");
-      g_printerr ("To inject commands into the container, use a command like:\n");
+      g_printerr ("To run commands %s, use a command like:\n", where);
       g_printerr ("\n");
       g_printerr ("%s \\\n", launch_client);
 
@@ -1316,11 +1367,12 @@ pv_launcher_server_set_up_exit_on_readable (PvLauncherServer *server,
   return TRUE;
 }
 
-static gchar **opt_bus_names = NULL;
+static GPtrArray *opt_bus_names = NULL;
 static gboolean opt_exec_fallback = FALSE;
 static gint opt_exit_on_readable_fd = -1;
 static gboolean opt_hint = FALSE;
 static gint opt_info_fd = -1;
+static Purpose opt_purpose = PURPOSE_UNSPECIFIED;
 static gboolean opt_replace = FALSE;
 static gchar *opt_socket = NULL;
 static gchar *opt_socket_directory = NULL;
@@ -1338,19 +1390,77 @@ opt_session_cb (const gchar *option_name G_GNUC_UNUSED,
 {
   /* We use opt_bus_names != NULL as the signal that we will be connecting
    * to the session bus, so we can allocate an empty array here.
-   * Allocate it with space for the automatically-chosen bus name,
-   * a unique per-app-instance bus name and NULL, so that the
-   * g_realloc_n() later will be a no-op. */
+   * Allocate it with space for a global bus name, the automatically-chosen
+   * per-app bus name, a unique per-app-instance bus name and NULL, so that
+   * the reallocation later will be a no-op. */
   if (opt_bus_names == NULL)
-    opt_bus_names = g_new0 (gchar *, 3);
+    opt_bus_names = g_ptr_array_new_full (4, g_free);
+
+  return TRUE;
+}
+
+static gboolean
+opt_bus_name_cb (G_GNUC_UNUSED const gchar *option_name,
+                 const gchar *value,
+                 G_GNUC_UNUSED gpointer data,
+                 GError **error)
+{
+  opt_session_cb (NULL, NULL, NULL, NULL);
+
+  if (!g_dbus_is_name (value))
+    {
+      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
+                   "\"%s\" is not a valid D-Bus name", value);
+      return FALSE;
+    }
+
+  g_ptr_array_add (opt_bus_names, g_strdup (value));
+  return TRUE;
+}
+
+static gboolean
+opt_purpose_cb (const char *option_name,
+                const char *value G_GNUC_UNUSED,
+                gpointer data G_GNUC_UNUSED,
+                GError **error)
+{
+  opt_session_cb (NULL, NULL, NULL, NULL);
+
+  if (opt_purpose != PURPOSE_UNSPECIFIED)
+    {
+      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_FAILED,
+                   "Only one of --inside-app or --alongside-steam can be used");
+      return FALSE;
+    }
+
+  if (g_str_equal (option_name, "--inside-app"))
+    {
+      opt_purpose = PURPOSE_INSIDE_APP;
+    }
+  else if (g_str_equal (option_name, "--alongside-steam"))
+    {
+      opt_purpose = PURPOSE_ALONGSIDE_STEAM;
+      opt_replace = TRUE;
+      opt_stop_on_parent_exit = TRUE;
+    }
+  else
+    {
+      g_assert_not_reached ();
+    }
 
   return TRUE;
 }
 
 static GOptionEntry options[] =
 {
+  { "alongside-steam", '\0',
+    G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK, opt_purpose_cb,
+    "The launcher service is running alongside the Steam client, outside any "
+    "per-Steam-app pressure-vessel container, but possibly inside some other "
+    "sandbox such as Flatpak or Snap.",
+    NULL },
   { "bus-name", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_STRING_ARRAY, &opt_bus_names,
+    G_OPTION_FLAG_NONE, G_OPTION_ARG_CALLBACK, opt_bus_name_cb,
     "Use this well-known name on the D-Bus session bus. [may repeat]",
     "NAME" },
   { "exec-fallback", '\0',
@@ -1371,10 +1481,20 @@ static GOptionEntry options[] =
     "Indicate readiness and print details of how to connect on this "
     "file descriptor instead of stdout.",
     "FD" },
+  { "inside-app", '\0',
+    G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK, opt_purpose_cb,
+    "The launcher service is running inside a per-app pressure-vessel container.",
+    NULL },
   { "replace", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_replace,
     "Replace a previous instance with the same bus name. "
+    "Default if --alongside-steam. "
     "Ignored if --bus-name is not used.",
+    NULL },
+  { "no-replace", '\0',
+    G_OPTION_FLAG_REVERSE, G_OPTION_ARG_NONE, &opt_replace,
+    "Fail if a previous instance has the same bus name. "
+    "Default if not --alongside-steam.",
     NULL },
   { "session", '\0',
     G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK, opt_session_cb,
@@ -1439,6 +1559,7 @@ main (int argc,
   char **wrapped_command = NULL;
   FILE *info_fh = NULL;
   FILE *original_stdout = NULL;
+  const char * const *bus_names = NULL;
 
   server->exit_status = EX_USAGE;
   server->listener = _srt_portal_listener_new ();
@@ -1500,6 +1621,8 @@ main (int argc,
                                            NULL, NULL, error))
         goto out;
     }
+
+  server->purpose = opt_purpose;
 
   if (opt_verbose || opt_hint)
     server->flags |= PV_LAUNCHER_SERVER_FLAGS_HINT;
@@ -1598,49 +1721,79 @@ main (int argc,
   server->client_pid_data_hash = g_hash_table_new_full (NULL, NULL, NULL,
                                                         (GDestroyNotify) pid_data_free);
 
+  if (server->purpose == PURPOSE_ALONGSIDE_STEAM)
+    server->child_environ = _srt_environ_escape_steam_runtime (server->child_environ);
+
   /* Choose a bus name automatically for --session */
-  if (opt_bus_names != NULL && opt_bus_names[0] == NULL)
+  if (opt_bus_names != NULL && opt_bus_names->len == 0)
     {
       g_autofree gchar *instance_name = NULL;
       const char *steam_appid = _srt_get_steam_app_id ();
-
-      opt_bus_names = g_realloc_n (opt_bus_names, 3, sizeof (gchar *));
+      const char *prefix = NULL;
 
       if (steam_appid == NULL)
         steam_appid = "0";
 
-      opt_bus_names[0] = g_strdup_printf ("com.steampowered.App%s", steam_appid);
-
-      /* Force it to be a valid bus name if necessary */
-      if (G_UNLIKELY (!g_dbus_is_name (opt_bus_names[0])))
+      switch (server->purpose)
         {
-          char *p;
+          case PURPOSE_ALONGSIDE_STEAM:
+            if (g_file_test ("/run/pressure-vessel", G_FILE_TEST_EXISTS))
+              _srt_log_warning ("Using --alongside-steam inside pressure-vessel is misleading");
 
-          for (p = opt_bus_names[0] + strlen ("com.steampowered.App");
-               *p != '\0';
-               p++)
-            {
-              if (!g_ascii_isalnum (*p))
-                *p = '_';
+            g_ptr_array_add (opt_bus_names, g_strdup (LAUNCHER_NAME_ALONGSIDE_STEAM));
+            break;
 
-              if (p - opt_bus_names[0] > 255)
-                {
-                  *p = '\0';
-                  break;
-                }
-            }
+          case PURPOSE_INSIDE_APP:
+          case PURPOSE_UNSPECIFIED:
+          default:
+            prefix = LAUNCHER_INSIDE_APP_PREFIX;
         }
 
+      if (prefix != NULL)
+        {
+          g_autofree gchar *per_app_name = NULL;
+
+          per_app_name = g_strdup_printf ("%s%s", prefix, steam_appid);
+
+          /* Force it to be a valid bus name if necessary */
+          if (G_UNLIKELY (!g_dbus_is_name (per_app_name)))
+            {
+              char *p;
+
+              for (p = per_app_name + strlen (prefix); *p != '\0'; p++)
+                {
+                  if (!g_ascii_isalnum (*p))
+                    *p = '_';
+
+                  if (p - per_app_name > 255)
+                    {
+                      *p = '\0';
+                      break;
+                    }
+                }
+            }
+
+          g_ptr_array_add (opt_bus_names, g_steal_pointer (&per_app_name));
+        }
+
+      g_assert (opt_bus_names->len > 0);
       instance_name = g_strdup_printf ("%s.Instance%u",
-                                       opt_bus_names[0],
+                                       (const char *) g_ptr_array_index (opt_bus_names,
+                                                                         opt_bus_names->len - 1),
                                        (unsigned int) getpid ());
 
       if (G_LIKELY (g_dbus_is_name (instance_name)))
-        opt_bus_names[1] = g_steal_pointer (&instance_name);
+        g_ptr_array_add (opt_bus_names, g_steal_pointer (&instance_name));
+    }
+
+  if (opt_bus_names != NULL)
+    {
+      g_ptr_array_add (opt_bus_names, NULL);
+      bus_names = (const char * const *) opt_bus_names->pdata;
     }
 
   if (!_srt_portal_listener_check_socket_arguments (server->listener,
-                                                    (const char * const *) opt_bus_names,
+                                                    bus_names,
                                                     opt_socket,
                                                     opt_socket_directory,
                                                     error))
@@ -1681,7 +1834,7 @@ main (int argc,
    * If that has happened, then pv_launcher_server_finish_startup()
    * will already have been called before this returns. */
   if (!_srt_portal_listener_listen (server->listener,
-                                    (const char * const *) opt_bus_names,
+                                    bus_names,
                                     flags,
                                     opt_socket,
                                     opt_socket_directory,
@@ -1697,7 +1850,7 @@ out:
   if (local_error != NULL)
     _srt_log_failure ("%s", local_error->message);
 
-  g_strfreev (opt_bus_names);
+  g_clear_pointer (&opt_bus_names, g_ptr_array_unref);
   g_free (opt_socket);
   g_free (opt_socket_directory);
 

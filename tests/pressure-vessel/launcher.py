@@ -71,9 +71,18 @@ class TestLauncher(BaseTest):
     def setUp(self) -> None:
         super().setUp()
 
+        # We assume these environment variables are unset, except for when
+        # we specifically set them ourselves
+        self.clean_up_env = [
+            'env',
+            '-u', 'SRT_LAUNCHER_SERVICE_ALONGSIDE_STEAM',
+            '-u', 'SRT_LAUNCHER_SERVICE_STOP_ON_EXIT',
+            '-u', 'STEAM_COMPAT_APP_ID',
+            '-u', 'SteamAppId',
+        ]
+
         if 'SRT_TEST_UNINSTALLED' in os.environ:
             self.launcher = self.command_prefix + [
-                'env', '-u', 'SRT_LAUNCHER_SERVICE_STOP_ON_EXIT',
                 os.path.join(
                     self.top_builddir,
                     'bin',
@@ -110,8 +119,7 @@ class TestLauncher(BaseTest):
 
             logger.debug('Starting launcher with socket directory')
             proc = subprocess.Popen(
-                [
-                    'env',
+                self.clean_up_env + [
                     'PV_TEST_VAR=from-launcher',
                 ] + self.launcher + [
                     '--socket-directory', temp,
@@ -150,7 +158,7 @@ class TestLauncher(BaseTest):
 
                 logger.debug('launch-client -- true should succeed')
                 completed = run_subprocess(
-                    self.launch + [
+                    self.clean_up_env + self.launch + [
                         '--socket', socket,
                         '--',
                         'true',
@@ -164,7 +172,7 @@ class TestLauncher(BaseTest):
 
                 logger.debug('launch-client -- printf hello should succeed')
                 completed = run_subprocess(
-                    self.launch + [
+                    self.clean_up_env + self.launch + [
                         '--socket', socket,
                         '--',
                         'printf', 'hello',
@@ -177,7 +185,7 @@ class TestLauncher(BaseTest):
 
                 logger.debug('launch-client -- sh -euc ... should succeed')
                 completed = run_subprocess(
-                    self.launch + [
+                    self.clean_up_env + self.launch + [
                         '--dbus-address', dbus_address,
                         '--',
                         'sh', '-euc', 'printf hello; printf W"ORL"D >&2',
@@ -192,8 +200,7 @@ class TestLauncher(BaseTest):
 
                 logger.debug('Checking env not inherited from launch-client')
                 completed = run_subprocess(
-                    [
-                        'env',
+                    self.clean_up_env + [
                         'PV_TEST_VAR=not-inherited',
                     ] + self.launch + [
                         '--socket', socket,
@@ -209,8 +216,7 @@ class TestLauncher(BaseTest):
 
                 logger.debug('Checking env propagation options')
                 completed = run_subprocess(
-                    [
-                        'env',
+                    self.clean_up_env + [
                         '-u', 'PV_TEST_VAR',
                         'PV_TEST_VAR_ONE=one',
                         'PV_TEST_VAR_TWO=two',
@@ -241,7 +247,7 @@ class TestLauncher(BaseTest):
                     writer.write(b'PV_TEST_VAR_ONE=one\n\0PV_TEST_VAR_TWO=two')
 
                 completed = run_subprocess(
-                    self.launch + [
+                    self.clean_up_env + self.launch + [
                         '--env-fd=%d' % read_end,
                         '--socket', socket,
                         '--',
@@ -262,8 +268,8 @@ class TestLauncher(BaseTest):
 
                 logger.debug('Checking precedence of environment options')
                 completed = run_subprocess(
-                    [
-                        'env', '-u', 'PV_TEST_VAR',
+                    self.clean_up_env + [
+                        '-u', 'PV_TEST_VAR',
                     ] + self.launch + [
                         '--env=PV_TEST_VAR=nope',
                         '--pass-env=PV_TEST_VAR',
@@ -279,7 +285,7 @@ class TestLauncher(BaseTest):
 
                 logger.debug('Checking precedence of environment options (2)')
                 completed = run_subprocess(
-                    self.launch + [
+                    self.clean_up_env + self.launch + [
                         '--env=PV_TEST_VAR=nope',
                         '--unset-env=PV_TEST_VAR',
                         '--socket', socket,
@@ -295,7 +301,7 @@ class TestLauncher(BaseTest):
 
                 logger.debug('Checking inadvisable executable name')
                 completed = run_subprocess(
-                    self.launch + [
+                    self.clean_up_env + self.launch + [
                         '--unset-env=PV_TEST_VAR',
                         '--socket', socket,
                         '--',
@@ -310,7 +316,7 @@ class TestLauncher(BaseTest):
 
                 logger.debug('Checking --clear-env')
                 completed = run_subprocess(
-                    self.launch + [
+                    self.clean_up_env + self.launch + [
                         '--clear-env',
                         '--socket', socket,
                         '--',
@@ -325,8 +331,7 @@ class TestLauncher(BaseTest):
 
                 logger.debug('Checking --env precedence')
                 completed = run_subprocess(
-                    [
-                        'env',
+                    self.clean_up_env + [
                         'PV_TEST_VAR=not-inherited',
                     ] + self.launch + [
                         '--pass-env=PV_TEST_VAR',
@@ -345,8 +350,7 @@ class TestLauncher(BaseTest):
 
                 logger.debug('Checking --inherit-env')
                 completed = run_subprocess(
-                    [
-                        'env',
+                    self.clean_up_env + [
                         'PV_TEST_VAR=not-inherited',
                     ] + self.launch + [
                         '--pass-env=PV_TEST_VAR',
@@ -365,8 +369,7 @@ class TestLauncher(BaseTest):
 
                 logger.debug('Checking --inherit-env-matching')
                 completed = run_subprocess(
-                    [
-                        'env',
+                    self.clean_up_env + [
                         'PV_TEST_VAR=not-inherited',
                     ] + self.launch + [
                         '--pass-env=PV_TEST_VAR',
@@ -387,7 +390,7 @@ class TestLauncher(BaseTest):
 
                 logger.debug('Checking we can deliver a signal')
                 launch = subprocess.Popen(
-                    self.launch + [
+                    self.clean_up_env + self.launch + [
                         '--socket', socket,
                         '--',
                         'sleep', '600',
@@ -405,7 +408,7 @@ class TestLauncher(BaseTest):
 
                 logger.debug('Checking we can terminate the server')
                 completed = run_subprocess(
-                    self.launch + [
+                    self.clean_up_env + self.launch + [
                         '--shell-command=echo "$0 ($1)"',
                         '--socket', socket,
                         '--terminate',
@@ -429,7 +432,7 @@ class TestLauncher(BaseTest):
 
             logger.debug('Checking server really terminated (expect error)')
             completed = run_subprocess(
-                self.launch + [
+                self.clean_up_env + self.launch + [
                     '--dbus-address', dbus_address,
                     '--',
                     'printf', 'hello',
@@ -449,7 +452,7 @@ class TestLauncher(BaseTest):
             need_terminate = True
             logger.debug('Starting launcher with socket')
             proc = subprocess.Popen(
-                self.launcher + [
+                self.clean_up_env + self.launcher + [
                     '--socket', os.path.join(temp, 'socket'),
                 ],
                 stdin=subprocess.DEVNULL,
@@ -489,7 +492,7 @@ class TestLauncher(BaseTest):
 
                 logger.debug('launch-client should succeed')
                 completed = run_subprocess(
-                    self.launch + [
+                    self.clean_up_env + self.launch + [
                         '--socket', socket,
                         '--',
                         'printf', 'hello',
@@ -503,7 +506,7 @@ class TestLauncher(BaseTest):
 
                 logger.debug('stdout, stderr should work')
                 completed = run_subprocess(
-                    self.launch + [
+                    self.clean_up_env + self.launch + [
                         '--dbus-address', dbus_address,
                         '--',
                         'sh', '-euc', 'printf hello; printf W"ORL"D >&2',
@@ -658,7 +661,7 @@ class TestLauncher(BaseTest):
 
             logger.debug('Running launcher wrapping short-lived command')
             proc = subprocess.Popen(
-                self.launcher + [
+                self.clean_up_env + self.launcher + [
                     '--socket', socket,
                     stop_on_exit_arg,
                     '--',
@@ -681,7 +684,7 @@ class TestLauncher(BaseTest):
                 # Check that the server did not stop
                 logger.debug('Launcher should still be alive')
                 run_subprocess(
-                    self.launch + [
+                    self.clean_up_env + self.launch + [
                         '--socket', socket,
                         '--',
                         'true',
@@ -693,7 +696,7 @@ class TestLauncher(BaseTest):
                 )
                 logger.debug('Launcher should exit after this')
                 run_subprocess(
-                    self.launch + [
+                    self.clean_up_env + self.launch + [
                         '--socket', socket,
                         '--terminate',
                     ],
@@ -721,7 +724,7 @@ class TestLauncher(BaseTest):
             )
             logger.debug('Starting launcher with --info-fd')
             proc = subprocess.Popen(
-                [
+                self.clean_up_env + [
                     # subprocess.Popen doesn't let us set arbitrary
                     # file descriptors, so use a shell to juggle them
                     'sh', '-euc', 'exec "$@" 3>&1 >&2 2>/dev/null', 'sh',
@@ -782,7 +785,7 @@ class TestLauncher(BaseTest):
             socket = os.path.join(temp, 'socket')
             logger.debug('Starting launcher to test MAINPID')
             proc = subprocess.Popen(
-                self.launcher + [
+                self.clean_up_env + self.launcher + [
                     '--socket', socket,
                     '--',
                     'sh', '-euc', 'printf "%s" "$$"; exec cat >&2',
@@ -803,7 +806,7 @@ class TestLauncher(BaseTest):
             # We can run commands
             logger.debug('Retrieving MAINPID')
             get_mainpid = run_subprocess(
-                self.launch + [
+                self.clean_up_env + self.launch + [
                     '--socket', socket,
                     '--',
                     'sh', '-euc', 'printf "%s" "$MAINPID"',
@@ -830,7 +833,7 @@ class TestLauncher(BaseTest):
 
             logger.debug('Running a server that will fail fast')
             proc = subprocess.Popen(
-                self.launcher + [
+                self.clean_up_env + self.launcher + [
                     '--socket', socket,
                     '--',
                     'printf', 'this never happens',
@@ -846,7 +849,7 @@ class TestLauncher(BaseTest):
 
             logger.debug('Running a server that will fail but continue')
             proc = subprocess.Popen(
-                self.launcher + [
+                self.clean_up_env + self.launcher + [
                     '--info-fd=0',
                     '--socket', socket,
                     '--exec-fallback',
@@ -865,7 +868,7 @@ class TestLauncher(BaseTest):
             logger.debug('Different info fd')
             read_end, write_end = os.pipe2(os.O_CLOEXEC)
             proc = subprocess.Popen(
-                self.launcher + [
+                self.clean_up_env + self.launcher + [
                     '--info-fd=%d' % write_end,
                     '--socket', socket,
                     '--exec-fallback',
@@ -898,7 +901,7 @@ class TestLauncher(BaseTest):
             need_terminate = True
             logger.debug('Starting launcher to wait for a main command')
             proc = subprocess.Popen(
-                self.launcher + [
+                self.clean_up_env + self.launcher + [
                     '--socket', socket,
                     '--',
                     'cat',
@@ -928,7 +931,7 @@ class TestLauncher(BaseTest):
                 # We can run commands
                 logger.debug('Sending command')
                 completed = run_subprocess(
-                    self.launch + [
+                    self.clean_up_env + self.launch + [
                         '--socket', socket,
                         '--',
                         'printf', 'hello',
@@ -943,7 +946,7 @@ class TestLauncher(BaseTest):
                 # We can terminate the `cat` command
                 logger.debug('Terminating main command')
                 completed = run_subprocess(
-                    self.launch + [
+                    self.clean_up_env + self.launch + [
                         '--socket', socket,
                         '--terminate',
                         '--',
@@ -971,7 +974,7 @@ class TestLauncher(BaseTest):
             # It really stopped
             logger.debug('Checking it really stopped (expect an error)...')
             completed = run_subprocess(
-                self.launch + [
+                self.clean_up_env + self.launch + [
                     '--socket', socket,
                     '--',
                     'printf', 'hello',
@@ -1004,31 +1007,60 @@ class TestLauncher(BaseTest):
     def test_session_bus_invalid_name(self) -> None:
         self.test_session_bus(invalid_name=True)
 
-    def test_session_bus(self, invalid_name=False) -> None:
+    def test_session_bus_inside(self) -> None:
+        self.test_session_bus(mode='--inside-app')
+
+    def test_session_bus_outside(self) -> None:
+        self.test_session_bus(mode='--alongside-steam')
+
+    def test_session_bus_outside_custom(self) -> None:
+        self.test_session_bus(mode='outside-custom')
+
+    def test_session_bus(
+        self,
+        mode='--session',
+        invalid_name=False
+    ) -> None:
         with contextlib.ExitStack() as stack:
             stack.enter_context(
                 self.show_location(
-                    'test_session_bus(invalid_name=%r)' % invalid_name
+                    'test_session_bus(invalid_name=%r, mode=%r)' % (
+                        invalid_name,
+                        mode,
+                    )
                 )
             )
             self.needs_dbus()
             unique = str(uuid.uuid4())
+            mode_arg = mode
 
             if invalid_name:
                 unique = unique.replace('-', '.') + '.0'
                 well_known_name = 'com.steampowered.App' + unique.replace(
                     '.', '_',
                 )
+            elif mode == 'outside-custom':
+                well_known_name = 'com.example.Test'
+                mode_arg = '--bus-name=com.example.Test'
+            elif mode == '--alongside-steam':
+                well_known_name = (
+                    'com.steampowered.PressureVessel.LaunchAlongsideSteam'
+                )
             else:
+                assert mode in ('--inside-app', '--session'), mode
                 well_known_name = 'com.steampowered.App' + unique
 
-            logger.debug('Starting launcher on D-Bus name %s', well_known_name)
+            if mode == 'outside-custom':
+                set_app_id = [
+                    'SRT_LAUNCHER_SERVICE_ALONGSIDE_STEAM=' + well_known_name,
+                ]
+            else:
+                set_app_id = ['STEAM_COMPAT_APP_ID=' + unique]
+
+            argv = self.clean_up_env + set_app_id + self.launcher + [mode_arg]
+            logger.debug('Starting launcher: %r', argv)
             proc = subprocess.Popen(
-                [
-                    'env', 'STEAM_COMPAT_APP_ID=' + unique,
-                ] + self.launcher + [
-                    '--session',
-                ],
+                argv,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=2,
@@ -1071,7 +1103,7 @@ class TestLauncher(BaseTest):
 
             logger.debug('Should be able to launch command via %s', bus_name)
             completed = run_subprocess(
-                self.launch + [
+                self.clean_up_env + self.launch + [
                     '--bus-name', bus_name,
                     '--',
                     'printf', 'hello',
@@ -1082,6 +1114,53 @@ class TestLauncher(BaseTest):
                 stderr=2,
             )
             self.assertEqual(completed.stdout, b'hello')
+
+            if mode in ('--host', '--alongside-steam'):
+                argv = self.clean_up_env + set_app_id + self.launch + [
+                    mode_arg,
+                    '--',
+                    'printf', '%s', mode,
+                ]
+                logger.debug('Should be able to launch command via %r', argv)
+                completed = run_subprocess(
+                    argv,
+                    check=True,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=2,
+                )
+                self.assertEqual(completed.stdout, mode.encode('utf-8'))
+            elif mode == 'outside-custom':
+                # --alongside-steam can get the specific bus name from
+                # $SRT_LAUNCHER_SERVICE_ALONGSIDE_STEAM
+                argv = self.clean_up_env + set_app_id + self.launch + [
+                    '--alongside-steam',
+                    '--',
+                    'printf', '%s', mode,
+                ]
+                logger.debug('Should be able to launch command via %r', argv)
+                completed = run_subprocess(
+                    argv,
+                    check=True,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=2,
+                )
+                self.assertEqual(completed.stdout, mode.encode('utf-8'))
+            elif not invalid_name:
+                logger.debug('Should be able to launch command via --inside-app')
+                completed = run_subprocess(
+                    self.clean_up_env + self.launch + [
+                        '--inside-app', unique,
+                        '--',
+                        'printf', '%s', 'inside',
+                    ],
+                    check=True,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=2,
+                )
+                self.assertEqual(completed.stdout, b'inside')
 
             proc.terminate()
             proc.wait(timeout=10)
@@ -1116,7 +1195,7 @@ class TestLauncher(BaseTest):
 
             logger.debug('Starting first server on %s', well_known_name)
             first_server = subprocess.Popen(
-                self.launcher + [
+                self.clean_up_env + self.launcher + [
                     '--bus-name', well_known_name,
                     '--bus-name', only_first_well_known_name,
                     '--exit-on-readable=0',
@@ -1167,7 +1246,7 @@ class TestLauncher(BaseTest):
 
             logger.debug('Starting cat(1) subprocess')
             cat = subprocess.Popen(
-                self.launch + [
+                self.clean_up_env + self.launch + [
                     '--bus-name', bus_name,
                     '--',
                     'cat',
@@ -1181,7 +1260,7 @@ class TestLauncher(BaseTest):
 
             logger.debug('Secondary bus name should also work')
             run_subprocess(
-                self.launch + [
+                self.clean_up_env + self.launch + [
                     '--bus-name', only_first_well_known_name,
                     '--',
                     'true',
@@ -1194,7 +1273,7 @@ class TestLauncher(BaseTest):
 
             logger.debug('Starting second server to --replace the first')
             second_server = subprocess.Popen(
-                self.launcher + [
+                self.clean_up_env + self.launcher + [
                     '--bus-name', well_known_name,
                     '--bus-name', only_second_well_known_name,
                     '--exit-on-readable=0',
@@ -1220,7 +1299,7 @@ class TestLauncher(BaseTest):
 
             logger.debug('Secondary bus name should also work')
             run_subprocess(
-                self.launch + [
+                self.clean_up_env + self.launch + [
                     '--bus-name', only_second_well_known_name,
                     '--',
                     'true',
@@ -1236,7 +1315,7 @@ class TestLauncher(BaseTest):
                     'First server secondary bus name should also work',
                 )
                 run_subprocess(
-                    self.launch + [
+                    self.clean_up_env + self.launch + [
                         '--bus-name', only_first_well_known_name,
                         '--',
                         'true',
@@ -1264,7 +1343,7 @@ class TestLauncher(BaseTest):
             else:
                 logger.debug('Checking that first server did not stop')
                 run_subprocess(
-                    self.launch + [
+                    self.clean_up_env + self.launch + [
                         '--bus-name', first_unique_name,
                         '--',
                         'true',
@@ -1275,7 +1354,7 @@ class TestLauncher(BaseTest):
                     stderr=2,
                 )
                 run_subprocess(
-                    self.launch + [
+                    self.clean_up_env + self.launch + [
                         '--bus-name', only_first_well_known_name,
                         '--',
                         'true',
@@ -1342,7 +1421,7 @@ class TestLauncher(BaseTest):
 
                 logger.debug('Asking first server to exit')
                 run_subprocess(
-                    self.launch + [
+                    self.clean_up_env + self.launch + [
                         '--bus-name', first_unique_name,
                         '--terminate',
                     ],
@@ -1380,7 +1459,7 @@ class TestLauncher(BaseTest):
                 fd,
             )
             proc = subprocess.Popen(
-                self.launcher + [
+                self.clean_up_env + self.launcher + [
                     '--socket', os.path.join(temp, 'socket'),
                     '--exit-on-readable=%d' % fd,
                 ],
@@ -1428,6 +1507,8 @@ class TestLauncher(BaseTest):
             ('--bus-name=com.example.Nope --info-fd=42', EX_OSERR),
             # Mutually exclusive options
             ('--socket=@/tmp/nope --session', EX_USAGE),
+            # Mutually exclusive options
+            ('--inside-app --alongside-steam', EX_USAGE),
         ]:
             with contextlib.ExitStack() as stack:
                 args = test.split()
@@ -1437,7 +1518,7 @@ class TestLauncher(BaseTest):
                     )
                 )
                 proc = subprocess.Popen(
-                    self.launcher + args,
+                    self.clean_up_env + self.launcher + args,
                     stdout=2,
                     stderr=2,
                     universal_newlines=True,
@@ -1450,7 +1531,7 @@ class TestLauncher(BaseTest):
         with contextlib.ExitStack() as stack:
             stack.enter_context(self.show_location('test_version'))
             proc = subprocess.Popen(
-                self.launcher + ['--version'],
+                self.clean_up_env + self.launcher + ['--version'],
                 stdout=2,
                 stderr=2,
                 universal_newlines=True,

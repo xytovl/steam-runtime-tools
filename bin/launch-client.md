@@ -26,7 +26,7 @@ steam-runtime-launch-client - client to launch processes in a container
 [**--unset-env** *VAR*]
 [**--terminate**]
 [**--verbose**]
-{**--bus-name** *NAME*|**--dbus-address** *ADDRESS*|**--socket** *SOCKET*}
+{**--bus-name** *NAME*|**--dbus-address** *ADDRESS*|**--socket** *SOCKET*|**--host**|**--inside-app** *ID*|**--alongside-steam**}
 [**--**]
 [*COMMAND* [*ARGUMENTS...*]]
 
@@ -63,15 +63,70 @@ This uses **$SHELL** if available in the container, falling back to
     network namespace, is shared between all containers that are in
     the same network namespace, and cannot be shared across network
     namespace boundaries.
+    This option is deprecated: using a bus name on the well-known D-Bus
+    session bus is preferred.
 
 **--dbus-address** *ADDRESS*
 :   The same as **--socket**, but the socket is specified in the form
     of a D-Bus address.
+    This option is deprecated: using a bus name on the well-known D-Bus
+    session bus is preferred.
+
+**--alongside-steam**
+:   Attempt to launch the *COMMAND* on behalf of a Steam app or game
+    that is running inside a Steam Linux Runtime container, so that
+    the *COMMAND* is run outside the container in approximately the
+    same execution environment as the script that launches the Steam client.
+    The Steam Runtime 1 'scout' and Steam Runtime 1½ 'heavy' library
+    stacks that are used to run major components of the Steam client will
+    usually **not** be present in the **LD_LIBRARY_PATH** for commands
+    run like this.
+
+    This is currently equivalent to
+    **--bus-name=**_$SRT_LAUNCHER_SERVICE_ALONGSIDE_STEAM_
+    (if that variable is set), followed by
+    **--bus-name=com.steampowered.PressureVessel.LaunchAlongsideSteam**
+    (unconditionally) and
+    **--bus-name=org.freedesktop.portal.Flatpak** (if running inside the
+    Flatpak per-app container for the unofficial Steam Flatpak app).
+    It can be combined with other options that select a bus name:
+    in particular it is valid to use
+    **--alongside-steam --host**
+    to run a command in the context of the Steam client if possible or
+    on the host system otherwise, or
+    **--host --alongside-steam**
+    to use the opposite fallback sequence.
+
+    Unlike **--host**, if the Steam client was run as a Flatpak or Snap
+    application, the *COMMAND* will be run as part of that same Flatpak
+    or Snap application, but possibly in a Flatpak subsandbox environment.
+
+    The *COMMAND* will run in an unspecified execution environment which
+    will frequently change between different host operating systems and
+    over time, so this should only be used to run diagnostic commands
+    and similar things that are not part of the critical path for a game
+    to be run successfully.
+    Executables which are intended to be run like this should be compiled
+    against a glibc version that is as old as possible, and should
+    either use a relative **DT_RPATH** or **DT_RUNPATH** to find bundled
+    dependencies relative to the special token **${ORIGIN}**, or use
+    **dlopen**(3) to tolerate dependencies not being loaded successfully.
+
+    Official binary releases of the **pressure-vessel** tools are a good
+    example of what is required to run successfully on an arbitrary host
+    system: they are compiled in the Steam Runtime 1 'scout'
+    environment, all required dependencies except for glibc are bundled
+    with the pressure-vessel tools and loaded from
+    **${ORIGIN}/../lib/x86_64-linux-gnu** using a **DT_RPATH**, and the
+    optional **sd-journal**(3) library is loaded using **dlopen**(3).
 
 **--bus-name** *NAME*
 :   Connect to the well-known D-Bus session bus and send commands to
     the given *NAME*, which is normally assumed to be owned by
     **steam-runtime-launcher-service**.
+
+    If used more than once, each *NAME* is tried in sequence and the
+    first that is owned on the session bus will be used.
 
     As a special case, if the *NAME* is
     **org.freedesktop.Flatpak**, then it is assumed to be
@@ -89,6 +144,28 @@ This uses **$SHELL** if available in the container, falling back to
     **--sandbox-flag**, are not currently supported.
     As with **org.freedesktop.Flatpak**, the
     **--terminate** option is not allowed in this mode.
+
+**--host**
+:   Attempt to launch the *COMMAND* on the host system, similar to the
+    **--host** option of **flatpak-spawn**(1).
+    This is currently equivalent to
+    **--bus-name=org.freedesktop.Flatpak**, and can be combined with
+    other options that select a bus name, such as **--alongside-steam**.
+
+    Similar to **--alongside-steam**, the *COMMAND* will run in an unspecified
+    execution environment which will frequently change between different
+    host operating systems and over time.
+    See the description of **--alongside-steam** for more details on how to
+    compile suitable executables.
+
+**--inside-app** *ID*
+:   Attempt to launch the *COMMAND* inside a pressure-vessel container
+    that is currently running Steam app ID *ID*.
+    *ID* may be **0**, for containers that are not running a Steam app.
+    This is currently equivalent to
+    **--bus-name=com.steampowered.App**_ID_, and can be combined with
+    other options that select a bus name, although this is unlikely to be
+    practically useful.
 
 **--app-path** *PATH*, **--app-path=**
 :   When creating a Flatpak subsandbox, mount *PATH* as the `/app` in
@@ -124,10 +201,8 @@ This uses **$SHELL** if available in the container, falling back to
     An empty string (typically written as **--directory=**) results in
     inheriting the current working directory from the service that
     will run the *COMMAND*.
-    This is the default when communicating with
-    **steam-runtime-launcher-service**.
 
-    When communicating with
+    When using **--alongside-steam**, **--host**,
     **--bus-name=org.freedesktop.portal.Flatpak** or
     **--bus-name=org.freedesktop.Flatpak**,
     the default is to attempt to use the same working directory from
@@ -135,9 +210,13 @@ This uses **$SHELL** if available in the container, falling back to
     effect of using **--directory="$(pwd)"** in a shell.
     This matches the behaviour of **flatpak-spawn**(1).
 
+    Otherwise, the default is to inherit the current working directory
+    from the service, equivalent to **--directory=**.
+
 **--forward-fd** *FD*
 :   Arrange for the *COMMAND* to receive file descriptor number *FD*
-    from outside the container. File descriptors 0, 1 and 2
+    from the current execution environment.
+    File descriptors 0, 1 and 2
     (standard input, standard output and standard error) are always
     forwarded.
 
@@ -154,7 +233,9 @@ This uses **$SHELL** if available in the container, falling back to
     This uses a heuristic to identify possible targets from their bus
     names, so it is possible that not all possible targets are listed.
     In the current implementation, it lists bus names starting with
-    **com.steampowered.App**, plus Flatpak if available.
+    **com.steampowered.App**, plus
+    **com.steampowered.PressureVessel.LaunchAlongsideSteam** and Flatpak
+    if available.
 
 **--share-pids**
 :   If used with **--bus-name=org.freedesktop.portal.Flatpak**, use the
@@ -270,6 +351,11 @@ Some variables affect the behaviour of **steam-runtime-launch-client**:
 `SHELL`
 :   If set to a non-empty value, it is used as the default shell when
     no *COMMAND* is provided.
+
+`SRT_LAUNCHER_SERVICE_ALONGSIDE_STEAM`
+:   If set, it is assumed to be the well-known or unique bus name of a
+    **steam-runtime-launcher-service**(1) outside the Steam Linux Runtime
+    container, used when implementing **--alongside-steam**.
 
 `SRT_LOG`
 :   A sequence of tokens separated by colons, spaces or commas

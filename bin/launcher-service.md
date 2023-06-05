@@ -15,9 +15,11 @@ steam-runtime-launcher-service - server to launch processes in a container
 # SYNOPSIS
 
 **steam-runtime-launcher-service**
+[**--alongside-steam**]
 [**--exec-fallback**]
 [**--exit-on-readable**] *FD*
 [**--info-fd**] *N*
+[**--inside-app**]
 [**--replace**]
 [**--[no-]stop-on-exit**]
 [**--[no-]stop-on-name-loss**]
@@ -78,6 +80,23 @@ unless prevented by **--no-stop-on-exit** or
     **steam-runtime-launcher-service** will behave according to the
     **--[no-]stop-on-exit** options.
 
+**--alongside-steam**
+:   Instead of this launcher service providing a way for processes outside
+    the Steam Linux Runtime container to launch debugging commands inside
+    the container, advertise it as a way for processes *inside* the container
+    to launch commands *outside* the container, adjacent to the Steam client
+    (but possibly inside a larger Flatpak or Snap container, if one was used
+    to run the Steam client).
+    This is mutually exclusive with **--inside-app**,
+    and should not be used inside a Steam Linux Runtime container
+    (which would make it misleading).
+    If this option is used, Steam Runtime environment variables will be
+    removed from the environment of child processes, to give them an
+    execution environment that most closely resembles the one from which
+    Steam was launched.
+    This option implies **--replace**, **--session** and
+    **--stop-on-parent-exit**.
+
 **--exec-fallback**
 :   If unable to set up the **--socket**, **--socket-directory**,
     **--bus-name** or **--session**, fall back to executing the
@@ -99,6 +118,13 @@ unless prevented by **--no-stop-on-exit** or
     equivalent to **--info-fd=1**.
     If a *COMMAND* is specified, there is no default.
 
+**--inside-app**
+:   Advertise this launcher service as a way for processes outside a
+    Steam Linux Runtime per-app (per-game) container to launch commands
+    inside the container.
+    This is mutually exclusive with **--alongside-steam**,
+    and implies **--session**.
+
 **--replace**
 :   When used with **--bus-name**, take over the bus name from
     another **steam-runtime-launcher-service** process if any.
@@ -109,11 +135,15 @@ unless prevented by **--no-stop-on-exit** or
 
 **--session**
 :   Equivalent to **--bus-name** *NAME*, but *NAME* is chosen automatically.
-    The current implementation is that if a Steam app ID (game ID) can
+    By default, or with **--inside-app**, if a Steam app ID (game ID) can
     be discovered from the environment, then the *NAME* is
-    **com.steampowered.App** followed by the app ID.
-    Otherwise, **com.steampowered.App0** is used.
-    Additionally, a second name of the form
+    **com.steampowered.App** followed by the app ID;
+    otherwise, **com.steampowered.App0** is used.
+    If **--alongside-steam** is specified, then
+    **com.steampowered.PressureVessel.LaunchAlongsideSteam** is used
+    instead.
+
+    Additionally, a second name with an instance-specific suffix like
     **com.steampowered.AppX.InstanceY** is generated, to allow multiple
     instances of the same app with **--no-stop-on-name-loss**.
 
