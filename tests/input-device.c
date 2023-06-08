@@ -632,6 +632,7 @@ typedef struct
   guint8 ff[(FF_MAX + 1) / 8];
   guint8 props[INPUT_PROP_MAX / 8];
   SrtInputDeviceTypeFlags expected;
+  const char *todo;
 } GuessTest;
 
 /*
@@ -1551,6 +1552,8 @@ test_input_device_guess (Fixture *f,
       SrtEvdevCapabilities caps;
       size_t j;
       SrtInputDeviceTypeFlags actual;
+      g_autofree gchar *expected_str = NULL;
+      g_autofree gchar *actual_str = NULL;
 
       g_test_message ("%s", t->name);
 
@@ -1594,7 +1597,20 @@ test_input_device_guess (Fixture *f,
 
       /* Now we can check whether our guess works */
       actual = _srt_evdev_capabilities_guess_type (&caps);
-      g_assert_cmphex (actual, ==, t->expected);
+
+      expected_str = g_flags_to_string (SRT_TYPE_INPUT_DEVICE_TYPE_FLAGS,
+                                        t->expected);
+      g_test_message ("Expected: %s", expected_str);
+      actual_str = g_flags_to_string (SRT_TYPE_INPUT_DEVICE_TYPE_FLAGS,
+                                      actual);
+      g_test_message ("Actual: %s", actual_str);
+
+      if (t->todo == NULL)
+        g_assert_cmphex (actual, ==, t->expected);
+      else if (actual == t->expected)
+        g_test_message ("Got expected result even though marked as TODO?");
+      else
+        g_test_message ("Ignoring known mismatch: %s", t->todo);
     }
 }
 
