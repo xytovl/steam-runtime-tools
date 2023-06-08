@@ -1250,7 +1250,7 @@ static const GuessTest guess_tests[] =
           /* BTN_1, BTN_2, BTN_A, BTN_B, BTN_MODE */
           /* 0x100 */ 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x10,
           /* 0x140 */ ZEROx8,
-          /* next (page down), previous (page up) */
+          /* next (keyboard page down), previous (keyboard page up) */
           /* 0x180 */ 0x00, 0x00, 0x80, 0x10, ZEROx4,
       },
     },
@@ -1313,7 +1313,7 @@ static const GuessTest guess_tests[] =
           /* A, B, X, Y, MODE, TL, TL2, TR, TR2 */
           /* 0x100 */ ZEROx4, 0x00, 0x13, 0xdb, 0x10,
           /* 0x140 */ ZEROx8,
-          /* next, previous */
+          /* next (keyboard page down), previous (keyboard page up) */
           /* 0x180 */ 0x00, 0x00, 0x80, 0x10, ZEROx4,
       },
     },
