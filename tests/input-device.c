@@ -1317,6 +1317,30 @@ static const GuessTest guess_tests[] =
       },
     },
     {
+      .name = "Microsoft Xbox Series S|X Controller (model 1914) via Bluetooth",
+      /* Physically the same device as 0003:045e:0b12 v050f above,
+       * but some functionality is mapped differently */
+      .bus_type = 0x0003,
+      .vendor_id = 0x045e,
+      .product_id = 0x0b13,
+      .version = 0x0515,
+      .expected = (SRT_INPUT_DEVICE_TYPE_FLAGS_JOYSTICK
+                   | SRT_INPUT_DEVICE_TYPE_FLAGS_HAS_KEYS),
+      .ev = { 0x0b },
+      /* XYZ, RZ, gas, brake, hat0 */
+      .abs = { 0x27, 0x06, 0x03 },
+      .keys = {
+          /* 0x00 */ ZEROx8,
+          /* 0x40 */ ZEROx8,
+          /* Record */
+          /* 0x80 */ ZEROx4, 0x80, 0x00, 0x00, 0x00,
+          /* 0xc0 */ ZEROx8,
+          /* ABC, XYZ, TL, TR, TL2, TR2, select, start, mode, thumbl,
+           * thumbr */
+          /* 0x100 */ ZEROx4, 0x00, 0x00, 0xff, 0x7f,
+      },
+    },
+    {
       .name = "Wiimote - buttons",
       .bus_type = 0x0005,
       .vendor_id = 0x057e,
