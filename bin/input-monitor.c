@@ -120,10 +120,14 @@ append_evdev_hex (GString *buf,
 
       for (j = 0; j < sizeof (long); j++)
         {
+          size_t byte_position = i * sizeof (long) + j;
           unsigned char byte = (word >> (CHAR_BIT * j)) & 0xff;
+
           g_string_append_printf (buf, "%02x ", byte);
+
+          if ((byte_position % 8) == 7)
+            g_string_append_c (buf, ' ');
         }
-      g_string_append_c (buf, ' ');
     }
 }
 
