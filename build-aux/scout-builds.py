@@ -60,7 +60,7 @@ def setup(args):
 
     subprocess.check_call(
         [
-            'meson',
+            'meson', 'setup',
         ] + common_options + [
             '--native-file=build-aux/meson/scout.txt',
             os.path.join(args.abs_builddir_parent, 'scout-x86_64')
@@ -69,7 +69,7 @@ def setup(args):
     )
     subprocess.check_call(
         [
-            'meson',
+            'meson', 'setup',
         ] + common_options + [
             '-Dbin=false',
             '-Dmultiarch_tuple=i386-linux-gnu',

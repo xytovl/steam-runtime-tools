@@ -239,6 +239,7 @@ class Environment:
         subprocess.run(
             [
                 'meson',
+                'setup',
                 str(self.abs_builddir_parent / 'host'),
                 '-Db_lundef=false',
                 '-Db_sanitize=address,undefined',
@@ -259,6 +260,7 @@ class Environment:
         subprocess.run(
             [
                 'meson',
+                'setup',
                 str(self.abs_builddir_parent / 'i386'),
                 '-Db_lundef=false',
                 '-Db_sanitize=address,undefined',
@@ -279,6 +281,7 @@ class Environment:
         subprocess.run(
             [
                 'meson',
+                'setup',
                 str(self.abs_builddir_parent / 'host-no-asan'),
                 '-Dbin=true',
                 '-Dlibcurl_compat=true',
@@ -295,6 +298,7 @@ class Environment:
         subprocess.run(
             [
                 'meson',
+                'setup',
                 str(self.abs_builddir_parent / 'coverage'),
                 '-Db_coverage=true',
                 '-Dbin=true',
@@ -311,6 +315,7 @@ class Environment:
         subprocess.run(
             [
                 'meson',
+                'setup',
                 str(self.abs_builddir_parent / 'doc'),
                 '-Dgtk_doc=enabled',
                 '-Dman=enabled',
@@ -321,6 +326,7 @@ class Environment:
         subprocess.run(
             [
                 'meson',
+                'setup',
                 str(self.abs_builddir_parent / 'clang'),
                 '--native-file=build-aux/meson/clang.txt',
                 '-Db_lundef=false',
@@ -343,6 +349,7 @@ class Environment:
                 suite,
                 [
                     'meson',
+                    'setup',
                     str(self.abs_builddir_parent / f'{suite}-x86_64'),
                     '-Dbin=true',
                     '-Dlibcurl_compat=true',
