@@ -110,7 +110,8 @@ print_json (JsonBuilder *builder)
 static void
 append_evdev_hex (GString *buf,
                   const unsigned long *bits,
-                  size_t n_longs)
+                  size_t n_longs,
+                  JsonBuilder *array_builder)
 {
   size_t i, j;
   const size_t n_bytes = n_longs * sizeof (long);
@@ -126,6 +127,13 @@ append_evdev_hex (GString *buf,
 
           g_string_append_printf (buf, "%02x", byte);
 
+          if (array_builder != NULL && (byte_position % 8) == 7)
+            {
+              json_builder_add_string_value (array_builder, buf->str);
+              g_string_set_size (buf, 0);
+              continue;
+            }
+
           if (byte_position + 1 < n_bytes)
             {
               g_string_append_c (buf, ' ');
@@ -135,6 +143,9 @@ append_evdev_hex (GString *buf,
             }
         }
     }
+
+  if (array_builder != NULL && buf->len > 0)
+    json_builder_add_string_value (array_builder, buf->str);
 }
 
 static void
@@ -259,7 +270,7 @@ added (SrtInputDeviceMonitor *monitor,
                     {
                       g_autoptr(GString) buf = g_string_new ("");
 
-                      append_evdev_hex (buf, bits, LONGS_FOR_BITS (EV_MAX));
+                      append_evdev_hex (buf, bits, LONGS_FOR_BITS (EV_MAX), NULL);
                       json_builder_set_member_name (builder, "raw_types");
                       json_builder_add_string_value (builder, buf->str);
                     }
@@ -318,7 +329,7 @@ added (SrtInputDeviceMonitor *monitor,
                     {
                       g_autoptr(GString) buf = g_string_new ("");
 
-                      append_evdev_hex (buf, bits, LONGS_FOR_BITS (ABS_MAX));
+                      append_evdev_hex (buf, bits, LONGS_FOR_BITS (ABS_MAX), NULL);
                       json_builder_set_member_name (builder, "raw_abs");
                       json_builder_add_string_value (builder, buf->str);
                     }
@@ -362,7 +373,7 @@ added (SrtInputDeviceMonitor *monitor,
                     {
                       g_autoptr(GString) buf = g_string_new ("");
 
-                      append_evdev_hex (buf, bits, LONGS_FOR_BITS (REL_MAX));
+                      append_evdev_hex (buf, bits, LONGS_FOR_BITS (REL_MAX), NULL);
                       json_builder_set_member_name (builder, "raw_rel");
                       json_builder_add_string_value (builder, buf->str);
                     }
@@ -466,9 +477,10 @@ added (SrtInputDeviceMonitor *monitor,
                     {
                       g_autoptr(GString) buf = g_string_new ("");
 
-                      append_evdev_hex (buf, bits, LONGS_FOR_BITS (KEY_MAX));
                       json_builder_set_member_name (builder, "raw_keys");
-                      json_builder_add_string_value (builder, buf->str);
+                      json_builder_begin_array (builder);
+                      append_evdev_hex (buf, bits, LONGS_FOR_BITS (KEY_MAX), builder);
+                      json_builder_end_array (builder);
                     }
                 }
 
@@ -504,7 +516,7 @@ added (SrtInputDeviceMonitor *monitor,
                     {
                       g_autoptr(GString) buf = g_string_new ("");
 
-                      append_evdev_hex (buf, bits, LONGS_FOR_BITS (REL_MAX));
+                      append_evdev_hex (buf, bits, LONGS_FOR_BITS (REL_MAX), NULL);
                       json_builder_set_member_name (builder, "raw_input_properties");
                       json_builder_add_string_value (builder, buf->str);
                     }
