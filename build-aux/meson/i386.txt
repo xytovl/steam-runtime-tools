@@ -1,0 +1,22 @@
+# Copyright 2020-2023 Collabora Ltd.
+# SPDX-License-Identifier: MIT
+[binaries]
+c = 'gcc'
+cpp = 'g++'
+ar = 'ar'
+strip = 'strip'
+pkgconfig = 'i686-linux-gnu-pkg-config'
+exe_wrapper = 'env'
+
+[built-in options]
+c_args = ['-m32']
+cpp_args = ['-m32']
+c_link_args = ['-m32']
+cpp_link_args = ['-m32']
+libdir = 'lib/i386-linux-gnu'
+
+[host_machine]
+system = 'linux'
+cpu_family = 'x86'
+cpu = 'i686'
+endian = 'little'

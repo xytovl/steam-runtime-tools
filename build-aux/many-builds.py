@@ -53,6 +53,7 @@ _build/
     coverage/                   Build for host system with coverage
     doc/                        Build for host system with gtk-doc and pandoc
     host-no-asan/               No AddressSanitizer, for use with valgrind
+    i386/                       Build for host system for i386
 """
 
 import argparse
@@ -258,6 +259,26 @@ class Environment:
         subprocess.run(
             [
                 'meson',
+                str(self.abs_builddir_parent / 'i386'),
+                '-Db_lundef=false',
+                '-Db_sanitize=address,undefined',
+                '-Dbin=true',
+                '-Dlibcurl_compat=true',
+                '-Dmultiarch_tuple=i386-linux-gnu',
+                '-Doptimization=g',
+                '-Dprefix=/usr',
+                '-Dwarning_level=3',
+                '-Dwerror=true',
+                '--cross-file=build-aux/meson/i386.txt',
+                '--libdir=lib/i386-linux-gnu',
+            ] + args,
+            # Host system doesn't necessarily have an i386 toolchain
+            check=False,
+        )
+
+        subprocess.run(
+            [
+                'meson',
                 str(self.abs_builddir_parent / 'host-no-asan'),
                 '-Dbin=true',
                 '-Dlibcurl_compat=true',
@@ -344,6 +365,16 @@ class Environment:
                     'clean',
                 ] + args,
                 check=True,
+            )
+
+        for builddir in ('i386',):
+            subprocess.run(
+                [
+                    'ninja',
+                    '-C', str(self.builddir_parent / builddir),
+                    'clean',
+                ] + args,
+                check=False,
             )
 
         for suite, image in self.oci_images.items():
