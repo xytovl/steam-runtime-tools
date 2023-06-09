@@ -113,6 +113,7 @@ append_evdev_hex (GString *buf,
                   size_t n_longs)
 {
   size_t i, j;
+  const size_t n_bytes = n_longs * sizeof (long);
 
   for (i = 0; i < n_longs; i++)
     {
@@ -123,10 +124,15 @@ append_evdev_hex (GString *buf,
           size_t byte_position = i * sizeof (long) + j;
           unsigned char byte = (word >> (CHAR_BIT * j)) & 0xff;
 
-          g_string_append_printf (buf, "%02x ", byte);
+          g_string_append_printf (buf, "%02x", byte);
 
-          if ((byte_position % 8) == 7)
-            g_string_append_c (buf, ' ');
+          if (byte_position + 1 < n_bytes)
+            {
+              g_string_append_c (buf, ' ');
+
+              if ((byte_position % 8) == 7)
+                g_string_append_c (buf, ' ');
+            }
         }
     }
 }
