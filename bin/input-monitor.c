@@ -149,6 +149,34 @@ append_evdev_hex (GString *buf,
 }
 
 static void
+append_hex_dump_lines (JsonBuilder *array_builder,
+                       const void *data,
+                       size_t n_bytes)
+{
+  g_autoptr(GString) buf = g_string_new ("");
+  const unsigned char *bytes = data;
+  size_t i;
+
+  for (i = 0; i < n_bytes; i++)
+    {
+      g_string_append_printf (buf, "0x%02x,", bytes[i]);
+
+      if ((i % 8) == 7)
+        {
+          json_builder_add_string_value (array_builder, buf->str);
+          g_string_truncate (buf, 0);
+          continue;
+        }
+
+      if (i + 1 < n_bytes)
+        g_string_append_c (buf, ' ');
+    }
+
+  if (array_builder != NULL && buf->len > 0)
+    json_builder_add_string_value (array_builder, buf->str);
+}
+
+static void
 added (SrtInputDeviceMonitor *monitor,
        SrtInputDevice *dev,
        void *user_data)
@@ -562,6 +590,8 @@ added (SrtInputDeviceMonitor *monitor,
                                                  &id.uniq)
               || sys_path != NULL)
             {
+              g_autoptr(GBytes) report_descriptor = NULL;
+
               json_builder_set_member_name (builder, "hid_ancestor");
               json_builder_begin_object (builder);
 
@@ -589,6 +619,25 @@ added (SrtInputDeviceMonitor *monitor,
 
               json_builder_set_member_name (builder, "uniq");
               json_builder_add_string_value (builder, id.uniq);
+
+              report_descriptor = srt_input_device_dup_hid_report_descriptor (dev);
+
+              if (report_descriptor != NULL)
+                {
+                  gsize len;
+                  const void *data = g_bytes_get_data (report_descriptor, &len);
+
+                  /* This is redundant, but it'll be easier to paste into a
+                   * C data structure like the ones in
+                   * tests/input-device.c if we say it explicitly. */
+                  json_builder_set_member_name (builder, "report_descriptor_length");
+                  json_builder_add_int_value (builder, len);
+
+                  json_builder_set_member_name (builder, "report_descriptor");
+                  json_builder_begin_array (builder);
+                  append_hex_dump_lines (builder, data, len);
+                  json_builder_end_array (builder);
+                }
 
               if (opt_verbose)
                 {

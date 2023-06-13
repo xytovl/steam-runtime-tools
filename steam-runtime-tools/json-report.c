@@ -577,6 +577,7 @@ _srt_simple_input_device_new_from_json (JsonObject *obj)
       self->hid_ancestor.uniq = dup_json_string_member (sub, "uniq");
       self->hid_ancestor.phys = dup_json_string_member (sub, "phys");
       self->hid_ancestor.uevent = dup_json_uevent (sub);
+      self->hid_ancestor.report_descriptor = dup_json_hex_dump (sub, "report_descriptor");
     }
 
   if ((sub = get_json_object_member (obj, "input_ancestor")) != NULL)

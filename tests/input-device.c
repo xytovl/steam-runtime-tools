@@ -161,6 +161,7 @@ test_input_device_from_json_no_details (Fixture *f)
   } identity;
   unsigned long bits[LONGS_FOR_BITS (HIGHEST_EVENT_CODE)];
   g_autofree gchar *uevent = NULL;
+  g_autoptr(GBytes) hid_report_descriptor = NULL;
 
   g_assert_cmphex (srt_input_device_get_interface_flags (dev),
                    ==, SRT_INPUT_DEVICE_INTERFACE_FLAGS_NONE);
@@ -230,6 +231,9 @@ test_input_device_from_json_no_details (Fixture *f)
                                                             NULL, NULL, NULL));
   uevent = srt_input_device_dup_usb_device_uevent (dev);
   g_assert_cmpstr (uevent, ==, NULL);
+
+  hid_report_descriptor = srt_input_device_dup_hid_report_descriptor (dev);
+  g_assert_null (hid_report_descriptor);
 }
 
 static void
@@ -266,6 +270,9 @@ test_input_device_from_json_odd (Fixture *f)
     const char *serial;
   } usb_identity;
   unsigned long bits[LONGS_FOR_BITS (HIGHEST_EVENT_CODE)];
+  g_autoptr(GBytes) hid_report_descriptor = NULL;
+  const guint8 *data;
+  gsize len;
 
   g_assert_cmphex (srt_input_device_get_interface_flags (dev),
                    ==, SRT_INPUT_DEVICE_INTERFACE_FLAGS_RAW_HID);
@@ -369,6 +376,15 @@ test_input_device_from_json_odd (Fixture *f)
   g_assert_cmpstr (usb_identity.manufacturer, ==, NULL);
   g_assert_cmpstr (usb_identity.product, ==, NULL);
   g_assert_cmpstr (usb_identity.serial, ==, "12:34:56:78");
+
+  hid_report_descriptor = srt_input_device_dup_hid_report_descriptor (dev);
+  g_assert_nonnull (hid_report_descriptor);
+  data = g_bytes_get_data (hid_report_descriptor, &len);
+  g_assert_cmpuint (len, ==, 4);
+  g_assert_cmpuint (data[0], ==, 0x12);
+  g_assert_cmpuint (data[1], ==, 0x34);
+  g_assert_cmpuint (data[2], ==, 0x56);
+  g_assert_cmpuint (data[3], ==, 0x78);
 }
 
 static void

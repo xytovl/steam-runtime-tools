@@ -20,7 +20,10 @@
       "bus_type" : "0xfff1",
       "vendor_id" : "0xfff1",
       "product_id" : "0xfff1",
-      "uniq" : "12345678"
+      "uniq" : "12345678",
+      "report_descriptor" : [
+        "12 34 56 78"
+      ]
     },
     "input_ancestor" : {
       "sys_path" : "/...",
