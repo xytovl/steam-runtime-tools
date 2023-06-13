@@ -236,6 +236,8 @@ added (SrtInputDeviceMonitor *monitor,
 
               if (srt_input_device_get_event_types (dev, bits, G_N_ELEMENTS (bits)) > 0)
                 {
+                  g_autoptr(GString) buf = g_string_new ("");
+
                   json_builder_set_member_name (builder, "types");
                   json_builder_begin_array (builder);
                     {
@@ -266,19 +268,16 @@ added (SrtInputDeviceMonitor *monitor,
                     }
                   json_builder_end_array (builder);
 
-                  if (opt_verbose)
-                    {
-                      g_autoptr(GString) buf = g_string_new ("");
-
-                      append_evdev_hex (buf, bits, LONGS_FOR_BITS (EV_MAX), NULL);
-                      json_builder_set_member_name (builder, "raw_types");
-                      json_builder_add_string_value (builder, buf->str);
-                    }
+                  append_evdev_hex (buf, bits, LONGS_FOR_BITS (EV_MAX), NULL);
+                  json_builder_set_member_name (builder, "raw_types");
+                  json_builder_add_string_value (builder, buf->str);
                 }
 
               if (srt_input_device_get_event_capabilities (dev, EV_ABS,
                                                            bits, G_N_ELEMENTS (bits)) > 0)
                 {
+                  g_autoptr(GString) buf = g_string_new ("");
+
                   json_builder_set_member_name (builder, "absolute_axes");
                   json_builder_begin_array (builder);
                     {
@@ -325,19 +324,16 @@ added (SrtInputDeviceMonitor *monitor,
                     }
                   json_builder_end_array (builder);
 
-                  if (opt_verbose)
-                    {
-                      g_autoptr(GString) buf = g_string_new ("");
-
-                      append_evdev_hex (buf, bits, LONGS_FOR_BITS (ABS_MAX), NULL);
-                      json_builder_set_member_name (builder, "raw_abs");
-                      json_builder_add_string_value (builder, buf->str);
-                    }
+                  append_evdev_hex (buf, bits, LONGS_FOR_BITS (ABS_MAX), NULL);
+                  json_builder_set_member_name (builder, "raw_abs");
+                  json_builder_add_string_value (builder, buf->str);
                 }
 
               if (srt_input_device_get_event_capabilities (dev, EV_REL,
                                                            bits, G_N_ELEMENTS (bits)) > 0)
                 {
+                  g_autoptr(GString) buf = g_string_new ("");
+
                   json_builder_set_member_name (builder, "relative_axes");
                   json_builder_begin_array (builder);
                     {
@@ -369,19 +365,16 @@ added (SrtInputDeviceMonitor *monitor,
                     }
                   json_builder_end_array (builder);
 
-                  if (opt_verbose)
-                    {
-                      g_autoptr(GString) buf = g_string_new ("");
-
-                      append_evdev_hex (buf, bits, LONGS_FOR_BITS (REL_MAX), NULL);
-                      json_builder_set_member_name (builder, "raw_rel");
-                      json_builder_add_string_value (builder, buf->str);
-                    }
+                  append_evdev_hex (buf, bits, LONGS_FOR_BITS (REL_MAX), NULL);
+                  json_builder_set_member_name (builder, "raw_rel");
+                  json_builder_add_string_value (builder, buf->str);
                 }
 
               if (srt_input_device_get_event_capabilities (dev, EV_KEY,
                                                            bits, G_N_ELEMENTS (bits)) > 0)
                 {
+                  g_autoptr(GString) buf = g_string_new ("");
+
                   json_builder_set_member_name (builder, "keys");
                   json_builder_begin_array (builder);
                     {
@@ -473,20 +466,17 @@ added (SrtInputDeviceMonitor *monitor,
                     }
                   json_builder_end_array (builder);
 
-                  if (opt_verbose)
-                    {
-                      g_autoptr(GString) buf = g_string_new ("");
-
-                      json_builder_set_member_name (builder, "raw_keys");
-                      json_builder_begin_array (builder);
-                      append_evdev_hex (buf, bits, LONGS_FOR_BITS (KEY_MAX), builder);
-                      json_builder_end_array (builder);
-                    }
+                  json_builder_set_member_name (builder, "raw_keys");
+                  json_builder_begin_array (builder);
+                  append_evdev_hex (buf, bits, LONGS_FOR_BITS (KEY_MAX), builder);
+                  json_builder_end_array (builder);
                 }
 
               if (srt_input_device_get_input_properties (dev, bits,
                                                          G_N_ELEMENTS (bits)) > 0)
                 {
+                  g_autoptr(GString) buf = g_string_new ("");
+
                   json_builder_set_member_name (builder, "input_properties");
                   json_builder_begin_array (builder);
                     {
@@ -512,14 +502,9 @@ added (SrtInputDeviceMonitor *monitor,
                     }
                   json_builder_end_array (builder);
 
-                  if (opt_verbose)
-                    {
-                      g_autoptr(GString) buf = g_string_new ("");
-
-                      append_evdev_hex (buf, bits, LONGS_FOR_BITS (REL_MAX), NULL);
-                      json_builder_set_member_name (builder, "raw_input_properties");
-                      json_builder_add_string_value (builder, buf->str);
-                    }
+                  append_evdev_hex (buf, bits, LONGS_FOR_BITS (REL_MAX), NULL);
+                  json_builder_set_member_name (builder, "raw_input_properties");
+                  json_builder_add_string_value (builder, buf->str);
                 }
 
               guessed_flags = srt_input_device_guess_type_flags_from_event_capabilities (dev);
