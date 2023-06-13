@@ -125,7 +125,7 @@ append_evdev_hex (GString *buf,
           size_t byte_position = i * sizeof (long) + j;
           unsigned char byte = (word >> (CHAR_BIT * j)) & 0xff;
 
-          g_string_append_printf (buf, "%02x", byte);
+          g_string_append_printf (buf, "0x%02x,", byte);
 
           if (array_builder != NULL && (byte_position % 8) == 7)
             {
