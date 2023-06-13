@@ -405,8 +405,8 @@ dup_json_uevent (JsonObject *obj)
 
 /*
  * @buf: a mutable byte array
- * @string: a series of space-separated hexadecimal numbers representing
- *  bytes
+ * @string: a series of space- and/or comma-separated hexadecimal numbers
+ *  representing bytes, each with an optional `0x` prefix
  *
  * Parse byte values from @string and append them to @buf.
  *
@@ -425,11 +425,14 @@ read_hex_dump_string (GByteArray *buf,
       unsigned char this_byte;
       int used;
 
-      while (*string == ' ')
+      while (*string == ' ' || *string == ',')
         string++;
 
       if (*string == '\0')
         break;
+
+      if (g_str_has_prefix (string, "0x"))
+        string += 2;
 
       if (sscanf (string, "%x%n", &scanned, &used) == 1
           && used >= 1

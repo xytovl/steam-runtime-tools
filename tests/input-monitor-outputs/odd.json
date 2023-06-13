@@ -12,7 +12,7 @@
         "01 02 03 04 05 06 07 08",
         "ff ff ff ff"
       ],
-      "raw_input_properties" : "12 34 56 78 87 65 43 21  ff ff ff ff"
+      "raw_input_properties" : "12 34 56 78 87 65 43 21, 0xff,0xff,0xff,0xff"
     },
     "hid_ancestor" : {
       "sys_path" : "/...",
