@@ -938,7 +938,7 @@ static GOptionEntry options[] =
   { "pass-fd", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_CALLBACK, opt_pass_fd_cb,
     "Let the launched process inherit the given fd.",
-    NULL },
+    "FD" },
   { "remove-game-overlay", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_remove_game_overlay,
     "Disable the Steam Overlay. "

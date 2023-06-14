@@ -771,7 +771,7 @@ static GOptionEntry options[] =
     G_OPTION_FLAG_NONE, G_OPTION_ARG_CALLBACK, opt_fd_cb,
     "Take a file descriptor, already locked if desired, and keep it "
     "open. May be repeated.",
-    NULL },
+    "FD" },
 
   { "create", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_create,
@@ -849,12 +849,12 @@ static GOptionEntry options[] =
     G_OPTION_FLAG_FILENAME, G_OPTION_ARG_CALLBACK, opt_lock_file_cb,
     "Open the given file and lock it, affected by options appearing "
     "earlier on the command-line. May be repeated.",
-    NULL },
+    "PATH" },
 
   { "pass-fd", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_CALLBACK, opt_pass_fd_cb,
     "Let the launched process inherit the given fd.",
-    NULL },
+    "FD" },
 
   { "shell", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_CALLBACK, opt_shell_cb,
