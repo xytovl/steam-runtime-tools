@@ -107,6 +107,10 @@ gpointer *my_g_hash_table_get_keys_as_array (GHashTable *hash,
                                              guint *len);
 #endif
 
+#if !GLIB_CHECK_VERSION(2, 44, 0)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(GByteArray, g_byte_array_unref)
+#endif
+
 #if !GLIB_CHECK_VERSION(2, 50, 0)
 #define g_log_writer_is_journald(fd) my_g_log_writer_is_journald (fd)
 gboolean my_g_log_writer_is_journald (gint output_fd);

@@ -61,6 +61,7 @@ struct _SrtSimpleInputDevice
     gchar *name;
     gchar *phys;
     gchar *uniq;
+    GBytes *report_descriptor;
     guint32 bus_type;
     guint32 product_id;
     guint32 vendor_id;

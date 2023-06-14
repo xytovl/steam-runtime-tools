@@ -403,43 +403,123 @@ dup_json_uevent (JsonObject *obj)
   return _srt_json_object_dup_array_of_lines_member (obj, "uevent");
 }
 
+/*
+ * @buf: a mutable byte array
+ * @string: a series of space- and/or comma-separated hexadecimal numbers
+ *  representing bytes, each with an optional `0x` prefix
+ *
+ * Parse byte values from @string and append them to @buf.
+ *
+ * Returns: %TRUE if successful, %FALSE if invalid content is found
+ */
+static gboolean
+read_hex_dump_string (GByteArray *buf,
+                      const char *string)
+{
+  if (string == NULL)
+    return FALSE;
+
+  while (*string != '\0')
+    {
+      unsigned int scanned;
+      unsigned char this_byte;
+      int used;
+
+      while (*string == ' ' || *string == ',')
+        string++;
+
+      if (*string == '\0')
+        break;
+
+      if (g_str_has_prefix (string, "0x"))
+        string += 2;
+
+      if (sscanf (string, "%x%n", &scanned, &used) == 1
+          && used >= 1
+          && used <= 2
+          && scanned < 0x100)
+        string += used;
+      else
+        return FALSE;
+
+      this_byte = scanned;
+      g_byte_array_append (buf, &this_byte, 1);
+    }
+
+  return TRUE;
+}
+
+/*
+ * @obj: a JSON object
+ * @name: a member name
+ *
+ * Look up `obj[name]` and attempt to parse it as a representation of an
+ * opaque byte array: either a string with space-separated hexadecimal
+ * numbers representing bytes, or an array of such strings.
+ *
+ * Returns: (transfer full): An array of bytes, or %NULL on a parsing error.
+ */
+static GBytes *
+dup_json_hex_dump (JsonObject *obj,
+                   const char *name)
+{
+  JsonNode *node = json_object_get_member (obj, name);
+  g_autoptr(GByteArray) buf = g_byte_array_new ();
+
+  if (node == NULL || JSON_NODE_HOLDS_NULL (node))
+    return NULL;
+
+  if (JSON_NODE_HOLDS_VALUE (node))
+    {
+      if (!read_hex_dump_string (buf, json_node_get_string (node)))
+        return NULL;
+    }
+  else if (JSON_NODE_HOLDS_ARRAY (node))
+    {
+      JsonArray *array;
+      guint length;
+
+      array = json_node_get_array (node);
+
+      if (array == NULL)
+        return NULL;
+
+      length = json_array_get_length (array);
+
+      for (guint i = 0; i < length; i++)
+        {
+          JsonNode *inner_node = json_array_get_element (array, i);
+          const gchar *element = json_node_get_string (inner_node);
+
+          if (element == NULL
+              || !read_hex_dump_string (buf, element))
+            return NULL;
+        }
+    }
+
+  return g_byte_array_free_to_bytes (g_steal_pointer (&buf));
+}
+
 static void
 get_json_evdev_caps (JsonObject *obj,
                      const char *name,
                      unsigned long *longs,
                      size_t n_longs)
 {
-  /* The first pointer that is out of bounds for longs */
-  unsigned char *limit = (unsigned char *) &longs[n_longs];
-  /* The output position in longs */
-  unsigned char *out = (unsigned char *) longs;
-  /* The input position in the string we are parsing */
-  const char *iter;
+  g_autoptr(GBytes) bytes = NULL;
+  size_t n_bytes = n_longs * sizeof (long);
+  const void *data;
   size_t i;
+  size_t len;
 
-  iter = _srt_json_object_get_string_member (obj, name);
+  bytes = dup_json_hex_dump (obj, name);
 
-  if (iter == NULL)
+  if (bytes == NULL)
     return;
 
-  while (*iter != '\0')
-    {
-      unsigned int this_byte;
-      int used;
-
-      while (*iter == ' ')
-        iter++;
-
-      if (sscanf (iter, "%x%n", &this_byte, &used) == 1)
-        iter += used;
-      else
-        break;
-
-      if (out < limit)
-        *(out++) = (unsigned char) this_byte;
-      else
-        break;
-    }
+  data = g_bytes_get_data (bytes, &len);
+  memset (longs, 0, n_bytes);
+  memcpy (longs, data, MIN (len, n_bytes));
 
   for (i = 0; i < n_longs; i++)
     longs[i] = GULONG_FROM_LE (longs[i]);
@@ -497,6 +577,7 @@ _srt_simple_input_device_new_from_json (JsonObject *obj)
       self->hid_ancestor.uniq = dup_json_string_member (sub, "uniq");
       self->hid_ancestor.phys = dup_json_string_member (sub, "phys");
       self->hid_ancestor.uevent = dup_json_uevent (sub);
+      self->hid_ancestor.report_descriptor = dup_json_hex_dump (sub, "report_descriptor");
     }
 
   if ((sub = get_json_object_member (obj, "input_ancestor")) != NULL)

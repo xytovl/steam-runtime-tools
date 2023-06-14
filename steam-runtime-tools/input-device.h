@@ -164,6 +164,8 @@ SrtInputDeviceTypeFlags srt_input_device_guess_type_flags_from_event_capabilitie
 _SRT_PUBLIC
 const char *srt_input_device_get_hid_sys_path (SrtInputDevice *device);
 _SRT_PUBLIC
+GBytes *srt_input_device_dup_hid_report_descriptor (SrtInputDevice *device);
+_SRT_PUBLIC
 gchar *srt_input_device_dup_hid_uevent (SrtInputDevice *device);
 _SRT_PUBLIC
 gboolean srt_input_device_get_hid_identity (SrtInputDevice *device,

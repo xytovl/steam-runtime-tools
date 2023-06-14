@@ -277,6 +277,26 @@ srt_input_device_dup_uevent (SrtInputDevice *device)
   return iface->dup_uevent (device);
 }
 
+/**
+ * srt_input_device_dup_hid_report_descriptor:
+ * @device: An object implementing #SrtInputDeviceInterface
+ *
+ * Return the raw HID report descriptor from the kernel.
+ *
+ * Returns: (nullable) (transfer full): The bytes of a HID report descriptor,
+ *  or %NULL for non-HID devices or if no HID descriptor is available.
+ *  Free with g_bytes_unref().
+ */
+GBytes *
+srt_input_device_dup_hid_report_descriptor (SrtInputDevice *device)
+{
+  SrtInputDeviceInterface *iface = SRT_INPUT_DEVICE_GET_INTERFACE (device);
+
+  g_return_val_if_fail (iface != NULL, NULL);
+
+  return iface->dup_hid_report_descriptor (device);
+}
+
 static gchar *
 read_uevent (const char *sys_path)
 {
@@ -302,6 +322,25 @@ static gchar *
 srt_input_device_default_dup_uevent (SrtInputDevice *device)
 {
   return read_uevent (srt_input_device_get_sys_path (device));
+}
+
+static GBytes *
+srt_input_device_default_dup_hid_report_descriptor (SrtInputDevice *device)
+{
+  const char *sys_path = srt_input_device_get_hid_sys_path (device);
+  g_autofree gchar *path = NULL;
+  g_autofree gchar *contents = NULL;
+  gsize len;
+
+  if (sys_path == NULL)
+    return NULL;
+
+  path = g_build_filename (sys_path, "report_descriptor", NULL);
+
+  if (g_file_get_contents (path, &contents, &len, NULL))
+    return g_bytes_new_take (g_steal_pointer (&contents), len);
+
+  return NULL;
 }
 
 static gchar *
@@ -1128,6 +1167,7 @@ srt_input_device_default_init (SrtInputDeviceInterface *iface)
   IMPLEMENT2 (dup_udev_properties, get_null_strv);
 
   IMPLEMENT (dup_uevent);
+  IMPLEMENT (dup_hid_report_descriptor);
   IMPLEMENT (dup_hid_uevent);
   IMPLEMENT (dup_input_uevent);
   IMPLEMENT (dup_usb_device_uevent);

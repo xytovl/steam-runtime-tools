@@ -8,8 +8,11 @@
       "__future__"
     ],
     "evdev" : {
-      "raw_abs" : "01 02 03 04 05 06 07 08  ff ff ff ff",
-      "raw_input_properties" : "12 34 56 78 87 65 43 21  ff ff ff ff"
+      "raw_abs" : [
+        "01 02 03 04 05 06 07 08",
+        "ff ff ff ff"
+      ],
+      "raw_input_properties" : "12 34 56 78 87 65 43 21, 0xff,0xff,0xff,0xff"
     },
     "hid_ancestor" : {
       "sys_path" : "/...",
@@ -17,7 +20,10 @@
       "bus_type" : "0xfff1",
       "vendor_id" : "0xfff1",
       "product_id" : "0xfff1",
-      "uniq" : "12345678"
+      "uniq" : "12345678",
+      "report_descriptor" : [
+        "12 34 56 78"
+      ]
     },
     "input_ancestor" : {
       "sys_path" : "/...",

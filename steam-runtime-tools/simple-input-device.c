@@ -223,6 +223,17 @@ srt_simple_input_device_get_hid_identity (SrtInputDevice *device,
   return TRUE;
 }
 
+static GBytes *
+srt_simple_input_device_dup_hid_report_descriptor (SrtInputDevice *device)
+{
+  SrtSimpleInputDevice *self = SRT_SIMPLE_INPUT_DEVICE (device);
+
+  if (self->hid_ancestor.report_descriptor != NULL)
+    return g_bytes_ref (self->hid_ancestor.report_descriptor);
+
+  return NULL;
+}
+
 static gchar *
 srt_simple_input_device_dup_hid_uevent (SrtInputDevice *device)
 {
@@ -359,6 +370,7 @@ srt_simple_input_device_iface_init (SrtInputDeviceInterface *iface)
   IMPLEMENT (get_usb_device_sys_path);
   IMPLEMENT (get_usb_device_identity);
 
+  IMPLEMENT (dup_hid_report_descriptor);
   IMPLEMENT (dup_hid_uevent);
   IMPLEMENT (dup_input_uevent);
   IMPLEMENT (dup_usb_device_uevent);

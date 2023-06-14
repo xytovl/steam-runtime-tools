@@ -192,6 +192,8 @@ struct _SrtInputDeviceInterface
   int (*open_device) (SrtInputDevice *device,
                       int mode_and_flags,
                       GError **error);
+
+  GBytes *(*dup_hid_report_descriptor) (SrtInputDevice *device);
 };
 
 gboolean _srt_input_device_check_open_flags (int mode_and_flags,
