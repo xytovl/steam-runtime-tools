@@ -2418,6 +2418,13 @@ main (int argc,
                               "--subreaper",
                               NULL);
 
+      flatpak_bwrap_add_fd (adverb_argv, original_stdout);
+      flatpak_bwrap_add_arg_printf (adverb_argv, "--assign-fd=%d=%d",
+                                    STDOUT_FILENO, original_stdout);
+      flatpak_bwrap_add_fd (adverb_argv, original_stderr);
+      flatpak_bwrap_add_arg_printf (adverb_argv, "--assign-fd=%d=%d",
+                                    STDERR_FILENO, original_stderr);
+
       if (opt_pass_fds != NULL)
         {
           for (i = 0; i < opt_pass_fds->len; i++)
@@ -2622,7 +2629,7 @@ main (int argc,
   if (opt_systemd_scope)
     pv_wrap_move_into_scope (steam_app_id);
 
-  pv_bwrap_execve (final_argv, original_stdout, original_stderr, error);
+  pv_bwrap_execve (final_argv, error);
 
 out:
   if (local_error != NULL)

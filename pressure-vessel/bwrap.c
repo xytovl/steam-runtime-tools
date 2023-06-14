@@ -58,8 +58,6 @@ pv_bwrap_run_sync (FlatpakBwrap *bwrap,
 /**
  * pv_bwrap_execve:
  * @bwrap: A #FlatpakBwrap on which flatpak_bwrap_finish() has been called
- * @original_stdout: If > 0, `dup2()` this file descriptor onto stdout
- * @original_stderr: If > 0, `dup2()` this file descriptor onto stderr
  * @error: Used to raise an error on failure
  *
  * Attempt to replace the current process with the given bwrap command.
@@ -69,8 +67,6 @@ pv_bwrap_run_sync (FlatpakBwrap *bwrap,
  */
 gboolean
 pv_bwrap_execve (FlatpakBwrap *bwrap,
-                 int original_stdout,
-                 int original_stderr,
                  GError **error)
 {
   int saved_errno;
@@ -88,14 +84,6 @@ pv_bwrap_execve (FlatpakBwrap *bwrap,
 
   fflush (stdout);
   fflush (stderr);
-
-  if (original_stdout >= 0
-      && !_srt_util_restore_saved_fd (original_stdout, STDOUT_FILENO, error))
-    return FALSE;
-
-  if (original_stderr >= 0
-      && !_srt_util_restore_saved_fd (original_stderr, STDERR_FILENO, error))
-    return FALSE;
 
   execve (bwrap->argv->pdata[0],
           (char * const *) bwrap->argv->pdata,
