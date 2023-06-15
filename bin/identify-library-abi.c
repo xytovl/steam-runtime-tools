@@ -53,7 +53,7 @@ static const GOptionEntry option_entries[] =
 {
   { "directory", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_FILENAME,
     &opt_directory, "Check the word size for the libraries recursively found in this directory",
-    NULL },
+    "PATH" },
   { "ldconfig", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE,
     &opt_ldconfig, "Check the word size for the libraries listed in ldconfig", NULL },
   { "print0", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE,
