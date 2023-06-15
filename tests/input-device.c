@@ -1973,6 +1973,22 @@ static const GuessTest guess_tests[] =
       /* RX, RY, RZ */
       .abs = { 0x38 },
     },
+    { /* https://github.com/ValveSoftware/Proton/issues/5126 */
+      .name = "FANATEC ClubSport USB Handbrake",
+      .bus_type = 0x0003,
+      .vendor_id = 0x0eb7,
+      .product_id = 0x1a93,
+      .version = 0x0111,
+      /* TODO: Ideally we would identify this as a joystick, but there
+       * isn't currently enough information to do that without a table
+       * of known devices. */
+      .expected = SRT_INPUT_DEVICE_TYPE_FLAGS_JOYSTICK,
+      .todo = "https://github.com/ValveSoftware/Proton/issues/5126",
+      /* SYN, ABS */
+      .ev = { 0x09 },
+      /* X only */
+      .abs = { 0x01 },
+    },
     {
       .name = "No information",
       .expected = SRT_INPUT_DEVICE_TYPE_FLAGS_NONE,
