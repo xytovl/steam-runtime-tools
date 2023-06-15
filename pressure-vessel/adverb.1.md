@@ -16,6 +16,7 @@ pressure-vessel-adverb - wrap processes in various ways
 
 **pressure-vessel-adverb**
 [**--[no-]exit-with-parent**]
+[**--assign-fd** _TARGET_**=**_SOURCE_...]
 [**--fd** *FD*...]
 [**--[no-]generate-locales**]
 [**--ld-audit** *MODULE*[**:arch=***TUPLE*]...]
@@ -51,6 +52,15 @@ exit status.
     The final search path will consist of all **--add-ld.so-path**
     arguments in the order they are given, followed by the lines
     from `runtime-ld.so.conf` in order.
+
+**--assign-fd** _TARGET_**=**_SOURCE_
+:   Make file descriptor *TARGET* in the *COMMAND* a copy of file
+    descriptor *SOURCE* as passed to **pressure-vessel-adverb**,
+    similar to writing `TARGET>&SOURCE` as a shell redirection.
+    For example, **--assign-fd=1=3** is the same as **1>&3**.
+    The redirection is done at the last possible moment, so the output
+    of **pressure-vessel-adverb** will still go to the original standard
+    error.
 
 **--create**
 :   Create each **--lock-file** that appears on the command-line after

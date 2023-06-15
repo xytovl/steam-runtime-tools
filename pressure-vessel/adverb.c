@@ -53,6 +53,7 @@
 static const char * const *global_original_environ = NULL;
 static GPtrArray *global_locks = NULL;
 static GPtrArray *global_ld_so_conf_entries = NULL;
+static GArray *global_assign_fds = NULL;
 static GArray *global_pass_fds = NULL;
 static gboolean opt_batch = FALSE;
 static gboolean opt_create = FALSE;
@@ -73,9 +74,16 @@ static GPid child_pid;
 
 typedef struct
 {
-  int original_stdout_fd;
-  int original_stderr_fd;
-  int *pass_fds;
+  int target;
+  int source;
+} AssignFd;
+
+typedef struct
+{
+  size_t n_assign_fds;
+  const AssignFd *assign_fds;
+  size_t n_pass_fds;
+  const int *pass_fds;
 } ChildSetupData;
 
 /* (element-type PvAdverbPreloadModule) */
@@ -86,8 +94,8 @@ child_setup_cb (gpointer user_data)
 {
   ChildSetupData *data = user_data;
   sigset_t set;
-  const int *iter;
   int i;
+  size_t j;
 
   /* The adverb should wait for its child before it exits, but if it
    * gets terminated prematurely, we want the child to terminate too.
@@ -114,26 +122,15 @@ child_setup_cb (gpointer user_data)
         signal (i, SIG_DFL);
     }
 
-  /* Put back the original stdout for the child process */
-  if (data != NULL &&
-      data->original_stdout_fd > 0 &&
-      dup2 (data->original_stdout_fd, STDOUT_FILENO) != STDOUT_FILENO)
-    _srt_async_signal_safe_error ("pressure-vessel-adverb: Unable to reinstate original stdout\n", LAUNCH_EX_FAILED);
-
-  if (data != NULL &&
-      data->original_stderr_fd > 0 &&
-      dup2 (data->original_stderr_fd, STDERR_FILENO) != STDERR_FILENO)
-    _srt_async_signal_safe_error ("pressure-vessel-adverb: Unable to reinstate original stderr\n", LAUNCH_EX_FAILED);
-
   /* Make the fds we pass through *not* be close-on-exec */
-  if (data != NULL && data->pass_fds)
+  if (data != NULL)
     {
       /* Make all other file descriptors close-on-exec */
       flatpak_close_fds_workaround (3);
 
-      for (iter = data->pass_fds; *iter >= 0; iter++)
+      for (j = 0; j < data->n_pass_fds; j++)
         {
-          int fd = *iter;
+          int fd = data->pass_fds[j];
           int fd_flags;
 
           fd_flags = fcntl (fd, F_GETFD);
@@ -146,6 +143,15 @@ child_setup_cb (gpointer user_data)
               && fcntl (fd, F_SETFD, fd_flags & ~FD_CLOEXEC) != 0)
             _srt_async_signal_safe_error ("pressure-vessel-adverb: Unable to clear close-on-exec\n",
                                           LAUNCH_EX_FAILED);
+        }
+
+      for (j = 0; j < data->n_assign_fds; j++)
+        {
+          int target = data->assign_fds[j].target;
+          int source = data->assign_fds[j].source;
+
+          if (dup2 (source, target) != target)
+            _srt_async_signal_safe_error ("pressure-vessel-adverb: Unable to assign file descriptors\n", LAUNCH_EX_FAILED);
         }
     }
 }
@@ -294,6 +300,54 @@ opt_ld_preload_cb (const gchar *option_name,
 }
 
 static gboolean
+opt_assign_fd_cb (const char *name,
+                  const char *value,
+                  gpointer data,
+                  GError **error)
+{
+  char *endptr;
+  gint64 i64 = g_ascii_strtoll (value, &endptr, 10);
+  AssignFd pair;
+  int fd_flags;
+
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+  g_return_val_if_fail (value != NULL, FALSE);
+  g_return_val_if_fail (global_assign_fds != NULL, FALSE);
+
+  if (i64 < 0 || i64 > G_MAXINT || endptr == value || *endptr != '=')
+    {
+      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
+                   "Target fd out of range or invalid: %s", value);
+      return FALSE;
+    }
+
+  pair.target = (int) i64;
+  fd_flags = fcntl (pair.target, F_GETFD);
+
+  if (fd_flags < 0)
+    return glnx_throw_errno_prefix (error, "Unable to receive --assign-fd target %d", pair.target);
+
+  value = endptr + 1;
+  i64 = g_ascii_strtoll (value, &endptr, 10);
+
+  if (i64 < 0 || i64 > G_MAXINT || endptr == value || *endptr != '\0')
+    {
+      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
+                   "Source fd out of range or invalid: %s", value);
+      return FALSE;
+    }
+
+  pair.source = (int) i64;
+  fd_flags = fcntl (pair.source, F_GETFD);
+
+  if (fd_flags < 0)
+    return glnx_throw_errno_prefix (error, "Unable to receive --assign-fd source %d", pair.source);
+
+  g_array_append_val (global_assign_fds, pair);
+  return TRUE;
+}
+
+static gboolean
 opt_pass_fd_cb (const char *name,
                 const char *value,
                 gpointer data,
@@ -306,6 +360,7 @@ opt_pass_fd_cb (const char *name,
 
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
   g_return_val_if_fail (value != NULL, FALSE);
+  g_return_val_if_fail (global_pass_fds != NULL, FALSE);
 
   if (i64 < 0 || i64 > G_MAXINT || endptr == value || *endptr != '\0')
     {
@@ -320,9 +375,6 @@ opt_pass_fd_cb (const char *name,
 
   if (fd_flags < 0)
     return glnx_throw_errno_prefix (error, "Unable to receive --fd %d", fd);
-
-  if (global_pass_fds == NULL)
-    global_pass_fds = g_array_new (FALSE, FALSE, sizeof (int));
 
   g_array_append_val (global_pass_fds, fd);
   return TRUE;
@@ -762,6 +814,11 @@ terminate_child_cb (int signum)
 
 static GOptionEntry options[] =
 {
+  { "assign-fd", '\0',
+    G_OPTION_FLAG_NONE, G_OPTION_ARG_CALLBACK, opt_assign_fd_cb,
+    "Make fd TARGET a copy of SOURCE, like TARGET>&SOURCE in shell.",
+    "TARGET=SOURCE" },
+
   { "batch", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_batch,
     "Disable all interactivity and redirection: ignore --shell*, "
@@ -912,6 +969,8 @@ main (int argc,
   g_auto(GStrv) original_environ = NULL;
   g_autoptr(GPtrArray) ld_so_conf_entries = NULL;
   g_autoptr(GPtrArray) locks = NULL;
+  g_autoptr(GArray) assign_fds = NULL;
+  g_autoptr(GArray) pass_fds = NULL;
   g_autoptr(GOptionContext) context = NULL;
   g_autoptr(GError) local_error = NULL;
   GError **error = &local_error;
@@ -920,11 +979,12 @@ main (int argc,
   g_autofree gchar *locales_temp_dir = NULL;
   glnx_autofd int original_stdout = -1;
   glnx_autofd int original_stderr = -1;
-  ChildSetupData child_setup_data = { -1, -1, NULL };
+  ChildSetupData child_setup_data = { 0, NULL, 0, NULL };
   sigset_t mask;
   struct sigaction terminate_child_action = {};
   g_autoptr(FlatpakBwrap) wrapped_command = NULL;
   g_autoptr(PvPerArchDirs) lib_temp_dirs = NULL;
+  AssignFd pair;
   gsize i;
 
   sigemptyset (&mask);
@@ -949,6 +1009,12 @@ main (int argc,
   locks = g_ptr_array_new_with_free_func ((GDestroyNotify) pv_bwrap_lock_free);
   global_locks = locks;
 
+  pass_fds = g_array_new (FALSE, FALSE, sizeof (int));
+  global_pass_fds = pass_fds;
+
+  assign_fds = g_array_new (FALSE, FALSE, sizeof (AssignFd));
+  global_assign_fds = assign_fds;
+
   /* Set up the initial base logging */
   if (!_srt_util_set_glib_log_handler ("pressure-vessel-adverb",
                                        G_LOG_DOMAIN, SRT_LOG_FLAGS_NONE,
@@ -958,6 +1024,15 @@ main (int argc,
       ret = EX_UNAVAILABLE;
       goto out;
     }
+
+  /* Before parsing arguments, the default is like shell redirection
+   * 1>&original_stdout 2>&original_stderr */
+  pair.target = STDOUT_FILENO;
+  pair.source = glnx_steal_fd (&original_stdout);
+  g_array_append_val (assign_fds, pair);
+  pair.target = STDERR_FILENO;
+  pair.source = glnx_steal_fd (&original_stderr);
+  g_array_append_val (assign_fds, pair);
 
   context = g_option_context_new (
       "COMMAND [ARG...]\n"
@@ -1174,17 +1249,10 @@ main (int argc,
   sigaction (SIGUSR2, &terminate_child_action, NULL);
 
   g_debug ("Launching child process...");
-  child_setup_data.original_stdout_fd = original_stdout;
-  child_setup_data.original_stderr_fd = original_stderr;
-
-  if (global_pass_fds != NULL)
-    {
-      int terminator = -1;
-
-      g_array_append_val (global_pass_fds, terminator);
-      child_setup_data.pass_fds = (int *) g_array_free (g_steal_pointer (&global_pass_fds),
-                                                        FALSE);
-    }
+  child_setup_data.assign_fds = (const AssignFd *) assign_fds->data;
+  child_setup_data.n_assign_fds = assign_fds->len;
+  child_setup_data.pass_fds = (const int *) pass_fds->data;
+  child_setup_data.n_pass_fds = pass_fds->len;
 
   if (opt_verbose)
     {
@@ -1209,6 +1277,20 @@ main (int argc,
           quoted = g_shell_quote (wrapped_command->envp[i]);
           g_message ("\t%s", quoted);
         }
+
+      g_message ("Inherited file descriptors:");
+
+      for (i = 0; i < pass_fds->len; i++)
+        g_message ("\t%d", g_array_index (pass_fds, int, i));
+
+      g_message ("Redirections:");
+
+      for (i = 0; i < assign_fds->len; i++)
+        {
+          const AssignFd *item = &g_array_index (assign_fds, AssignFd, i);
+
+          g_message ("\t%d>&%d", item->target, item->source);
+        }
     }
 
   fflush (stdout);
@@ -1232,23 +1314,26 @@ main (int argc,
 
   /* If the parent or child writes to a passed fd and closes it,
    * don't stand in the way of that. Skip fds 0 (stdin),
-   * 1 (stdout) and 2 (stderr); we have moved our original stdout
-   * to another fd which will be dealt with below, and we want to keep
-   * our stdin and stderr open. */
-  if (child_setup_data.pass_fds != NULL)
+   * 1 (stdout) and 2 (stderr); we have moved our original stdout/stderr
+   * to another fd, which will be dealt with as one of the assign_fds,
+   * and we want to keep our current stdin, stdout and stderr open. */
+  for (i = 0; i < pass_fds->len; i++)
     {
-      for (i = 0; child_setup_data.pass_fds[i] > -1; i++)
-        {
-          if (child_setup_data.pass_fds[i] > 2)
-            close (child_setup_data.pass_fds[i]);
-        }
+      int fd = g_array_index (pass_fds, int, i);
+
+      if (fd > 2)
+        close (fd);
     }
 
-  g_free (child_setup_data.pass_fds);
+  /* Same for reassigned fds, notably our original stdout and stderr */
+  for (i = 0; i < assign_fds->len; i++)
+    {
+      const AssignFd *item = &g_array_index (assign_fds, AssignFd, i);
+      int fd = item->source;
 
-  /* If the child writes to stdout and closes it, don't interfere */
-  glnx_close_fd (&original_stdout);
-  glnx_close_fd (&original_stderr);
+      if (fd > 2)
+        close (fd);
+    }
 
   /* Reap child processes until child_pid exits */
   if (!pv_wait_for_child_processes (child_pid, &wait_status, error))
@@ -1294,9 +1379,10 @@ main (int argc,
     }
 
 out:
+  global_assign_fds = NULL;
   global_ld_so_conf_entries = NULL;
   global_locks = NULL;
-  g_clear_pointer (&global_pass_fds, g_array_unref);
+  global_pass_fds = NULL;
   g_clear_pointer (&opt_regenerate_ld_so_cache, g_free);
 
   if (locales_temp_dir != NULL)
