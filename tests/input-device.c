@@ -1632,21 +1632,23 @@ static const GuessTest guess_tests[] =
       },
     },
     {
-      /* Flags guessed from kernel source code */
+      /* Flags guessed from kernel source code, not confirmed with real
+       * hardware */
       .name = "Wiimote - Balance Board",
       .expected = SRT_INPUT_DEVICE_TYPE_FLAGS_JOYSTICK,
       /* SYN, KEY, ABS */
       .ev = { 0x0b },
       /* Hat 0-1 */
-      .abs = { 0x00, 0x0f },
+      .abs = { 0x00, 0x00, 0x0f },
       .keys = {
           /* 0x00-0xff */ ZEROx8, ZEROx8, ZEROx8, ZEROx8,
-          /* A */
+          /* BTN_A */
           /* 0x100 */ ZEROx4, 0x00, 0x00, 0x01, 0x00,
       },
     },
     {
-      /* Flags guessed from kernel source code */
+      /* Flags guessed from kernel source code, not confirmed with real
+       * hardware */
       .name = "Wiimote - Wii U Pro Controller",
       .expected = SRT_INPUT_DEVICE_TYPE_FLAGS_JOYSTICK,
       /* SYN, KEY, ABS */
