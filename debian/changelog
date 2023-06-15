@@ -1,3 +1,18 @@
+steam-runtime-tools (0.20230615.0) UNRELEASED; urgency=medium
+
+  * bin, pressure-vessel: Show a placeholder for all options with arguments.
+    Otherwise, the --help is misleading.
+  * pressure-vessel:
+    - Don't let bubblewrap prevent standard output from reporting
+      end-of-file (steam-runtime#593)
+    - Add pv-adverb --assign-fd option
+  * input-monitor:
+    - Hex-dump evdev capabilities by default, in a format that is easier
+      to copy/paste into steam-runtime-tools and SDL test data
+    - Also hex-dump the HID report descriptor for HID devices
+
+ -- Simon McVittie <smcv@collabora.com>  Thu, 15 Jun 2023 15:59:25 +0100
+
 steam-runtime-tools (0.20230605.0) steamrt; urgency=medium
 
   * launch-client:
