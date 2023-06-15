@@ -42,6 +42,12 @@ steam-runtime-input-monitor - list input devices
     readable indentation, which is convenient for a human reader but
     less suitable for machine-readable use.
 
+**--only-new**
+:   Do not show any of the input devices that would have been reported
+    by **--once**, only additional devices that are connected after that
+    initial enumeration.
+    The **--once** and **--only-new** options are mutually exclusive.
+
 **--seq**
 :   Print events in **application/json-seq** format (RFC 7464):
     each event is printed as U+001E RECORD SEPARATOR, followed by
@@ -102,6 +108,9 @@ unknown keys to allow for future expansion.
 **removed**
 :   A device was removed. The value is an object with keys **dev_node**
     and **sys_path**, as above.
+
+**#**
+:   Informational messages which are not intended to be machine-readable.
 
 # EXIT STATUS
 

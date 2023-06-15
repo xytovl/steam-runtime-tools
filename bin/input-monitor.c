@@ -42,6 +42,7 @@
 #define RECORD_SEPARATOR "\x1e"
 
 static FILE *original_stdout = NULL;
+static gboolean ignoring_initial_devices = FALSE;
 static gboolean opt_one_line = FALSE;
 static gboolean opt_seq = FALSE;
 static gboolean opt_verbose = FALSE;
@@ -181,8 +182,12 @@ added (SrtInputDeviceMonitor *monitor,
        SrtInputDevice *dev,
        void *user_data)
 {
-  g_autoptr(JsonBuilder) builder = json_builder_new ();
+  g_autoptr(JsonBuilder) builder = NULL;
 
+  if (ignoring_initial_devices)
+    return;
+
+  builder = json_builder_new ();
   json_builder_begin_object (builder);
     {
       json_builder_set_member_name (builder, "added");
@@ -776,8 +781,12 @@ removed (SrtInputDeviceMonitor *monitor,
          SrtInputDevice *dev,
          void *user_data)
 {
-  g_autoptr(JsonBuilder) builder = json_builder_new ();
+  g_autoptr(JsonBuilder) builder = NULL;
 
+  if (ignoring_initial_devices)
+    return;
+
+  builder = json_builder_new ();
   json_builder_begin_object (builder);
     {
       json_builder_set_member_name (builder, "removed");
@@ -804,6 +813,12 @@ all_for_now (SrtInputDeviceMonitor *source,
 {
   g_autoptr(SrtInputDeviceMonitor) monitor = NULL;
   SrtInputDeviceMonitor **monitor_p = user_data;
+
+  if (ignoring_initial_devices)
+    {
+      ignoring_initial_devices = FALSE;
+      return;
+    }
 
   if (srt_input_device_monitor_get_flags (source) & SRT_INPUT_DEVICE_MONITOR_FLAGS_ONCE)
     {
@@ -879,6 +894,8 @@ static const GOptionEntry option_entries[] =
   { "one-line", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_one_line,
     "Print one device per line [default: pretty-print as concatenated JSON]",
     NULL },
+  { "only-new", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &ignoring_initial_devices,
+    "Don't print devices that are initially discovered", NULL },
   { "seq", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_seq,
     "Output application/json-seq [default: pretty-print as concatenated JSON]",
     NULL },
@@ -907,6 +924,14 @@ run (int argc,
 
   if (!g_option_context_parse (option_context, &argc, &argv, error))
     return FALSE;
+
+  if (ignoring_initial_devices
+      && (opt_flags & SRT_INPUT_DEVICE_MONITOR_FLAGS_ONCE) != 0)
+    {
+      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_FAILED,
+                   "Combining --only-new with --once is not useful");
+      return FALSE;
+    }
 
   if (opt_print_version)
     {
@@ -946,6 +971,10 @@ run (int argc,
   g_signal_connect (monitor, "added", G_CALLBACK (added), NULL);
   g_signal_connect (monitor, "removed", G_CALLBACK (removed), NULL);
   g_signal_connect (monitor, "all-for-now", G_CALLBACK (all_for_now), &monitor);
+
+  if (ignoring_initial_devices && !(opt_one_line || opt_seq))
+    fputs ("{\"#\": \"devices that were already connected are not shown\"}\n",
+           original_stdout);
 
   if (!srt_input_device_monitor_start (monitor, error))
     return FALSE;
