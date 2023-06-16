@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20230615.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20230616.0) UNRELEASED; urgency=medium
 
   * bin, pressure-vessel: Show a placeholder for all options with arguments.
     Otherwise, the --help is misleading.
@@ -10,8 +10,9 @@ steam-runtime-tools (0.20230615.0) UNRELEASED; urgency=medium
     - Hex-dump evdev capabilities by default, in a format that is easier
       to copy/paste into steam-runtime-tools and SDL test data
     - Also hex-dump the HID report descriptor for HID devices
+    - Add --only-new option, which is the opposite of --once
 
- -- Simon McVittie <smcv@collabora.com>  Thu, 15 Jun 2023 15:59:25 +0100
+ -- Simon McVittie <smcv@collabora.com>  Fri, 16 Jun 2023 13:06:28 +0100
 
 steam-runtime-tools (0.20230605.0) steamrt; urgency=medium
 
