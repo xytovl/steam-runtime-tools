@@ -56,8 +56,7 @@ RUNTIMES = [
     'soldier',  # Steam Runtime 2 'soldier', based on Debian 10
     'sniper',   # Steam Runtime 3 'sniper', based on Debian 11
     'medic',    # Steam Runtime 4 'medic', provisionally based on Debian 12
-
-    # TF2 classes not used so far: demoman, engineer, pyro, spy
+    'steamrt5',     # Steam Runtime 5, provisionally based on Debian 13
 ]
 
 # All available compatibility targets, including Windows (via Proton)
@@ -308,6 +307,9 @@ class ContainerRuntime(Runtime):
 
     def _runtime_version(self):
         # type: (...) -> typing.Any
+        if self.provides.startswith('steamrt'):
+            return int(self.provides[len('steamrt'):])
+
         return {
             'scout': 1,
             'heavy': 1.5,

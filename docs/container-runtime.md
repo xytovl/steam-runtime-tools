@@ -155,6 +155,19 @@ base distribution.
 contents are subject to change depending on testing results and game
 requirements.
 
+## <span id="steamrt5">Steam Runtime 5</span>
+
+[steamrt5]: #steamrt5
+
+Steam Runtime 5 is a prototype runtime currently based on Debian 13
+(which is expected to be released in mid 2023).
+Like [`sniper`][sniper], it is structurally similar to `soldier`, but with a newer
+base distribution.
+
+`steamrt5` is not yet available as a compatibility tool, and its
+contents are subject to change depending on testing results and game
+requirements.
+
 ## <span id="why">Why the container runtimes are necessary</span>
 
 [why]: #why
