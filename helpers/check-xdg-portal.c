@@ -69,8 +69,13 @@ main (int argc,
   gsize i;
 
   static const gchar * const portal_interface_name[] = {
-    "org.freedesktop.portal.OpenURI",
     "org.freedesktop.portal.Email",
+    "org.freedesktop.portal.FileChooser",
+    "org.freedesktop.portal.Inhibit",
+    "org.freedesktop.portal.OpenURI",
+    "org.freedesktop.portal.ScreenCast",
+    "org.freedesktop.portal.Settings",
+
     NULL,
   };
 
