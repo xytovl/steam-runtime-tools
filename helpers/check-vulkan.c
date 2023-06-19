@@ -128,6 +128,9 @@ get_vk_error_string (VkResult error_code)
         STR(ERROR_VIDEO_PROFILE_CODEC_NOT_SUPPORTED_KHR);
         STR(ERROR_VIDEO_STD_VERSION_NOT_SUPPORTED_KHR);
 #endif
+#if VK_HEADER_VERSION >= 246
+        STR(ERROR_INCOMPATIBLE_SHADER_BINARY_EXT);
+#endif
         STR(RESULT_MAX_ENUM);
 #undef STR
       default:
