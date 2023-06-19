@@ -147,7 +147,7 @@ Documentation in the `steamrt` "metapackage" provides
 [medic]: #medic
 
 Steam Runtime 4, `medic`, is a prototype runtime currently based on Debian 12
-(which is expected to be released in mid 2023).
+(released in 2023).
 Like [`sniper`][sniper], it is structurally similar to `soldier`, but with a newer
 base distribution.
 
