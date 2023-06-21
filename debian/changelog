@@ -1,7 +1,5 @@
-steam-runtime-tools (0.20230616.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20230621.0) UNRELEASED; urgency=medium
 
-  * bin, pressure-vessel: Show a placeholder for all options with arguments.
-    Otherwise, the --help is misleading.
   * pressure-vessel:
     - Don't let bubblewrap prevent standard output from reporting
       end-of-file (steam-runtime#593)
@@ -11,8 +9,18 @@ steam-runtime-tools (0.20230616.0) UNRELEASED; urgency=medium
       to copy/paste into steam-runtime-tools and SDL test data
     - Also hex-dump the HID report descriptor for HID devices
     - Add --only-new option, which is the opposite of --once
+  * system-info:
+    - check-vulkan: Update for Vulkan-Headers >= 1.3.246
+    - check-xdg-portal: Look for more xdg-desktop-portal interfaces.
+      The June 2023 update to Steam makes more use of the various portals,
+      in particular the FileChooser for "native" File -> Open... dialogs.
+  * Documentation:
+    - Update for Debian 12 having been released
+    - Make CLI tools show a placeholder in --help for all options with
+      arguments
+    - Mention Steam Runtime 5 as another possible future branch
 
- -- Simon McVittie <smcv@collabora.com>  Fri, 16 Jun 2023 13:06:28 +0100
+ -- Simon McVittie <smcv@collabora.com>  Wed, 21 Jun 2023 16:05:30 +0100
 
 steam-runtime-tools (0.20230605.0) steamrt; urgency=medium
 
