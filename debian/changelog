@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20230621.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20230621.0) steamrt; urgency=medium
 
   * pressure-vessel:
     - Don't let bubblewrap prevent standard output from reporting
@@ -20,7 +20,7 @@ steam-runtime-tools (0.20230621.0) UNRELEASED; urgency=medium
       arguments
     - Mention Steam Runtime 5 as another possible future branch
 
- -- Simon McVittie <smcv@collabora.com>  Wed, 21 Jun 2023 16:05:30 +0100
+ -- Simon McVittie <smcv@collabora.com>  Wed, 21 Jun 2023 16:51:12 +0100
 
 steam-runtime-tools (0.20230605.0) steamrt; urgency=medium
 

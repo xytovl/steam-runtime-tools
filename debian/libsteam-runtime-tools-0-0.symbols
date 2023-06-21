@@ -83,6 +83,7 @@ libsteam-runtime-tools-0.so.0 libsteam-runtime-tools-0-0 #MINVER#
  srt_graphics_issues_get_type@Base 0.20190822.0
  srt_graphics_library_is_vendor_neutral@Base 0.20191120.0
  srt_graphics_library_vendor_get_type@Base 0.20191120.0
+ srt_input_device_dup_hid_report_descriptor@Base 0.20230621.0
  srt_input_device_dup_hid_uevent@Base 0.20201124.0
  srt_input_device_dup_input_uevent@Base 0.20201124.0
  srt_input_device_dup_udev_properties@Base 0.20201124.0
