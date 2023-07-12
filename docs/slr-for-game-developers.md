@@ -109,6 +109,7 @@ Please contact Valve for more information.
 
 Early adopters for this mechanism include
 [Battle for Wesnoth][Wesnoth on sniper],
+Dota 2,
 [Endless Sky][Endless Sky on sniper] and
 [Retroarch][Retroarch on sniper].
 
