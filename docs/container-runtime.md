@@ -160,7 +160,7 @@ requirements.
 [steamrt5]: #steamrt5
 
 Steam Runtime 5 is a prototype runtime currently based on Debian 13
-(which is expected to be released in mid 2023).
+(which is expected to be released in mid 2025).
 Like [`sniper`][sniper], it is structurally similar to `soldier`, but with a newer
 base distribution.
 
