@@ -58,7 +58,7 @@ whichever one appears to be newer.
 The Steam Linux Runtime can be used to run three categories of games:
 
   * Native Linux games on scout
-  * Native Linux games on future runtimes: soldier, sniper, etc.
+  * Native Linux games on newer runtimes such as sniper
   * Windows games, using Proton
 
 ### <span id="scout">Native Linux games targeting Steam Runtime 1 'scout'</span>
@@ -130,13 +130,15 @@ instructions that refer to `sniper` should usually work.
 
 ### Windows games, using Proton
 
-Versions 5.13+ of Proton require recent Linux shared library stacks.
+Recent versions of Proton require recent Linux shared library stacks.
 To ensure that these are available, even when running on an older
-operating system, Steam automatically runs these versions of Proton
-inside a *Steam Linux Runtime - soldier* container.
+operating system, Steam automatically runs Proton 8.0 or later
+inside a *Steam Linux Runtime - sniper* container.
 
-Future versions of Proton might switch to *Steam Linux Runtime - sniper*
-or a newer stack.
+Similarly, Proton versions 5.13 to 7.0 use a
+*Steam Linux Runtime - soldier* container.
+
+Future versions of Proton might switch to Steam Runtime 4 or later.
 
 ## Suggested Steam configuration
 
@@ -224,6 +226,7 @@ For a more scriptable version of this, run one of these commands:
   * Steam Linux Runtime - soldier: `steam steam://install/1391110`
   * Steam Linux Runtime - sniper: `steam steam://install/1628350`
   * Proton Experimental: `steam steam://install/1493710`
+  * Proton 8.0: `steam steam://install/2348590`
   * Proton 7.0: `steam steam://install/1887720`
   * Proton 6.3: `steam steam://install/1580130`
   * Proton 5.13: `steam steam://install/1420170`
@@ -340,7 +343,7 @@ $ export STEAM_COMPAT_DATA_PATH="/path/to/steamlibrary/compatdata/$gameid"
 $ export STEAM_COMPAT_INSTALL_PATH=$(pwd)
 $ export STEAM_COMPAT_LIBRARY_PATHS=/path/to/steamlibrary:/path/to/otherlibrary
 $ cd /builds/my-game
-$ /path/to/steamlibrary/steamapps/common/SteamLinuxRuntime_soldier/run \
+$ /path/to/steamlibrary/steamapps/common/SteamLinuxRuntime_sniper/run \
     $pressure_vessel_options \
     -- \
     /path/to/steamlibrary/steamapps/common/"Proton - Experimental"/proton \
@@ -348,6 +351,8 @@ $ /path/to/steamlibrary/steamapps/common/SteamLinuxRuntime_soldier/run \
     my-game.exe \
     $game_options
 ```
+
+Use `soldier` instead of `sniper` for Proton 7.0 or older.
 
 ## Logging
 
