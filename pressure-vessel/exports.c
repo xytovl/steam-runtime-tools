@@ -32,6 +32,29 @@ static struct
   const char *log_replace_with;
 } export_targets_data;
 
+/* If a symlink target matches one of these prefixes, it's assumed to be
+ * intended to refer to a path inside the container, not a path on the host,
+ * and therefore not exported.
+ *
+ * In fact we wouldn't export most of these anyway, because FlatpakExports
+ * specifically excludes them - but it's confusing to get log messages saying
+ * "Exporting foo because bar", "Unable to open path" for something that we
+ * have no intention of exporting anyway. */
+static const char * const exclude_prefixes[] =
+{
+  "/app/",
+  "/bin/",
+  "/dev/",
+  "/etc/",
+  "/lib", /* intentionally no trailing "/" to match lib64, etc. */
+  "/overrides/",
+  "/proc/",
+  "/run/gfx/",
+  "/run/host/",
+  "/sbin/",
+  "/usr/",
+};
+
 static int
 export_targets_helper (const char *fpath,
                        const struct stat *sb,
@@ -40,6 +63,7 @@ export_targets_helper (const char *fpath,
 {
   g_autofree gchar *target = NULL;
   const char *after = NULL;
+  size_t i;
 
   switch (typeflag)
     {
@@ -49,13 +73,20 @@ export_targets_helper (const char *fpath,
         if (target[0] != '/')
           break;
 
-        if (g_str_has_prefix (target, "/run/gfx/"))
-          break;
-
-        if (g_str_has_prefix (target, "/run/host/"))
-          break;
-
         after = _srt_get_path_after (fpath, export_targets_data.log_replace_prefix);
+
+        for (i = 0; i < G_N_ELEMENTS (exclude_prefixes); i++)
+          {
+            if (g_str_has_prefix (target, exclude_prefixes[i]))
+              {
+                if (after == NULL)
+                  g_debug ("%s points to container-side path %s", fpath, target);
+                else
+                  g_debug ("%s/%s points to container-side path %s",
+                           export_targets_data.log_replace_with, after, target);
+                return 0;
+              }
+          }
 
         if (after == NULL)
           g_debug ("Exporting %s because %s points to it", target, fpath);
