@@ -6098,6 +6098,7 @@ pv_runtime_handle_alias (PvRuntime *self,
   g_autofree gchar *soname_in_runtime_usr = NULL;
   g_autofree gchar *target = NULL;
   struct stat stat_buf;
+  const char *target_base;
 
   soname_in_overrides = g_build_filename (arch->libdir_relative_to_overrides,
                                           soname, NULL);
@@ -6113,6 +6114,36 @@ pv_runtime_handle_alias (PvRuntime *self,
     {
       g_info ("SONAME \"%s\" overridden by host system", soname);
       target = g_build_filename (arch->libdir_in_container, soname, NULL);
+    }
+
+  if (target == NULL)
+    {
+      /* On some operating systems, the alias is the canonical path, and the
+       * path that we think ought to be canonical might or might not exist.
+       * For example, Fedora patches bzip2 to have SONAME "libbz2.so.1"
+       * instead of the upstream SONAME "libbz2.so.1.0": so from our
+       * Debian-based perspective, libbz2.so.1.0 is canonical and libbz2.so.1
+       * is the alias, but in Fedora the reverse is true. */
+      for (guint j = 0; j < json_array_get_length (aliases_array); j++)
+        {
+          g_autofree gchar *alias_in_overrides = NULL;
+          const char *alias = json_array_get_string_element (aliases_array, j);
+
+          alias_in_overrides = g_build_filename (arch->libdir_relative_to_overrides,
+                                                 alias, NULL);
+
+          if (fstatat (self->overrides_fd, alias_in_overrides, &stat_buf, AT_SYMLINK_NOFOLLOW) == 0
+              && (S_ISLNK (stat_buf.st_mode) || S_ISREG (stat_buf.st_mode)))
+            {
+              g_info ("SONAME \"%s\" is canonically \"%s\" on host system", soname, alias);
+              target = g_build_filename (arch->libdir_in_container, alias, NULL);
+            }
+        }
+    }
+
+  if (target != NULL)
+    {
+      g_info ("Found override for %s: %s", soname, target);
     }
   else if (g_file_test (soname_in_runtime_usr,
                         (G_FILE_TEST_IS_REGULAR | G_FILE_TEST_IS_SYMLINK)))
@@ -6132,6 +6163,32 @@ pv_runtime_handle_alias (PvRuntime *self,
                          "and the \"overrides\" directory", soname);
     }
 
+  target_base = glnx_basename (target);
+
+  if (!g_str_equal (target_base, soname))
+    {
+      /* Our runtime thinks the canonical SONAME of this library is
+       * @soname (for example libbz2.so.1.0) but the host OS thinks it's
+       * @target_base. Create a symlink so that when a game compiled against
+       * the runtime loads @soname, what it actually gets is @target. */
+      g_autofree gchar *dest = g_build_filename (arch->aliases_relative_to_overrides,
+                                                 soname, NULL);
+
+      g_debug ("Creating alias symlink %s -> %s because runtime and host disagree about the SONAME",
+               dest, target);
+
+      if (symlinkat (target, self->overrides_fd, dest) != 0)
+        return glnx_throw_errno_prefix (error,
+                                        "Unable to create symlink %s -> %s",
+                                        dest, target);
+    }
+
+  /* For each alternative name @alias, create a symlink so that if a program
+   * compiled against neither the runtime nor the host OS tries to load
+   * @alias, it will actually get @target. We do this even in the case
+   * where the host OS's name for the library (@target_base) is in fact
+   * the same as @alias: it's harmless to have slightly too many alias
+   * symlinks. */
   for (guint j = 0; j < json_array_get_length (aliases_array); j++)
     {
       const char *alias = json_array_get_string_element (aliases_array, j);
