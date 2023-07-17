@@ -6110,22 +6110,36 @@ pv_runtime_handle_alias (PvRuntime *self,
 
   if (fstatat (self->overrides_fd, soname_in_overrides, &stat_buf, AT_SYMLINK_NOFOLLOW) == 0
       && (S_ISLNK (stat_buf.st_mode) || S_ISREG (stat_buf.st_mode)))
-    target = g_build_filename (arch->libdir_in_container, soname, NULL);
+    {
+      g_info ("SONAME \"%s\" overridden by host system", soname);
+      target = g_build_filename (arch->libdir_in_container, soname, NULL);
+    }
   else if (g_file_test (soname_in_runtime_usr,
                         (G_FILE_TEST_IS_REGULAR | G_FILE_TEST_IS_SYMLINK)))
-    target = g_build_filename ("/usr/lib", arch->details->tuple, soname, NULL);
+    {
+      target = g_build_filename ("/usr/lib", arch->details->tuple, soname, NULL);
+      g_info ("Found %s in runtime's /usr/lib: %s", soname, target);
+    }
   else if (g_file_test (soname_in_runtime,
                         (G_FILE_TEST_IS_REGULAR | G_FILE_TEST_IS_SYMLINK)))
-    target = g_build_filename ("/lib", arch->details->tuple, soname, NULL);
+    {
+      target = g_build_filename ("/lib", arch->details->tuple, soname, NULL);
+      g_info ("Found %s in runtime's /lib: %s", soname, target);
+    }
   else
-    return glnx_throw (error, "The expected library %s is missing from both the runtime "
-                       "and the \"overrides\" directory", soname);
+    {
+      return glnx_throw (error, "The expected library %s is missing from both the runtime "
+                         "and the \"overrides\" directory", soname);
+    }
 
   for (guint j = 0; j < json_array_get_length (aliases_array); j++)
     {
+      const char *alias = json_array_get_string_element (aliases_array, j);
       g_autofree gchar *dest = g_build_filename (arch->aliases_relative_to_overrides,
-                                                 json_array_get_string_element (aliases_array, j),
-                                                 NULL);
+                                                 alias, NULL);
+
+      g_debug ("Creating alias symlink %s -> %s", dest, target);
+
       if (symlinkat (target, self->overrides_fd, dest) != 0)
         return glnx_throw_errno_prefix (error,
                                         "Unable to create symlink %s -> %s",
