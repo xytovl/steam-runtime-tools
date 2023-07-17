@@ -6159,6 +6159,7 @@ pv_runtime_create_aliases (PvRuntime *self,
   for (guint i = 0; i < json_array_get_length (libraries_array); i++)
     {
       const gchar *soname = NULL;
+      g_autoptr(GError) local_error = NULL;
       g_autoptr(GList) members = NULL;
 
       node = json_array_get_element (libraries_array, i);
@@ -6181,9 +6182,14 @@ pv_runtime_create_aliases (PvRuntime *self,
       if (aliases_array == NULL || json_array_get_length (aliases_array) == 0)
         continue;
 
-      if (!pv_runtime_handle_alias (self, arch, soname, aliases_array, error))
-        return FALSE;
+      if (!pv_runtime_handle_alias (self, arch, soname, aliases_array, &local_error))
+        {
+          g_warning ("Unable to create library aliases for %s: %s",
+                     soname, local_error->message);
+          g_clear_error (&local_error);
+        }
     }
+
   return TRUE;
 }
 
