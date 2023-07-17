@@ -360,13 +360,27 @@ error:
 
 typedef struct
 {
+  /* Index into pv_multiarch_details, 0 <= x < PV_N_SUPPORTED_ARCHITECTURES */
   gsize multiarch_index;
+  /* Always &pv_multiarch_details[self->multiarch_index] */
   const PvMultiarchDetails *details;
+  /* "lib/TUPLE/aliases", so that for example
+   * /overrides/${aliases_relative_to_overrides}/libbz2.so.1 might exist
+   * inside the final container */
   gchar *aliases_relative_to_overrides;
+  /* TUPLE-capsule-capture-libs */
   gchar *capsule_capture_libs_basename;
+  /* Absolute path to TUPLE-capsule-capture-libs in p-v's execution
+   * environment */
   gchar *capsule_capture_libs;
+  /* "lib/TUPLE", so that for example
+   * /overrides/${libdir_relative_to_overrides}/libc.so.6 might exist inside
+   * the final container */
   gchar *libdir_relative_to_overrides;
+  /* A path valid inside the final container, for example
+   * /overrides/${libdir_relative_to_overrides} */
   gchar *libdir_in_container;
+  /* ABI's interoperable ld.so path, for example /lib64/ld-linux-x86-64.so.2 */
   gchar *ld_so;
 } RuntimeArchitecture;
 
