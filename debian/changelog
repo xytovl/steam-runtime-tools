@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20230718.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20230718.0) steamrt; urgency=medium
 
   * pressure-vessel fixes:
     - runtime: Cope with OSs where an alias is used as the canonical
@@ -16,7 +16,7 @@ steam-runtime-tools (0.20230718.0) UNRELEASED; urgency=medium
     - runtime: Improve debug logging for exported paths
   * Documentation updates
 
- -- Simon McVittie <smcv@collabora.com>  Tue, 18 Jul 2023 15:45:40 +0100
+ -- Simon McVittie <smcv@collabora.com>  Tue, 18 Jul 2023 17:33:22 +0100
 
 steam-runtime-tools (0.20230621.0) steamrt; urgency=medium
 
