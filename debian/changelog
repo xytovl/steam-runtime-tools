@@ -1,3 +1,23 @@
+steam-runtime-tools (0.20230718.0) UNRELEASED; urgency=medium
+
+  * pressure-vessel fixes:
+    - runtime: Cope with OSs where an alias is used as the canonical
+      SONAME.
+      In particular this handles libbz2.so.1 on Fedora, which doesn't match
+      the upstream SONAME libbz2.so.1.0.
+      (Resolves: ValveSoftware/Dota-2#2392)
+    - runtime: Ignore nvidia-vaapi-driver when capturing VA-API drivers.
+      It has more major dependencies than we are really prepared to deal
+      with, in particular GStreamer.
+      (Resolves: ValveSoftware/Dota-2#2392)
+    - runtime: If creating one alias fails, move on to the next one
+    - runtime: Improve debug logging for libraries taken from the host OS
+    - runtime: Improve debug logging for libraries that have aliases
+    - runtime: Improve debug logging for exported paths
+  * Documentation updates
+
+ -- Simon McVittie <smcv@collabora.com>  Tue, 18 Jul 2023 15:45:40 +0100
+
 steam-runtime-tools (0.20230621.0) steamrt; urgency=medium
 
   * pressure-vessel:
