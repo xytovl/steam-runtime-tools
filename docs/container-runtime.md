@@ -53,9 +53,10 @@ soldier is designed to be used as a container runtime for `pressure-vessel`,
 and [cannot be used](#why) as a
 [`LD_LIBRARY_PATH` runtime][ldlp].
 
-At the time of writing, soldier is used as a runtime environment for
-Proton 5.13 or later, which are compiled against the newer library stack
-and would not be compatible with scout.
+soldier is used as a runtime environment for Proton versions 5.13 to
+7.0, which are compiled against the newer library stack and would not
+be compatible with scout.
+Newer versions of Proton use a newer runtime (see below).
 
 Native Linux games that require soldier cannot currently be released on Steam.
 The next-generation runtime for native Linux games is intended to be
@@ -105,9 +106,10 @@ setting up a [`scout` `LD_LIBRARY_PATH` runtime][ldlp] inside that container.
 
 The Steam Deck automatically uses the Steam Linux Runtime container for
 many native Linux games.
-Some games also default to being run in this container on Linux desktop
-systems, for example [Dota 2][]
-since [its January 2022 update][Dota 2 scout SLR].
+In the past some games have also defaulted  to being run in this container
+on Linux desktop systems, for example [Dota 2][]
+between [its January 2022 update][Dota 2 scout SLR] and
+[mid 2023][Dota 2 sniper].
 This mechanism is not currently available for third-party games on
 desktop Linux, but users can opt-in to running specific games in the
 Steam Linux Runtime container via *Properties* → *Compatibility*.
@@ -121,8 +123,7 @@ Steam Runtime 3, `sniper`, is another newer runtime based on Debian 11
 It is very similar to [`soldier`](#soldier), except for its base distribution
 being 2 years newer: this means its core libraries and compiler are also
 approximately 2 years newer.
-It is likely that future versions of Proton will move from soldier to
-sniper to take advantage of this newer base.
+Proton 8.0 moved from soldier to sniper to take advantage of this newer base.
 
 Native Linux games that require sniper can be released on Steam.
 The intention is that this will become available as a "self-service"
@@ -131,6 +132,11 @@ any game that benefits from a newer library stack.
 However, as of early 2023, this mechanism is not yet ready, so configuring
 a game to run in sniper requires manual setup by a Valve developer.
 Please contact Valve for more information.
+
+Early adopters of this mechanism include
+[Retroarch][] since [August 2022][Retroarch on sniper],
+[Endless Sky][] since [early/mid 2023][Endless Sky on Sniper] and
+[Dota 2][] since [mid 2023][Dota 2 sniper],
 
 The *Steam Linux Runtime - sniper* compatibility tool, app ID 1628350,
 will automatically be downloaded to your Steam library as
@@ -219,8 +225,13 @@ contributed to the Linux kernel.
 
 [Debian]: https://www.debian.org/
 [Dota 2 scout SLR]: https://store.steampowered.com/news/app/570/view/4978168332488878344
+[Dota 2 sniper]: https://mastodon.social/@TTimo/110578711292322771
 [Dota 2]: https://store.steampowered.com/app/570/Dota_2/
+[Endless Sky on sniper]: https://github.com/ValveSoftware/steam-runtime/issues/556
+[Endless Sky]: https://endless-sky.github.io/
 [Flatpak]: https://flatpak.org/
+[Retroarch on sniper]: https://github.com/libretro/RetroArch/issues/14266
+[Retroarch]: https://www.retroarch.com/
 [Steam Runtime issues]: https://github.com/ValveSoftware/steam-runtime/issues
 [Ubuntu]: https://ubuntu.com/
 [bubblewrap]: https://github.com/containers/bubblewrap
