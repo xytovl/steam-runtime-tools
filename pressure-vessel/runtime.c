@@ -6541,10 +6541,24 @@ collect_dri_drivers (PvRuntime *self,
 
   for (icd_iter = va_api_drivers, j = 0; icd_iter != NULL; icd_iter = icd_iter->next, j++)
     {
-      g_autoptr(IcdDetails) details = icd_details_new (icd_iter->data);
+      g_autoptr(IcdDetails) details = NULL;
+      g_autofree gchar *resolved = NULL;
 
+      resolved = srt_va_api_driver_resolve_library_path (icd_iter->data);
+
+      if (g_str_has_suffix (resolved, "/nvidia_drv_video.so"))
+        {
+          /* https://github.com/elFarto/nvidia-vaapi-driver depends on
+           * GStreamer, which is rather more than our dependency-handling
+           * mechanisms are really prepared to deal with. */
+          g_info ("Avoiding use of \"%s\" because it has a lot of dependencies",
+                  resolved);
+          continue;
+        }
+
+      details = icd_details_new (icd_iter->data);
       g_assert (details->resolved_libraries[multiarch_index] == NULL);
-      details->resolved_libraries[multiarch_index] = srt_va_api_driver_resolve_library_path (details->icd);
+      details->resolved_libraries[multiarch_index] = g_steal_pointer (&resolved);
       g_assert (details->resolved_libraries[multiarch_index] != NULL);
       g_assert (g_path_is_absolute (details->resolved_libraries[multiarch_index]));
       g_ptr_array_add (details_arr, g_steal_pointer (&details));
