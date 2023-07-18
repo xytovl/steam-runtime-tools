@@ -360,13 +360,27 @@ error:
 
 typedef struct
 {
+  /* Index into pv_multiarch_details, 0 <= x < PV_N_SUPPORTED_ARCHITECTURES */
   gsize multiarch_index;
+  /* Always &pv_multiarch_details[self->multiarch_index] */
   const PvMultiarchDetails *details;
+  /* "lib/TUPLE/aliases", so that for example
+   * /overrides/${aliases_relative_to_overrides}/libbz2.so.1 might exist
+   * inside the final container */
   gchar *aliases_relative_to_overrides;
+  /* TUPLE-capsule-capture-libs */
   gchar *capsule_capture_libs_basename;
+  /* Absolute path to TUPLE-capsule-capture-libs in p-v's execution
+   * environment */
   gchar *capsule_capture_libs;
+  /* "lib/TUPLE", so that for example
+   * /overrides/${libdir_relative_to_overrides}/libc.so.6 might exist inside
+   * the final container */
   gchar *libdir_relative_to_overrides;
+  /* A path valid inside the final container, for example
+   * /overrides/${libdir_relative_to_overrides} */
   gchar *libdir_in_container;
+  /* ABI's interoperable ld.so path, for example /lib64/ld-linux-x86-64.so.2 */
   gchar *ld_so;
 } RuntimeArchitecture;
 
@@ -6073,6 +6087,126 @@ pv_runtime_finish_libc_family (PvRuntime *self,
 }
 
 static gboolean
+pv_runtime_handle_alias (PvRuntime *self,
+                         RuntimeArchitecture *arch,
+                         const char *soname,
+                         JsonArray *aliases_array,
+                         GError **error)
+{
+  g_autofree gchar *soname_in_overrides = NULL;
+  g_autofree gchar *soname_in_runtime = NULL;
+  g_autofree gchar *soname_in_runtime_usr = NULL;
+  g_autofree gchar *target = NULL;
+  struct stat stat_buf;
+  const char *target_base;
+
+  soname_in_overrides = g_build_filename (arch->libdir_relative_to_overrides,
+                                          soname, NULL);
+  soname_in_runtime_usr = g_build_filename (self->runtime_usr, "lib",
+                                            arch->details->tuple, soname, NULL);
+  /* We are not always in a merged-/usr runtime, e.g. if we are using a
+   * "sysroot" runtime. */
+  soname_in_runtime = g_build_filename (self->runtime_files, "lib",
+                                        arch->details->tuple, soname, NULL);
+
+  if (fstatat (self->overrides_fd, soname_in_overrides, &stat_buf, AT_SYMLINK_NOFOLLOW) == 0
+      && (S_ISLNK (stat_buf.st_mode) || S_ISREG (stat_buf.st_mode)))
+    {
+      g_info ("SONAME \"%s\" overridden by host system", soname);
+      target = g_build_filename (arch->libdir_in_container, soname, NULL);
+    }
+
+  if (target == NULL)
+    {
+      /* On some operating systems, the alias is the canonical path, and the
+       * path that we think ought to be canonical might or might not exist.
+       * For example, Fedora patches bzip2 to have SONAME "libbz2.so.1"
+       * instead of the upstream SONAME "libbz2.so.1.0": so from our
+       * Debian-based perspective, libbz2.so.1.0 is canonical and libbz2.so.1
+       * is the alias, but in Fedora the reverse is true. */
+      for (guint j = 0; j < json_array_get_length (aliases_array); j++)
+        {
+          g_autofree gchar *alias_in_overrides = NULL;
+          const char *alias = json_array_get_string_element (aliases_array, j);
+
+          alias_in_overrides = g_build_filename (arch->libdir_relative_to_overrides,
+                                                 alias, NULL);
+
+          if (fstatat (self->overrides_fd, alias_in_overrides, &stat_buf, AT_SYMLINK_NOFOLLOW) == 0
+              && (S_ISLNK (stat_buf.st_mode) || S_ISREG (stat_buf.st_mode)))
+            {
+              g_info ("SONAME \"%s\" is canonically \"%s\" on host system", soname, alias);
+              target = g_build_filename (arch->libdir_in_container, alias, NULL);
+            }
+        }
+    }
+
+  if (target != NULL)
+    {
+      g_info ("Found override for %s: %s", soname, target);
+    }
+  else if (g_file_test (soname_in_runtime_usr,
+                        (G_FILE_TEST_IS_REGULAR | G_FILE_TEST_IS_SYMLINK)))
+    {
+      target = g_build_filename ("/usr/lib", arch->details->tuple, soname, NULL);
+      g_info ("Found %s in runtime's /usr/lib: %s", soname, target);
+    }
+  else if (g_file_test (soname_in_runtime,
+                        (G_FILE_TEST_IS_REGULAR | G_FILE_TEST_IS_SYMLINK)))
+    {
+      target = g_build_filename ("/lib", arch->details->tuple, soname, NULL);
+      g_info ("Found %s in runtime's /lib: %s", soname, target);
+    }
+  else
+    {
+      return glnx_throw (error, "The expected library %s is missing from both the runtime "
+                         "and the \"overrides\" directory", soname);
+    }
+
+  target_base = glnx_basename (target);
+
+  if (!g_str_equal (target_base, soname))
+    {
+      /* Our runtime thinks the canonical SONAME of this library is
+       * @soname (for example libbz2.so.1.0) but the host OS thinks it's
+       * @target_base. Create a symlink so that when a game compiled against
+       * the runtime loads @soname, what it actually gets is @target. */
+      g_autofree gchar *dest = g_build_filename (arch->aliases_relative_to_overrides,
+                                                 soname, NULL);
+
+      g_debug ("Creating alias symlink %s -> %s because runtime and host disagree about the SONAME",
+               dest, target);
+
+      if (symlinkat (target, self->overrides_fd, dest) != 0)
+        return glnx_throw_errno_prefix (error,
+                                        "Unable to create symlink %s -> %s",
+                                        dest, target);
+    }
+
+  /* For each alternative name @alias, create a symlink so that if a program
+   * compiled against neither the runtime nor the host OS tries to load
+   * @alias, it will actually get @target. We do this even in the case
+   * where the host OS's name for the library (@target_base) is in fact
+   * the same as @alias: it's harmless to have slightly too many alias
+   * symlinks. */
+  for (guint j = 0; j < json_array_get_length (aliases_array); j++)
+    {
+      const char *alias = json_array_get_string_element (aliases_array, j);
+      g_autofree gchar *dest = g_build_filename (arch->aliases_relative_to_overrides,
+                                                 alias, NULL);
+
+      g_debug ("Creating alias symlink %s -> %s", dest, target);
+
+      if (symlinkat (target, self->overrides_fd, dest) != 0)
+        return glnx_throw_errno_prefix (error,
+                                        "Unable to create symlink %s -> %s",
+                                        dest, target);
+    }
+
+  return TRUE;
+}
+
+static gboolean
 pv_runtime_create_aliases (PvRuntime *self,
                            RuntimeArchitecture *arch,
                            GError **error)
@@ -6110,12 +6244,8 @@ pv_runtime_create_aliases (PvRuntime *self,
   for (guint i = 0; i < json_array_get_length (libraries_array); i++)
     {
       const gchar *soname = NULL;
-      g_autofree gchar *soname_in_runtime = NULL;
-      g_autofree gchar *soname_in_runtime_usr = NULL;
-      g_autofree gchar *soname_in_overrides = NULL;
-      g_autofree gchar *target = NULL;
+      g_autoptr(GError) local_error = NULL;
       g_autoptr(GList) members = NULL;
-      struct stat stat_buf;
 
       node = json_array_get_element (libraries_array, i);
       if (!JSON_NODE_HOLDS_OBJECT (node))
@@ -6137,39 +6267,14 @@ pv_runtime_create_aliases (PvRuntime *self,
       if (aliases_array == NULL || json_array_get_length (aliases_array) == 0)
         continue;
 
-      soname_in_overrides = g_build_filename (arch->libdir_relative_to_overrides,
-                                              soname, NULL);
-      soname_in_runtime_usr = g_build_filename (self->runtime_usr, "lib",
-                                                arch->details->tuple, soname, NULL);
-      /* We are not always in a merged-/usr runtime, e.g. if we are using a
-       * "sysroot" runtime. */
-      soname_in_runtime = g_build_filename (self->runtime_files, "lib",
-                                            arch->details->tuple, soname, NULL);
-
-      if (fstatat (self->overrides_fd, soname_in_overrides, &stat_buf, AT_SYMLINK_NOFOLLOW) == 0
-          && (S_ISLNK (stat_buf.st_mode) || S_ISREG (stat_buf.st_mode)))
-        target = g_build_filename (arch->libdir_in_container, soname, NULL);
-      else if (g_file_test (soname_in_runtime_usr,
-                            (G_FILE_TEST_IS_REGULAR | G_FILE_TEST_IS_SYMLINK)))
-        target = g_build_filename ("/usr/lib", arch->details->tuple, soname, NULL);
-      else if (g_file_test (soname_in_runtime,
-                            (G_FILE_TEST_IS_REGULAR | G_FILE_TEST_IS_SYMLINK)))
-        target = g_build_filename ("/lib", arch->details->tuple, soname, NULL);
-      else
-        return glnx_throw (error, "The expected library %s is missing from both the runtime "
-                           "and the \"overrides\" directory", soname);
-
-      for (guint j = 0; j < json_array_get_length (aliases_array); j++)
+      if (!pv_runtime_handle_alias (self, arch, soname, aliases_array, &local_error))
         {
-          g_autofree gchar *dest = g_build_filename (arch->aliases_relative_to_overrides,
-                                                     json_array_get_string_element (aliases_array, j),
-                                                     NULL);
-          if (symlinkat (target, self->overrides_fd, dest) != 0)
-            return glnx_throw_errno_prefix (error,
-                                            "Unable to create symlink %s -> %s",
-                                            dest, target);
+          g_warning ("Unable to create library aliases for %s: %s",
+                     soname, local_error->message);
+          g_clear_error (&local_error);
         }
     }
+
   return TRUE;
 }
 
