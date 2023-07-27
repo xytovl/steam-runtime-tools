@@ -483,8 +483,8 @@ capture_one( const char *soname, const capture_options *options,
         if( ( options->flags & CAPTURE_FLAG_IF_EXISTS ) && local_code == ENOENT )
         {
             DEBUG( DEBUG_TOOL,
-                   "Some of the dependencies for %s have not been found, ignoring",
-                   soname );
+                   "Some of the dependencies for %s have not been found, ignoring: %s",
+                   soname, local_message );
             _capsule_clear( &local_message );
             return true;
         }
