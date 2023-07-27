@@ -196,7 +196,7 @@ test_check_xdg_portal (Fixture *f,
       const XdgPortalTest *t = &xdg_portal_test[i];
       g_autoptr(SrtSystemInfo) info = NULL;
       g_autoptr(SrtObjectList) portal_interfaces = NULL;
-      GList *portal_backends = NULL;
+      g_autoptr(SrtObjectList) portal_backends = NULL;
       SrtXdgPortalIssues issues;
       g_autofree gchar *messages = NULL;
       g_autofree gchar *sysroot = NULL;
