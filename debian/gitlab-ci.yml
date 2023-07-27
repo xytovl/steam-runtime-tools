@@ -167,7 +167,7 @@ package:sniper:
 
 build:devel:
     stage: build
-    image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/debian:testing-slim
+    image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/debian:bookworm-slim
     before_script:
         - *common_before_script
         - |
@@ -204,7 +204,7 @@ build:devel:
 
 build:clang:
     stage: build
-    image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/debian:testing-slim
+    image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/debian:bookworm-slim
     before_script:
         - *common_before_script
         - ./ci/prepare-deb.sh $BUILD_DEPENDENCIES clang clang-tools libclang-rt-dev
