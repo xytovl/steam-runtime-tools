@@ -166,6 +166,8 @@ pv_adverb_set_up_preload_modules (FlatpakBwrap *wrapped_command,
 
       if (buffer->len != 0)
         flatpak_bwrap_set_env (wrapped_command, variable, buffer->str, TRUE);
+
+      g_clear_pointer (&preload_search_paths[i], g_ptr_array_unref);
     }
 
   return TRUE;

@@ -62,6 +62,7 @@ srt_simple_input_device_finalize (GObject *object)
   g_free (self->hid_ancestor.name);
   g_free (self->hid_ancestor.phys);
   g_free (self->hid_ancestor.uniq);
+  g_clear_pointer (&self->hid_ancestor.report_descriptor, g_bytes_unref);
 
   g_free (self->input_ancestor.sys_path);
   g_free (self->input_ancestor.uevent);

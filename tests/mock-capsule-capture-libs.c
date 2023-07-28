@@ -35,7 +35,6 @@ main (int argc,
       char **argv)
 {
   g_autoptr(GError) error = NULL;
-  g_autoptr(GFile) file = NULL;
   const gchar *soname_match = NULL;
   const gchar *dest = NULL;
   const gchar *provider = NULL;
@@ -121,6 +120,8 @@ main (int argc,
     {
       g_autofree gchar *file_path = NULL;
       g_autofree gchar *target = NULL;
+      g_autoptr(GFile) file = NULL;
+
       file_path = g_build_filename (dest, found->pdata[i], NULL);
       file = g_file_new_for_path (file_path);
       target = g_build_filename (lib_dir, found->pdata[i], NULL);

@@ -3893,6 +3893,8 @@ json_parsing (Fixture *f,
               g_assert_cmpint (t->vulkan_icd[j].error_code, ==, error->code);
               g_assert_cmpstr (t->vulkan_icd[j].error_message, ==, error->message);
             }
+
+          g_clear_error (&error);
         }
 
       explicit_layers = srt_system_info_list_explicit_vulkan_layers (info);
