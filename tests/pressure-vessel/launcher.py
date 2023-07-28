@@ -1148,7 +1148,9 @@ class TestLauncher(BaseTest):
                 )
                 self.assertEqual(completed.stdout, mode.encode('utf-8'))
             elif not invalid_name:
-                logger.debug('Should be able to launch command via --inside-app')
+                logger.debug(
+                    'Should be able to launch command via --inside-app'
+                )
                 completed = run_subprocess(
                     self.clean_up_env + self.launch + [
                         '--inside-app', unique,

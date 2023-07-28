@@ -498,7 +498,8 @@ class Environment:
             'SteamLinuxRuntime_soldier/pressure-vessel/'.format(pv)
         )
         print(
-            'rsync -avzP --delete {}/scout-layered/steam-container-runtime/depot/ '
+            'rsync -avzP --delete '
+            '{}/scout-layered/steam-container-runtime/depot/ '
             'machine:.../steamapps/common/SteamLinuxRuntime/'.format(
                 self.builddir_parent,
             )
