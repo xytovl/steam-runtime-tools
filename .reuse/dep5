@@ -16,7 +16,8 @@ Files:
  tests/*/*.json
  tests/*/*.symbols
  .gitlab/issue_templates/*
-Copyright: 2019-2022 Collabora Ltd.
+ .gitlab/merge_request_templates/*
+Copyright: 2019-2023 Collabora Ltd.
 License: MIT
 
 Files:
