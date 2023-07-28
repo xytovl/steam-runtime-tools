@@ -34,7 +34,6 @@ here="${me%/*}"
 me="${me##*/}"
 
 default_path="/usr/local/sbin:/usr/sbin:/sbin:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games"
-steam_runtime="${STEAM_RUNTIME-}"
 
 # Undo any weird environment before we start running external
 # executables. We put it back before running the actual app/game.
