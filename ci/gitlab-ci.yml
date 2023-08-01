@@ -22,7 +22,7 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 variables:
-    BUILD_IMAGE: 'debian:buster-slim'
+    BUILD_IMAGE: 'debian:trixie-slim'
     CI_DISABLE_LIBRARY: ''
     CI_DISTCHECK: ''
     CI_MAKE_J: '-j -l2'
