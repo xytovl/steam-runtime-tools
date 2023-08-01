@@ -3583,7 +3583,7 @@ json_parsing (Fixture *f,
       gsize k;
       GList *icds;
       GList *iter;
-      GList *desktop_entries;
+      g_autoptr(SrtObjectList) desktop_entries = NULL;
       gchar *steam_path = NULL;
       gchar *steam_data_path = NULL;
       gchar *runtime_path = NULL;
