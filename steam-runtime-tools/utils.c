@@ -347,19 +347,22 @@ _srt_get_helper (const char *helpers_path,
   else if (flags & SRT_HELPER_FLAGS_TIME_OUT)
     {
       g_ptr_array_add (argv, g_strdup ("timeout"));
-      g_ptr_array_add (argv, g_strdup ("--signal=TERM"));
+      g_ptr_array_add (argv, g_strdup ("-s"));
+      g_ptr_array_add (argv, g_strdup ("TERM"));
 
       if (flags & SRT_HELPER_FLAGS_TIME_OUT_SOONER)
         {
           /* Speed up the failing case in automated testing */
-          g_ptr_array_add (argv, g_strdup ("--kill-after=1"));
+          g_ptr_array_add (argv, g_strdup ("-k"));
+          g_ptr_array_add (argv, g_strdup ("1"));
           g_ptr_array_add (argv, g_strdup ("1"));
         }
       else
         {
           /* Kill the helper (if still running) 3 seconds after the TERM
            * signal */
-          g_ptr_array_add (argv, g_strdup ("--kill-after=3"));
+          g_ptr_array_add (argv, g_strdup ("-k"));
+          g_ptr_array_add (argv, g_strdup ("3"));
           /* Send TERM signal after 10 seconds */
           g_ptr_array_add (argv, g_strdup ("10"));
         }
