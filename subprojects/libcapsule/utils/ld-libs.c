@@ -546,6 +546,7 @@ dso_find (const char *name, ld_libs *ldlibs, int i, const char *runpaths, int *c
 {
     int found = 0;
     const char *ldpath = NULL;
+    const char *non_ldlp_paths;
     int absolute = (name && (name[0] == '/'));
 
     // 'name' is an absolute path, or relative to CWD:
@@ -648,15 +649,16 @@ dso_find (const char *name, ld_libs *ldlibs, int i, const char *runpaths, int *c
     if( (found = search_ldpath( name, "/lib:/usr/lib", ldlibs, i )) )
         return found;
 
+    non_ldlp_paths = "ld.so.cache, DT_RUNPATH or fallback /lib:/usr/lib";
+
     if (ldpath)
         _capsule_set_error( code, message, ENOENT,
-                            "Could not find \"%s\" in LD_LIBRARY_PATH \"%s\", "
-                            "ld.so.cache, DT_RUNPATH, /lib or /usr/lib",
-                            name, ldpath );
+                            "Could not find \"%s\" in LD_LIBRARY_PATH \"%s\", %s",
+                            name, ldpath, non_ldlp_paths );
     else
         _capsule_set_error( code, message, ENOENT,
-                            "Could not find \"%s\" in LD_LIBRARY_PATH (unset), "
-                            "ld.so.cache, DT_RUNPATH, /lib or /usr/lib", name );
+                            "Could not find \"%s\" in LD_LIBRARY_PATH (unset), %s",
+                            name, non_ldlp_paths );
 
     return 0;
 }
