@@ -448,8 +448,7 @@ capture_one( const char *soname, const capture_options *options,
         {
             if( ( options->flags & CAPTURE_FLAG_IF_EXISTS ) )
             {
-                DEBUG( DEBUG_TOOL,
-                       "Unable to obtain the library %s DT_SONAME, ignoring",
+                warnx( "warning: Unable to obtain the library %s DT_SONAME, ignoring",
                        soname );
                 return true;
             }
@@ -465,7 +464,7 @@ capture_one( const char *soname, const capture_options *options,
         {
             if( ( options->flags & CAPTURE_FLAG_IF_EXISTS ) )
             {
-                DEBUG( DEBUG_TOOL, "%s has a different DT_SONAME: %s",
+                warnx( "warning: %s has an unexpected DT_SONAME, ignoring: %s",
                        soname, dt_soname );
                 return true;
             }
@@ -482,9 +481,8 @@ capture_one( const char *soname, const capture_options *options,
     {
         if( ( options->flags & CAPTURE_FLAG_IF_EXISTS ) && local_code == ENOENT )
         {
-            DEBUG( DEBUG_TOOL,
-                   "Some of the dependencies for %s have not been found, ignoring",
-                   soname );
+            warnx( "warning: Dependencies of %s not found, ignoring: %s",
+                   soname, local_message );
             _capsule_clear( &local_message );
             return true;
         }

@@ -79,9 +79,15 @@ mkdir($libdir);
 run_ok([$CAPSULE_CAPTURE_LIBS_TOOL, 'soname:libc.so.6'], '>&2',
     init => sub { chdir $libdir or die $!; });
 ok(-e "$libdir/libc.so.6", 'libc.so.6 was captured');
-like(readlink "$libdir/libc.so.6", qr{^$LIBDIR/libc\.so\.6$},
-    '$libdir/libc.so.6 is a symlink to the real libc.so.6');
-my $libc = abs_path("$libdir/libc.so.6");
+my $target = readlink "$libdir/libc.so.6";
+diag("Expecting: $libdir/libc.so.6 -> $LIBDIR/libc.so.6");
+diag("Actual:    $libdir/libc.so.6 -> $target");
+like($target, qr{^$LIBDIR/libc\.so\.6$},
+    '$libdir/libc.so.6 is a symlink to the real libc.so.6 in some form');
+my $libc_realpath = abs_path("$libdir/libc.so.6");
+my $libc_real_basename = $libc_realpath;
+$libc_real_basename =~ s{.*/}{};
+my $libc_re = qr{$LIBDIR/\Q$libc_real_basename\E};
 ok(-e "$libdir/libBrokenLocale.so.1", 'related libraries were captured');
 ok(-e "$libdir/libm.so.6", 'related libraries were captured');
 ok(-e "$libdir/libpthread.so.0", 'related libraries were captured');
@@ -112,8 +118,11 @@ run_ok([$CAPSULE_CAPTURE_LIBS_TOOL, '--link-target=/run/host',
     is_deeply(\@links, \@libc_family,
         'the same libraries are captured when using --link-target');
 }
-like(readlink "$libdir/libc.so.6", qr{^/run/host\Q$libc\E$},
-     '$libdir/libc.so.6 is a symlink to /run/host + realpath of libc.so.6');
+$target = readlink "$libdir/libc.so.6";
+diag("Expecting: $libdir/libc.so.6 -> /run/host$libc_re");
+diag("Actual:    $libdir/libc.so.6 -> $target");
+like($target, qr{^/run/host$libc_re$},
+     '$libdir/libc.so.6 is a symlink to /run/host + a path to libc.so.6');
 
 run_ok(['rm', '-fr', $libdir]);
 mkdir($libdir);
@@ -130,8 +139,11 @@ run_ok([$CAPSULE_CAPTURE_LIBS_TOOL, '--link-target=/run/host',
     is_deeply(\@links, \@libc_family,
         'the same libraries are captured when using --link-target');
 }
-like(readlink "$libdir/libc.so.6", qr{^/run/media\Q$libc\E$},
-     '$libdir/libc.so.6 is a symlink to /run/media + realpath of libc.so.6');
+$target = readlink "$libdir/libc.so.6";
+diag("Expecting: $libdir/libc.so.6 -> /run/media$libc_re");
+diag("Actual:    $libdir/libc.so.6 -> $target");
+like($target, qr{^/run/media$libc_re$},
+     '$libdir/libc.so.6 is a symlink to /run/media + a path to libc.so.6');
 
 run_ok(['rm', '-fr', $libdir]);
 mkdir($libdir);
@@ -148,8 +160,11 @@ run_ok([$CAPSULE_CAPTURE_LIBS_TOOL, '--link-target=/run/host',
     is_deeply(\@links, \@libc_family,
         'the same libraries are captured when using --link-target');
 }
-like(readlink "$libdir/libc.so.6", qr{^/run/cost\Q$libc\E$},
-     '$libdir/libc.so.6 is a symlink to /run/cost + realpath of libc.so.6');
+$target = readlink "$libdir/libc.so.6";
+diag("Expecting: $libdir/libc.so.6 -> /run/cost$libc_re");
+diag("Actual:    $libdir/libc.so.6 -> $target");
+like($target, qr{^/run/cost$libc_re$},
+     '$libdir/libc.so.6 is a symlink to /run/cost + a path to libc.so.6');
 
 run_ok(['rm', '-fr', $libdir]);
 mkdir($libdir);
@@ -166,8 +181,11 @@ run_ok([$CAPSULE_CAPTURE_LIBS_TOOL, '--link-target=/run/host',
     is_deeply(\@links, \@libc_family,
         'the same libraries are captured when using --link-target');
 }
-like(readlink "$libdir/libc.so.6", qr{^/run/host\Q$libc\E$},
-     '$libdir/libc.so.6 is a symlink to /run/host + realpath of libc.so.6');
+$target = readlink "$libdir/libc.so.6";
+diag("Expecting: $libdir/libc.so.6 -> /run/host$libc_re");
+diag("Actual:    $libdir/libc.so.6 -> $target");
+like($target, qr{^/run/host$libc_re$},
+     '$libdir/libc.so.6 is a symlink to /run/host + a path to libc.so.6');
 
 run_ok(['rm', '-fr', $libdir]);
 mkdir($libdir);
@@ -175,8 +193,11 @@ mkdir($libdir);
 run_ok([$CAPSULE_CAPTURE_LIBS_TOOL, '--remap-link-prefix=/usr/=/run/host/usr/',
         '--remap-link-prefix=/lib=/run/host/lib', "--dest=$libdir",
         'soname-match:libc.so.6'], '>&2');
-like(readlink "$libdir/libc.so.6", qr{^/run/host\Q$libc\E$},
-     "$libdir/libc.so.6 is a symlink to /run/host + realpath of libc.so.6");
+$target = readlink "$libdir/libc.so.6";
+diag("Expecting: $libdir/libc.so.6 -> /run/host$libc_re");
+diag("Actual:    $libdir/libc.so.6 -> $target");
+like($target, qr{^/run/host$libc_re$},
+     "$libdir/libc.so.6 is a symlink to /run/host + a path to libc.so.6");
 
 run_ok(['rm', '-fr', $libdir]);
 mkdir($libdir);
@@ -184,14 +205,20 @@ mkdir($libdir);
 run_ok([$CAPSULE_CAPTURE_LIBS_TOOL, '--remap-link-prefix=/usr/=/tmp+foo=what/usr/',
         '--remap-link-prefix=/lib=/tmp+foo=what/lib', "--dest=$libdir",
         'soname-match:libc.so.6'], '>&2');
-like(readlink "$libdir/libc.so.6", qr{^/tmp\+foo=what\Q$libc\E$},
-     "$libdir/libc.so.6 is a symlink to /run/host + realpath of libc.so.6");
+$target = readlink "$libdir/libc.so.6";
+diag("Expecting: $libdir/libc.so.6 -> /tmp+foo=what$libc_re");
+diag("Actual:    $libdir/libc.so.6 -> $target");
+like($target, qr{^/tmp\+foo=what$libc_re$},
+     "$libdir/libc.so.6 is a symlink to /tmp+foo=what + a path to libc.so.6");
 
 run_ok(['rm', '-fr', $libdir]);
 mkdir($libdir);
 run_ok([$CAPSULE_CAPTURE_LIBS_TOOL, '--remap-link-prefix=/opt/=/OPT/',
         "--dest=$libdir", 'soname-match:libc.so.6'], '>&2');
-like(readlink "$libdir/libc.so.6", qr{^$LIBDIR/libc\.so\.6$},
+$target = readlink "$libdir/libc.so.6";
+diag("Expecting: $libdir/libc.so.6 -> $LIBDIR/libc.so.6");
+diag("Actual:    $libdir/libc.so.6 -> $target");
+like($target, qr{^$LIBDIR/libc\.so\.6$},
      "$libdir/libc.so.6 is a symlink to the real libc.so.6");
 
 run_ok(['rm', '-fr', $libdir]);
@@ -234,8 +261,11 @@ run_ok([qw(bwrap --ro-bind / / --ro-bind /), $host,
     is_deeply(\@links, \@libc_family,
         'the same libraries are captured when using $host');
 }
-like(readlink "$libdir/libc.so.6", qr{^\Q$host\E\Q$libc\E$},
-     '$libdir/libc.so.6 is a symlink to $host + realpath of libc.so.6');
+$target = readlink "$libdir/libc.so.6";
+diag("Expecting: $libdir/libc.so.6 -> ${host}${libc_re}");
+diag("Actual:    $libdir/libc.so.6 -> $target");
+like($target, qr{^\Q$host\E$libc_re$},
+     '$libdir/libc.so.6 is a symlink to $host + a path to libc.so.6');
 
 run_ok(['rm', '-fr', $libdir]);
 mkdir($libdir);
@@ -255,8 +285,11 @@ run_ok([qw(bwrap --ro-bind / / --ro-bind /), $host,
     is_deeply(\@links, \@libc_family,
         'the same libraries are captured when using $host and --link-target');
 }
-like(readlink "$libdir/libc.so.6", qr{^/run/host\Q$libc\E$},
-     '$libdir/libc.so.6 is a symlink to /run/host + realpath of libc.so.6');
+$target = readlink "$libdir/libc.so.6";
+diag("Expecting: $libdir/libc.so.6 -> /run/host$libc_re");
+diag("Actual:    $libdir/libc.so.6 -> $target");
+like($target, qr{^/run/host$libc_re$},
+     '$libdir/libc.so.6 is a symlink to /run/host + a path to libc.so.6');
 
 run_ok(['rm', '-fr', $libdir]);
 mkdir($libdir);
@@ -275,7 +308,7 @@ run_ok([qw(bwrap --ro-bind / / --ro-bind /), $host,
     closedir $dir_iter;
 }
 like(readlink "$libdir/libxml2.so.2", qr{^$LIBDIR/libxml2\.so\.2(?:[0-9.]+)$},
-     '$libdir/libxml2.so.2 is a symlink to /run/host + realpath of libxml2');
+     '$libdir/libxml2.so.2 is a symlink to /run/host + a path to libxml2');
 
 run_ok(['rm', '-fr', $libdir]);
 mkdir($libdir);

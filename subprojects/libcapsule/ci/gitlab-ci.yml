@@ -22,7 +22,7 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 variables:
-    BUILD_IMAGE: 'debian:buster-slim'
+    BUILD_IMAGE: 'debian:trixie-slim'
     CI_DISABLE_LIBRARY: ''
     CI_DISTCHECK: ''
     CI_MAKE_J: '-j -l2'
@@ -113,15 +113,15 @@ build:asan:
         paths:
             - debian/tmp/artifacts/${CI_JOB_NAME}
 
-build:stretch:
-    extends: .deb-build-snapshot
-    variables:
-        BUILD_IMAGE: 'debian:stretch-slim'
-
 build:buster:
     extends: .deb-build-snapshot
     variables:
         BUILD_IMAGE: 'debian:buster-slim'
+
+build:bullseye:
+    extends: .deb-build-snapshot
+    variables:
+        BUILD_IMAGE: 'debian:bullseye-slim'
 
 build:bionic:
     extends: .deb-build-snapshot
