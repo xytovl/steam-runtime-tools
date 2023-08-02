@@ -1,8 +1,11 @@
 steam-runtime-tools (0.20230801.0) UNRELEASED; urgency=medium
 
   * pressure-vessel fixes:
+    - Improve log messages from capsule-capture-libs when a library
+      dependency is not found (Helps: jupiter/tasks#887)
     - Be compatible with timeout(1) from busybox
-    - Fix a small memory leak in pv-adverb
+      (Helps: ValveSoftware/Dota-2#2390)
+    - Fix some small memory leaks
   * Diagnostic tools:
     - Be compatible with timeout(1) from busybox
     - Fix memory leaks when querying steam: protocol handler
