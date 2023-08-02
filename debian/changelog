@@ -1,3 +1,17 @@
+libcapsule (0.20230802.0-0co1) upstream; urgency=medium
+
+  * capture-libs: Log a warning for several unexpected situations, even if
+    CAPSULE_DEBUG is not set:
+    - If dependencies are not all found
+    - If we can't find the SONAME of a library
+    - If a library has a SONAME that is not the one we expected
+  * ld-libs: Adjust an error message to make it clearer that
+    /lib:/usr/lib is only a fallback
+  * tests: Fix test failures on newer Debian releases with merged /usr
+  * CI fixes
+
+ -- Simon McVittie <smcv@collabora.com>  Wed, 02 Aug 2023 15:48:31 +0100
+
 libcapsule (0.20221006.0-0co1) upstream; urgency=medium
 
   [ Ludovico de Nittis ]
