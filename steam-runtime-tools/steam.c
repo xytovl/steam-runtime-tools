@@ -729,5 +729,6 @@ _srt_steam_check (const GStrv my_environ,
   g_free (dot_steam_root);
   g_free (default_steam_path);
   g_strfreev (env);
+  g_clear_object (&default_app);
   return issues;
 }

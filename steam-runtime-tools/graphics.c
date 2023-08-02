@@ -1968,7 +1968,9 @@ _srt_graphics_get_from_report (JsonObject *json_obj,
 
   if (json_object_has_member (json_obj, "graphics-details"))
     {
-      GList *graphics_members;
+      /* The list itself is owned, the contents are not */
+      g_autoptr(GList) graphics_members = NULL;
+
       json_graphics_obj = json_object_get_object_member (json_obj, "graphics-details");
 
       if (json_graphics_obj == NULL)

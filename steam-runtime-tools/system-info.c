@@ -875,7 +875,9 @@ srt_system_info_new_from_json (const char *path,
   if (json_object_has_member (json_obj, "architectures"))
     {
       JsonObject *json_arch_obj = NULL;
-      GList *multiarch_tuples = NULL;
+      /* The list itself is owned, the contents are not */
+      g_autoptr(GList) multiarch_tuples = NULL;
+
       json_sub_obj = json_object_get_object_member (json_obj, "architectures");
 
       multiarch_tuples = json_object_get_members (json_sub_obj);
@@ -927,7 +929,9 @@ srt_system_info_new_from_json (const char *path,
   if (json_object_has_member (json_obj, "locales"))
     {
       JsonObject *json_locale_obj = NULL;
-      GList *locales_members = NULL;
+      /* The list itself is owned, the contents are not */
+      g_autoptr(GList) locales_members = NULL;
+
       json_sub_obj = json_object_get_object_member (json_obj, "locales");
 
       locales_members = json_object_get_members (json_sub_obj);
