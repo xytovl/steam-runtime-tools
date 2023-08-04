@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20230801.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20230804.0) steamrt; urgency=medium
 
   * pressure-vessel fixes:
     - Improve log messages from capsule-capture-libs when a library
@@ -15,7 +15,7 @@ steam-runtime-tools (0.20230801.0) UNRELEASED; urgency=medium
   * Lint fixes
   * Documentation updates
 
- -- Simon McVittie <smcv@collabora.com>  Wed, 02 Aug 2023 15:09:14 +0100
+ -- Simon McVittie <smcv@collabora.com>  Fri, 04 Aug 2023 19:18:27 +0100
 
 steam-runtime-tools (0.20230718.0) steamrt; urgency=medium
 
