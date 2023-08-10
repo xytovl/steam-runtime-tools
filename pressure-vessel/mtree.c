@@ -371,6 +371,32 @@ pv_mtree_entry_parse (const char *line,
   return TRUE;
 }
 
+static gboolean
+maybe_chmod (const PvMtreeEntry *entry,
+             int fd,
+             const char *sysroot,
+             GError **error)
+{
+  int adjusted_mode;
+
+  if (entry->entry_flags & PV_MTREE_ENTRY_FLAGS_NO_CHANGE)
+    return TRUE;
+
+  if (entry->kind == PV_MTREE_ENTRY_KIND_DIR
+      || (entry->mode >= 0 && entry->mode & 0111))
+    adjusted_mode = 0755;
+  else
+    adjusted_mode = 0644;
+
+  if (glnx_fchmod (fd, adjusted_mode, error))
+    return TRUE;
+
+  g_prefix_error (error,
+                  "Unable to set mode of \"%s\" in \"%s\": ",
+                  entry->name, sysroot);
+  return FALSE;
+}
+
 /*
  * pv_mtree_apply:
  * @mtree: (type filename): Path to a mtree(5) manifest
@@ -487,7 +513,6 @@ pv_mtree_apply (const char *mtree,
       g_auto(PvMtreeEntry) entry = PV_MTREE_ENTRY_BLANK;
       glnx_autofd int parent_fd = -1;
       glnx_autofd int fd = -1;
-      int adjusted_mode;
 
       line = g_data_input_stream_read_line (reader, NULL, NULL, &local_error);
 
@@ -659,21 +684,8 @@ pv_mtree_apply (const char *mtree,
                                mtree, line_number);
         }
 
-      if (entry.kind == PV_MTREE_ENTRY_KIND_DIR
-          || (entry.mode >= 0 && entry.mode & 0111))
-        adjusted_mode = 0755;
-      else
-        adjusted_mode = 0644;
-
-      if (fd >= 0
-          && !(entry.entry_flags & PV_MTREE_ENTRY_FLAGS_NO_CHANGE)
-          && !glnx_fchmod (fd, adjusted_mode, error))
-        {
-          g_prefix_error (error,
-                          "Unable to set mode of \"%s\" in \"%s\": ",
-                          entry.name, sysroot);
-          return FALSE;
-        }
+      if (fd >= 0 && !maybe_chmod (&entry, fd, sysroot, error))
+        return FALSE;
 
       if (entry.mtime_usec >= 0
           && fd >= 0
