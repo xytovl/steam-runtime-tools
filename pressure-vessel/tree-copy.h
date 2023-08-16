@@ -29,6 +29,8 @@
  * @PV_COPY_FLAGS_USRMERGE: Transform the copied tree by merging
  *  /bin, /sbin, /lib* into /usr, and replacing them with symbolic
  *  links /bin -> usr/bin and so on.
+ * @PV_COPY_FLAGS_EXPECT_HARD_LINKS: Log a warning if unable to create
+ *  hard links between @source_root and @dest_root.
  * @PV_RESOLVE_FLAGS_NONE: No special behaviour.
  *
  * Flags affecting how pv_cheap_tree_copy() behaves.
