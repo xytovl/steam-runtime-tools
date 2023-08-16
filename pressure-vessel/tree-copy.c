@@ -108,10 +108,29 @@ copy_regular_file (const char *source,
 
   if (TEMP_FAILURE_RETRY (fchmod (dest_fd, mode)) != 0)
     {
-      glnx_throw_errno_prefix (error,
-                               "Unable to copy permissions 0%o of \"%s\" to \"%s\"",
-                               mode, source, temp);
-      goto cleanup;
+      int saved_errno = errno;
+      int required_access = R_OK;
+
+      if (mode & 0111)
+        required_access |= X_OK;
+
+      if (saved_errno == EPERM
+          && (nftw_data.flags & PV_COPY_FLAGS_CHMOD_MAY_FAIL) != 0
+          && access (temp, required_access) == 0)
+        {
+          /* We don't log warnings here, because production use of
+           * pressure-vessel normally operates from a mtree manifest,
+           * which would give us better warnings anyway. */
+          g_info ("Ignoring EPERM copying permissions 0%o of \"%s\" to \"%s\"",
+                  mode, source, temp);
+        }
+      else
+        {
+          glnx_throw_errno_prefix (error,
+                                   "Unable to copy permissions 0%o of \"%s\" to \"%s\"",
+                                   mode, source, temp);
+          goto cleanup;
+        }
     }
 
   /* glnx_file_copy_at() silently ignores failure to set timestamps;

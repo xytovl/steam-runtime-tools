@@ -29,10 +29,24 @@
 #include "steam-runtime-tools/glib-backports-internal.h"
 #include "libglnx.h"
 
+/*
+ * PvMtreeApplyFlags:
+ * @PV_MTREE_APPLY_FLAGS_GZIP: Input is compressed with gzip
+ * @PV_MTREE_APPLY_FLAGS_EXPECT_HARD_LINKS: Warn if unable to use hard-links
+ *  to save space
+ * @PV_MTREE_APPLY_FLAGS_CHMOD_MAY_FAIL: If unable to set permissions,
+ *  assume that r-x is good enough for directories and executables, and
+ *  assume that r-- is good enough for all other files (useful when writing
+ *  to NTFS or FAT)
+ * @PV_MTREE_APPLY_FLAGS_NONE: None of the above
+ *
+ * Flags altering how a mtree manifest is applied to a directory tree.
+ */
 typedef enum
 {
   PV_MTREE_APPLY_FLAGS_GZIP = (1 << 0),
   PV_MTREE_APPLY_FLAGS_EXPECT_HARD_LINKS = (1 << 1),
+  PV_MTREE_APPLY_FLAGS_CHMOD_MAY_FAIL = (1 << 2),
   PV_MTREE_APPLY_FLAGS_NONE = 0
 } PvMtreeApplyFlags;
 

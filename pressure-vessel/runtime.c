@@ -1020,7 +1020,9 @@ pv_runtime_create_copy (PvRuntime *self,
 
           if (!pv_mtree_apply (usr_mtree, dest_usr, dest_usr_fd,
                                self->source_files,
-                               mtree_flags | PV_MTREE_APPLY_FLAGS_EXPECT_HARD_LINKS,
+                               (mtree_flags
+                                | PV_MTREE_APPLY_FLAGS_CHMOD_MAY_FAIL
+                                | PV_MTREE_APPLY_FLAGS_EXPECT_HARD_LINKS),
                                error))
             return FALSE;
         }
@@ -1028,7 +1030,9 @@ pv_runtime_create_copy (PvRuntime *self,
         {
           /* Fall back to assuming that what's on-disk is correct. */
           if (!pv_cheap_tree_copy (self->source_files, dest_usr,
-                                   PV_COPY_FLAGS_EXPECT_HARD_LINKS, error))
+                                   (PV_COPY_FLAGS_CHMOD_MAY_FAIL
+                                    | PV_COPY_FLAGS_EXPECT_HARD_LINKS),
+                                   error))
             return FALSE;
         }
     }
@@ -1040,7 +1044,9 @@ pv_runtime_create_copy (PvRuntime *self,
       g_assert (usr_mtree == NULL);
 
       if (!pv_cheap_tree_copy (self->source_files, temp_dir,
-                               PV_COPY_FLAGS_USRMERGE, error))
+                               (PV_COPY_FLAGS_CHMOD_MAY_FAIL
+                                | PV_COPY_FLAGS_USRMERGE),
+                               error))
         return FALSE;
     }
 
@@ -7597,7 +7603,7 @@ pv_runtime_bind (PvRuntime *self,
       dest = glnx_fdrel_abspath (parent_dirfd, "from-host");
 
       if (!pv_cheap_tree_copy (self->pv_prefix, dest,
-                               PV_COPY_FLAGS_NONE, error))
+                               PV_COPY_FLAGS_CHMOD_MAY_FAIL, error))
         return FALSE;
 
       if (bwrap != NULL)

@@ -374,8 +374,13 @@ pv_mtree_entry_parse (const char *line,
 
 static gboolean
 maybe_chmod (const PvMtreeEntry *entry,
+             int parent_fd,
+             const char *base,
              int fd,
              const char *sysroot,
+             PvMtreeApplyFlags flags,
+             GLogLevelFlags *chmod_plusx_warning_level,
+             GLogLevelFlags *chmod_minusx_warning_level,
              GError **error)
 {
   g_autofree gchar *permissions = NULL;
@@ -404,6 +409,44 @@ maybe_chmod (const PvMtreeEntry *entry,
   else
     {
       permissions = g_strdup_printf ("(unknown: %s)", g_strerror (errno));
+    }
+
+  if (saved_errno == EPERM
+      && (flags & PV_MTREE_APPLY_FLAGS_CHMOD_MAY_FAIL) != 0)
+    {
+      /* Use faccessat() instead of reading stat_buf.st_mode,
+       * in case we are not the file owner or the filesystem
+       * bypasses normal POSIX permissions */
+      if ((adjusted_mode & 0111) != 0)
+        {
+          /* We want it to be executable */
+          if (faccessat (parent_fd, base, R_OK|X_OK, 0) == 0)
+            {
+              g_log (G_LOG_DOMAIN, *chmod_plusx_warning_level,
+                     "Cannot chmod directory/executable \"%s\" in \"%s\" "
+                     "from %s to 0%o (%s): assuming R_OK|X_OK is close enough",
+                     entry->name, sysroot,
+                     permissions, adjusted_mode, g_strerror (saved_errno));
+              *chmod_plusx_warning_level = G_LOG_LEVEL_INFO;
+              return TRUE;
+            }
+        }
+      else
+        {
+          /* We don't want it to be executable, but hopefully it's not
+           * fatally bad if it is accidentally executable (as files on
+           * NTFS or FAT often will be) */
+          if (faccessat (parent_fd, base, R_OK, 0) == 0)
+            {
+              g_log (G_LOG_DOMAIN, *chmod_minusx_warning_level,
+                     "Cannot chmod non-executable file \"%s\" in \"%s\" "
+                     "from %s to 0%o (%s): assuming R_OK is close enough",
+                     entry->name, sysroot,
+                     permissions, adjusted_mode, g_strerror (saved_errno));
+              *chmod_minusx_warning_level = G_LOG_LEVEL_INFO;
+              return TRUE;
+            }
+        }
     }
 
   errno = saved_errno;
@@ -484,6 +527,11 @@ pv_mtree_apply (const char *mtree,
   g_autoptr(SrtProfilingTimer) timer = NULL;
   glnx_autofd int source_files_fd = -1;
   guint line_number = 0;
+  /* We only emit a warning for the first file we were unable to chmod +x,
+   * and the first file we were unable to chmod -x, per mtree applied;
+   * the second and subsequent file in each class are demoted to INFO. */
+  GLogLevelFlags chmod_plusx_warning_level = G_LOG_LEVEL_WARNING;
+  GLogLevelFlags chmod_minusx_warning_level = G_LOG_LEVEL_WARNING;
   GLogLevelFlags set_mtime_warning_level = G_LOG_LEVEL_WARNING;
 
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
@@ -701,7 +749,10 @@ pv_mtree_apply (const char *mtree,
                                mtree, line_number);
         }
 
-      if (fd >= 0 && !maybe_chmod (&entry, fd, sysroot, error))
+      if (fd >= 0 &&
+          !maybe_chmod (&entry, parent_fd, base, fd, sysroot, flags,
+                        &chmod_plusx_warning_level, &chmod_minusx_warning_level,
+                        error))
         return FALSE;
 
       if (entry.mtime_usec >= 0

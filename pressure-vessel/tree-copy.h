@@ -31,6 +31,8 @@
  *  links /bin -> usr/bin and so on.
  * @PV_COPY_FLAGS_EXPECT_HARD_LINKS: Log a warning if unable to create
  *  hard links between @source_root and @dest_root.
+ * @PV_COPY_FLAGS_CHMOD_MAY_FAIL: Don't fail if unable to copy file
+ *  permissions from @source_root to @dest_root.
  * @PV_RESOLVE_FLAGS_NONE: No special behaviour.
  *
  * Flags affecting how pv_cheap_tree_copy() behaves.
@@ -39,6 +41,7 @@ typedef enum
 {
   PV_COPY_FLAGS_USRMERGE = (1 << 0),
   PV_COPY_FLAGS_EXPECT_HARD_LINKS = (1 << 1),
+  PV_COPY_FLAGS_CHMOD_MAY_FAIL = (1 << 2),
   PV_COPY_FLAGS_NONE = 0
 } PvCopyFlags;
 
