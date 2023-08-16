@@ -441,6 +441,7 @@ pv_mtree_apply (const char *mtree,
   g_autoptr(SrtProfilingTimer) timer = NULL;
   glnx_autofd int source_files_fd = -1;
   guint line_number = 0;
+  GLogLevelFlags set_mtime_warning_level = G_LOG_LEVEL_WARNING;
 
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
   g_return_val_if_fail (mtree != NULL, FALSE);
@@ -689,8 +690,12 @@ pv_mtree_apply (const char *mtree,
           };
 
           if (futimens (fd, times) != 0)
-            g_warning ("Unable to set mtime of \"%s\" in \"%s\": %s",
-                       entry.name, sysroot, g_strerror (errno));
+            {
+              g_log (G_LOG_DOMAIN, set_mtime_warning_level,
+                     "Unable to set mtime of \"%s\" in \"%s\": %s",
+                     entry.name, sysroot, g_strerror (errno));
+              set_mtime_warning_level = G_LOG_LEVEL_INFO;
+            }
         }
     }
 
