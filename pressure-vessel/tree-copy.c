@@ -31,6 +31,7 @@
 #include "libglnx.h"
 
 #include "steam-runtime-tools/glib-backports-internal.h"
+#include "steam-runtime-tools/utils-internal.h"
 #include "flatpak-bwrap-private.h"
 #include "flatpak-utils-base-private.h"
 #include "flatpak-utils-private.h"
@@ -96,7 +97,7 @@ copy_tree_helper (const char *fpath,
         }
 
       if (!glnx_shutil_mkdir_p_at (-1, nftw_data.dest_root,
-                                   sb->st_mode & 07777, NULL, error))
+                                   _srt_stat_get_permissions (sb), NULL, error))
         return 1;
 
       return 0;
@@ -155,7 +156,7 @@ copy_tree_helper (const char *fpath,
             /* Fall through to create usr/bin or similar too */
           }
 
-        if (!glnx_shutil_mkdir_p_at (-1, dest, sb->st_mode & 07777,
+        if (!glnx_shutil_mkdir_p_at (-1, dest, _srt_stat_get_permissions (sb),
                                      NULL, error))
           return 1;
         break;

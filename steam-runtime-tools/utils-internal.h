@@ -143,6 +143,20 @@ G_GNUC_INTERNAL const char *_srt_get_path_after (const char *str,
                                                  const char *prefix);
 
 /*
+ * _srt_stat_get_permissions:
+ *
+ * Return the part of @stat_buf that represents permissions, discarding
+ * the file-type bits of `st_mode` (this is the opposite of `S_IFMT`).
+ *
+ * Returns: the permissions bits
+ */
+ __attribute__((nonnull)) static inline int
+_srt_stat_get_permissions (const struct stat *stat_buf)
+{
+  return stat_buf->st_mode & 07777;
+}
+
+/*
  * _srt_is_same_stat:
  * @a: a stat buffer
  * @b: a stat buffer

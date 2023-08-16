@@ -230,7 +230,7 @@ pv_wrap_check_bwrap (const char *tools_dir,
   else if (statbuf.st_mode & S_ISUID)
     {
       g_info ("Using setuid bubblewrap executable %s (permissions: %o)",
-              bwrap, statbuf.st_mode & 07777);
+              bwrap, _srt_stat_get_permissions (&statbuf));
       flags |= PV_BWRAP_FLAGS_SETUID;
     }
 
