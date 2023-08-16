@@ -73,21 +73,69 @@ static struct
 } nftw_data;
 
 static gboolean
-copy_regular_file (const char *fpath,
-                   const struct stat *sb,
+copy_regular_file (const char *source,
+                   const struct stat *source_stat,
                    const char *dest,
                    GError **error)
 {
-  if (!glnx_file_copy_at (AT_FDCWD, fpath, sb,
-                          AT_FDCWD, dest,
-                          (GLNX_FILE_COPY_OVERWRITE
-                           | GLNX_FILE_COPY_NOCHOWN
-                           | GLNX_FILE_COPY_NOXATTRS),
-                          NULL, error))
-    return glnx_prefix_error (error, "Unable to copy \"%s\" to \"%s\"",
-                              fpath, dest);
+  glnx_autofd int source_fd = -1;
+  glnx_autofd int dest_fd = -1;
+  g_autofree gchar *temp = NULL;
+  int mode;
+  struct timespec times[2];
+
+  if (!glnx_openat_rdonly (AT_FDCWD, source, FALSE, &source_fd, error))
+    return glnx_prefix_error (error, "Unable to open \"%s\" for reading", source);
+
+  mode = _srt_stat_get_permissions (source_stat);
+
+  /* We need to be able to write to the file as the current user,
+   * so turn a mode like 0444 into 0644 */
+  temp = g_strdup_printf ("%s.XXXXXX", dest);
+  dest_fd = TEMP_FAILURE_RETRY (g_mkstemp_full (temp, O_RDWR | O_CLOEXEC,
+                                                S_IWUSR | mode));
+
+  if (dest_fd < 0)
+    return glnx_throw_errno_prefix (error, "Unable to open \"%s\" for writing",
+                                    temp);
+
+  if (glnx_regfile_copy_bytes (source_fd, dest_fd, (off_t) -1) < 0)
+    {
+      glnx_throw_errno_prefix (error, "Unable to copy \"%s\" to \"%s\"",
+                               source, temp);
+      goto cleanup;
+    }
+
+  if (TEMP_FAILURE_RETRY (fchmod (dest_fd, mode)) != 0)
+    {
+      glnx_throw_errno_prefix (error,
+                               "Unable to copy permissions 0%o of \"%s\" to \"%s\"",
+                               mode, source, temp);
+      goto cleanup;
+    }
+
+  /* glnx_file_copy_at() silently ignores failure to set timestamps;
+   * do the same here */
+  times[0] = source_stat->st_atim;
+  times[1] = source_stat->st_mtim;
+  (void) futimens (dest_fd, times);
+
+  glnx_close_fd (&dest_fd);
+
+  if (rename (temp, dest) != 0)
+    {
+      glnx_throw_errno_prefix (error,
+                               "Unable to rename \"%s\" to \"%s\"", temp, dest);
+      goto cleanup;
+    }
 
   return TRUE;
+
+cleanup:
+  if (unlink (temp) != 0)
+    g_warning ("Unable to delete temporary \"%s\": %s", temp, g_strerror (errno));
+
+  return FALSE;
 }
 
 static gboolean
