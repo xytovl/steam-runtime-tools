@@ -73,6 +73,24 @@ static struct
 } nftw_data;
 
 static gboolean
+copy_regular_file (const char *fpath,
+                   const struct stat *sb,
+                   const char *dest,
+                   GError **error)
+{
+  if (!glnx_file_copy_at (AT_FDCWD, fpath, sb,
+                          AT_FDCWD, dest,
+                          (GLNX_FILE_COPY_OVERWRITE
+                           | GLNX_FILE_COPY_NOCHOWN
+                           | GLNX_FILE_COPY_NOXATTRS),
+                          NULL, error))
+    return glnx_prefix_error (error, "Unable to copy \"%s\" to \"%s\"",
+                              fpath, dest);
+
+  return TRUE;
+}
+
+static gboolean
 link_or_copy_regular_file (const char *fpath,
                            const struct stat *sb,
                            const char *dest,
@@ -95,14 +113,8 @@ link_or_copy_regular_file (const char *fpath,
    * in link() failing but a copy succeeding, we just try it
    * unconditionally - the worst that can happen is that this
    * fails too. */
-  if (!glnx_file_copy_at (AT_FDCWD, fpath, sb,
-                          AT_FDCWD, dest,
-                          (GLNX_FILE_COPY_OVERWRITE
-                           | GLNX_FILE_COPY_NOCHOWN
-                           | GLNX_FILE_COPY_NOXATTRS),
-                          NULL, error))
-    return glnx_prefix_error (error, "Unable to copy \"%s\" to \"%s\"",
-                              fpath, dest);
+  if (!copy_regular_file (fpath, sb, dest, error))
+    return FALSE;
 
   /* If link() failed but copying succeeded, then we might have
    * a problem that we need to warn about. */
