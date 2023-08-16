@@ -31,6 +31,7 @@
 #include <gio/gunixinputstream.h>
 
 #include "enumtypes.h"
+#include "utils.h"
 
 /* Enabling debug logging for this is rather too verbose, so only
  * enable it when actively debugging this module */
@@ -377,7 +378,10 @@ maybe_chmod (const PvMtreeEntry *entry,
              const char *sysroot,
              GError **error)
 {
+  g_autofree gchar *permissions = NULL;
   int adjusted_mode;
+  int saved_errno;
+  struct stat stat_buf = {};
 
   if (entry->entry_flags & PV_MTREE_ENTRY_FLAGS_NO_CHANGE)
     return TRUE;
@@ -388,13 +392,26 @@ maybe_chmod (const PvMtreeEntry *entry,
   else
     adjusted_mode = 0644;
 
-  if (glnx_fchmod (fd, adjusted_mode, error))
+  if (TEMP_FAILURE_RETRY (fchmod (fd, adjusted_mode)) == 0)
     return TRUE;
 
-  g_prefix_error (error,
-                  "Unable to set mode of \"%s\" in \"%s\": ",
-                  entry->name, sysroot);
-  return FALSE;
+  saved_errno = errno;
+
+  if (fstat (fd, &stat_buf) == 0)
+    {
+      permissions = pv_stat_describe_permissions (&stat_buf);
+    }
+  else
+    {
+      permissions = g_strdup_printf ("(unknown: %s)", g_strerror (errno));
+    }
+
+  errno = saved_errno;
+  return glnx_throw_errno_prefix (error,
+                                  "Unable to change mode of \"%s\" in \"%s\" "
+                                  "from %s to 0%o: fchmod",
+                                  entry->name, sysroot,
+                                  permissions, adjusted_mode);
 }
 
 /*

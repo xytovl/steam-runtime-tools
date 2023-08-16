@@ -23,6 +23,7 @@
 #pragma once
 
 #include <stdio.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 
 #include <glib.h>
@@ -63,3 +64,5 @@ gchar *pv_generate_unique_filepath (const gchar *sub_dir,
                                     const gchar *file,
                                     const gchar *multiarch_tuple,
                                     GHashTable *files_set);
+
+gchar *pv_stat_describe_permissions (const struct stat *stat_buf);

@@ -23,6 +23,8 @@
 #include "utils.h"
 
 #include <ftw.h>
+#include <grp.h>
+#include <pwd.h>
 #include <sys/prctl.h>
 #include <sys/signalfd.h>
 #include <sys/types.h>
@@ -861,4 +863,89 @@ pv_generate_unique_filepath (const gchar *sub_dir,
   g_hash_table_add (files_set, g_strdup (relative_to_overrides));
 
   return g_steal_pointer (&relative_to_overrides);
+}
+
+static gboolean
+we_are_in_group (gid_t gid)
+{
+  /* Arbitrarily guess we might be in 16 groups */
+  int size = 16;
+  g_autofree gid_t *gids = NULL;
+  int res;
+  int i;
+
+  if (gid == getegid ())
+    return TRUE;
+
+  while (1)
+    {
+      gids = g_realloc_n (gids, size, sizeof (gid_t));
+      res = getgroups (size, gids);
+
+      if (res >= 0 || errno != EINVAL)
+        break;
+
+      /* If gids was not large enough, try to find out how much space
+       * is actually needed */
+      size = getgroups (0, gids);
+
+      if (size < 0)
+        break;
+    }
+
+  for (i = 0; i < res; i++)
+    {
+      if (gid == gids[i])
+        return TRUE;
+    }
+
+  return FALSE;
+}
+
+gchar *
+pv_stat_describe_permissions (const struct stat *stat_buf)
+{
+  g_autoptr(GString) buf = g_string_new ("");
+
+  g_string_append_printf (buf, "0%o", _srt_stat_get_permissions (stat_buf));
+
+  if (stat_buf->st_uid != geteuid () || stat_buf->st_gid != getegid ())
+    {
+      /* Arbitrary size: if user/group information doesn't fit in this,
+       * we fall back to using the numeric ID. */
+      char temp[1024];
+      struct passwd pwd = {};
+      struct passwd *pwd_out;
+      struct group grp = {};
+      struct group *grp_out;
+
+      g_string_append (buf, " (owner: ");
+
+      if (stat_buf->st_uid == geteuid ())
+        g_string_append (buf, "current user");
+      else if (getpwuid_r (stat_buf->st_uid, &pwd, temp, sizeof (temp),
+                           &pwd_out) == 0
+               && pwd_out == &pwd)
+        g_string_append_printf (buf, "\"%s\"", pwd.pw_name);
+      else
+        g_string_append_printf (buf, "ID %ld", (long) stat_buf->st_uid);
+
+      g_string_append (buf, ", group: ");
+
+      if (stat_buf->st_gid == getegid ())
+        g_string_append (buf, "primary group");
+      else if (getgrgid_r (stat_buf->st_gid, &grp, temp, sizeof (temp),
+                           &grp_out) == 0
+               && grp_out == &grp)
+        g_string_append_printf (buf, "\"%s\"", grp.gr_name);
+      else
+        g_string_append_printf (buf, "ID %ld", (long) stat_buf->st_gid);
+
+      if (!we_are_in_group (stat_buf->st_gid))
+        g_string_append (buf, ", non-member");
+
+      g_string_append (buf, ")");
+    }
+
+  return g_string_free (g_steal_pointer (&buf), FALSE);
 }
