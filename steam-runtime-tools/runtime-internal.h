@@ -28,8 +28,33 @@
 
 #include "steam-runtime-tools/runtime.h"
 
+/* Include this at the beginning so that every backport of
+ * G_DEFINE_AUTOPTR_CLEANUP_FUNC will be visible */
+#include "steam-runtime-tools/glib-backports-internal.h"
+
 #include <glib.h>
 #include <glib-object.h>
+
+typedef struct
+{
+  gchar *path;
+  gchar *expected_version;
+  gchar *version;
+  SrtRuntimeIssues issues;
+} SrtRuntime;
+
+static inline gboolean _srt_runtime_is_populated (const SrtRuntime *self)
+{
+  return self->issues != SRT_RUNTIME_ISSUES_NONE || self->path != NULL;
+}
+
+static inline void _srt_runtime_clear (SrtRuntime *self)
+{
+  g_clear_pointer (&self->path, g_free);
+  g_clear_pointer (&self->version, g_free);
+  g_clear_pointer (&self->expected_version, g_free);
+  self->issues = SRT_RUNTIME_ISSUES_NONE;
+}
 
 G_GNUC_INTERNAL
 SrtRuntimeIssues _srt_runtime_check (const char *bin32,

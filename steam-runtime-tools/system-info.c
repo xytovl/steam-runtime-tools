@@ -133,15 +133,9 @@ struct _SrtSystemInfo
     SrtLocaleIssues issues;
     gboolean have_issues;
   } locales;
-  struct
-  {
-    /* path != NULL or issues != NONE indicates we have already checked
-     * the Steam Runtime */
-    gchar *path;
-    gchar *expected_version;
-    gchar *version;
-    SrtRuntimeIssues issues;
-  } runtime;
+  /* _srt_runtime_is_populated() indicates we have already checked the
+   * Steam Runtime */
+  SrtRuntime runtime;
   struct
   {
     GList *list;
@@ -467,10 +461,7 @@ forget_locales (SrtSystemInfo *self)
 static void
 forget_runtime (SrtSystemInfo *self)
 {
-  g_clear_pointer (&self->runtime.path, g_free);
-  g_clear_pointer (&self->runtime.version, g_free);
-  g_clear_pointer (&self->runtime.expected_version, g_free);
-  self->runtime.issues = SRT_RUNTIME_ISSUES_NONE;
+  _srt_runtime_clear (&self->runtime);
 }
 
 /*
@@ -2585,8 +2576,7 @@ ensure_runtime_cached (SrtSystemInfo *self)
   ensure_os_cached (self);
   ensure_steam_cached (self);
 
-  if (self->runtime.issues == SRT_RUNTIME_ISSUES_NONE &&
-      self->runtime.path == NULL)
+  if (!_srt_runtime_is_populated (&self->runtime))
     {
       const char *runtime = g_environ_getenv (self->env, "STEAM_RUNTIME");
 
