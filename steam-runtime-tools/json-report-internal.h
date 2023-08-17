@@ -37,7 +37,7 @@
 #include "steam-runtime-tools/desktop-entry.h"
 #include "steam-runtime-tools/library.h"
 #include "steam-runtime-tools/os-internal.h"
-#include "steam-runtime-tools/runtime.h"
+#include "steam-runtime-tools/runtime-internal.h"
 #include "steam-runtime-tools/simple-input-device-internal.h"
 #include "steam-runtime-tools/steam.h"
 #include "steam-runtime-tools/virtualization.h"
@@ -51,6 +51,7 @@ GList *_srt_get_steam_desktop_entries_from_json_report (JsonObject *json_obj);
 SrtLibraryIssues _srt_library_get_issues_from_report (JsonObject *json_obj);
 void _srt_os_release_populate_from_report (JsonObject *json_obj,
                                            SrtOsRelease *self);
-SrtRuntimeIssues _srt_runtime_get_issues_from_report (JsonObject *json_obj);
 SrtSimpleInputDevice *_srt_simple_input_device_new_from_json (JsonObject *obj);
 SrtSteam *_srt_steam_get_from_report (JsonObject *json_obj);
+void _srt_runtime_fill_from_report (SrtRuntime *self,
+                                    JsonObject *json_obj);

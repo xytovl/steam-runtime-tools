@@ -829,24 +829,13 @@ srt_system_info_new_from_json (const char *path,
                                                                         FALSE);
 
   info->steam_data = _srt_steam_get_from_report (json_obj);
+  _srt_runtime_fill_from_report (&info->runtime, json_obj);
 
-  info->runtime.issues = SRT_RUNTIME_ISSUES_UNKNOWN;
   if (json_object_has_member (json_obj, "runtime"))
     {
       json_sub_obj = json_object_get_object_member (json_obj, "runtime");
 
-      info->runtime.path = g_strdup (json_object_get_string_member_with_default (json_sub_obj,
-                                                                                 "path",
-                                                                                 NULL));
-
-      info->runtime.version = g_strdup (json_object_get_string_member_with_default (json_sub_obj,
-                                                                                    "version",
-                                                                                    NULL));
-
       info->pinned_libs.have_data = TRUE;
-
-      info->runtime.issues = _srt_runtime_get_issues_from_report (json_sub_obj);
-
       info->pinned_libs.values_32 = _srt_system_info_get_pinned_libs_from_report (json_sub_obj,
                                                                                   "pinned_libs_32",
                                                                                   &info->pinned_libs.messages_32);
@@ -2529,26 +2518,22 @@ srt_system_info_set_expected_runtime_version (SrtSystemInfo *self,
   g_return_if_fail (SRT_IS_SYSTEM_INFO (self));
 
   if (self->immutable_values)
-  {
-    g_clear_pointer (&self->runtime.expected_version, g_free);
-    self->runtime.expected_version = g_strdup (version);
-    if (self->runtime.expected_version == NULL
-        || self->runtime.version == NULL
-        || g_strcmp0 (self->runtime.expected_version, self->runtime.version) == 0)
     {
-      self->runtime.issues &= ~SRT_RUNTIME_ISSUES_UNEXPECTED_VERSION;
+      g_clear_pointer (&self->runtime.expected_version, g_free);
+      self->runtime.expected_version = g_strdup (version);
+      if (self->runtime.expected_version == NULL
+          || self->runtime.version == NULL
+          || g_strcmp0 (self->runtime.expected_version, self->runtime.version) == 0)
+        self->runtime.issues &= ~SRT_RUNTIME_ISSUES_UNEXPECTED_VERSION;
+      else
+        self->runtime.issues |= SRT_RUNTIME_ISSUES_UNEXPECTED_VERSION;
     }
-    else
-    {
-      self->runtime.issues |= SRT_RUNTIME_ISSUES_UNEXPECTED_VERSION;
-    }
-  }
   else if (g_strcmp0 (version, self->runtime.expected_version) != 0)
-  {
-    forget_runtime (self);
-    g_clear_pointer (&self->runtime.expected_version, g_free);
-    self->runtime.expected_version = g_strdup (version);
-  }
+    {
+      forget_runtime (self);
+      g_clear_pointer (&self->runtime.expected_version, g_free);
+      self->runtime.expected_version = g_strdup (version);
+    }
 }
 
 /**
