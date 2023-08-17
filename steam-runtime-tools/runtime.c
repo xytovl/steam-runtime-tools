@@ -131,8 +131,12 @@ same_stat (GStatBuf *left,
  * @version_out: (optional) (type utf8) (out): The actual version number
  * @path_out: (optional) (type filename) (out): The absolute path of the
  *  Steam Runtime
+ *
+ * Check that the current process is running in a LD_LIBRARY_PATH
+ * Steam Runtime environment, returning any issue flags that indicate
+ * problems with it.
  */
-SrtRuntimeIssues
+static SrtRuntimeIssues
 _srt_runtime_check (const char *bin32,
                     const char *expected_version,
                     const GStrv custom_environ,
@@ -463,6 +467,98 @@ out:
   g_strfreev (my_environ);
   g_clear_error (&error);
   return issues;
+}
+
+/*
+ * _srt_runtime_check_container:
+ * @self: information about the runtime
+ * @os_release: information about the container OS
+ *
+ * Return information about a Steam Runtime container (pressure-vessel,
+ * Docker or any other container) if we are running inside one.
+ *
+ * Returns: %TRUE if we are running in a container Steam Runtime
+ *  environment
+ */
+static gboolean
+_srt_runtime_check_container (SrtRuntime *self,
+                              const SrtOsRelease *os_release)
+{
+  if (g_strcmp0 (os_release->id, "steamrt") != 0)
+    return FALSE;
+
+  _srt_runtime_clear_outputs (self);
+  self->path = g_strdup ("/");
+  self->version = g_strdup (os_release->build_id);
+
+  if (self->expected_version != NULL
+      && g_strcmp0 (self->expected_version, self->version) != 0)
+    self->issues |= SRT_RUNTIME_ISSUES_UNEXPECTED_VERSION;
+
+  if (self->version == NULL)
+    {
+      self->issues |= SRT_RUNTIME_ISSUES_NOT_RUNTIME;
+    }
+  else
+    {
+      const char *p;
+
+      for (p = self->version; *p != '\0'; p++)
+        {
+          if (!g_ascii_isdigit (*p) && *p != '.')
+            self->issues |= SRT_RUNTIME_ISSUES_UNOFFICIAL;
+        }
+    }
+
+  return TRUE;
+}
+
+/*
+ * _srt_runtime_check_execution_environment:
+ * @self: Information about the runtime. Fields other than @expected_version
+ *  will be overwritten.
+ * @env: A copy of `environ`, or a mock environment
+ * @os_release: Information about the running OS release
+ * @bin32: Path to `~/.steam/root/ubuntu12_32`
+ *
+ * Check that the current process is running in a LD_LIBRARY_PATH
+ * or container Steam Runtime environment, setting fields in @self
+ * as appropriate.
+ */
+void
+_srt_runtime_check_execution_environment (SrtRuntime *self,
+                                          const GStrv env,
+                                          const SrtOsRelease *os_release,
+                                          const char *bin32)
+{
+  const char *runtime;
+
+  g_return_if_fail (self != NULL);
+  g_return_if_fail (env != NULL);
+  g_return_if_fail (os_release != NULL);
+
+  _srt_runtime_clear_outputs (self);
+  runtime = g_environ_getenv (env, "STEAM_RUNTIME");
+
+  /* If we are currently running in a LD_LIBRARY_PATH runtime, check that
+   * it is as expected */
+  if (runtime != NULL && runtime[0] == '/' && runtime[1] != '\0')
+    {
+      self->issues = _srt_runtime_check (bin32, self->expected_version, env,
+                                         &self->version, &self->path);
+      return;
+    }
+
+  /* Or, if we are currently running in a container runtime (for example
+   * pressure-vessel Platform or Docker SDK), check that it is as expected */
+  if (_srt_runtime_check_container (self, os_release))
+    return;
+
+  /* If we are not currently running in a container runtime, check that
+   * the default LD_LIBRARY_PATH runtime in
+   * ~/.steam/root/ubuntu12_32/steam-runtime is as expected */
+  self->issues = _srt_runtime_check (bin32, self->expected_version, env,
+                                     &self->version, &self->path);
 }
 
 /*

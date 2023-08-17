@@ -2562,52 +2562,9 @@ ensure_runtime_cached (SrtSystemInfo *self)
   ensure_steam_cached (self);
 
   if (!_srt_runtime_is_populated (&self->runtime))
-    {
-      const char *runtime = g_environ_getenv (self->env, "STEAM_RUNTIME");
-
-      if (runtime != NULL && runtime[0] == '/' && runtime[1] != '\0')
-        {
-          self->runtime.issues = _srt_runtime_check (srt_steam_get_bin32_path (self->steam_data),
-                                                     self->runtime.expected_version,
-                                                     self->env,
-                                                     &self->runtime.version,
-                                                     &self->runtime.path);
-        }
-      else if (g_strcmp0 (self->os_release.id, "steamrt") == 0)
-        {
-          self->runtime.path = g_strdup ("/");
-          self->runtime.version = g_strdup (self->os_release.build_id);
-
-          if (self->runtime.expected_version != NULL
-              && g_strcmp0 (self->runtime.expected_version, self->runtime.version) != 0)
-            {
-              self->runtime.issues |= SRT_RUNTIME_ISSUES_UNEXPECTED_VERSION;
-            }
-
-          if (self->runtime.version == NULL)
-            {
-              self->runtime.issues |= SRT_RUNTIME_ISSUES_NOT_RUNTIME;
-            }
-          else
-            {
-              const char *p;
-
-              for (p = self->runtime.version; *p != '\0'; p++)
-                {
-                  if (!g_ascii_isdigit (*p) && *p != '.')
-                    self->runtime.issues |= SRT_RUNTIME_ISSUES_UNOFFICIAL;
-                }
-            }
-        }
-      else
-        {
-          self->runtime.issues = _srt_runtime_check (srt_steam_get_bin32_path (self->steam_data),
-                                                     self->runtime.expected_version,
-                                                     self->env,
-                                                     &self->runtime.version,
-                                                     &self->runtime.path);
-        }
-    }
+    _srt_runtime_check_execution_environment (&self->runtime, self->env,
+                                              &self->os_release,
+                                              srt_steam_get_bin32_path (self->steam_data));
 }
 
 /**

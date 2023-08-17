@@ -32,6 +32,8 @@
  * G_DEFINE_AUTOPTR_CLEANUP_FUNC will be visible */
 #include "steam-runtime-tools/glib-backports-internal.h"
 
+#include "steam-runtime-tools/os-internal.h"
+
 #include <glib.h>
 #include <glib-object.h>
 
@@ -48,20 +50,24 @@ static inline gboolean _srt_runtime_is_populated (const SrtRuntime *self)
   return self->issues != SRT_RUNTIME_ISSUES_NONE || self->path != NULL;
 }
 
-static inline void _srt_runtime_clear (SrtRuntime *self)
+static inline void _srt_runtime_clear_outputs (SrtRuntime *self)
 {
   g_clear_pointer (&self->path, g_free);
   g_clear_pointer (&self->version, g_free);
-  g_clear_pointer (&self->expected_version, g_free);
   self->issues = SRT_RUNTIME_ISSUES_NONE;
 }
 
+static inline void _srt_runtime_clear (SrtRuntime *self)
+{
+  _srt_runtime_clear_outputs (self);
+  g_clear_pointer (&self->expected_version, g_free);
+}
+
 G_GNUC_INTERNAL
-SrtRuntimeIssues _srt_runtime_check (const char *bin32,
-                                     const char *expected_version,
-                                     const GStrv custom_environ,
-                                     gchar **version_out,
-                                     gchar **path_out);
+void _srt_runtime_check_execution_environment (SrtRuntime *self,
+                                               const GStrv env,
+                                               const SrtOsRelease *os_release,
+                                               const char *bin32);
 
 G_GNUC_INTERNAL
 GStrv _srt_environ_escape_steam_runtime (GStrv env);
