@@ -133,15 +133,9 @@ struct _SrtSystemInfo
     SrtLocaleIssues issues;
     gboolean have_issues;
   } locales;
-  struct
-  {
-    /* path != NULL or issues != NONE indicates we have already checked
-     * the Steam Runtime */
-    gchar *path;
-    gchar *expected_version;
-    gchar *version;
-    SrtRuntimeIssues issues;
-  } runtime;
+  /* _srt_runtime_is_populated() indicates we have already checked the
+   * Steam Runtime */
+  SrtRuntime runtime;
   struct
   {
     GList *list;
@@ -467,10 +461,7 @@ forget_locales (SrtSystemInfo *self)
 static void
 forget_runtime (SrtSystemInfo *self)
 {
-  g_clear_pointer (&self->runtime.path, g_free);
-  g_clear_pointer (&self->runtime.version, g_free);
-  g_clear_pointer (&self->runtime.expected_version, g_free);
-  self->runtime.issues = SRT_RUNTIME_ISSUES_NONE;
+  _srt_runtime_clear (&self->runtime);
 }
 
 /*
@@ -838,24 +829,13 @@ srt_system_info_new_from_json (const char *path,
                                                                         FALSE);
 
   info->steam_data = _srt_steam_get_from_report (json_obj);
+  _srt_runtime_fill_from_report (&info->runtime, json_obj);
 
-  info->runtime.issues = SRT_RUNTIME_ISSUES_UNKNOWN;
   if (json_object_has_member (json_obj, "runtime"))
     {
       json_sub_obj = json_object_get_object_member (json_obj, "runtime");
 
-      info->runtime.path = g_strdup (json_object_get_string_member_with_default (json_sub_obj,
-                                                                                 "path",
-                                                                                 NULL));
-
-      info->runtime.version = g_strdup (json_object_get_string_member_with_default (json_sub_obj,
-                                                                                    "version",
-                                                                                    NULL));
-
       info->pinned_libs.have_data = TRUE;
-
-      info->runtime.issues = _srt_runtime_get_issues_from_report (json_sub_obj);
-
       info->pinned_libs.values_32 = _srt_system_info_get_pinned_libs_from_report (json_sub_obj,
                                                                                   "pinned_libs_32",
                                                                                   &info->pinned_libs.messages_32);
@@ -2538,26 +2518,22 @@ srt_system_info_set_expected_runtime_version (SrtSystemInfo *self,
   g_return_if_fail (SRT_IS_SYSTEM_INFO (self));
 
   if (self->immutable_values)
-  {
-    g_clear_pointer (&self->runtime.expected_version, g_free);
-    self->runtime.expected_version = g_strdup (version);
-    if (self->runtime.expected_version == NULL
-        || self->runtime.version == NULL
-        || g_strcmp0 (self->runtime.expected_version, self->runtime.version) == 0)
     {
-      self->runtime.issues &= ~SRT_RUNTIME_ISSUES_UNEXPECTED_VERSION;
+      g_clear_pointer (&self->runtime.expected_version, g_free);
+      self->runtime.expected_version = g_strdup (version);
+      if (self->runtime.expected_version == NULL
+          || self->runtime.version == NULL
+          || g_strcmp0 (self->runtime.expected_version, self->runtime.version) == 0)
+        self->runtime.issues &= ~SRT_RUNTIME_ISSUES_UNEXPECTED_VERSION;
+      else
+        self->runtime.issues |= SRT_RUNTIME_ISSUES_UNEXPECTED_VERSION;
     }
-    else
-    {
-      self->runtime.issues |= SRT_RUNTIME_ISSUES_UNEXPECTED_VERSION;
-    }
-  }
   else if (g_strcmp0 (version, self->runtime.expected_version) != 0)
-  {
-    forget_runtime (self);
-    g_clear_pointer (&self->runtime.expected_version, g_free);
-    self->runtime.expected_version = g_strdup (version);
-  }
+    {
+      forget_runtime (self);
+      g_clear_pointer (&self->runtime.expected_version, g_free);
+      self->runtime.expected_version = g_strdup (version);
+    }
 }
 
 /**
@@ -2585,54 +2561,10 @@ ensure_runtime_cached (SrtSystemInfo *self)
   ensure_os_cached (self);
   ensure_steam_cached (self);
 
-  if (self->runtime.issues == SRT_RUNTIME_ISSUES_NONE &&
-      self->runtime.path == NULL)
-    {
-      const char *runtime = g_environ_getenv (self->env, "STEAM_RUNTIME");
-
-      if (runtime != NULL && runtime[0] == '/' && runtime[1] != '\0')
-        {
-          self->runtime.issues = _srt_runtime_check (srt_steam_get_bin32_path (self->steam_data),
-                                                     self->runtime.expected_version,
-                                                     self->env,
-                                                     &self->runtime.version,
-                                                     &self->runtime.path);
-        }
-      else if (g_strcmp0 (self->os_release.id, "steamrt") == 0)
-        {
-          self->runtime.path = g_strdup ("/");
-          self->runtime.version = g_strdup (self->os_release.build_id);
-
-          if (self->runtime.expected_version != NULL
-              && g_strcmp0 (self->runtime.expected_version, self->runtime.version) != 0)
-            {
-              self->runtime.issues |= SRT_RUNTIME_ISSUES_UNEXPECTED_VERSION;
-            }
-
-          if (self->runtime.version == NULL)
-            {
-              self->runtime.issues |= SRT_RUNTIME_ISSUES_NOT_RUNTIME;
-            }
-          else
-            {
-              const char *p;
-
-              for (p = self->runtime.version; *p != '\0'; p++)
-                {
-                  if (!g_ascii_isdigit (*p) && *p != '.')
-                    self->runtime.issues |= SRT_RUNTIME_ISSUES_UNOFFICIAL;
-                }
-            }
-        }
-      else
-        {
-          self->runtime.issues = _srt_runtime_check (srt_steam_get_bin32_path (self->steam_data),
-                                                     self->runtime.expected_version,
-                                                     self->env,
-                                                     &self->runtime.version,
-                                                     &self->runtime.path);
-        }
-    }
+  if (!_srt_runtime_is_populated (&self->runtime))
+    _srt_runtime_check_execution_environment (&self->runtime, self->env,
+                                              &self->os_release,
+                                              srt_steam_get_bin32_path (self->steam_data));
 }
 
 /**

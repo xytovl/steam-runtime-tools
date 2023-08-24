@@ -60,6 +60,16 @@
  *  the libraries in the Steam Runtime. This is likely to work
  *  acceptably with NVIDIA non-free graphics drivers, but is likely to
  *  break Mesa.
+ * @SRT_RUNTIME_ISSUES_ON_NON_UNIX_FILESYSTEM: The Steam Runtime is
+ *  stored on a non-Unix filesystem which might not preserve permissions,
+ *  ownership and other metadata.
+ * @SRT_RUNTIME_ISSUES_ON_NETWORK_FILESYSTEM: The Steam Runtime is
+ *  stored on a networked filesystem, which might make metadata operations
+ *  unexpectedly slow.
+ * @SRT_RUNTIME_ISSUES_ON_UNKNOWN_FILESYSTEM: The Steam Runtime is
+ *  stored on a filesystem not known to the diagnostic tool, or a virtual
+ *  filesystem such as FUSE or overlayfs which could be backed by an unknown
+ *  underlying filesystem.
  *
  * A bitfield with flags representing problems with the Steam Runtime, or
  * %SRT_RUNTIME_ISSUES_NONE (which is numerically zero) if no problems
@@ -79,5 +89,8 @@ typedef enum
   SRT_RUNTIME_ISSUES_NOT_IN_PATH = (1 << 7),
   SRT_RUNTIME_ISSUES_NOT_IN_ENVIRONMENT = (1 << 8),
   SRT_RUNTIME_ISSUES_NOT_USING_NEWER_HOST_LIBRARIES = (1 << 9),
+  SRT_RUNTIME_ISSUES_ON_NON_UNIX_FILESYSTEM = (1 << 10),
+  SRT_RUNTIME_ISSUES_ON_NETWORK_FILESYSTEM = (1 << 11),
+  SRT_RUNTIME_ISSUES_ON_UNKNOWN_FILESYSTEM = (1 << 12),
   SRT_RUNTIME_ISSUES_NONE = 0
 } SrtRuntimeIssues;

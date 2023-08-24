@@ -332,7 +332,7 @@ _srt_os_release_populate_from_report (JsonObject *json_obj,
     }
 }
 
-/**
+/*
  * _srt_runtime_get_issues_from_report:
  * @json_obj: (not nullable): A JSON Object used to search for "issues"
  *  property
@@ -344,7 +344,7 @@ _srt_os_release_populate_from_report (JsonObject *json_obj,
  *
  * Returns: The #SrtRuntimeIssues that has been found
  */
-SrtRuntimeIssues
+static SrtRuntimeIssues
 _srt_runtime_get_issues_from_report (JsonObject *json_obj)
 {
   g_return_val_if_fail (json_obj != NULL, SRT_RUNTIME_ISSUES_UNKNOWN);
@@ -606,6 +606,28 @@ _srt_simple_input_device_new_from_json (JsonObject *obj)
     }
 
   return self;
+}
+
+void
+_srt_runtime_fill_from_report (SrtRuntime *self,
+                               JsonObject *json_obj)
+{
+  self->issues = SRT_RUNTIME_ISSUES_UNKNOWN;
+
+  if (json_object_has_member (json_obj, "runtime"))
+    {
+      JsonObject *json_sub_obj = json_object_get_object_member (json_obj, "runtime");
+
+      g_clear_pointer (&self->path, g_free);
+      self->path = g_strdup (json_object_get_string_member_with_default (json_sub_obj,
+                                                                         "path",
+                                                                         NULL));
+      g_clear_pointer (&self->version, g_free);
+      self->version = g_strdup (json_object_get_string_member_with_default (json_sub_obj,
+                                                                            "version",
+                                                                            NULL));
+      self->issues = _srt_runtime_get_issues_from_report (json_sub_obj);
+    }
 }
 
 /**

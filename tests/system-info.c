@@ -837,6 +837,12 @@ multiarch_tuples_handling (Fixture *f,
   g_strfreev (tuples_list);
 }
 
+/* The filesystem used to run tests is not under our control, and on
+ * Docker-based CI it will often be overlayfs. */
+static const SrtRuntimeIssues ignore_runtime_issues = (SRT_RUNTIME_ISSUES_ON_NON_UNIX_FILESYSTEM
+                                                       | SRT_RUNTIME_ISSUES_ON_NETWORK_FILESYSTEM
+                                                       | SRT_RUNTIME_ISSUES_ON_UNKNOWN_FILESYSTEM);
+
 static void
 steam_runtime (Fixture *f,
                gconstpointer context)
@@ -857,7 +863,7 @@ steam_runtime (Fixture *f,
   fake_home_apply_to_system_info (fake_home, info);
 
   /* Check for runtime issues */
-  runtime_issues = srt_system_info_get_runtime_issues (info);
+  runtime_issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (runtime_issues, ==, SRT_RUNTIME_ISSUES_NONE);
   runtime_path = srt_system_info_dup_runtime_path (info);
   g_assert_cmpstr (runtime_path, ==, fake_home->runtime);
@@ -870,7 +876,7 @@ steam_runtime (Fixture *f,
   g_free (bin32_path);
 
   /* Do the check again, this time using the cache */
-  runtime_issues = srt_system_info_get_runtime_issues (info);
+  runtime_issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (runtime_issues, ==, SRT_RUNTIME_ISSUES_NONE);
   runtime_path = srt_system_info_dup_runtime_path (info);
   g_assert_cmpstr (runtime_path, ==, fake_home->runtime);
@@ -922,21 +928,21 @@ steam_runtime_missing (Fixture *f,
   /* Unset LD_LIBRARY_PATH */
   fake_home->env = g_environ_unsetenv (fake_home->env, "LD_LIBRARY_PATH");
   fake_home_apply_to_system_info (fake_home, info);
-  runtime_issues = srt_system_info_get_runtime_issues (info);
+  runtime_issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (runtime_issues, ==, SRT_RUNTIME_ISSUES_NOT_IN_LD_PATH);
 
   /* Re set LD_LIBRARY_PATH and remove a required folder from the runtime */
   fake_home->env = g_environ_setenv (fake_home->env, "LD_LIBRARY_PATH", full_ld_path, TRUE);
   fake_home_apply_to_system_info (fake_home, info);
   g_assert_cmpint (g_rmdir (fake_home->amd64_usr_lib_64), ==, 0);
-  runtime_issues = srt_system_info_get_runtime_issues (info);
+  runtime_issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (runtime_issues & SRT_RUNTIME_ISSUES_NOT_RUNTIME, !=, 0);
   g_assert_cmpint (runtime_issues & SRT_RUNTIME_ISSUES_NOT_IN_LD_PATH, !=, 0);
   steam_issues = srt_system_info_get_steam_issues (info);
   g_assert_cmpint (steam_issues, ==, SRT_STEAM_ISSUES_NONE);
 
   /* Do the check again, this time using the cache */
-  runtime_issues = srt_system_info_get_runtime_issues (info);
+  runtime_issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (runtime_issues & SRT_RUNTIME_ISSUES_NOT_RUNTIME, !=, 0);
   g_assert_cmpint (runtime_issues & SRT_RUNTIME_ISSUES_NOT_IN_LD_PATH, !=, 0);
   steam_issues = srt_system_info_get_steam_issues (info);
@@ -979,7 +985,7 @@ steam_runtime_pinned (Fixture *f,
                        NULL);
   fake_home->env = g_environ_setenv (fake_home->env, "LD_LIBRARY_PATH", ld_path, TRUE);
   fake_home_apply_to_system_info (fake_home, info);
-  issues = srt_system_info_get_runtime_issues (info);
+  issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (SRT_RUNTIME_ISSUES_NOT_USING_NEWER_HOST_LIBRARIES, ==, issues);
   g_free (ld_path);
 
@@ -988,7 +994,7 @@ steam_runtime_pinned (Fixture *f,
   g_assert_cmpint (g_rmdir (fake_home->pinned_64), ==, 0);
   fake_home->env = g_environ_setenv (fake_home->env, "LD_LIBRARY_PATH", full_ld_path, TRUE);
   fake_home_apply_to_system_info (fake_home, info);
-  issues = srt_system_info_get_runtime_issues (info);
+  issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (SRT_RUNTIME_ISSUES_NOT_USING_NEWER_HOST_LIBRARIES, ==, issues);
 
   /* Remove pinned libraries from LD_LIBRARY_PATH */
@@ -1004,7 +1010,7 @@ steam_runtime_pinned (Fixture *f,
                        NULL);
   fake_home->env = g_environ_setenv (fake_home->env, "LD_LIBRARY_PATH", ld_path, TRUE);
   fake_home_apply_to_system_info (fake_home, info);
-  issues = srt_system_info_get_runtime_issues (info);
+  issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (SRT_RUNTIME_ISSUES_NOT_USING_NEWER_HOST_LIBRARIES, ==, issues);
 
   fake_home_clean_up (fake_home);
@@ -1031,7 +1037,7 @@ runtime_disabled_or_missing (Fixture *f,
   /* Completely disable the runtime */
   fake_home->env = g_environ_setenv (fake_home->env, "STEAM_RUNTIME", "0", TRUE);
   fake_home_apply_to_system_info (fake_home, info);
-  issues = srt_system_info_get_runtime_issues (info);
+  issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (issues, ==, SRT_RUNTIME_ISSUES_DISABLED);
   runtime_path = srt_system_info_dup_runtime_path (info);
   g_assert_cmpstr (runtime_path, ==, NULL);
@@ -1042,21 +1048,21 @@ runtime_disabled_or_missing (Fixture *f,
    * issue. */
   fake_home->env = g_environ_setenv (fake_home->env, "STEAM_RUNTIME", "my/not/absolute/runtime/path", TRUE);
   fake_home_apply_to_system_info (fake_home, info);
-  issues = srt_system_info_get_runtime_issues (info);
+  issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (SRT_RUNTIME_ISSUES_NOT_IN_ENVIRONMENT |
                    SRT_RUNTIME_ISSUES_NOT_RUNTIME, ==, issues);
 
   /* Remove the STEAM_RUNTIME environment. */
   fake_home->env = g_environ_unsetenv (fake_home->env, "STEAM_RUNTIME");
   fake_home_apply_to_system_info (fake_home, info);
-  issues = srt_system_info_get_runtime_issues (info);
+  issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (SRT_RUNTIME_ISSUES_NOT_IN_ENVIRONMENT |
                    SRT_RUNTIME_ISSUES_NOT_RUNTIME, ==, issues);
 
   /* Disable prefer host libraries */
   fake_home->env = g_environ_setenv (fake_home->env, "STEAM_RUNTIME_PREFER_HOST_LIBRARIES", "0", TRUE);
   fake_home_apply_to_system_info (fake_home, info);
-  issues = srt_system_info_get_runtime_issues (info);
+  issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (SRT_RUNTIME_ISSUES_NOT_USING_NEWER_HOST_LIBRARIES |
                    SRT_RUNTIME_ISSUES_NOT_IN_ENVIRONMENT |
                    SRT_RUNTIME_ISSUES_NOT_RUNTIME, ==, issues);
@@ -1086,21 +1092,21 @@ runtime_version (Fixture *f,
   g_file_set_contents (version, "steam-runtime_0.20190711.3\n", -1, &error);
   g_assert_no_error (error);
   fake_home_apply_to_system_info (fake_home, info);
-  issues = srt_system_info_get_runtime_issues (info);
+  issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (issues, ==, SRT_RUNTIME_ISSUES_NONE);
 
   /* Check version with an empty number */
   g_file_set_contents (version, "steam-runtime_", -1, &error);
   g_assert_no_error (error);
   fake_home_apply_to_system_info (fake_home, info);
-  issues = srt_system_info_get_runtime_issues (info);
+  issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (issues, ==, SRT_RUNTIME_ISSUES_NOT_RUNTIME);
 
   /* Check version without underscore */
   g_file_set_contents (version, "steam-runtime", -1, &error);
   g_assert_no_error (error);
   fake_home_apply_to_system_info (fake_home, info);
-  issues = srt_system_info_get_runtime_issues (info);
+  issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (issues, ==, SRT_RUNTIME_ISSUES_NOT_RUNTIME);
   dup_version = srt_system_info_dup_runtime_version (info);
   g_assert_cmpstr (dup_version, ==, NULL);
@@ -1109,14 +1115,14 @@ runtime_version (Fixture *f,
   g_file_set_contents (version, "custom-steam-runtime_0.20190711.3", -1, &error);
   g_assert_no_error (error);
   fake_home_apply_to_system_info (fake_home, info);
-  issues = srt_system_info_get_runtime_issues (info);
+  issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (issues, ==, SRT_RUNTIME_ISSUES_UNOFFICIAL);
 
   /* Check version with a custom prefix and multiple underscores */
   g_file_set_contents (version, "custom_steam_runtime_0.20190711.3", -1, &error);
   g_assert_no_error (error);
   fake_home_apply_to_system_info (fake_home, info);
-  issues = srt_system_info_get_runtime_issues (info);
+  issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (issues, ==, SRT_RUNTIME_ISSUES_UNOFFICIAL);
   dup_version = srt_system_info_dup_runtime_version (info);
   g_assert_cmpstr (dup_version, ==, "0.20190711.3");
@@ -1126,7 +1132,7 @@ runtime_version (Fixture *f,
   g_file_set_contents (version, "", -1, &error);
   g_assert_no_error (error);
   fake_home_apply_to_system_info (fake_home, info);
-  issues = srt_system_info_get_runtime_issues (info);
+  issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (issues, ==, SRT_RUNTIME_ISSUES_NOT_RUNTIME);
   dup_version = srt_system_info_dup_runtime_version (info);
   g_assert_cmpstr (dup_version, ==, NULL);
@@ -1135,28 +1141,28 @@ runtime_version (Fixture *f,
   g_file_set_contents (version, "steam-runtime_0.20190711.3", -1, &error);
   g_assert_no_error (error);
   srt_system_info_set_expected_runtime_version (info, "0.20190711.3");
-  issues = srt_system_info_get_runtime_issues (info);
+  issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (issues, ==, SRT_RUNTIME_ISSUES_NONE);
 
   /* Check expected version with trailing new line */
   g_file_set_contents (version, "steam-runtime_0.20190711.3\n", -1, &error);
   g_assert_no_error (error);
   srt_system_info_set_expected_runtime_version (info, "0.20190711.3");
-  issues = srt_system_info_get_runtime_issues (info);
+  issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (issues, ==, SRT_RUNTIME_ISSUES_NONE);
 
   /* Check wrong expected version */
   g_file_set_contents (version, "steam-runtime_0.20190711.3", -1, &error);
   g_assert_no_error (error);
   srt_system_info_set_expected_runtime_version (info, "0.20210813.4");
-  issues = srt_system_info_get_runtime_issues (info);
+  issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (issues, ==, SRT_RUNTIME_ISSUES_UNEXPECTED_VERSION);
 
   /* Check wrong expected version */
   g_file_set_contents (version, "steam-runtime_", -1, &error);
   g_assert_no_error (error);
   srt_system_info_set_expected_runtime_version (info, "0.20180101.2");
-  issues = srt_system_info_get_runtime_issues (info);
+  issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (SRT_RUNTIME_ISSUES_NOT_RUNTIME |
                    SRT_RUNTIME_ISSUES_UNEXPECTED_VERSION, ==, issues);
   dup_version = srt_system_info_dup_runtime_version (info);
@@ -1166,7 +1172,7 @@ runtime_version (Fixture *f,
   g_file_set_contents (version, "my-custom_steam_runtime_0.20190711.3", -1, &error);
   g_assert_no_error (error);
   srt_system_info_set_expected_runtime_version (info, "0.20190711.3");
-  issues = srt_system_info_get_runtime_issues (info);
+  issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (issues, ==, SRT_RUNTIME_ISSUES_UNOFFICIAL);
 
   fake_home_clean_up (fake_home);
@@ -1207,7 +1213,7 @@ runtime_unexpected_location (Fixture *f,
   g_file_make_symbolic_link (symlink_gfile, fake_home->pinned_64, NULL, &error);
   g_assert_no_error (error);
   fake_home_apply_to_system_info (fake_home, info);
-  issues = srt_system_info_get_runtime_issues (info);
+  issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (issues, ==, SRT_RUNTIME_ISSUES_UNEXPECTED_LOCATION);
   g_object_unref (symlink_gfile);
 
@@ -1234,7 +1240,7 @@ runtime_unexpected_location (Fixture *f,
   fake_home->env = g_environ_setenv (fake_home->env, "PATH", env_path, TRUE);
 
   fake_home_apply_to_system_info (fake_home, info);
-  issues = srt_system_info_get_runtime_issues (info);
+  issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (issues, ==, SRT_RUNTIME_ISSUES_UNEXPECTED_LOCATION);
 
   fake_home_clean_up (fake_home);
@@ -1625,7 +1631,7 @@ os_steamrt (Fixture *f,
   g_assert_cmpstr (s, ==, "1");
   g_free (s);
 
-  runtime_issues = srt_system_info_get_runtime_issues (info);
+  runtime_issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (runtime_issues, ==, SRT_RUNTIME_ISSUES_NONE);
 
   s = srt_system_info_dup_runtime_path (info);
@@ -1707,7 +1713,7 @@ os_steamrt_unofficial (Fixture *f,
   g_assert_cmpstr (s, ==, "1");
   g_free (s);
 
-  runtime_issues = srt_system_info_get_runtime_issues (info);
+  runtime_issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (runtime_issues, ==,
                    (SRT_RUNTIME_ISSUES_UNOFFICIAL
                     | SRT_RUNTIME_ISSUES_UNEXPECTED_VERSION));
@@ -1785,7 +1791,7 @@ os_invalid_os_release (Fixture *f,
   g_assert_cmpstr (s, ==, NULL);
   g_free (s);
 
-  runtime_issues = srt_system_info_get_runtime_issues (info);
+  runtime_issues = srt_system_info_get_runtime_issues (info) & ~ignore_runtime_issues;
   g_assert_cmpint (runtime_issues, ==,
                    (SRT_RUNTIME_ISSUES_UNEXPECTED_VERSION
                     | SRT_RUNTIME_ISSUES_NOT_RUNTIME));

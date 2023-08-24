@@ -29,15 +29,88 @@
 #include "steam-runtime-tools/utils-internal.h"
 
 #include <errno.h>
+#include <linux/magic.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/vfs.h>
 #include <unistd.h>
 
 #include <glib/gstdio.h>
 
 #include "steam-runtime-tools/glib-backports-internal.h"
 #include "steam-runtime-tools/utils.h"
+
+/* See statfs(2) for a list of known filesystems and their identifying
+ * numbers as found in f_type */
+
+#ifndef CEPH_SUPER_MAGIC
+#define CEPH_SUPER_MAGIC 0x00c36400
+#endif
+
+#ifndef CIFS_MAGIC_NUMBER
+#define CIFS_MAGIC_NUMBER 0xff534d42
+#endif
+
+#ifndef ECRYPTFS_SUPER_MAGIC
+#define ECRYPTFS_SUPER_MAGIC 0xf15f
+#endif
+
+#ifndef EXFAT_SUPER_MAGIC
+#define EXFAT_SUPER_MAGIC 0x2011BAB0
+#endif
+
+#ifndef EXT_SUPER_MAGIC
+#define EXT_SUPER_MAGIC 0x137d
+#endif
+
+#ifndef EXT2_OLD_SUPER_MAGIC
+#define EXT2_OLD_SUPER_MAGIC 0xef51
+#endif
+
+#ifndef F2FS_SUPER_MAGIC
+#define F2FS_SUPER_MAGIC 0xf2f52010
+#endif
+
+#ifndef FUSE_SUPER_MAGIC
+#define FUSE_SUPER_MAGIC 0x65735546
+#endif
+
+#ifndef HFS_SUPER_MAGIC
+#define HFS_SUPER_MAGIC 0x4244
+#endif
+
+#ifndef HOSTFS_SUPER_MAGIC
+#define HOSTFS_SUPER_MAGIC 0x00c0ffee
+#endif
+
+#ifndef JFS_SUPER_MAGIC
+#define JFS_SUPER_MAGIC 0x3153464a
+#endif
+
+#ifndef NTFS_SB_MAGIC
+#define NTFS_SB_MAGIC 0x5346544e
+#endif
+
+#ifndef OVERLAYFS_SUPER_MAGIC
+#define OVERLAYFS_SUPER_MAGIC 0x794c7630
+#endif
+
+#ifndef SMB2_MAGIC_NUMBER
+#define SMB2_MAGIC_NUMBER 0xfe534d42
+#endif
+
+#ifndef UDF_SUPER_MAGIC
+#define UDF_SUPER_MAGIC 0x15013346
+#endif
+
+#ifndef V9FS_MAGIC
+#define V9FS_MAGIC 0x01021997
+#endif
+
+#ifndef XFS_SUPER_MAGIC
+#define XFS_SUPER_MAGIC 0x58465342
+#endif
 
 /**
 * SECTION:runtime
@@ -122,6 +195,96 @@ same_stat (GStatBuf *left,
   return left->st_dev == right->st_dev && left->st_ino == right->st_ino;
 }
 
+static SrtRuntimeIssues
+_srt_runtime_check_filesystem (const char *path)
+{
+  SrtRuntimeIssues issues = SRT_RUNTIME_ISSUES_NONE;
+  int result;
+  struct statfs filesystem = {};
+
+  /* LSB tells us that statfs() is deprecated, but until glibc 2.39 it
+   * was the only way to get the filesystem type. */
+  G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+  result = statfs (path, &filesystem);
+  G_GNUC_END_IGNORE_DEPRECATIONS
+
+  if (result < 0)
+    {
+      g_info ("Unable to determine filesystem of %s: %s",
+              path, g_strerror (errno));
+      return SRT_RUNTIME_ISSUES_ON_UNKNOWN_FILESYSTEM;
+    }
+
+  switch (filesystem.f_type)
+    {
+      case BTRFS_SUPER_MAGIC:
+      case EXT_SUPER_MAGIC:
+      case EXT2_OLD_SUPER_MAGIC:
+      case EXT2_SUPER_MAGIC:
+      /* EXT3_SUPER_MAGIC: same as EXT2 */
+      /* EXT4_SUPER_MAGIC: same as EXT2 */
+      case F2FS_SUPER_MAGIC:
+      case JFS_SUPER_MAGIC:
+      case REISERFS_SUPER_MAGIC:
+      case TMPFS_MAGIC:
+      case XFS_SUPER_MAGIC:
+        g_debug ("%s is on a Unix filesystem, f_type=0x%08lx",
+                 path, (unsigned long) filesystem.f_type);
+        break;
+
+      case EXFAT_SUPER_MAGIC:
+      case MSDOS_SUPER_MAGIC:
+      case HFS_SUPER_MAGIC:
+      case NTFS_SB_MAGIC:
+      case UDF_SUPER_MAGIC:
+        issues |= SRT_RUNTIME_ISSUES_ON_NON_UNIX_FILESYSTEM;
+        g_debug ("%s is on a non-Unix filesystem, f_type=0x%08lx",
+                 path, (unsigned long) filesystem.f_type);
+        break;
+
+      case CIFS_MAGIC_NUMBER:
+      case SMB_SUPER_MAGIC:
+      case SMB2_MAGIC_NUMBER:
+        issues |= SRT_RUNTIME_ISSUES_ON_NETWORK_FILESYSTEM;
+        issues |= SRT_RUNTIME_ISSUES_ON_NON_UNIX_FILESYSTEM;
+        g_debug ("%s is on a non-Unix network filesystem, f_type=0x%08lx",
+                 path, (unsigned long) filesystem.f_type);
+        break;
+
+      case FUSE_SUPER_MAGIC:
+        /* We don't know which specific FUSE filesystem. */
+        issues |= SRT_RUNTIME_ISSUES_ON_UNKNOWN_FILESYSTEM;
+        g_debug ("%s is on a FUSE filesystem", path);
+        break;
+
+      case ECRYPTFS_SUPER_MAGIC:
+      case HOSTFS_SUPER_MAGIC:
+      case OVERLAYFS_SUPER_MAGIC:
+        /* We don't know what the backing filesystems are, and
+         * overlayfs can itself cause issues. */
+        issues |= SRT_RUNTIME_ISSUES_ON_UNKNOWN_FILESYSTEM;
+        g_debug ("%s is on an overlay/stacking filesystem, f_type=0x%08lx",
+                 path, (unsigned long) filesystem.f_type);
+        break;
+
+      case CEPH_SUPER_MAGIC:
+      case NFS_SUPER_MAGIC:
+      case V9FS_MAGIC:
+        issues |= SRT_RUNTIME_ISSUES_ON_NETWORK_FILESYSTEM;
+        g_debug ("%s is on a network filesystem, f_type=0x%08lx",
+                 path, (unsigned long) filesystem.f_type);
+        break;
+
+      default:
+        issues |= SRT_RUNTIME_ISSUES_ON_UNKNOWN_FILESYSTEM;
+        g_debug ("%s is on an unknown filesystem, f_type=0x%08lx",
+                 path, (unsigned long) filesystem.f_type);
+        break;
+    }
+
+  return issues;
+}
+
 /*
  * _srt_runtime_check:
  * @bin32: (nullable): The absolute path to `ubuntu12_32`
@@ -131,8 +294,12 @@ same_stat (GStatBuf *left,
  * @version_out: (optional) (type utf8) (out): The actual version number
  * @path_out: (optional) (type filename) (out): The absolute path of the
  *  Steam Runtime
+ *
+ * Check that the current process is running in a LD_LIBRARY_PATH
+ * Steam Runtime environment, returning any issue flags that indicate
+ * problems with it.
  */
-SrtRuntimeIssues
+static SrtRuntimeIssues
 _srt_runtime_check (const char *bin32,
                     const char *expected_version,
                     const GStrv custom_environ,
@@ -211,6 +378,8 @@ _srt_runtime_check (const char *bin32,
   /* If we haven't found it yet, there is nothing else we can check */
   if (path == NULL)
     goto out;
+
+  issues |= _srt_runtime_check_filesystem (path);
 
   if (expected_path != NULL && strcmp (path, expected_path) != 0)
     {
@@ -463,6 +632,102 @@ out:
   g_strfreev (my_environ);
   g_clear_error (&error);
   return issues;
+}
+
+/*
+ * _srt_runtime_check_container:
+ * @self: information about the runtime
+ * @os_release: information about the container OS
+ *
+ * Return information about a Steam Runtime container (pressure-vessel,
+ * Docker or any other container) if we are running inside one.
+ *
+ * Returns: %TRUE if we are running in a container Steam Runtime
+ *  environment
+ */
+static gboolean
+_srt_runtime_check_container (SrtRuntime *self,
+                              const SrtOsRelease *os_release)
+{
+  if (g_strcmp0 (os_release->id, "steamrt") != 0)
+    return FALSE;
+
+  _srt_runtime_clear_outputs (self);
+  self->path = g_strdup ("/");
+  self->version = g_strdup (os_release->build_id);
+  /* We don't use "/" here because in practice, that will often be a tmpfs.
+   * As currently implemented in pressure-vessel, /usr comes from the
+   * Steam library directory, so we can use that as our oracle. */
+  self->issues |= _srt_runtime_check_filesystem ("/usr");
+
+  if (self->expected_version != NULL
+      && g_strcmp0 (self->expected_version, self->version) != 0)
+    self->issues |= SRT_RUNTIME_ISSUES_UNEXPECTED_VERSION;
+
+  if (self->version == NULL)
+    {
+      self->issues |= SRT_RUNTIME_ISSUES_NOT_RUNTIME;
+    }
+  else
+    {
+      const char *p;
+
+      for (p = self->version; *p != '\0'; p++)
+        {
+          if (!g_ascii_isdigit (*p) && *p != '.')
+            self->issues |= SRT_RUNTIME_ISSUES_UNOFFICIAL;
+        }
+    }
+
+  return TRUE;
+}
+
+/*
+ * _srt_runtime_check_execution_environment:
+ * @self: Information about the runtime. Fields other than @expected_version
+ *  will be overwritten.
+ * @env: A copy of `environ`, or a mock environment
+ * @os_release: Information about the running OS release
+ * @bin32: Path to `~/.steam/root/ubuntu12_32`
+ *
+ * Check that the current process is running in a LD_LIBRARY_PATH
+ * or container Steam Runtime environment, setting fields in @self
+ * as appropriate.
+ */
+void
+_srt_runtime_check_execution_environment (SrtRuntime *self,
+                                          const GStrv env,
+                                          const SrtOsRelease *os_release,
+                                          const char *bin32)
+{
+  const char *runtime;
+
+  g_return_if_fail (self != NULL);
+  g_return_if_fail (env != NULL);
+  g_return_if_fail (os_release != NULL);
+
+  _srt_runtime_clear_outputs (self);
+  runtime = g_environ_getenv (env, "STEAM_RUNTIME");
+
+  /* If we are currently running in a LD_LIBRARY_PATH runtime, check that
+   * it is as expected */
+  if (runtime != NULL && runtime[0] == '/' && runtime[1] != '\0')
+    {
+      self->issues = _srt_runtime_check (bin32, self->expected_version, env,
+                                         &self->version, &self->path);
+      return;
+    }
+
+  /* Or, if we are currently running in a container runtime (for example
+   * pressure-vessel Platform or Docker SDK), check that it is as expected */
+  if (_srt_runtime_check_container (self, os_release))
+    return;
+
+  /* If we are not currently running in a container runtime, check that
+   * the default LD_LIBRARY_PATH runtime in
+   * ~/.steam/root/ubuntu12_32/steam-runtime is as expected */
+  self->issues = _srt_runtime_check (bin32, self->expected_version, env,
+                                     &self->version, &self->path);
 }
 
 /*
