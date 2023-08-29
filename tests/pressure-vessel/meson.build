@@ -30,6 +30,33 @@ test_env.set(
 )
 test_env.prepend('PYTHONPATH', meson.current_source_dir() / '..')
 
+# Helper programs and manual tests
+helpers = [
+  'cheap-copy',
+  'helper',
+  'mtree-apply',
+]
+
+foreach helper : helpers
+  executable(
+    'test-' + helper,
+    sources : [
+      helper + '.c',
+    ],
+    dependencies : [
+      gio_unix,
+      json_glib,
+      libglnx_dep,
+      test_utils_static_libsteamrt_dep,
+    ],
+    link_with : [
+      pressure_vessel_utils,
+    ],
+    include_directories : pv_include_dirs,
+    install : false,
+  )
+endforeach
+
 tests = [
   'adverb.py',
   'cheap-copy.py',
@@ -145,33 +172,6 @@ foreach test_name : tests
       )
     endif
   endif
-endforeach
-
-# Helper programs and manual tests
-helpers = [
-  'cheap-copy',
-  'helper',
-  'mtree-apply',
-]
-
-foreach helper : helpers
-  executable(
-    'test-' + helper,
-    sources : [
-      helper + '.c',
-    ],
-    dependencies : [
-      gio_unix,
-      json_glib,
-      libglnx_dep,
-      test_utils_static_libsteamrt_dep,
-    ],
-    link_with : [
-      pressure_vessel_utils,
-    ],
-    include_directories : pv_include_dirs,
-    install : false,
-  )
 endforeach
 
 # vim:set sw=2 sts=2 et:

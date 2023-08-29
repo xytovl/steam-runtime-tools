@@ -150,78 +150,6 @@ executable(
   install_dir : tests_dir,
 )
 
-# A list of strings each of this form:
-# test-name:any one-line shell command, which will include ${G_TEST_BUILDDIR}
-# A typical example:
-# architecture:${G_TEST_BUILDDIR}/test-architecture --tap
-relocatable_installed_tests = []
-
-foreach test_info : tests
-  test_name = test_info['name']
-
-  if test_info.get('static', false)
-    deps = [libsteamrt_static_dep, test_utils_static_libsteamrt_dep]
-  else
-    deps = [libsteamrt_dep, test_utils_dep]
-  endif
-
-  if test_info.get('slow', false)
-    timeout = 60
-  else
-    timeout = 30
-  endif
-
-  sources = test_info.get('sources', files(test_name + '.c'))
-
-  exe = executable(
-    'test-' + test_name,
-    sources,
-    dependencies : deps,
-    include_directories : project_include_dirs,
-    install : get_option('installed_tests'),
-    install_dir : tests_dir,
-  )
-
-  if get_option('installed_tests')
-    test_conf = configuration_data()
-    test_conf.set('tests_dir', join_paths(get_option('prefix'), tests_dir))
-    test_conf.set('wrapper', '')
-    test_conf.set('program', 'test-' + test_name)
-    test_conf.set('args', '--tap')
-    configure_file(
-      input: files('template.test.in'),
-      output: test_name + '.test',
-      install_dir: tests_metadir,
-      configuration: test_conf
-    )
-    relocatable_installed_tests += [
-      '@0@:@1@/test-@2@ --tap'.format(
-        test_name,
-        '${G_TEST_BUILDDIR}',
-        test_name,
-      )
-    ]
-  endif
-
-  if glib_tap_support
-    test(
-      test_name,
-      exe,
-      args : ['--tap'],
-      env : test_env,
-      protocol : 'tap',
-      timeout : timeout,
-    )
-  else
-    test(
-      test_name,
-      exe,
-      env : test_env,
-      timeout : timeout,
-    )
-  endif
-endforeach
-
 # Helpers and manual tests statically linked to libsteam-r-t
 foreach helper : [
   'find-myself',
@@ -436,6 +364,78 @@ foreach arch : [
       install_dir: tests_dir
     )
   endforeach
+endforeach
+
+# A list of strings each of this form:
+# test-name:any one-line shell command, which will include ${G_TEST_BUILDDIR}
+# A typical example:
+# architecture:${G_TEST_BUILDDIR}/test-architecture --tap
+relocatable_installed_tests = []
+
+foreach test_info : tests
+  test_name = test_info['name']
+
+  if test_info.get('static', false)
+    deps = [libsteamrt_static_dep, test_utils_static_libsteamrt_dep]
+  else
+    deps = [libsteamrt_dep, test_utils_dep]
+  endif
+
+  if test_info.get('slow', false)
+    timeout = 60
+  else
+    timeout = 30
+  endif
+
+  sources = test_info.get('sources', files(test_name + '.c'))
+
+  exe = executable(
+    'test-' + test_name,
+    sources,
+    dependencies : deps,
+    include_directories : project_include_dirs,
+    install : get_option('installed_tests'),
+    install_dir : tests_dir,
+  )
+
+  if get_option('installed_tests')
+    test_conf = configuration_data()
+    test_conf.set('tests_dir', join_paths(get_option('prefix'), tests_dir))
+    test_conf.set('wrapper', '')
+    test_conf.set('program', 'test-' + test_name)
+    test_conf.set('args', '--tap')
+    configure_file(
+      input: files('template.test.in'),
+      output: test_name + '.test',
+      install_dir: tests_metadir,
+      configuration: test_conf
+    )
+    relocatable_installed_tests += [
+      '@0@:@1@/test-@2@ --tap'.format(
+        test_name,
+        '${G_TEST_BUILDDIR}',
+        test_name,
+      )
+    ]
+  endif
+
+  if glib_tap_support
+    test(
+      test_name,
+      exe,
+      args : ['--tap'],
+      env : test_env,
+      protocol : 'tap',
+      timeout : timeout,
+    )
+  else
+    test(
+      test_name,
+      exe,
+      env : test_env,
+      timeout : timeout,
+    )
+  endif
 endforeach
 
 lint_scripts = [
