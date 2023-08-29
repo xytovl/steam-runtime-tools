@@ -21,13 +21,15 @@
 # TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+srt_bin = []
+
 # Programs that only need glibc
 libc_programs = [
   'launcher-interface-0',
 ]
 
 foreach bin_name : libc_programs
-  executable(
+  srt_bin += executable(
     'steam-runtime-' + bin_name,
     bin_name + '.c',
     c_args : srt_c_args,
@@ -44,7 +46,7 @@ glib_programs = [
 ]
 
 foreach bin_name : glib_programs
-  executable(
+  srt_bin += executable(
     'steam-runtime-' + bin_name,
     bin_name + '.c',
     c_args : srt_c_args,
@@ -63,7 +65,7 @@ json_programs = [
 ]
 
 foreach bin_name : json_programs
-  executable(
+  srt_bin += executable(
     'steam-runtime-' + bin_name,
     bin_name + '.c',
     c_args : srt_c_args,
@@ -76,7 +78,7 @@ foreach bin_name : json_programs
 endforeach
 
 # Slightly different: needs threads and pv_include_dirs
-executable(
+srt_bin += executable(
   'steam-runtime-launch-client',
   sources: [
     'launch-client.c',
@@ -96,7 +98,7 @@ executable(
 )
 
 # Slightly different: needs threads, codegen and flatpak-utils-base
-executable(
+srt_bin += executable(
   'steam-runtime-launcher-service',
   sources: [
     'launcher-service.c',
@@ -171,5 +173,7 @@ if build_man_pages
     )
   endforeach
 endif
+
+test_depends += srt_bin
 
 # vim:set sw=2 sts=2 et:

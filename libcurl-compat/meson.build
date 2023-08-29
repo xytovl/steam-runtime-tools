@@ -1,6 +1,8 @@
 # Copyright 2021-2022 Collabora Ltd.
 # SPDX-License-Identifier: MIT
 
+libcurl_shims = []
+
 foreach suffix : ['', '-gnutls']
   # A mock implementation of libcurl that exists only to give
   # libsteam-runtime-shim-libcurl.so.4 the desired dependency,
@@ -69,7 +71,7 @@ foreach suffix : ['', '-gnutls']
   #
   # This is not how to do high-quality ABIs, but we're stuck with it
   # for historical and cross-distro compatibility reasons.
-  custom_target(
+  libcurl_shims += custom_target(
     'steam-runtime-shim-libcurl' + suffix,
     output : 'libsteam-runtime-shim-libcurl@0@.so.4'.format(suffix),
     input : [
@@ -98,7 +100,7 @@ foreach suffix : ['', '-gnutls']
   )
 endforeach
 
-executable(
+libcurl_shims += executable(
   'steam-runtime-libcurl-compat-setup',
   'compat-setup.c',
   c_args : srt_c_args,
@@ -130,6 +132,8 @@ if get_option('installed_tests')
     install_dir : tests_dir / 'libcurl-compat',
   )
 endif
+
+test_depends += libcurl_shims
 
 # Mock libraries and helper executables used for regression testing
 subdir('test-fixtures')

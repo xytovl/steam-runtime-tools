@@ -38,7 +38,7 @@ helpers = [
 ]
 
 foreach helper : helpers
-  executable(
+  test_depends += executable(
     'test-' + helper,
     sources : [
       helper + '.c',
@@ -110,6 +110,7 @@ foreach test_info : compiled_tests
     test(
       test_name, exe,
       args : ['--tap'],
+      depends : test_depends,
       env : test_env,
       protocol : 'tap',
       suite : ['pressure-vessel'],
@@ -117,6 +118,7 @@ foreach test_info : compiled_tests
   else
     test(
       test_name, exe,
+      depends : test_depends,
       env : test_env,
       suite : ['pressure-vessel'],
     )
@@ -149,6 +151,7 @@ foreach test_name : tests
         '--config-file', no_activation_session_conf,
         '--',
       ] + test_argv,
+      depends : test_depends,
       env : test_env,
       protocol : 'tap',
       suite : ['pressure-vessel'],
@@ -165,6 +168,7 @@ foreach test_name : tests
           full_python.full_path(),
           files(test_name),
         ],
+        depends : test_depends,
         env : test_env,
         protocol : 'tap',
         suite : ['pressure-vessel'],

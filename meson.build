@@ -392,6 +392,8 @@ if multiarch != ''
   common_test_env_vars += {'SRT_TEST_MULTIARCH': multiarch}
 endif
 
+test_depends = []
+
 subdir('steam-runtime-tools')
 
 if multiarch != ''

@@ -123,7 +123,7 @@ foreach helper : [
   'mock-software-check-gl',
   'mock-true',
 ]
-  executable(
+  test_depends += executable(
     helper,
     join_paths('..', 'helpers', 'true.c'),
     include_directories : project_include_dirs,
@@ -132,7 +132,7 @@ foreach helper : [
   )
 endforeach
 
-executable(
+test_depends += executable(
   'adverb',
   'adverb.c',
   dependencies : [glib, gio, gio_unix, libglnx_dep, json_glib, libsteamrt_dep],
@@ -141,7 +141,7 @@ executable(
   install_dir : tests_dir,
 )
 
-executable(
+test_depends += executable(
   'logging-helper',
   'logging-helper.c',
   dependencies : [glib, libglnx_dep, libsteamrt_static_dep],
@@ -154,7 +154,7 @@ executable(
 foreach helper : [
   'find-myself',
 ]
-  executable(
+  test_depends += executable(
     helper,
     files(helper + '.c'),
     dependencies : [
@@ -173,7 +173,7 @@ foreach helper : [
 endforeach
 
 # A mock implementation of check-locale that offers lots of locales
-executable(
+test_depends += executable(
   'mock-check-locale',
   join_paths('..', 'helpers', 'check-locale.c'),
   c_args : [
@@ -189,7 +189,7 @@ executable(
 
 # A mock implementation of check-locale that emulates a system where
 # the current locale is not UTF-8 and the C.UTF-8 locale is missing
-executable(
+test_depends += executable(
   'mock-legacy-check-locale',
   join_paths('..', 'helpers', 'check-locale.c'),
   c_args : [
@@ -205,7 +205,7 @@ executable(
 
 # A mock implementation of check-locale that emulates a system where
 # the en_US.UTF-8 and en_US locales are not available
-executable(
+test_depends += executable(
   'mock-unamerican-check-locale',
   join_paths('..', 'helpers', 'check-locale.c'),
   c_args : ['-DMOCK_CHECK_LOCALE', '-DMOCK_CHECK_LOCALE_HAVE_C_UTF8'],
@@ -230,7 +230,7 @@ foreach helper : [
   'mock-hanging-wflinfo',
   'mock-sigusr-wflinfo',
 ]
-  executable(
+  test_depends += executable(
     helper,
     helper + '.c',
     include_directories : project_include_dirs,
@@ -243,7 +243,7 @@ foreach helper : [
   'mock-good-check-vulkan',
   'mock-mixed-check-vulkan',
 ]
-  executable(
+  test_depends += executable(
     helper,
     helper + '.c',
     dependencies : [glib],
@@ -261,7 +261,7 @@ foreach token : [
     'mock-good-detect',
     'mock-bad-detect',
   ]
-    executable(
+    test_depends += executable(
       helper + '-' + token.to_lower(),
       helper + '.c',
       c_args : ['-DMOCK_LIBDL_TOKEN_' + token],
@@ -275,7 +275,7 @@ endforeach
 # These need to be the same as their -good- counterparts, to exercise
 # the case where the preliminary check succeeds, but actually rendering
 # a window fails (hence "mixed").
-executable(
+test_depends += executable(
   'mock-mixed-wflinfo',
   'mock-good-wflinfo.c',
   include_directories : project_include_dirs,
@@ -286,7 +286,7 @@ executable(
 
 # mock-bad-check-gl is essentially the same as mock-bad-check-vulkan:
 # it fails with a message on stderr.
-executable(
+test_depends += executable(
   'mock-bad-check-gl',
   'mock-bad-check-vulkan.c',
   include_directories : project_include_dirs,
@@ -307,7 +307,7 @@ foreach helper : [
   'mock-mixed-check-gl',
   'mock-software-wflinfo',
 ]
-  executable(
+  test_depends += executable(
     helper,
     helper + '.c',
     dependencies : [glib],
@@ -327,7 +327,7 @@ foreach arch : [
     'mock-abi-inspect-library',
     'mock-container-capsule-capture-libs',
   ]
-    executable(
+    test_depends += executable(
       arch + '-' + helper,
       helper + '.c',
       c_args : ['-DMOCK_ARCHITECTURE_' + arch],
@@ -351,7 +351,7 @@ foreach arch : [
     'fedora',
     'ubuntu',
   ]
-    executable(
+    test_depends += executable(
       arch + '-mock-' + distro + '-capsule-capture-libs',
       'mock-capsule-capture-libs.c',
       c_args : [
@@ -424,6 +424,7 @@ foreach test_info : tests
       test_name,
       exe,
       args : ['--tap'],
+      depends : test_depends,
       env : test_env,
       protocol : 'tap',
       timeout : timeout,
@@ -432,6 +433,7 @@ foreach test_info : tests
     test(
       test_name,
       exe,
+      depends : test_depends,
       env : test_env,
       timeout : timeout,
     )
@@ -493,6 +495,7 @@ foreach test_info : test_scripts
   test(
     test_name, program,
     args : test_argv,
+    depends : test_depends,
     env : test_env,
     protocol : 'tap',
     timeout : timeout,

@@ -21,9 +21,10 @@
 # TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+srt_helpers = []
 uninstalled_env_vars += {'SRT_HELPERS_PATH': meson.current_build_dir()}
 
-executable(
+srt_helpers += executable(
   multiarch + '-true',
   'true.c',
   include_directories : project_include_dirs,
@@ -33,7 +34,7 @@ executable(
   # executable has no dependencies.
 )
 
-executable(
+srt_helpers += executable(
   multiarch + '-check-locale',
   'check-locale.c',
   include_directories : project_include_dirs,
@@ -45,7 +46,7 @@ executable(
   install_rpath : pkglibexec_rpath,
 )
 
-executable(
+srt_helpers += executable(
   multiarch + '-inspect-library',
   sources : ['inspect-library.c', 'inspect-library-utils.c'],
   dependencies : [libdl],
@@ -56,7 +57,7 @@ executable(
   # a game with no special linking would be able to load a library.
 )
 
-executable(
+srt_helpers += executable(
   multiarch + '-inspect-library-libelf',
   sources : ['inspect-library-libelf.c', 'inspect-library-utils.c'],
   dependencies : [libdl, libelf],
@@ -68,7 +69,7 @@ executable(
   install_rpath : pkglibexec_rpath,
 )
 
-executable(
+srt_helpers += executable(
   multiarch + '-check-va-api',
   'check-va-api.c',
   dependencies : [libva, libva_x11, xlib],
@@ -79,7 +80,7 @@ executable(
   # a game with no special linking would be able to use VA-API.
 )
 
-executable(
+srt_helpers += executable(
   multiarch + '-check-vdpau',
   'check-vdpau.c',
   dependencies : [xlib, vdpau],
@@ -90,7 +91,7 @@ executable(
   # a game with no special linking would be able to use VDPAU.
 )
 
-executable(
+srt_helpers += executable(
   multiarch + '-check-vulkan',
   'check-vulkan.c',
   dependencies : [glib, gio_unix, libglnx_dep, libsteamrt_static_dep, json_glib, vulkan, xcb],
@@ -104,7 +105,7 @@ executable(
 )
 
 foreach shader : ['frag', 'vert']
-  custom_target(
+  srt_helpers += custom_target(
     shader + '.spv',
     build_by_default : true,
     command : [
@@ -125,7 +126,7 @@ foreach shader : ['frag', 'vert']
   )
 endforeach
 
-executable(
+srt_helpers += executable(
   multiarch + '-check-gl',
   'check-gl.c',
   dependencies : [xlib, gl],
@@ -137,7 +138,7 @@ executable(
   )
 )
 
-executable(
+srt_helpers += executable(
   multiarch + '-wflinfo',
   'wflinfo.c',
   c_args : silence_wflinfo_warnings,
@@ -150,7 +151,7 @@ executable(
   install_rpath : pkglibexec_rpath,
 )
 
-executable(
+srt_helpers += executable(
   multiarch + '-check-xdg-portal',
   'check-xdg-portal.c',
   include_directories : project_include_dirs,
@@ -163,7 +164,7 @@ executable(
   install_rpath : pkglibexec_rpath,
 )
 
-executable(
+srt_helpers += executable(
   multiarch + '-is-x-server-xwayland',
   'is-x-server-xwayland.c',
   include_directories : project_include_dirs,
@@ -172,7 +173,7 @@ executable(
   install_dir : pkglibexecdir,
 )
 
-executable(
+srt_helpers += executable(
   multiarch + '-detect-lib',
   'detect.c',
   c_args : [
@@ -185,7 +186,7 @@ executable(
   install_dir : pkglibexecdir,
 )
 
-executable(
+srt_helpers += executable(
   multiarch + '-detect-platform',
   'detect.c',
   c_args : [
@@ -229,7 +230,7 @@ endif
 
 # We can inline one instance of identify-platform here. All the others
 # must be in a subdirectory due to Meson limitations.
-shared_module(
+srt_helpers += shared_module(
   'identify-platform',
   'identify-platform.c',
   c_args : ['-D_SRT_PLATFORM_VALUE="' + expected_platform + '"',],
@@ -255,7 +256,7 @@ if multiarch != ''
   # libcapsule doesn't currently have a Meson build system, so instead
   # of building it as a subproject, we build our own source file that
   # #includes everything we need from it.
-  executable(
+  srt_helpers += executable(
     multiarch + '-capsule-capture-libs',
     'capture-libs.c',
     c_args : [
@@ -272,5 +273,7 @@ if multiarch != ''
     install_rpath : pkglibexec_rpath,
   )
 endif
+
+test_depends += srt_helpers
 
 # vim:set sw=2 sts=2 et:
