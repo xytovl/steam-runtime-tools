@@ -6,7 +6,7 @@ foreach suffix : ['', '-gnutls']
   # CURL_GNUTLS_3 and CURL_OPENSSL_4 or CURL_GNUTLS_4 symbols, used
   # during unit testing. No known distribution's libcurl actually
   # does this.
-  shared_library(
+  test_depends += shared_library(
     'curl' + suffix,
     'mock-both-curl@0@.c'.format(suffix),
     link_args : [

@@ -1,7 +1,7 @@
 # Copyright 2021 Collabora Ltd.
 # SPDX-License-Identifier: MIT
 
-shared_module(
+srt_helpers += shared_module(
   'identify-platform',
   '../identify-platform.c',
   c_args : ['-D_SRT_PLATFORM_VALUE="i586"',],

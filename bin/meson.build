@@ -21,51 +21,64 @@
 # TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-executable(
-  'steam-runtime-system-info',
-  'system-info.c',
-  c_args : srt_c_args,
-  dependencies : [gio_unix, glib, json_glib, libglnx_dep, libsteamrt_static_dep],
-  install : true,
-  # Use the adjacent json-glib, ignoring LD_LIBRARY_PATH even if set
-  build_rpath : bin_rpath,
-  install_rpath : bin_rpath,
-)
+srt_bin = []
 
-executable(
-  'steam-runtime-check-requirements',
-  'check-requirements.c',
-  c_args : srt_c_args,
-  dependencies : [glib, gobject, libglnx_dep, libsteamrt_static_dep],
-  install : true,
-  # Use the adjacent GLib, ignoring LD_LIBRARY_PATH even if set
-  build_rpath : bin_rpath,
-  install_rpath : bin_rpath,
-)
+# Programs that only need glibc
+libc_programs = [
+  'launcher-interface-0',
+]
 
-executable(
-  'steam-runtime-identify-library-abi',
-  'identify-library-abi.c',
-  c_args : srt_c_args,
-  dependencies : [glib, gio_unix, libglnx_dep, libsteamrt_static_dep],
-  install : true,
-  # Use GLib from the adjacent libdir, ignoring LD_LIBRARY_PATH
-  build_rpath : bin_rpath,
-  install_rpath : bin_rpath,
-)
+foreach bin_name : libc_programs
+  srt_bin += executable(
+    'steam-runtime-' + bin_name,
+    bin_name + '.c',
+    c_args : srt_c_args,
+    install : true,
+  )
+endforeach
 
-executable(
-  'steam-runtime-input-monitor',
-  'input-monitor.c',
-  c_args : srt_c_args,
-  dependencies : [gio_unix, glib, gobject, json_glib, libglnx_dep, libsteamrt_static_dep],
-  install : true,
-  # Use the adjacent json-glib, ignoring LD_LIBRARY_PATH even if set
-  build_rpath : bin_rpath,
-  install_rpath : bin_rpath,
-)
+# Programs that need GLib
+glib_programs = [
+  'check-requirements',
+  'identify-library-abi',
+  'steam-remote',
+  'urlopen',
+]
 
-executable(
+foreach bin_name : glib_programs
+  srt_bin += executable(
+    'steam-runtime-' + bin_name,
+    bin_name + '.c',
+    c_args : srt_c_args,
+    dependencies : [glib, gobject, gio_unix, libglnx_dep, libsteamrt_static_dep],
+    install : true,
+    # Use the adjacent GLib, ignoring LD_LIBRARY_PATH even if set
+    build_rpath : bin_rpath,
+    install_rpath : bin_rpath,
+  )
+endforeach
+
+# Programs that need GLib and json-glib
+json_programs = [
+  'input-monitor',
+  'system-info',
+]
+
+foreach bin_name : json_programs
+  srt_bin += executable(
+    'steam-runtime-' + bin_name,
+    bin_name + '.c',
+    c_args : srt_c_args,
+    dependencies : [glib, gobject, gio_unix, json_glib, libglnx_dep, libsteamrt_static_dep],
+    install : true,
+    # Use the adjacent json-glib, ignoring LD_LIBRARY_PATH even if set
+    build_rpath : bin_rpath,
+    install_rpath : bin_rpath,
+  )
+endforeach
+
+# Slightly different: needs threads and pv_include_dirs
+srt_bin += executable(
   'steam-runtime-launch-client',
   sources: [
     'launch-client.c',
@@ -84,14 +97,8 @@ executable(
   install_rpath : bin_rpath,
 )
 
-executable(
-  'steam-runtime-launcher-interface-0',
-  'launcher-interface-0.c',
-  c_args : srt_c_args,
-  install : true,
-)
-
-executable(
+# Slightly different: needs threads, codegen and flatpak-utils-base
+srt_bin += executable(
   'steam-runtime-launcher-service',
   sources: [
     'launcher-service.c',
@@ -108,28 +115,6 @@ executable(
   # Needs pv_include_dirs for flatpak-*.h
   include_directories : pv_include_dirs,
   install : true,
-  build_rpath : bin_rpath,
-  install_rpath : bin_rpath,
-)
-
-executable(
-  'steam-runtime-steam-remote',
-  'steam-remote.c',
-  c_args : srt_c_args,
-  dependencies : [glib, gio_unix, libglnx_dep, libsteamrt_static_dep],
-  install : true,
-  # Use GLib from the adjacent libdir, ignoring LD_LIBRARY_PATH
-  build_rpath : bin_rpath,
-  install_rpath : bin_rpath,
-)
-
-executable(
-  'steam-runtime-urlopen',
-  'urlopen.c',
-  c_args : srt_c_args,
-  dependencies : [glib, gio_unix, libglnx_dep, libsteamrt_static_dep],
-  install : true,
-  # Use GLib from the adjacent libdir, ignoring LD_LIBRARY_PATH
   build_rpath : bin_rpath,
   install_rpath : bin_rpath,
 )
@@ -160,18 +145,16 @@ foreach script : libexec_scripts
 endforeach
 
 if build_man_pages
-  foreach bin_name : [
-    'check-requirements',
-    'identify-library-abi',
-    'input-monitor',
-    'launch-client',
-    'launch-options',
-    'launcher-interface-0',
-    'launcher-service',
-    'steam-remote',
-    'system-info',
-    'urlopen',
-  ]
+  foreach bin_name : (
+    libc_programs
+    + glib_programs
+    + json_programs
+    + sh_scripts
+    + [
+      'launch-client',
+      'launcher-service',
+    ]
+  )
     custom_target(
       'steam-runtime-' + bin_name + '.1',
       build_by_default : true,
@@ -190,5 +173,7 @@ if build_man_pages
     )
   endforeach
 endif
+
+test_depends += srt_bin
 
 # vim:set sw=2 sts=2 et:

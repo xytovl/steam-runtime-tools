@@ -19,6 +19,7 @@ foreach suffix : ['', '-gnutls']
     install : get_option('installed_tests'),
     install_dir : tests_dir / 'libcurl-compat' / 'scout' / multiarch,
   )
+  test_depends += mock_libcurl
 endforeach
 
 if get_option('installed_tests')

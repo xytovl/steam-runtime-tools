@@ -19,11 +19,12 @@ foreach suffix : ['', '-gnutls']
     install : get_option('installed_tests'),
     install_dir : tests_dir / 'libcurl-compat' / '4' / multiarch,
   )
+  test_depends += mock_libcurl
 
   # Test executable that calls curl_version@CURL_OPENSSL_4
   # or curl_version@CURL_GNUTLS_4, emulating a tool like valgrind
   # compiled against system libcurl, e.g. on Arch Linux
-  executable(
+  test_depends += executable(
     multiarch + '-steamrt-print-libcurl4@0@-version'.format(suffix),
     '../print-version.c',
     link_with : mock_libcurl,

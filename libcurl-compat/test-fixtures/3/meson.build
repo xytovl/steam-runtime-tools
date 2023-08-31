@@ -19,11 +19,12 @@ foreach suffix : ['', '-gnutls']
     install : get_option('installed_tests'),
     install_dir : tests_dir / 'libcurl-compat' / '3' / multiarch,
   )
+  test_depends += mock_libcurl
 
   # Test executable that calls curl_version@CURL_OPENSSL_3
   # or curl_version@CURL_GNUTLS_3, emulating a game compiled
   # against the real libcurl on scout (or a host OS with compatible ABI)
-  executable(
+  test_depends += executable(
     multiarch + '-steamrt-print-libcurl3@0@-version'.format(suffix),
     '../print-version.c',
     link_with : mock_libcurl,

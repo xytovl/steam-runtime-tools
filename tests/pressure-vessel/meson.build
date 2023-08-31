@@ -30,6 +30,33 @@ test_env.set(
 )
 test_env.prepend('PYTHONPATH', meson.current_source_dir() / '..')
 
+# Helper programs and manual tests
+helpers = [
+  'cheap-copy',
+  'helper',
+  'mtree-apply',
+]
+
+foreach helper : helpers
+  test_depends += executable(
+    'test-' + helper,
+    sources : [
+      helper + '.c',
+    ],
+    dependencies : [
+      gio_unix,
+      json_glib,
+      libglnx_dep,
+      test_utils_static_libsteamrt_dep,
+    ],
+    link_with : [
+      pressure_vessel_utils,
+    ],
+    include_directories : pv_include_dirs,
+    install : false,
+  )
+endforeach
+
 tests = [
   'adverb.py',
   'cheap-copy.py',
@@ -83,6 +110,7 @@ foreach test_info : compiled_tests
     test(
       test_name, exe,
       args : ['--tap'],
+      depends : test_depends,
       env : test_env,
       protocol : 'tap',
       suite : ['pressure-vessel'],
@@ -90,6 +118,7 @@ foreach test_info : compiled_tests
   else
     test(
       test_name, exe,
+      depends : test_depends,
       env : test_env,
       suite : ['pressure-vessel'],
     )
@@ -122,6 +151,7 @@ foreach test_name : tests
         '--config-file', no_activation_session_conf,
         '--',
       ] + test_argv,
+      depends : test_depends,
       env : test_env,
       protocol : 'tap',
       suite : ['pressure-vessel'],
@@ -138,6 +168,7 @@ foreach test_name : tests
           full_python.full_path(),
           files(test_name),
         ],
+        depends : test_depends,
         env : test_env,
         protocol : 'tap',
         suite : ['pressure-vessel'],
@@ -145,33 +176,6 @@ foreach test_name : tests
       )
     endif
   endif
-endforeach
-
-# Helper programs and manual tests
-helpers = [
-  'cheap-copy',
-  'helper',
-  'mtree-apply',
-]
-
-foreach helper : helpers
-  executable(
-    'test-' + helper,
-    sources : [
-      helper + '.c',
-    ],
-    dependencies : [
-      gio_unix,
-      json_glib,
-      libglnx_dep,
-      test_utils_static_libsteamrt_dep,
-    ],
-    link_with : [
-      pressure_vessel_utils,
-    ],
-    include_directories : pv_include_dirs,
-    install : false,
-  )
 endforeach
 
 # vim:set sw=2 sts=2 et:

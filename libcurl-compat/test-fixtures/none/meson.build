@@ -14,11 +14,12 @@ foreach suffix : ['', '-gnutls']
     install : get_option('installed_tests'),
     install_dir : tests_dir / 'libcurl-compat' / 'none' / multiarch,
   )
+  test_depends += mock_libcurl
 
   # Test executable that calls curl_version() with an unspecified
   # version, emulating a legacy program compiled against a very old
   # system libcurl
-  executable(
+  test_depends += executable(
     multiarch + '-steamrt-print-libcurl@0@-version'.format(suffix),
     '../print-version.c',
     link_with : mock_libcurl,

@@ -123,7 +123,7 @@ foreach helper : [
   'mock-software-check-gl',
   'mock-true',
 ]
-  executable(
+  test_depends += executable(
     helper,
     join_paths('..', 'helpers', 'true.c'),
     include_directories : project_include_dirs,
@@ -132,7 +132,7 @@ foreach helper : [
   )
 endforeach
 
-executable(
+test_depends += executable(
   'adverb',
   'adverb.c',
   dependencies : [glib, gio, gio_unix, libglnx_dep, json_glib, libsteamrt_dep],
@@ -141,7 +141,7 @@ executable(
   install_dir : tests_dir,
 )
 
-executable(
+test_depends += executable(
   'logging-helper',
   'logging-helper.c',
   dependencies : [glib, libglnx_dep, libsteamrt_static_dep],
@@ -149,6 +149,222 @@ executable(
   install : get_option('installed_tests'),
   install_dir : tests_dir,
 )
+
+# Helpers and manual tests statically linked to libsteam-r-t
+foreach helper : [
+  'find-myself',
+]
+  test_depends += executable(
+    helper,
+    files(helper + '.c'),
+    dependencies : [
+      glib,
+      gobject,
+      gio_unix,
+      json_glib,
+      libglnx_dep,
+      libsteamrt_static_dep,
+      test_utils_static_libsteamrt_dep,
+    ],
+    include_directories : project_include_dirs,
+    install : get_option('installed_tests'),
+    install_dir : tests_dir,
+  )
+endforeach
+
+# A mock implementation of check-locale that offers lots of locales
+test_depends += executable(
+  'mock-check-locale',
+  join_paths('..', 'helpers', 'check-locale.c'),
+  c_args : [
+    '-DMOCK_CHECK_LOCALE',
+    '-DMOCK_CHECK_LOCALE_HAVE_C_UTF8',
+    '-DMOCK_CHECK_LOCALE_HAVE_EN_US',
+  ],
+  dependencies : [glib, gio_unix, libglnx_dep, json_glib],
+  include_directories : project_include_dirs,
+  install: true,
+  install_dir : tests_dir
+)
+
+# A mock implementation of check-locale that emulates a system where
+# the current locale is not UTF-8 and the C.UTF-8 locale is missing
+test_depends += executable(
+  'mock-legacy-check-locale',
+  join_paths('..', 'helpers', 'check-locale.c'),
+  c_args : [
+    '-DMOCK_CHECK_LOCALE',
+    '-DMOCK_CHECK_LOCALE_HAVE_EN_US',
+    '-DMOCK_CHECK_LOCALE_LEGACY',
+  ],
+  dependencies : [glib, gio_unix, libglnx_dep, json_glib],
+  include_directories : project_include_dirs,
+  install: true,
+  install_dir : tests_dir
+)
+
+# A mock implementation of check-locale that emulates a system where
+# the en_US.UTF-8 and en_US locales are not available
+test_depends += executable(
+  'mock-unamerican-check-locale',
+  join_paths('..', 'helpers', 'check-locale.c'),
+  c_args : ['-DMOCK_CHECK_LOCALE', '-DMOCK_CHECK_LOCALE_HAVE_C_UTF8'],
+  dependencies : [glib, gio_unix, libglnx_dep, json_glib],
+  include_directories : project_include_dirs,
+  install: true,
+  install_dir : tests_dir
+)
+
+# Helpers with no dependencies and one source file of the same name
+# as the helper itself.
+foreach helper : [
+  'mock-bad-check-va-api',
+  'mock-bad-check-vdpau',
+  'mock-bad-check-vulkan',
+  'mock-bad-check-xdg-portal',
+  'mock-good-check-va-api',
+  'mock-good-check-vdpau',
+  'mock-good-check-xdg-portal',
+  'mock-good-flatpak-check-xdg-portal',
+  'mock-hanging-check-xdg-portal',
+  'mock-hanging-wflinfo',
+  'mock-sigusr-wflinfo',
+]
+  test_depends += executable(
+    helper,
+    helper + '.c',
+    include_directories : project_include_dirs,
+    install: true,
+    install_dir: tests_dir
+  )
+endforeach
+
+foreach helper : [
+  'mock-good-check-vulkan',
+  'mock-mixed-check-vulkan',
+]
+  test_depends += executable(
+    helper,
+    helper + '.c',
+    dependencies : [glib],
+    include_directories : project_include_dirs,
+    install: true,
+    install_dir: tests_dir
+  )
+endforeach
+
+foreach token : [
+  'LIB',
+  'PLATFORM',
+]
+  foreach helper : [
+    'mock-good-detect',
+    'mock-bad-detect',
+  ]
+    test_depends += executable(
+      helper + '-' + token.to_lower(),
+      helper + '.c',
+      c_args : ['-DMOCK_LIBDL_TOKEN_' + token],
+      include_directories : project_include_dirs,
+      install: true,
+      install_dir: tests_dir
+    )
+  endforeach
+endforeach
+
+# These need to be the same as their -good- counterparts, to exercise
+# the case where the preliminary check succeeds, but actually rendering
+# a window fails (hence "mixed").
+test_depends += executable(
+  'mock-mixed-wflinfo',
+  'mock-good-wflinfo.c',
+  include_directories : project_include_dirs,
+  dependencies: [glib],
+  install: true,
+  install_dir: tests_dir
+)
+
+# mock-bad-check-gl is essentially the same as mock-bad-check-vulkan:
+# it fails with a message on stderr.
+test_depends += executable(
+  'mock-bad-check-gl',
+  'mock-bad-check-vulkan.c',
+  include_directories : project_include_dirs,
+  install: true,
+  install_dir: tests_dir
+)
+
+# Helpers with a GLib dependency and one source file of the same name
+# as the helper itself.
+foreach helper : [
+  'mock-bad-wflinfo',
+  'x86_64-mock-debian-inspect-library',
+  'i386-mock-debian-inspect-library',
+  'x86_64-mock-fedora-inspect-library',
+  'x86_64-mock-ubuntu-inspect-library',
+  'i386-mock-fedora-inspect-library',
+  'mock-good-wflinfo',
+  'mock-mixed-check-gl',
+  'mock-software-wflinfo',
+]
+  test_depends += executable(
+    helper,
+    helper + '.c',
+    dependencies : [glib],
+    include_directories : project_include_dirs,
+    install: true,
+    install_dir: tests_dir
+  )
+endforeach
+
+# i386 and x86_64 helpers with GLib and Gio dependencies, and one source file of
+# the same name as the helper itself (with the arch prefix).
+foreach arch : [
+  'i386',
+  'x86_64',
+]
+  foreach helper : [
+    'mock-abi-inspect-library',
+    'mock-container-capsule-capture-libs',
+  ]
+    test_depends += executable(
+      arch + '-' + helper,
+      helper + '.c',
+      c_args : ['-DMOCK_ARCHITECTURE_' + arch],
+      dependencies : [glib, gio, test_utils_dep],
+      include_directories : project_include_dirs,
+      install: true,
+      install_dir: tests_dir
+    )
+  endforeach
+endforeach
+
+# i386 and x86_64 capsule-capture-libs helpers that differ only by
+# compile time args
+foreach arch : [
+  'i386',
+  'x86_64',
+]
+  foreach distro : [
+    'abi',
+    'debian',
+    'fedora',
+    'ubuntu',
+  ]
+    test_depends += executable(
+      arch + '-mock-' + distro + '-capsule-capture-libs',
+      'mock-capsule-capture-libs.c',
+      c_args : [
+        '-DMOCK_ARCHITECTURE_' + arch,
+        '-DMOCK_DISTRO_' + distro.to_upper(),
+      ],
+      dependencies : [glib, gio, test_utils_dep],
+      include_directories : project_include_dirs,
+      install: true,
+      install_dir: tests_dir
+    )
+  endforeach
+endforeach
 
 # A list of strings each of this form:
 # test-name:any one-line shell command, which will include ${G_TEST_BUILDDIR}
@@ -208,6 +424,7 @@ foreach test_info : tests
       test_name,
       exe,
       args : ['--tap'],
+      depends : test_depends,
       env : test_env,
       protocol : 'tap',
       timeout : timeout,
@@ -216,226 +433,11 @@ foreach test_info : tests
     test(
       test_name,
       exe,
+      depends : test_depends,
       env : test_env,
       timeout : timeout,
     )
   endif
-endforeach
-
-# Helpers and manual tests statically linked to libsteam-r-t
-foreach helper : [
-  'find-myself',
-]
-  executable(
-    helper,
-    files(helper + '.c'),
-    dependencies : [
-      glib,
-      gobject,
-      gio_unix,
-      json_glib,
-      libglnx_dep,
-      libsteamrt_static_dep,
-      test_utils_static_libsteamrt_dep,
-    ],
-    include_directories : project_include_dirs,
-    install : get_option('installed_tests'),
-    install_dir : tests_dir,
-  )
-endforeach
-
-# A mock implementation of check-locale that offers lots of locales
-executable(
-  'mock-check-locale',
-  join_paths('..', 'helpers', 'check-locale.c'),
-  c_args : [
-    '-DMOCK_CHECK_LOCALE',
-    '-DMOCK_CHECK_LOCALE_HAVE_C_UTF8',
-    '-DMOCK_CHECK_LOCALE_HAVE_EN_US',
-  ],
-  dependencies : [glib, gio_unix, libglnx_dep, json_glib],
-  include_directories : project_include_dirs,
-  install: true,
-  install_dir : tests_dir
-)
-
-# A mock implementation of check-locale that emulates a system where
-# the current locale is not UTF-8 and the C.UTF-8 locale is missing
-executable(
-  'mock-legacy-check-locale',
-  join_paths('..', 'helpers', 'check-locale.c'),
-  c_args : [
-    '-DMOCK_CHECK_LOCALE',
-    '-DMOCK_CHECK_LOCALE_HAVE_EN_US',
-    '-DMOCK_CHECK_LOCALE_LEGACY',
-  ],
-  dependencies : [glib, gio_unix, libglnx_dep, json_glib],
-  include_directories : project_include_dirs,
-  install: true,
-  install_dir : tests_dir
-)
-
-# A mock implementation of check-locale that emulates a system where
-# the en_US.UTF-8 and en_US locales are not available
-executable(
-  'mock-unamerican-check-locale',
-  join_paths('..', 'helpers', 'check-locale.c'),
-  c_args : ['-DMOCK_CHECK_LOCALE', '-DMOCK_CHECK_LOCALE_HAVE_C_UTF8'],
-  dependencies : [glib, gio_unix, libglnx_dep, json_glib],
-  include_directories : project_include_dirs,
-  install: true,
-  install_dir : tests_dir
-)
-
-# Helpers with no dependencies and one source file of the same name
-# as the helper itself.
-foreach helper : [
-  'mock-bad-check-va-api',
-  'mock-bad-check-vdpau',
-  'mock-bad-check-vulkan',
-  'mock-bad-check-xdg-portal',
-  'mock-good-check-va-api',
-  'mock-good-check-vdpau',
-  'mock-good-check-xdg-portal',
-  'mock-good-flatpak-check-xdg-portal',
-  'mock-hanging-check-xdg-portal',
-  'mock-hanging-wflinfo',
-  'mock-sigusr-wflinfo',
-]
-  executable(
-    helper,
-    helper + '.c',
-    include_directories : project_include_dirs,
-    install: true,
-    install_dir: tests_dir
-  )
-endforeach
-
-foreach helper : [
-  'mock-good-check-vulkan',
-  'mock-mixed-check-vulkan',
-]
-  executable(
-    helper,
-    helper + '.c',
-    dependencies : [glib],
-    include_directories : project_include_dirs,
-    install: true,
-    install_dir: tests_dir
-  )
-endforeach
-
-foreach token : [
-  'LIB',
-  'PLATFORM',
-]
-  foreach helper : [
-    'mock-good-detect',
-    'mock-bad-detect',
-  ]
-    executable(
-      helper + '-' + token.to_lower(),
-      helper + '.c',
-      c_args : ['-DMOCK_LIBDL_TOKEN_' + token],
-      include_directories : project_include_dirs,
-      install: true,
-      install_dir: tests_dir
-    )
-  endforeach
-endforeach
-
-# These need to be the same as their -good- counterparts, to exercise
-# the case where the preliminary check succeeds, but actually rendering
-# a window fails (hence "mixed").
-executable(
-  'mock-mixed-wflinfo',
-  'mock-good-wflinfo.c',
-  include_directories : project_include_dirs,
-  dependencies: [glib],
-  install: true,
-  install_dir: tests_dir
-)
-
-# mock-bad-check-gl is essentially the same as mock-bad-check-vulkan:
-# it fails with a message on stderr.
-executable(
-  'mock-bad-check-gl',
-  'mock-bad-check-vulkan.c',
-  include_directories : project_include_dirs,
-  install: true,
-  install_dir: tests_dir
-)
-
-# Helpers with a GLib dependency and one source file of the same name
-# as the helper itself.
-foreach helper : [
-  'mock-bad-wflinfo',
-  'x86_64-mock-debian-inspect-library',
-  'i386-mock-debian-inspect-library',
-  'x86_64-mock-fedora-inspect-library',
-  'x86_64-mock-ubuntu-inspect-library',
-  'i386-mock-fedora-inspect-library',
-  'mock-good-wflinfo',
-  'mock-mixed-check-gl',
-  'mock-software-wflinfo',
-]
-  executable(
-    helper,
-    helper + '.c',
-    dependencies : [glib],
-    include_directories : project_include_dirs,
-    install: true,
-    install_dir: tests_dir
-  )
-endforeach
-
-# i386 and x86_64 helpers with GLib and Gio dependencies, and one source file of
-# the same name as the helper itself (with the arch prefix).
-foreach arch : [
-  'i386',
-  'x86_64',
-]
-  foreach helper : [
-    'mock-abi-inspect-library',
-    'mock-container-capsule-capture-libs',
-  ]
-    executable(
-      arch + '-' + helper,
-      helper + '.c',
-      c_args : ['-DMOCK_ARCHITECTURE_' + arch],
-      dependencies : [glib, gio, test_utils_dep],
-      include_directories : project_include_dirs,
-      install: true,
-      install_dir: tests_dir
-    )
-  endforeach
-endforeach
-
-# i386 and x86_64 capsule-capture-libs helpers that differ only by
-# compile time args
-foreach arch : [
-  'i386',
-  'x86_64',
-]
-  foreach distro : [
-    'abi',
-    'debian',
-    'fedora',
-    'ubuntu',
-  ]
-    executable(
-      arch + '-mock-' + distro + '-capsule-capture-libs',
-      'mock-capsule-capture-libs.c',
-      c_args : [
-        '-DMOCK_ARCHITECTURE_' + arch,
-        '-DMOCK_DISTRO_' + distro.to_upper(),
-      ],
-      dependencies : [glib, gio, test_utils_dep],
-      include_directories : project_include_dirs,
-      install: true,
-      install_dir: tests_dir
-    )
-  endforeach
 endforeach
 
 lint_scripts = [
@@ -493,6 +495,7 @@ foreach test_info : test_scripts
   test(
     test_name, program,
     args : test_argv,
+    depends : test_depends,
     env : test_env,
     protocol : 'tap',
     timeout : timeout,

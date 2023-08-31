@@ -21,6 +21,8 @@
 # TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+pv_bin = []
+
 conf_data = configuration_data()
 conf_data.set_quoted('VERSION', version)
 
@@ -123,7 +125,7 @@ pressure_vessel_adverb_lib_dep = declare_dependency(
   link_with : pressure_vessel_adverb_lib,
 )
 
-executable(
+pv_bin += executable(
   'pressure-vessel-adverb',
   sources : [
     'adverb.c',
@@ -191,7 +193,7 @@ pressure_vessel_wrap_lib_dep = declare_dependency(
   sources : [systemd_dbus[1]],
 )
 
-executable(
+pv_bin += executable(
   'pressure-vessel-wrap',
   sources : [
     'wrap.c',
@@ -209,7 +211,7 @@ executable(
   install_rpath : pv_rpath,
 )
 
-executable(
+pv_bin += executable(
   'pressure-vessel-try-setlocale',
   sources : [
     'try-setlocale.c',
@@ -251,7 +253,7 @@ if build_man_pages
   endforeach
 endif
 
-subproject(
+bubblewrap_subproject = subproject(
   'bubblewrap',
   default_options : [
     'build_rpath=' + pv_rpath,
@@ -261,6 +263,8 @@ subproject(
     'tests=false',
   ],
 )
+pv_bin += bubblewrap_subproject.get_variable('bwrap')
 
+test_depends += pv_bin
 
 # vim:set sw=2 sts=2 et:
