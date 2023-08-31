@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20230831.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20230831.0) steamrt; urgency=medium
 
   * system-info: Detect whether the LD_LIBRARY_PATH or container runtime
     is on a fully-featured Linux filesystem
@@ -37,7 +37,7 @@ steam-runtime-tools (0.20230831.0) UNRELEASED; urgency=medium
     - Avoid generating crash dumps during unit testing
   * Build system refactoring
 
- -- Simon McVittie <smcv@collabora.com>  Thu, 31 Aug 2023 11:40:59 +0100
+ -- Simon McVittie <smcv@collabora.com>  Thu, 31 Aug 2023 14:56:42 +0100
 
 steam-runtime-tools (0.20230804.0) steamrt; urgency=medium
 
