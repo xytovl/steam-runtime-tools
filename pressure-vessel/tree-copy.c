@@ -31,6 +31,7 @@
 #include "libglnx.h"
 
 #include "steam-runtime-tools/glib-backports-internal.h"
+#include "steam-runtime-tools/utils-internal.h"
 #include "flatpak-bwrap-private.h"
 #include "flatpak-utils-base-private.h"
 #include "flatpak-utils-private.h"
@@ -71,6 +72,135 @@ static struct
   GError *error;
 } nftw_data;
 
+static gboolean
+copy_regular_file (const char *source,
+                   const struct stat *source_stat,
+                   const char *dest,
+                   GError **error)
+{
+  glnx_autofd int source_fd = -1;
+  glnx_autofd int dest_fd = -1;
+  g_autofree gchar *temp = NULL;
+  int mode;
+  struct timespec times[2];
+
+  if (!glnx_openat_rdonly (AT_FDCWD, source, FALSE, &source_fd, error))
+    return glnx_prefix_error (error, "Unable to open \"%s\" for reading", source);
+
+  mode = _srt_stat_get_permissions (source_stat);
+
+  /* We need to be able to write to the file as the current user,
+   * so turn a mode like 0444 into 0644 */
+  temp = g_strdup_printf ("%s.XXXXXX", dest);
+  dest_fd = TEMP_FAILURE_RETRY (g_mkstemp_full (temp, O_RDWR | O_CLOEXEC,
+                                                S_IWUSR | mode));
+
+  if (dest_fd < 0)
+    return glnx_throw_errno_prefix (error, "Unable to open \"%s\" for writing",
+                                    temp);
+
+  if (glnx_regfile_copy_bytes (source_fd, dest_fd, (off_t) -1) < 0)
+    {
+      glnx_throw_errno_prefix (error, "Unable to copy \"%s\" to \"%s\"",
+                               source, temp);
+      goto cleanup;
+    }
+
+  if (TEMP_FAILURE_RETRY (fchmod (dest_fd, mode)) != 0)
+    {
+      int saved_errno = errno;
+      int required_access = R_OK;
+
+      if (mode & 0111)
+        required_access |= X_OK;
+
+      if (saved_errno == EPERM
+          && (nftw_data.flags & PV_COPY_FLAGS_CHMOD_MAY_FAIL) != 0
+          && access (temp, required_access) == 0)
+        {
+          /* We don't log warnings here, because production use of
+           * pressure-vessel normally operates from a mtree manifest,
+           * which would give us better warnings anyway. */
+          g_info ("Ignoring EPERM copying permissions 0%o of \"%s\" to \"%s\"",
+                  mode, source, temp);
+        }
+      else
+        {
+          glnx_throw_errno_prefix (error,
+                                   "Unable to copy permissions 0%o of \"%s\" to \"%s\"",
+                                   mode, source, temp);
+          goto cleanup;
+        }
+    }
+
+  /* glnx_file_copy_at() silently ignores failure to set timestamps;
+   * do the same here */
+  times[0] = source_stat->st_atim;
+  times[1] = source_stat->st_mtim;
+  (void) futimens (dest_fd, times);
+
+  glnx_close_fd (&dest_fd);
+
+  if (rename (temp, dest) != 0)
+    {
+      glnx_throw_errno_prefix (error,
+                               "Unable to rename \"%s\" to \"%s\"", temp, dest);
+      goto cleanup;
+    }
+
+  return TRUE;
+
+cleanup:
+  if (unlink (temp) != 0)
+    g_warning ("Unable to delete temporary \"%s\": %s", temp, g_strerror (errno));
+
+  return FALSE;
+}
+
+static gboolean
+link_or_copy_regular_file (const char *fpath,
+                           const struct stat *sb,
+                           const char *dest,
+                           GError **error)
+{
+  int link_errno = 0;
+
+  /* Fast path: try to make a hard link. */
+  if (link (fpath, dest) == 0)
+    return TRUE;
+
+  link_errno = errno;
+
+  /* Slow path: fall back to copying.
+   *
+   * This does a FICLONE or copy_file_range to get btrfs reflinks
+   * if possible, making the copy as cheap as cp --reflink=auto.
+   *
+   * Rather than second-guessing which errno values would result
+   * in link() failing but a copy succeeding, we just try it
+   * unconditionally - the worst that can happen is that this
+   * fails too. */
+  if (!copy_regular_file (fpath, sb, dest, error))
+    return FALSE;
+
+  /* If link() failed but copying succeeded, then we might have
+   * a problem that we need to warn about. */
+  if ((nftw_data.flags & PV_COPY_FLAGS_EXPECT_HARD_LINKS) != 0)
+    {
+      g_warning ("Unable to create hard link \"%s\" to \"%s\": %s",
+                 fpath, dest, g_strerror (link_errno));
+      g_warning ("Falling back to copying, but this will take more "
+                 "time and disk space.");
+      g_warning ("For best results, \"%s\" and \"%s\" should both "
+                 "be on the same fully-featured Linux filesystem.",
+                 nftw_data.source_root, nftw_data.dest_root);
+      /* Only warn once per tree copied */
+      nftw_data.flags &= ~PV_COPY_FLAGS_EXPECT_HARD_LINKS;
+    }
+
+  return TRUE;
+}
+
 static int
 copy_tree_helper (const char *fpath,
                   const struct stat *sb,
@@ -83,7 +213,6 @@ copy_tree_helper (const char *fpath,
   g_autofree gchar *target = NULL;
   GError **error = &nftw_data.error;
   gboolean usrmerge;
-  int link_errno = 0;
 
   g_return_val_if_fail (g_str_has_prefix (fpath, nftw_data.source_root), 1);
 
@@ -96,7 +225,7 @@ copy_tree_helper (const char *fpath,
         }
 
       if (!glnx_shutil_mkdir_p_at (-1, nftw_data.dest_root,
-                                   sb->st_mode & 07777, NULL, error))
+                                   _srt_stat_get_permissions (sb), NULL, error))
         return 1;
 
       return 0;
@@ -155,7 +284,7 @@ copy_tree_helper (const char *fpath,
             /* Fall through to create usr/bin or similar too */
           }
 
-        if (!glnx_shutil_mkdir_p_at (-1, dest, sb->st_mode & 07777,
+        if (!glnx_shutil_mkdir_p_at (-1, dest, _srt_stat_get_permissions (sb),
                                      NULL, error))
           return 1;
         break;
@@ -260,47 +389,9 @@ copy_tree_helper (const char *fpath,
       case FTW_F:
         trace ("Is a regular file");
 
-        /* Fast path: try to make a hard link. */
-        if (link (fpath, dest) == 0)
-          break;
+        if (!link_or_copy_regular_file (fpath, sb, dest, error))
+          return 1;
 
-        link_errno = errno;
-
-        /* Slow path: fall back to copying.
-         *
-         * This does a FICLONE or copy_file_range to get btrfs reflinks
-         * if possible, making the copy as cheap as cp --reflink=auto.
-         *
-         * Rather than second-guessing which errno values would result
-         * in link() failing but a copy succeeding, we just try it
-         * unconditionally - the worst that can happen is that this
-         * fails too. */
-        if (!glnx_file_copy_at (AT_FDCWD, fpath, sb,
-                                AT_FDCWD, dest,
-                                (GLNX_FILE_COPY_OVERWRITE
-                                 | GLNX_FILE_COPY_NOCHOWN
-                                 | GLNX_FILE_COPY_NOXATTRS),
-                                NULL, error))
-          {
-            glnx_prefix_error (error, "Unable to copy \"%s\" to \"%s\"",
-                               fpath, dest);
-            return 1;
-          }
-
-        /* If link() failed but copying succeeded, then we might have
-         * a problem that we need to warn about. */
-        if ((nftw_data.flags & PV_COPY_FLAGS_EXPECT_HARD_LINKS) != 0)
-          {
-            g_warning ("Unable to create hard link \"%s\" to \"%s\": %s",
-                       fpath, dest, g_strerror (link_errno));
-            g_warning ("Falling back to copying, but this will take more "
-                       "time and disk space.");
-            g_warning ("For best results, \"%s\" and \"%s\" should both "
-                       "be on the same fully-featured Linux filesystem.",
-                       nftw_data.source_root, nftw_data.dest_root);
-            /* Only warn once per tree copied */
-            nftw_data.flags &= ~PV_COPY_FLAGS_EXPECT_HARD_LINKS;
-          }
         break;
 
       default:

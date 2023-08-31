@@ -645,6 +645,47 @@ test_search_path_append (Fixture *f,
   g_assert_cmpstr (str->str, ==, "/bin:/usr/bin:/usr/bin");
 }
 
+static struct stat stats_to_describe[] =
+{
+  { .st_mode = 0104750, .st_uid = 0, .st_gid = 0 },
+  { .st_mode = 0100644, .st_uid = 1, .st_gid = 4 },   /* daemon:adm on Debian */
+  { .st_mode = 0100644, .st_uid = 100, .st_gid = 100 },   /* :users on Debian */
+  { .st_mode = 0100644, .st_uid = 1000, .st_gid = 100 },
+  { .st_mode = 0100644, .st_uid = 1000, .st_gid = 1000 },
+  { .st_mode = 0100755, .st_uid = 65534, .st_gid = 65534 },
+  { .st_mode = 0100755, .st_uid = -1, .st_gid = -1 },
+  /* -2 is a placeholder which we replace with the current uid/gid below.
+   * -1 is not a valid uid/gid, so we will show it numerically. */
+  { .st_mode = 0100755, .st_uid = -2, .st_gid = -1 },
+  { .st_mode = 0100755, .st_uid = -1, .st_gid = -2 },
+  { .st_mode = 0100755, .st_uid = -2, .st_gid = -2 },
+};
+
+static void
+test_stat_describe_permissions (Fixture *f,
+                                gconstpointer context)
+{
+  size_t i;
+
+  /* This is mostly a manual test: we assume the current user is
+   * reasonably likely to be uid 1000 and a member of Debian's
+   * adm or users groups for the purposes of exercising all code paths. */
+  for (i = 0; i < G_N_ELEMENTS (stats_to_describe); i++)
+    {
+      g_autofree char *description = NULL;
+
+      if (stats_to_describe[i].st_uid == (uid_t) -2)
+        stats_to_describe[i].st_uid = geteuid ();
+
+      if (stats_to_describe[i].st_gid == (gid_t) -2)
+        stats_to_describe[i].st_gid = getegid ();
+
+      description = pv_stat_describe_permissions (&stats_to_describe[i]);
+      g_assert_nonnull (description);
+      g_test_message ("%s", description);
+    }
+}
+
 int
 main (int argc,
       char **argv)
@@ -667,6 +708,8 @@ main (int argc,
               setup, test_mtree_entry_parse, teardown);
   g_test_add ("/search-path-append", Fixture, NULL,
               setup, test_search_path_append, teardown);
+  g_test_add ("/stat-describe-permissions", Fixture, NULL,
+              setup, test_stat_describe_permissions, teardown);
 
   return g_test_run ();
 }

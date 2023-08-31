@@ -31,6 +31,7 @@
 #include <gio/gunixinputstream.h>
 
 #include "enumtypes.h"
+#include "utils.h"
 
 /* Enabling debug logging for this is rather too verbose, so only
  * enable it when actively debugging this module */
@@ -371,6 +372,91 @@ pv_mtree_entry_parse (const char *line,
   return TRUE;
 }
 
+static gboolean
+maybe_chmod (const PvMtreeEntry *entry,
+             int parent_fd,
+             const char *base,
+             int fd,
+             const char *sysroot,
+             PvMtreeApplyFlags flags,
+             GLogLevelFlags *chmod_plusx_warning_level,
+             GLogLevelFlags *chmod_minusx_warning_level,
+             GError **error)
+{
+  g_autofree gchar *permissions = NULL;
+  int adjusted_mode;
+  int saved_errno;
+  struct stat stat_buf = {};
+
+  if (entry->entry_flags & PV_MTREE_ENTRY_FLAGS_NO_CHANGE)
+    return TRUE;
+
+  if (entry->kind == PV_MTREE_ENTRY_KIND_DIR
+      || (entry->mode >= 0 && entry->mode & 0111))
+    adjusted_mode = 0755;
+  else
+    adjusted_mode = 0644;
+
+  if (TEMP_FAILURE_RETRY (fchmod (fd, adjusted_mode)) == 0)
+    return TRUE;
+
+  saved_errno = errno;
+
+  if (fstat (fd, &stat_buf) == 0)
+    {
+      permissions = pv_stat_describe_permissions (&stat_buf);
+    }
+  else
+    {
+      permissions = g_strdup_printf ("(unknown: %s)", g_strerror (errno));
+    }
+
+  if (saved_errno == EPERM
+      && (flags & PV_MTREE_APPLY_FLAGS_CHMOD_MAY_FAIL) != 0)
+    {
+      /* Use faccessat() instead of reading stat_buf.st_mode,
+       * in case we are not the file owner or the filesystem
+       * bypasses normal POSIX permissions */
+      if ((adjusted_mode & 0111) != 0)
+        {
+          /* We want it to be executable */
+          if (faccessat (parent_fd, base, R_OK|X_OK, 0) == 0)
+            {
+              g_log (G_LOG_DOMAIN, *chmod_plusx_warning_level,
+                     "Cannot chmod directory/executable \"%s\" in \"%s\" "
+                     "from %s to 0%o (%s): assuming R_OK|X_OK is close enough",
+                     entry->name, sysroot,
+                     permissions, adjusted_mode, g_strerror (saved_errno));
+              *chmod_plusx_warning_level = G_LOG_LEVEL_INFO;
+              return TRUE;
+            }
+        }
+      else
+        {
+          /* We don't want it to be executable, but hopefully it's not
+           * fatally bad if it is accidentally executable (as files on
+           * NTFS or FAT often will be) */
+          if (faccessat (parent_fd, base, R_OK, 0) == 0)
+            {
+              g_log (G_LOG_DOMAIN, *chmod_minusx_warning_level,
+                     "Cannot chmod non-executable file \"%s\" in \"%s\" "
+                     "from %s to 0%o (%s): assuming R_OK is close enough",
+                     entry->name, sysroot,
+                     permissions, adjusted_mode, g_strerror (saved_errno));
+              *chmod_minusx_warning_level = G_LOG_LEVEL_INFO;
+              return TRUE;
+            }
+        }
+    }
+
+  errno = saved_errno;
+  return glnx_throw_errno_prefix (error,
+                                  "Unable to change mode of \"%s\" in \"%s\" "
+                                  "from %s to 0%o: fchmod",
+                                  entry->name, sysroot,
+                                  permissions, adjusted_mode);
+}
+
 /*
  * pv_mtree_apply:
  * @mtree: (type filename): Path to a mtree(5) manifest
@@ -441,6 +527,12 @@ pv_mtree_apply (const char *mtree,
   g_autoptr(SrtProfilingTimer) timer = NULL;
   glnx_autofd int source_files_fd = -1;
   guint line_number = 0;
+  /* We only emit a warning for the first file we were unable to chmod +x,
+   * and the first file we were unable to chmod -x, per mtree applied;
+   * the second and subsequent file in each class are demoted to INFO. */
+  GLogLevelFlags chmod_plusx_warning_level = G_LOG_LEVEL_WARNING;
+  GLogLevelFlags chmod_minusx_warning_level = G_LOG_LEVEL_WARNING;
+  GLogLevelFlags set_mtime_warning_level = G_LOG_LEVEL_WARNING;
 
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
   g_return_val_if_fail (mtree != NULL, FALSE);
@@ -486,7 +578,6 @@ pv_mtree_apply (const char *mtree,
       g_auto(PvMtreeEntry) entry = PV_MTREE_ENTRY_BLANK;
       glnx_autofd int parent_fd = -1;
       glnx_autofd int fd = -1;
-      int adjusted_mode;
 
       line = g_data_input_stream_read_line (reader, NULL, NULL, &local_error);
 
@@ -658,21 +749,11 @@ pv_mtree_apply (const char *mtree,
                                mtree, line_number);
         }
 
-      if (entry.kind == PV_MTREE_ENTRY_KIND_DIR
-          || (entry.mode >= 0 && entry.mode & 0111))
-        adjusted_mode = 0755;
-      else
-        adjusted_mode = 0644;
-
-      if (fd >= 0
-          && !(entry.entry_flags & PV_MTREE_ENTRY_FLAGS_NO_CHANGE)
-          && !glnx_fchmod (fd, adjusted_mode, error))
-        {
-          g_prefix_error (error,
-                          "Unable to set mode of \"%s\" in \"%s\": ",
-                          entry.name, sysroot);
-          return FALSE;
-        }
+      if (fd >= 0 &&
+          !maybe_chmod (&entry, parent_fd, base, fd, sysroot, flags,
+                        &chmod_plusx_warning_level, &chmod_minusx_warning_level,
+                        error))
+        return FALSE;
 
       if (entry.mtime_usec >= 0
           && fd >= 0
@@ -689,8 +770,12 @@ pv_mtree_apply (const char *mtree,
           };
 
           if (futimens (fd, times) != 0)
-            g_warning ("Unable to set mtime of \"%s\" in \"%s\": %s",
-                       entry.name, sysroot, g_strerror (errno));
+            {
+              g_log (G_LOG_DOMAIN, set_mtime_warning_level,
+                     "Unable to set mtime of \"%s\" in \"%s\": %s",
+                     entry.name, sysroot, g_strerror (errno));
+              set_mtime_warning_level = G_LOG_LEVEL_INFO;
+            }
         }
     }
 
