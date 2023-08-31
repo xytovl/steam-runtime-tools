@@ -1,3 +1,44 @@
+steam-runtime-tools (0.20230831.0) UNRELEASED; urgency=medium
+
+  * system-info: Detect whether the LD_LIBRARY_PATH or container runtime
+    is on a fully-featured Linux filesystem
+    - Non-Linux filesystems (NTFS, FAT, SMB/CIFS, etc.) are diagnosed as a
+      potential issue because they often lack features like permissions,
+      ownership, symbolic links and hard links.
+    - Networked filesystems (NFS, SMB/CIFS, etc.) are diagnosed as a
+      potential issue because they often make "fast" metadata operations
+      unexpectedly slow.
+    - Overlay and user-space filesystems (overlayfs, FUSE, etc.) are
+      diagnosed as a potential issue because we cannot tell whether the
+      backing filesystem is in one of the above problematic categories.
+  * pressure-vessel: Try to cope with being unable to set file permissions:
+    - On a NTFS or other non-Unix filesystem
+      (steam-runtime#434, steam-runtime#460, steam-runtime#491,
+      steam-runtime#544, steam-runtime#606)
+    - On a Unix filesystem owned by someone else
+      (as seen in a comment on steam-runtime#434)
+    - Please note that Proton is outside the scope of this project, and
+      intentionally does not allow being shared between different Unix
+      user IDs (see Proton#4820, steam-runtime#477).
+    - Please note that the affected configurations are not recommended.
+      The recommended layout is to have all Steam libraries on native,
+      local Linux filesystems (ext4, btrfs, xfs or similar), owned by the
+      same user ID that runs Steam.
+    - System administrators should be aware that configuring write access
+      to the Steam library for more than one user, for example NTFS
+      with umask=007 or 000, will allow any of the users with write
+      permission to gain control over the account of any other user
+      who will run Steam games from that library (a privilege escalation
+      security vulnerability).
+      Do not use this arrangement unless you completely trust all users
+      who have write access to the Steam library.
+  * Update libglnx to 2023-08-29:
+    - Use libglnx backport of g_strv_equal() instead of our own
+    - Avoid generating crash dumps during unit testing
+  * Build system refactoring
+
+ -- Simon McVittie <smcv@collabora.com>  Thu, 31 Aug 2023 11:40:59 +0100
+
 steam-runtime-tools (0.20230804.0) steamrt; urgency=medium
 
   * pressure-vessel fixes:
