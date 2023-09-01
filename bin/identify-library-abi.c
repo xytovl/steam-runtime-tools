@@ -117,13 +117,14 @@ print_library_details (const gchar *library_path,
 static gboolean had_paths_output = FALSE;
 
 static gboolean
-run_ldconfig (char separator,
+run_ldconfig (const char *ldconfig,
+              char separator,
               FILE *original_stdout,
               GError **error)
 {
   const gchar *ldconfig_argv[] =
     {
-      "/sbin/ldconfig", "-XNv", NULL,
+      "<placeholder>", "-XNv", NULL,
     };
   g_auto(GStrv) ldconfig_entries = NULL;
   g_autofree gchar *library_prefix = NULL;
@@ -131,6 +132,8 @@ run_ldconfig (char separator,
   g_autofree gchar *ignore = NULL;
   gint wait_status = 0;
   gsize i;
+
+  ldconfig_argv[0] = ldconfig;
 
   if (!g_spawn_sync (NULL,   /* working directory */
                     (gchar **) ldconfig_argv,
@@ -224,8 +227,25 @@ run (int argc,
 
   if (opt_ldconfig || opt_ldconfig_paths)
     {
-      if (!run_ldconfig (separator, original_stdout, error))
-        return FALSE;
+      if (g_file_test ("/etc/ld-x86_64-pc-linux-gnu.cache", G_FILE_TEST_EXISTS)
+          && g_file_test ("/etc/ld-i686-pc-linux-gnu.cache", G_FILE_TEST_EXISTS)
+          && g_file_test ("/usr/x86_64-pc-linux-gnu/bin/ldconfig", G_FILE_TEST_IS_EXECUTABLE)
+          && g_file_test ("/usr/i686-pc-linux-gnu/bin/ldconfig", G_FILE_TEST_IS_EXECUTABLE))
+        {
+          /* Exherbo */
+          if (!run_ldconfig ("/usr/x86_64-pc-linux-gnu/bin/ldconfig", separator,
+                             original_stdout, error))
+            return FALSE;
+
+          if (!run_ldconfig ("/usr/i686-pc-linux-gnu/bin/ldconfig", separator,
+                             original_stdout, error))
+            return FALSE;
+        }
+      else
+        {
+          if (!run_ldconfig ("/sbin/ldconfig", separator, original_stdout, error))
+            return FALSE;
+        }
     }
   else if (opt_directory != NULL)
     {
