@@ -106,18 +106,82 @@ print_library_details (const gchar *library_path,
 }
 
 static gboolean
+run_ldconfig (char separator,
+              FILE *original_stdout,
+              GError **error)
+{
+  const gchar *ldconfig_argv[] =
+    {
+      "/sbin/ldconfig", "-XNv", NULL,
+    };
+  g_auto(GStrv) ldconfig_entries = NULL;
+  g_autofree gchar *library_prefix = NULL;
+  g_autofree gchar *output = NULL;
+  gint wait_status = 0;
+  gsize i;
+
+  if (!g_spawn_sync (NULL,   /* working directory */
+                    (gchar **) ldconfig_argv,
+                    NULL,    /* envp */
+                    G_SPAWN_SEARCH_PATH,
+                    NULL,    /* child setup */
+                    NULL,    /* user data */
+                    &output, /* stdout */
+                    NULL,    /* stderr */
+                    &wait_status,
+                    error))
+    {
+      return FALSE;
+    }
+
+  if (wait_status != 0)
+    return glnx_throw (error, "Cannot run ldconfig: wait status %d", wait_status);
+
+  if (output == NULL)
+    return glnx_throw (error, "ldconfig didn't produce anything in output");
+
+  ldconfig_entries = g_strsplit (output, "\n", -1);
+
+  if (ldconfig_entries == NULL)
+    return glnx_throw (error, "ldconfig didn't produce anything in output");
+
+  for (i = 0; ldconfig_entries[i] != NULL; i++)
+    {
+      g_auto(GStrv) line_elements = NULL;
+      const gchar *library = NULL;
+      const gchar *colon = NULL;
+      g_autofree gchar *library_path = NULL;
+
+      /* skip empty lines */
+      if (ldconfig_entries[i][0] == '\0')
+        continue;
+
+      colon = strchr (ldconfig_entries[i], ':');
+
+      if (colon != NULL)
+        {
+          g_clear_pointer (&library_prefix, g_free);
+          library_prefix = g_strndup (ldconfig_entries[i], colon - ldconfig_entries[i]);
+          continue;
+        }
+
+      line_elements = g_strsplit (ldconfig_entries[i], " -> ", 2);
+      library = g_strstrip (line_elements[0]);
+      library_path = g_build_filename (library_prefix, library, NULL);
+
+      print_library_details (library_path, separator, original_stdout);
+    }
+
+  return TRUE;
+}
+
+static gboolean
 run (int argc,
      char **argv,
      GError **error)
 {
   g_autoptr(FILE) original_stdout = NULL;
-  g_autofree gchar *output = NULL;
-  gint wait_status = 0;
   gsize i;
-  const gchar *ldconfig_argv[] =
-    {
-      "/sbin/ldconfig", "-XNv", NULL,
-    };
   char separator = '\n';
 
   /* stdout is reserved for machine-readable output, so avoid having
@@ -132,60 +196,8 @@ run (int argc,
 
   if (opt_ldconfig)
     {
-      g_auto(GStrv) ldconfig_entries = NULL;
-      g_autofree gchar *library_prefix = NULL;
-
-      if (!g_spawn_sync (NULL,   /* working directory */
-                        (gchar **) ldconfig_argv,
-                        NULL,    /* envp */
-                        G_SPAWN_SEARCH_PATH,
-                        NULL,    /* child setup */
-                        NULL,    /* user data */
-                        &output, /* stdout */
-                        NULL,    /* stderr */
-                        &wait_status,
-                        error))
-        {
-          return FALSE;
-        }
-
-      if (wait_status != 0)
-        return glnx_throw (error, "Cannot run ldconfig: wait status %d", wait_status);
-
-      if (output == NULL)
-        return glnx_throw (error, "ldconfig didn't produce anything in output");
-
-      ldconfig_entries = g_strsplit (output, "\n", -1);
-
-      if (ldconfig_entries == NULL)
-        return glnx_throw (error, "ldconfig didn't produce anything in output");
-
-      for (i = 0; ldconfig_entries[i] != NULL; i++)
-        {
-          g_auto(GStrv) line_elements = NULL;
-          const gchar *library = NULL;
-          const gchar *colon = NULL;
-          g_autofree gchar *library_path = NULL;
-
-          /* skip empty lines */
-          if (ldconfig_entries[i][0] == '\0')
-            continue;
-
-          colon = strchr (ldconfig_entries[i], ':');
-
-          if (colon != NULL)
-            {
-              g_clear_pointer (&library_prefix, g_free);
-              library_prefix = g_strndup (ldconfig_entries[i], colon - ldconfig_entries[i]);
-              continue;
-            }
-
-          line_elements = g_strsplit (ldconfig_entries[i], " -> ", 2);
-          library = g_strstrip (line_elements[0]);
-          library_path = g_build_filename (library_prefix, library, NULL);
-
-          print_library_details (library_path, separator, original_stdout);
-        }
+      if (!run_ldconfig (separator, original_stdout, error))
+        return FALSE;
     }
   else if (opt_directory != NULL)
     {
