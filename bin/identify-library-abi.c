@@ -49,6 +49,7 @@ static gboolean opt_ldconfig_paths = FALSE;
 static gboolean opt_one_line = FALSE;
 static gboolean opt_print0 = FALSE;
 static gboolean opt_print_version = FALSE;
+static gboolean opt_quiet = FALSE;
 static gboolean opt_skip_unversioned = FALSE;
 
 static const GOptionEntry option_entries[] =
@@ -65,6 +66,8 @@ static const GOptionEntry option_entries[] =
   { "print0", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE,
     &opt_print0, "The generated library=value pairs are terminated with a "
     "null character instead of a newline", NULL },
+  { "quiet", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE,
+    &opt_quiet, "Silence warning output from ldconfig", NULL },
   { "skip-unversioned", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE,
     &opt_skip_unversioned, "Skip the libraries that have a filename that end with "
     "just \".so\"", NULL },
@@ -125,6 +128,7 @@ run_ldconfig (char separator,
   g_auto(GStrv) ldconfig_entries = NULL;
   g_autofree gchar *library_prefix = NULL;
   g_autofree gchar *output = NULL;
+  g_autofree gchar *ignore = NULL;
   gint wait_status = 0;
   gsize i;
 
@@ -135,7 +139,7 @@ run_ldconfig (char separator,
                     NULL,    /* child setup */
                     NULL,    /* user data */
                     &output, /* stdout */
-                    NULL,    /* stderr */
+                    opt_quiet ? &ignore : NULL,   /* stderr */
                     &wait_status,
                     error))
     {
