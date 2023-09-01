@@ -45,6 +45,8 @@ static GPtrArray *nftw_libraries = NULL;
 
 static gchar *opt_directory = FALSE;
 static gboolean opt_ldconfig = FALSE;
+static gboolean opt_ldconfig_paths = FALSE;
+static gboolean opt_one_line = FALSE;
 static gboolean opt_print0 = FALSE;
 static gboolean opt_print_version = FALSE;
 static gboolean opt_skip_unversioned = FALSE;
@@ -56,6 +58,10 @@ static const GOptionEntry option_entries[] =
     "PATH" },
   { "ldconfig", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE,
     &opt_ldconfig, "Check the word size for the libraries listed in ldconfig", NULL },
+  { "ldconfig-paths", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE,
+    &opt_ldconfig_paths, "Output the list of paths searched by ldconfig", NULL },
+  { "one-line", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE,
+    &opt_one_line, "Output --ldconfig-paths as a single colon-separated list", NULL },
   { "print0", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE,
     &opt_print0, "The generated library=value pairs are terminated with a "
     "null character instead of a newline", NULL },
@@ -104,6 +110,8 @@ print_library_details (const gchar *library_path,
 
     fprintf (original_stdout, "%s=%s%c", library_path, identifier, separator);
 }
+
+static gboolean had_paths_output = FALSE;
 
 static gboolean
 run_ldconfig (char separator,
@@ -162,8 +170,24 @@ run_ldconfig (char separator,
         {
           g_clear_pointer (&library_prefix, g_free);
           library_prefix = g_strndup (ldconfig_entries[i], colon - ldconfig_entries[i]);
+
+          if (opt_ldconfig_paths)
+            {
+              if (had_paths_output && opt_one_line)
+                fputc (':', original_stdout);
+
+              fputs (library_prefix, original_stdout);
+              had_paths_output = TRUE;
+
+              if (!opt_one_line)
+                fputc (separator, original_stdout);
+            }
+
           continue;
         }
+
+      if (opt_ldconfig_paths)
+        continue;
 
       line_elements = g_strsplit (ldconfig_entries[i], " -> ", 2);
       library = g_strstrip (line_elements[0]);
@@ -194,7 +218,7 @@ run (int argc,
   if (opt_print0)
     separator = '\0';
 
-  if (opt_ldconfig)
+  if (opt_ldconfig || opt_ldconfig_paths)
     {
       if (!run_ldconfig (separator, original_stdout, error))
         return FALSE;
@@ -221,6 +245,9 @@ run (int argc,
 
       g_ptr_array_free (nftw_libraries, TRUE);
     }
+
+  if (opt_one_line && had_paths_output)
+    fputc ('\n', original_stdout);
 
   return TRUE;
 }
@@ -253,18 +280,28 @@ main (int argc,
       goto out;
     }
 
-  if (opt_ldconfig && opt_directory != NULL)
+  if ((opt_ldconfig + (opt_directory != NULL) + opt_ldconfig_paths) != 1)
     {
-      glnx_throw (&error, "--ldconfig and --directory cannot be used at the same time");
+      glnx_throw (&error, "Exactly one of --ldconfig, --ldconfig-paths, --directory is required");
       status = EX_USAGE;
       goto out;
     }
 
-  if (!opt_ldconfig && opt_directory == NULL)
+  if (opt_one_line)
     {
-      glnx_throw (&error, "Either --ldconfig or --directory are required");
-      status = EX_USAGE;
-      goto out;
+      if (opt_print0)
+        {
+          glnx_throw (&error, "--one-line is not compatible with --print0");
+          status = EX_USAGE;
+          goto out;
+        }
+
+      if (!opt_ldconfig_paths)
+        {
+          glnx_throw (&error, "--one-line only works with --ldconfig-paths");
+          status = EX_USAGE;
+          goto out;
+        }
     }
 
   if (!run (argc, argv, &error))

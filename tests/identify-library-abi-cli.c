@@ -189,7 +189,7 @@ test_arguments_validation (Fixture *f,
         NULL,
       },
       .exit_status = EX_USAGE,
-      .stderr_contains = "Either --ldconfig or --directory are required",
+      .stderr_contains = "Exactly one of",
     },
     {
       .argv =
@@ -201,7 +201,31 @@ test_arguments_validation (Fixture *f,
         NULL,
       },
       .exit_status = EX_USAGE,
-      .stderr_contains = "cannot be used at the same time",
+      .stderr_contains = "Exactly one of",
+    },
+    {
+      .argv =
+      {
+        "steam-runtime-identify-library-abi",
+        "--ldconfig",
+        "--ldconfig-paths",
+        empty_temp_dir,
+        NULL,
+      },
+      .exit_status = EX_USAGE,
+      .stderr_contains = "Exactly one of",
+    },
+    {
+      .argv =
+      {
+        "steam-runtime-identify-library-abi",
+        "--ldconfig-paths",
+        "--directory",
+        empty_temp_dir,
+        NULL,
+      },
+      .exit_status = EX_USAGE,
+      .stderr_contains = "Exactly one of",
     },
     {
       .argv =
@@ -210,7 +234,28 @@ test_arguments_validation (Fixture *f,
         NULL,
       },
       .exit_status = EX_USAGE,
-      .stderr_contains = "Either --ldconfig or --directory are required",
+      .stderr_contains = "Exactly one of",
+    },
+    {
+      .argv =
+      {
+        "steam-runtime-identify-library-abi",
+        "--ldconfig",
+        "--one-line",
+      },
+      .exit_status = EX_USAGE,
+      .stderr_contains = "--one-line only works with --ldconfig-paths",
+    },
+    {
+      .argv =
+      {
+        "steam-runtime-identify-library-abi",
+        "--ldconfig-paths",
+        "--one-line",
+        "--print0",
+      },
+      .exit_status = EX_USAGE,
+      .stderr_contains = "--one-line is not compatible with --print0",
     },
     {
       .argv =
