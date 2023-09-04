@@ -57,7 +57,15 @@ tests = [
 if get_option('bin')
   tests += [
     {'name': 'check-requirements-cli'},
-    {'name': 'identify-library-abi-cli'},
+    {
+      'name': 'identify-library-abi-cli',
+      'include_directories': pv_include_dirs,
+      'sources': [
+        'identify-library-abi-cli.c',
+        '../pressure-vessel/flatpak-utils-base.c',
+        '../pressure-vessel/flatpak-utils.c',
+      ],
+    },
     {'name': 'system-info-cli', 'static': true, 'slow': true},
   ]
 endif
@@ -393,7 +401,10 @@ foreach test_info : tests
     'test-' + test_name,
     sources,
     dependencies : deps,
-    include_directories : project_include_dirs,
+    include_directories : [
+      project_include_dirs,
+      test_info.get('include_directories', []),
+    ],
     install : get_option('installed_tests'),
     install_dir : tests_dir,
   )
