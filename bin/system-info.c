@@ -946,14 +946,11 @@ main (int argc,
   char *expectations = NULL;
   gboolean verbose = FALSE;
   g_autoptr(JsonBuilder) builder = NULL;
-  g_autoptr(JsonGenerator) generator = NULL;
-  g_autoptr(JsonNode) root = NULL;
   gboolean can_run = FALSE;
   const gchar *test_json_path = NULL;
   g_autofree gchar *steamscript_path = NULL;
   g_autofree gchar *steamscript_version = NULL;
   g_autofree gchar *xdg_portal_messages = NULL;
-  g_autofree gchar *json_output = NULL;
   g_autofree gchar *version = NULL;
   g_autofree gchar *inst_path = NULL;
   g_autofree gchar *data_path = NULL;
@@ -1617,17 +1614,12 @@ main (int argc,
 
   json_builder_end_object (builder); // End global object
 
-  root = json_builder_get_root (builder);
-  generator = json_generator_new ();
-  json_generator_set_root (generator, root);
-  json_generator_set_pretty (generator, TRUE);
-  json_output = json_generator_to_data (generator, NULL);
-
-  if (fputs (json_output, original_stdout) < 0)
-    g_warning ("Unable to write output: %s", g_strerror (errno));
-
-  if (fputs ("\n", original_stdout) < 0)
-    g_warning ("Unable to write final newline: %s", g_strerror (errno));
+  if (!_srt_json_builder_print (builder, original_stdout,
+                                SRT_JSON_OUTPUT_FLAGS_PRETTY, &error))
+    {
+      g_warning ("%s", error->message);
+      g_clear_error (&error);
+    }
 
   if (fclose (original_stdout) != 0)
     g_warning ("Unable to close stdout: %s", g_strerror (errno));

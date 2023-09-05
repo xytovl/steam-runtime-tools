@@ -39,11 +39,9 @@
 
 #include <json-glib/json-glib.h>
 
-#define RECORD_SEPARATOR "\x1e"
-
 static FILE *original_stdout = NULL;
 static gboolean ignoring_initial_devices = FALSE;
-static gboolean opt_one_line = FALSE;
+static gboolean opt_pretty = TRUE;
 static gboolean opt_seq = FALSE;
 static gboolean opt_verbose = FALSE;
 
@@ -85,27 +83,16 @@ jsonify_flags (JsonBuilder *builder,
 static void
 print_json (JsonBuilder *builder)
 {
-  g_autoptr(JsonGenerator) generator = json_generator_new ();
-  g_autofree gchar *text = NULL;
-  g_autoptr(JsonNode) root = NULL;
+  g_autoptr(GError) local_error = NULL;
+  SrtJsonOutputFlags flags;
 
-  root = json_builder_get_root (builder);
-  generator = json_generator_new ();
-  json_generator_set_root (generator, root);
+  flags = (
+      (opt_pretty ? SRT_JSON_OUTPUT_FLAGS_PRETTY : SRT_JSON_OUTPUT_FLAGS_NONE)
+      | (opt_seq ? SRT_JSON_OUTPUT_FLAGS_SEQ : SRT_JSON_OUTPUT_FLAGS_NONE)
+  );
 
-  if (opt_seq)
-    fputs (RECORD_SEPARATOR, original_stdout);
-
-  if (!opt_one_line)
-    json_generator_set_pretty (generator, TRUE);
-
-  text = json_generator_to_data (generator, NULL);
-
-  if (fputs (text, original_stdout) < 0)
-    g_warning ("Unable to write output: %s", g_strerror (errno));
-
-  if (fputs ("\n", original_stdout) < 0)
-    g_warning ("Unable to write final newline: %s", g_strerror (errno));
+  if (!_srt_json_builder_print (builder, original_stdout, flags, &local_error))
+    g_warning ("%s", local_error->message);
 }
 
 static void
@@ -828,7 +815,7 @@ all_for_now (SrtInputDeviceMonitor *source,
     }
 
   if (opt_seq)
-    fputs (RECORD_SEPARATOR, original_stdout);
+    fputs (JSON_SEQ_RECORD_SEPARATOR, original_stdout);
 
   fputs ("{\"all-for-now\": true}\n", original_stdout);
 }
@@ -891,7 +878,7 @@ static const GOptionEntry option_entries[] =
     "List raw HID devices", NULL },
   { "once", 0, G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK, opt_once_cb,
     "Print devices that are initially discovered, then exit", NULL },
-  { "one-line", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_one_line,
+  { "one-line", 0, G_OPTION_FLAG_REVERSE, G_OPTION_ARG_NONE, &opt_pretty,
     "Print one device per line [default: pretty-print as concatenated JSON]",
     NULL },
   { "only-new", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &ignoring_initial_devices,
@@ -972,7 +959,7 @@ run (int argc,
   g_signal_connect (monitor, "removed", G_CALLBACK (removed), NULL);
   g_signal_connect (monitor, "all-for-now", G_CALLBACK (all_for_now), &monitor);
 
-  if (ignoring_initial_devices && !(opt_one_line || opt_seq))
+  if (ignoring_initial_devices && opt_pretty && !opt_seq)
     fputs ("{\"#\": \"devices that were already connected are not shown\"}\n",
            original_stdout);
 

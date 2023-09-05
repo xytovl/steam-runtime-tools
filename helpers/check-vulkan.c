@@ -39,6 +39,7 @@
 
 #include <steam-runtime-tools/glib-backports-internal.h>
 #include <steam-runtime-tools/json-glib-backports-internal.h>
+#include <steam-runtime-tools/json-utils-internal.h>
 #include <steam-runtime-tools/utils-internal.h>
 
 static const int WIDTH = 200;
@@ -1277,20 +1278,14 @@ static void
 print_json_builder (JsonBuilder *builder,
                     FILE *original_stdout)
 {
-  g_autoptr(JsonNode) root = NULL;
-  g_autoptr(JsonGenerator) generator = NULL;
-  g_autofree gchar *json = NULL;
+  g_autoptr(GError) local_error = NULL;
+  SrtJsonOutputFlags flags;
 
-  root = json_builder_get_root (builder);
-  generator = json_generator_new ();
-  json_generator_set_pretty (generator, opt_pretty_print);
-  json_generator_set_root (generator, root);
-  json = json_generator_to_data (generator, NULL);
-  if (fputs (json, original_stdout) < 0)
-    g_warning ("Unable to write output: %s", g_strerror (errno));
+  flags = (opt_pretty_print ? SRT_JSON_OUTPUT_FLAGS_PRETTY
+                            : SRT_JSON_OUTPUT_FLAGS_NONE);
 
-  if (fputs ("\n", original_stdout) < 0)
-    g_warning ("Unable to write final newline: %s", g_strerror (errno));
+  if (!_srt_json_builder_print (builder, original_stdout, flags, &local_error))
+    g_warning ("%s", local_error->message);
 }
 
 static void

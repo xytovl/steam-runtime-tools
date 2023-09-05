@@ -26,6 +26,7 @@
 #include "steam-runtime-tools/json-utils-internal.h"
 
 #include "steam-runtime-tools/glib-backports-internal.h"
+#include "steam-runtime-tools/json-glib-backports-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
 
 /**
@@ -470,6 +471,37 @@ _srt_json_object_get_enum_member (JsonObject *object,
 
   if (value_out)
     *value_out = parsed;
+
+  return TRUE;
+}
+
+gboolean
+_srt_json_builder_print (JsonBuilder *builder,
+                         FILE *fh,
+                         SrtJsonOutputFlags flags,
+                         GError **error)
+{
+  g_autoptr(JsonGenerator) generator = NULL;
+  g_autofree gchar *text = NULL;
+  g_autoptr(JsonNode) root = NULL;
+
+  root = json_builder_get_root (builder);
+  generator = json_generator_new ();
+  json_generator_set_root (generator, root);
+
+  if (flags & SRT_JSON_OUTPUT_FLAGS_SEQ)
+    fputs (JSON_SEQ_RECORD_SEPARATOR, fh);
+
+  if (flags & SRT_JSON_OUTPUT_FLAGS_PRETTY)
+    json_generator_set_pretty (generator, TRUE);
+
+  text = json_generator_to_data (generator, NULL);
+
+  if (fputs (text, fh) < 0)
+    return glnx_throw_errno_prefix (error, "Unable to write output");
+
+  if (fputs ("\n", fh) < 0)
+    return glnx_throw_errno_prefix (error, "Unable to write final newline");
 
   return TRUE;
 }
