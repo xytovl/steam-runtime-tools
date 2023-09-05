@@ -87,7 +87,7 @@ print_json (JsonBuilder *builder)
 {
   g_autoptr(JsonGenerator) generator = json_generator_new ();
   g_autofree gchar *text = NULL;
-  JsonNode *root;
+  g_autoptr(JsonNode) root = NULL;
 
   root = json_builder_get_root (builder);
   generator = json_generator_new ();
