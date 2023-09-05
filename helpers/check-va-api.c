@@ -123,7 +123,7 @@ static VAPictureParameterBufferH264 pic_param_h264 =
   /* The size has been arbitrarily chosen */
   .picture_width_in_mbs_minus1 = 10,
   .picture_height_in_mbs_minus1 = 10,
-  .num_ref_frames = 1,
+  .num_ref_frames = 0,
 };
 
 static VAIQMatrixBufferH264 iq_matrix_h264 =
