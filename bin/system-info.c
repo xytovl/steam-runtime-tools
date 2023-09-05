@@ -957,9 +957,6 @@ main (int argc,
   gchar *data_path = NULL;
   gchar *bin32_path = NULL;
   gchar *rt_path = NULL;
-  gchar **overrides = NULL;
-  gchar **messages = NULL;
-  gchar **values = NULL;
   int opt;
 
 #if defined(__i386__) || defined(__x86_64__)
@@ -1086,6 +1083,9 @@ main (int argc,
   json_builder_set_member_name (builder, "runtime");
   json_builder_begin_object (builder);
     {
+      g_auto(GStrv) overrides = NULL;
+      g_auto(GStrv) messages = NULL;
+
       json_builder_set_member_name (builder, "path");
       rt_path = srt_system_info_dup_runtime_path (info);
       json_builder_add_string_value (builder, rt_path);
@@ -1115,13 +1115,13 @@ main (int argc,
                                             FALSE);
 
           json_builder_end_object (builder);
-
-          g_strfreev (overrides);
-          g_strfreev (messages);
         }
 
       if (rt_path != NULL && g_strcmp0 (rt_path, "/") != 0)
         {
+          g_auto(GStrv) values = NULL;
+
+          g_clear_pointer (&messages, g_strfreev);
           values = srt_system_info_list_pinned_libs_32 (info, &messages);
 
           json_builder_set_member_name (builder, "pinned_libs_32");
@@ -1137,8 +1137,8 @@ main (int argc,
 
           json_builder_end_object (builder);
 
-          g_strfreev (values);
-          g_strfreev (messages);
+          g_clear_pointer (&values, g_strfreev);
+          g_clear_pointer (&messages, g_strfreev);
           values = srt_system_info_list_pinned_libs_64 (info, &messages);
 
           json_builder_set_member_name (builder, "pinned_libs_64");
@@ -1153,9 +1153,6 @@ main (int argc,
                                             FALSE);
 
           json_builder_end_object (builder);
-
-          g_strfreev (values);
-          g_strfreev (messages);
         }
     }
   json_builder_end_object (builder);
