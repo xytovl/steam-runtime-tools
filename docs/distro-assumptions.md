@@ -284,6 +284,19 @@ cache, and the libraries that they contain, in the same format that is
 used on typical distributions such as Debian.
 This command does not need to list libraries in the `LD_LIBRARY_PATH`.
 
+Normally, the Steam Runtime assumes that `/sbin/ldconfig -XNv` lists
+all library directories and libraries, both `i386` and `x86_64`.
+As an exception to this to support Exherbo, if
+`/etc/ld-x86_64-pc-linux-gnu.cache` and
+`/etc/ld-i686-pc-linux-gnu.cache` both exist, and
+`/usr/x86_64-pc-linux-gnu/bin/ldconfig` and
+`/usr/i686-pc-linux-gnu/bin/ldconfig` both exist as executable files,
+then it will run
+`/usr/x86_64-pc-linux-gnu/bin/ldconfig -XNv` and
+`/usr/i686-pc-linux-gnu/bin/ldconfig -XNv` and combine their results.
+Similar exceptions for other distributions can be added if necessary
+by [opening a Steam Runtime issue][Steam Runtime issues].
+
 On entry to Steam code, shared libraries that are shipped with Steam
 itself, including the Steam Runtime in
 `~/.steam/root/ubuntu12_32/steam-runtime`, should **not** be in the
