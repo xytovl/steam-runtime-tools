@@ -238,13 +238,15 @@ There are two ways this can happen:
         `/etc/ld-i686-pc-linux-gnu.cache`, as used on Exherbo
     - more paths can be added if necessary,
         [contact the maintainers][Steam Runtime issues]
+3. Each executable or shared library that directly depends on the library
+    can list the library's directory in its `DT_RUNPATH` ELF header
 
 As a result of implementation limitations in
-[libcapsule][], the
-container runtime does not currently support following the `DT_RUNPATH`
-and `DT_RPATH` ELF headers.
-On operating systems that make extensive use of these headers, such as
-NixOS, it will be necessary to copy or symlink the required libraries into
+[libcapsule][] and the more complicated semantics of `DT_RPATH`, the
+container runtime does not currently support following the older `DT_RPATH`
+ELF header.
+On operating systems that rely on `DT_RPATH`,
+it will be necessary to copy or symlink the required libraries into
 a location that appears in the search path.
 
 The shared libraries found in those locations need to include at least
