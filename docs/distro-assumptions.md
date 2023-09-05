@@ -269,7 +269,7 @@ and `i386-linux-gnu` ABIs:
 * `libgbm.so.1`
 * `libgcc_s.so.1` from gcc
 * `libstdc++.so.6` from gcc
-* `libudev.so.0` from [libudev0-shim][]
+* `libudev.so.0` from [libudev0-shim][] or [libudev-compat][]
 * `libudev.so.1` from [systemd][], or a fully-compatible reimplementation
     of the same ABI (for example [eudev][])
 * `libva-drm.so.2`
@@ -624,6 +624,7 @@ container runtime on a new distribution, in particular:
 [ldlp]: ld-library-path-runtime.md
 [libcapsule]: https://gitlab.collabora.com/vivek/libcapsule
 [libudev0-shim]: https://github.com/archlinux/libudev0-shim
+[libudev-compat]: https://gitweb.gentoo.org/repo/gentoo.git/tree/sys-libs/libudev-compat
 [libxcrypt]: https://github.com/besser82/libxcrypt
 [multiarch tuple]: https://wiki.debian.org/Multiarch/Tuples
 [pressure-vessel]: pressure-vessel.md
