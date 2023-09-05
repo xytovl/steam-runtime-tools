@@ -248,5 +248,8 @@ main (int argc,
                                 SRT_JSON_OUTPUT_FLAGS_PRETTY, &local_error))
     g_warning ("%s", local_error->message);
 
+  if (fclose (original_stdout) != 0)
+    g_warning ("Unable to close stdout: %s", g_strerror (errno));
+
   return ret;
 }

@@ -1497,6 +1497,9 @@ int main (int argc,
         ret = EXIT_SUCCESS;
     }
 
+  if (fclose (original_stdout) != 0)
+    g_warning ("Unable to close stdout: %s", g_strerror (errno));
+
 out:
   if (local_error != NULL)
     g_printerr ("%s", local_error->message);
