@@ -1,3 +1,13 @@
+steam-runtime-tools (0.20230905.0) steamrt; urgency=medium
+
+  * identify-library-abi: On Exherbo, run both versions of ldconfig.
+    Unlike other multiarch/multilib designs, Exherbo has one build of
+    ldconfig per architecture, each with its own configuration that only
+    searches libraries intended for that word size.
+    (Helps: steam-runtime#615)
+
+ -- Simon McVittie <smcv@collabora.com>  Tue, 05 Sep 2023 12:45:26 +0100
+
 steam-runtime-tools (0.20230831.0) steamrt; urgency=medium
 
   * system-info: Detect whether the LD_LIBRARY_PATH or container runtime
