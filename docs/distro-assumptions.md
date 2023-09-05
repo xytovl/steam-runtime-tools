@@ -493,7 +493,7 @@ The `steam-runtime-system-info` command-line tool can automatically
 check for various common issues, as well as providing information
 about the drivers, libraries, etc. that will be used.
 It is used as the implementation of several of the compatibility checks
-in Steam's *Help -> System Information*.
+in Steam's *Help -> Steam Runtime Diagnostics*.
 
 All of the diagnostic commands described in this section should be run
 from the same environment in which Steam will be run.
@@ -505,7 +505,7 @@ provided by `flatpak run --command=bash com.valvesoftware.Steam`.
 `steam-runtime-system-info` is primarily designed to be run inside a
 Steam Runtime environment, either `LD_LIBRARY_PATH` or container.
 
-For the scout `LD_LIBRARY_PATH` runtime, *Help -> System Information*
+For the scout `LD_LIBRARY_PATH` runtime, *Help -> Steam Runtime Diagnostics*
 does the equivalent of these shell commands, to enter the scout
 environment and inspect it:
 
@@ -514,12 +514,15 @@ environment and inspect it:
 ~/.steam/root/ubuntu12_32/steam-runtime/run.sh -- steam-runtime-system-info
 ```
 
-For the soldier container runtime, *Help -> System Information* does
-the equivalent of this, to enter the soldier environment and inspect it:
+For the soldier and sniper container runtimes,
+*Help -> Steam Runtime Diagnostics* does
+the equivalent of this, to enter the container environment and inspect it:
 
 ```
 .../steamapps/common/SteamLinuxRuntime_soldier/run -- steam-runtime-system-info
 ```
+
+or an equivalent command for `SteamLinuxRuntime_sniper`.
 
 The output is in JSON format.
 Potential issues are diagnosed as non-empty lists labelled `issues`.
