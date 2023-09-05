@@ -1121,42 +1121,42 @@ main (int argc,
         }
 
       if (rt_path != NULL && g_strcmp0 (rt_path, "/") != 0)
-      {
-        values = srt_system_info_list_pinned_libs_32 (info, &messages);
+        {
+          values = srt_system_info_list_pinned_libs_32 (info, &messages);
 
-        json_builder_set_member_name (builder, "pinned_libs_32");
-        json_builder_begin_object (builder);
+          json_builder_set_member_name (builder, "pinned_libs_32");
+          json_builder_begin_object (builder);
 
-        _srt_json_builder_add_strv_value (builder, "list",
-                                          (const gchar * const *)values,
-                                          FALSE);
+          _srt_json_builder_add_strv_value (builder, "list",
+                                            (const gchar * const *)values,
+                                            FALSE);
 
-        _srt_json_builder_add_strv_value (builder, "messages",
-                                          (const gchar * const *)messages,
-                                          FALSE);
+          _srt_json_builder_add_strv_value (builder, "messages",
+                                            (const gchar * const *)messages,
+                                            FALSE);
 
-        json_builder_end_object (builder);
+          json_builder_end_object (builder);
 
-        g_strfreev (values);
-        g_strfreev (messages);
-        values = srt_system_info_list_pinned_libs_64 (info, &messages);
+          g_strfreev (values);
+          g_strfreev (messages);
+          values = srt_system_info_list_pinned_libs_64 (info, &messages);
 
-        json_builder_set_member_name (builder, "pinned_libs_64");
-        json_builder_begin_object (builder);
+          json_builder_set_member_name (builder, "pinned_libs_64");
+          json_builder_begin_object (builder);
 
-        _srt_json_builder_add_strv_value (builder, "list",
-                                          (const gchar * const *)values,
-                                          FALSE);
+          _srt_json_builder_add_strv_value (builder, "list",
+                                            (const gchar * const *)values,
+                                            FALSE);
 
-        _srt_json_builder_add_strv_value (builder, "messages",
-                                          (const gchar * const *)messages,
-                                          FALSE);
+          _srt_json_builder_add_strv_value (builder, "messages",
+                                            (const gchar * const *)messages,
+                                            FALSE);
 
-        json_builder_end_object (builder);
+          json_builder_end_object (builder);
 
-        g_strfreev (values);
-        g_strfreev (messages);
-      }
+          g_strfreev (values);
+          g_strfreev (messages);
+        }
     }
   json_builder_end_object (builder);
 
