@@ -37,7 +37,7 @@ GPU hardware.
 The Steam Play compatibility tools automatically run pressure-vessel
 when necessary.
 
-## <span id="soldier">Steam Runtime 2, `soldier`</span>
+## <span id="soldier">Steam Linux Runtime 2.0 (soldier)</span>
 
 [soldier]: #soldier
 
@@ -62,7 +62,7 @@ Native Linux games that require soldier cannot currently be released on Steam.
 The next-generation runtime for native Linux games is intended to be
 Steam Runtime 3 `sniper` (see [below][sniper]).
 
-The *Steam Linux Runtime - soldier* compatibility tool, app ID 1391110,
+The *Steam Linux Runtime 2.0 (soldier)* compatibility tool, app ID 1391110,
 is automatically downloaded to your Steam library as
 `steamapps/common/SteamLinuxRuntime_soldier` when you select a version
 of Proton that requires it, or the *Steam Linux Runtime* compatibility
@@ -74,7 +74,10 @@ It can also be installed by running this command:
 Documentation in the `steamrt` "metapackage" provides
 [more information about soldier](https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/soldier/README.md).
 
-## <span id="scout-on-soldier">Steam Linux Runtime (scout-on-soldier)</span>
+Before September 2023, this compatibility tool was labelled
+*Steam Linux Runtime - soldier*.
+
+## <span id="scout-on-soldier">Steam Linux Runtime 1.0 (scout)</span>
 
 [scout-on-soldier]: #scout-on-soldier
 
@@ -92,8 +95,8 @@ assumptions.
 This is not a stable situation: a game that happened to work in Ubuntu
 20.04 could easily be broken by a routine upgrade to Ubuntu 22.04.
 
-The *Steam Linux Runtime* compatibility tool, app ID 1070560, uses the
-same container technology as `soldier` to mitigate this problem.
+The *Steam Linux Runtime 1.0 (scout)* compatibility tool, app ID 1070560,
+uses the same container technology as `soldier` to mitigate this problem.
 It will automatically be downloaded to your Steam library as
 `steamapps/common/SteamLinuxRuntime` if it is selected to run a particular
 game, or if a game requires it.
@@ -101,20 +104,25 @@ It can also be installed by running this command:
 
     steam steam://install/1070560
 
-It is implemented by entering a [`soldier`](#soldier) container, and then
+Unlike the [soldier](#soldier) and [sniper](#sniper) container runtimes,
+it is implemented by entering a [`soldier`](#soldier) container, and then
 setting up a [`scout` `LD_LIBRARY_PATH` runtime][ldlp] inside that container.
 
-The Steam Deck automatically uses the Steam Linux Runtime container for
-many native Linux games.
+The Steam Deck automatically uses the *Steam Linux Runtime 1.0 (scout)*
+container for many native Linux games.
 In the past some games have also defaulted  to being run in this container
 on Linux desktop systems, for example [Dota 2][]
 between [its January 2022 update][Dota 2 scout SLR] and
 [mid 2023][Dota 2 sniper].
 This mechanism is not currently available for third-party games on
 desktop Linux, but users can opt-in to running specific games in the
-Steam Linux Runtime container via *Properties* → *Compatibility*.
+Steam Linux Runtime 1.0 (scout) container via *Properties* → *Compatibility*.
 
-## <span id="sniper">Steam Runtime 3, `sniper`</span>
+Before September 2023, this compatibility tool was labelled
+*Steam Linux Runtime*.
+The old name might still appear in some contexts.
+
+## <span id="sniper">Steam Linux Runtime 3.0 (sniper)</span>
 
 [sniper]: #sniper
 
@@ -138,7 +146,7 @@ Early adopters of this mechanism include
 [Endless Sky][] since [early/mid 2023][Endless Sky on Sniper] and
 [Dota 2][] since [mid 2023][Dota 2 sniper],
 
-The *Steam Linux Runtime - sniper* compatibility tool, app ID 1628350,
+The *Steam Linux Runtime 3.0 - sniper* compatibility tool, app ID 1628350,
 will automatically be downloaded to your Steam library as
 `steamapps/common/SteamLinuxRuntime_sniper` if a game requires it.
 It can also be installed by running this command:
@@ -147,6 +155,9 @@ It can also be installed by running this command:
 
 Documentation in the `steamrt` "metapackage" provides
 [more information about sniper](https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/sniper/README.md).
+
+Before September 2023, this compatibility tool was labelled
+*Steam Linux Runtime - sniper*.
 
 ## <span id="medic">Steam Runtime 4, `medic`</span>
 

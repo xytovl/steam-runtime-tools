@@ -86,12 +86,12 @@ a native Linux port that can be used to compare native Linux with Proton.
 Install the game.
 
 If it's a native Linux game, right-click on the game in your Steam
-library, open its Properties and select the "Steam Linux Runtime"
+library, open its Properties and select the "Steam Linux Runtime 1.0 (scout)"
 compatibility tool. Wait for it to install.
 
 Change the compatibility tool again, and select "Proton 5.13-6" (or if
 a newer version is available, use that). Wait for it to install.
-"Steam Linux Runtime - soldier" will also be installed as a side-effect.
+"Steam Linux Runtime 2.0 (soldier)" will also be installed as a side-effect.
 
 Testing the host system
 -----------------------
@@ -134,10 +134,12 @@ For each game you want to test:
     you expected.
 
 * For native Linux games only:
-    in its Properties, set the compatibility tool to "Steam Linux Runtime".
+    in its Properties, set the compatibility tool to
+    "Steam Linux Runtime 1.0 (scout)" if available, or "Steam Linux Runtime"
+    otherwise.
     Try running the game, and note whether it runs on the GPU that you
     expected. Copy the log file from
-    `steamapps/common/SteamLinuxRuntime/var/slr-latest.log`
+    `steamapps/common/SteamLinuxRuntime_soldier/var/slr-latest.log`
     (the real filename will start with `slr-app319630-` or similar).
 
 * In its Properties, set the compatibility tool to Proton 5.0 or older
@@ -225,8 +227,9 @@ For each game you want to test:
 
 * For native Linux games only:
     if you are using the branch of Flatpak that has the new features needed
-    by pressure-vessel, also try "Steam Linux Runtime". Copy
-    `steamapps/common/SteamLinuxRuntime/var/slr-latest.log`.
+    by pressure-vessel, also try "Steam Linux Runtime 1.0 (scout)",
+    or if that name is not available, "Steam Linux Runtime". Copy
+    `steamapps/common/SteamLinuxRuntime_soldier/var/slr-latest.log`.
 
 * If you are using the branch of Flatpak that has the new features needed
     by pressure-vessel, also try the official Proton 5.13 build. Copy

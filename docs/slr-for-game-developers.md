@@ -70,7 +70,8 @@ However, many games require newer libraries than Ubuntu 12.04, and many
 game developers are not building their games in a strictly 'scout'-based
 environment.
 
-As a result, the Steam Linux Runtime compatibility tool runs games
+As a result, the *Steam Linux Runtime 1.0 (scout)* compatibility tool
+runs games
 in a hybrid environment where the majority of libraries are taken from
 Steam Runtime version 2, codenamed soldier, which is based on
 Debian 10 (2019).
@@ -85,8 +86,9 @@ Runtime 1 'scout' Docker container.
 By default, Steam will run them directly on the host system, providing
 compatibility with scout by using the same `LD_LIBRARY_PATH`-based scout
 runtime that is used to run Steam itself.
-If the user selects the *Steam Linux Runtime* compatibility tool in the
-game's properties, then Steam will launch a *Steam Linux Runtime - soldier*
+If the user selects the *Steam Linux Runtime 1.0 (scout)*
+compatibility tool in the
+game's properties, then Steam will launch a *Steam Linux Runtime 2.0 (soldier)*
 container, then use the `LD_LIBRARY_PATH`-based scout runtime inside that
 container to provide ABI compatibility for the game.
 
@@ -114,7 +116,7 @@ Dota 2,
 [Retroarch][Retroarch on sniper].
 
 If it is useful to run in a newer container during development,
-the *Steam Linux Runtime - sniper* compatibility tool can be used to
+the *Steam Linux Runtime 3.0 (sniper)* compatibility tool can be used to
 achieve this.
 
 #### <span id="soldier">Native Linux games targeting Steam Runtime 2 'soldier'</span>
@@ -134,10 +136,10 @@ instructions that refer to `sniper` should usually work.
 Recent versions of Proton require recent Linux shared library stacks.
 To ensure that these are available, even when running on an older
 operating system, Steam automatically runs Proton 8.0 or later
-inside a *Steam Linux Runtime - sniper* container.
+inside a *Steam Linux Runtime 3.0 (sniper)* container.
 
 Similarly, Proton versions 5.13 to 7.0 use a
-*Steam Linux Runtime - soldier* container.
+*Steam Linux Runtime 2.0 (soldier)* container.
 
 Future versions of Proton might switch to Steam Runtime 4 or later.
 
@@ -154,7 +156,7 @@ It is sometimes useful to try beta versions of the various compatibility
 tools.
 This is the same as [switching a game to a beta branch][], except that
 instead of accessing the properties of the game, you would access the
-properties of a compatibility tool such as *Steam Linux Runtime - soldier*
+properties of a compatibility tool such as *Steam Linux Runtime 2.0 (soldier)*
 or *Proton 6.3*.
 
 ## Launching Steam games in a Steam Linux Runtime container
@@ -165,15 +167,17 @@ To run Windows games using Proton in a Steam Linux Runtime container:
   * Select `Force the use of a specific Steam Play compatibility tool`
   * Select Proton 5.13 or later
 
-To run Linux games in a Steam Linux Runtime container:
+To run Linux games in a *Steam Linux Runtime 1.0 (scout)* container:
 
   * Edit the Properties of the game in the Steam client
   * Select `Force the use of a specific Steam Play compatibility tool`
-  * Select `Steam Linux Runtime`
+  * If possible, select `Steam Linux Runtime 1.0 (scout)`
+  * If that option is not available, select `Steam Linux Runtime`
 
-This will automatically download *Steam Linux Runtime - soldier*,
-together with Proton and/or *Steam Linux Runtime*, into your default
-Steam library.
+This will automatically download *Steam Linux Runtime 2.0 (soldier)*
+or *Steam Linux Runtime 3.0 (sniper)*,
+together with Proton and/or *Steam Linux Runtime 1.0 (scout)*,
+into your default Steam library.
 
 ## <span id="s-r-launch-options">Using steam-runtime-launch-options</span>
 
@@ -223,9 +227,9 @@ an easy way to test that the compatibility tool is working correctly.
 
 For a more scriptable version of this, run one of these commands:
 
-  * Steam Linux Runtime (scout-on-soldier): `steam steam://install/1070560`
-  * Steam Linux Runtime - soldier: `steam steam://install/1391110`
-  * Steam Linux Runtime - sniper: `steam steam://install/1628350`
+  * Steam Linux Runtime 1.0 (scout): `steam steam://install/1070560`
+  * Steam Linux Runtime 2.0 (soldier): `steam steam://install/1391110`
+  * Steam Linux Runtime 3.0 (sniper): `steam steam://install/1628350`
   * Proton Experimental: `steam steam://install/1493710`
   * Proton 8.0: `steam steam://install/2348590`
   * Proton 7.0: `steam steam://install/1887720`
@@ -294,14 +298,15 @@ $ /path/to/steamlibrary/steamapps/common/SteamLinuxRuntime_sniper/run \
 Exporting the environment variable `PRESSURE_VESSEL_TERMINAL=tty` is
 equivalent to using the `--terminal=tty` option.
 
-### <span id="commands-in-scout-on-soldier">Running commands in the scout Steam Linux Runtime environment</span>
+### <span id="commands-in-scout-on-soldier">Running commands in the Steam Linux Runtime 1.0 (scout) environment</span>
 
 Running a game that was compiled for Steam Runtime 1 'scout' in the
 scout-on-soldier container is similar to a pure soldier container, but an
-extra step is needed: the `SteamLinuxRuntime` compatibility tool
+extra step is needed: the *Steam Linux Runtime 1.0 (scout)* compatibility tool
 needs to make older libraries like `libssl.so.1.0.0` available
 to the game.
-You will also need to ensure that the `SteamLinuxRuntime` compatibility
+You will also need to ensure that the *Steam Linux Runtime 1.0 (scout)*
+compatibility
 tool is visible in the container environment: Steam normally does this
 automatically, but outside Steam it can be necessary to do this yourself.
 This means the commands required are not the same as for soldier or
@@ -464,12 +469,12 @@ Or, to activate this programmatically, set the `STEAM_COMPAT_LAUNCHER_SERVICE`
 environment variable to the `compatmanager_layer_name` listed in the
 `toolmanifest.vdf` of the compatibility tool used to run a game:
 
-* `container-runtime` for "Steam Linux Runtime - soldier" or
-    "Steam Linux Runtime - sniper"
+* `container-runtime` for "Steam Linux Runtime 2.0 (soldier)" or
+    "Steam Linux Runtime 3.0 (sniper)"
 
 * `proton` for any version of Proton that supports it (7.0 or later)
 
-* `scout-in-container` for "Steam Linux Runtime"
+* `scout-in-container` for "Steam Linux Runtime 1.0 (scout)"
 
 When running games through Steam, you can either export something like
 `STEAM_COMPAT_LAUNCHER_SERVICE=container-runtime` for the whole Steam
@@ -771,8 +776,9 @@ environment.
 
 ## Running in a modified Platform or SDK environment
 
-The default `Platform` environment provided by *Steam Linux Runtime - soldier*
-and *Steam Linux Runtime - sniper* in the `soldier_platform_*` or
+The default `Platform` environment provided by
+*Steam Linux Runtime 2.0 (soldier)*
+and *Steam Linux Runtime 3.0 (sniper)* in the `soldier_platform_*` or
 `sniper_platform_*` directory is in a format that has been optimized
 for distribution through the Steampipe CDN, and cannot easily be modified:
 most files' names, permissions and checksums are checked against a manifest
@@ -807,7 +813,7 @@ instead of `--runtime=sdk`.
 [Upgrading pressure-vessel]: #upgrading-pressure-vessel
 
 The recommended version of `pressure-vessel` is the one that is included
-in the *Steam Linux Runtime - sniper* depot, and other versions are
+in the *Steam Linux Runtime 3.0 (sniper)* depot, and other versions are
 not necessarily compatible with the container runtime and scripts in
 the depot.
 However, it can sometimes be useful for developers and testers to upgrade

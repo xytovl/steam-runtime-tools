@@ -563,7 +563,8 @@ and provide the information requested in the issue template
 
 It is usually best to start by trying a relatively small and simple
 native Linux game, preferably a well-known free or demo game,
-by forcing it to run under the "Steam Linux Runtime" compatibility tool.
+by forcing it to run under the
+*Steam Linux Runtime 1.0 (scout)* compatibility tool.
 Some games that have been particularly useful in the past for this include:
 
 * [Floating Point][] (very small, low hardware requirements, 32-bit, OpenGL)

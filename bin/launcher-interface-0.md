@@ -40,7 +40,7 @@ If more than one name is listed, they are treated as equivalent names for
 the same compatibility tool, and the command server will be activated
 if Steam requests any of the given names: for example,
 `scout-in-container:scout-on-soldier:1070560` could all be used as names
-for the "Steam Linux Runtime" compatibility tool.
+for the "Steam Linux Runtime 1.0 (scout)" compatibility tool.
 
 If the environment variable does not match any of the specified tool
 names, **steam-runtime-launcher-interface-0** runs the *COMMAND*

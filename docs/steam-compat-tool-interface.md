@@ -98,8 +98,8 @@ is a [VDF][] text file with one top-level entry, `manifest`.
     * `container-runtime`:
 
         Any self-contained Steam container runtime environment such as
-        "[Steam Linux Runtime - soldier][soldier]" (app ID 1391110) or
-        "[Steam Linux Runtime - sniper][sniper]" (app ID 1628350)
+        "[Steam Linux Runtime 2.0 (soldier)][soldier]" (app ID 1391110) or
+        "[Steam Linux Runtime 3.0 (sniper)][sniper]" (app ID 1628350)
 
     * `proton`:
 
@@ -111,14 +111,14 @@ is a [VDF][] text file with one top-level entry, `manifest`.
         Steam Runtime 1 'scout'
         [`LD_LIBRARY_PATH` runtime][ldlp]
         as a layer over a `container-runtime`
-        (see [Steam Linux Runtime (scout-on-soldier)][scout-on-soldier])
+        (see [Steam Linux Runtime 1.0 (scout)][scout-on-soldier])
 
 * `require_tool_appid`:
 
     If set, this compatibility tool needs to be wrapped in another
     compatibility tool, specified by its numeric Steam app ID. For
-    example, Proton 5.13 needs to be wrapped by "Steam Linux Runtime -
-    soldier", so it sets this field to `1391110`.
+    example, Proton 5.13 needs to be wrapped by
+    "Steam Linux Runtime 2.0 (soldier)", so it sets this field to `1391110`.
 
 * `unlisted`:
 
@@ -249,7 +249,7 @@ Some environment variables are set by Steam, including:
     passed to Steam itself.
 
     For compatibility tools that provide a Linux environment, such as
-    "[Steam Linux Runtime - soldier][soldier]", the debugging commands
+    "[Steam Linux Runtime 2.0 (soldier)][soldier]", the debugging commands
     should receive an execution environment that is equivalent to the
     execution environment of the game itself.
     For compatibility tools that provide a non-Linux environment,
@@ -305,8 +305,8 @@ the environment variables are set as described for the "outermost" tool,
 which can change them if required before it invokes the "innermost" tool
 (although most should not be changed).
 
-For example, when using Proton with "Steam Linux Runtime - soldier", the
-"outer" compatibility tool "Steam Linux Runtime - soldier" is run with
+For example, when using Proton with "Steam Linux Runtime 2.0 (soldier)", the
+"outer" compatibility tool "Steam Linux Runtime 2.0 (soldier)" is run with
 `LD_LIBRARY_PATH` set by the Steam Runtime to point to mixed host and
 scout libraries. After setting up the container, it runs the "inner"
 compatibility tool (Proton) with an entirely new `LD_LIBRARY_PATH`

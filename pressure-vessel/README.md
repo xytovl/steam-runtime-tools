@@ -8,7 +8,7 @@ SPDX-License-Identifier: MIT
 
 pressure-vessel is a bit like a simplified version of Flatpak for Steam
 games.
-For background on pressure-vessel and SteamLinuxRuntime, please see:
+For background on pressure-vessel and the Steam Linux Runtime, please see:
 
 * [container runtime documentation](../docs/container-runtime.md)
 * [information about pressure-vessel](../docs/pressure-vessel.md)

@@ -434,7 +434,8 @@ like:
         -- \
         wine winedbg notepad.exe
 
-Similarly, for a Steam game that runs under the "Steam Linux Runtime"
+Similarly, for a Steam game that runs under the
+"Steam Linux Runtime 1.0 (scout)"
 compatibility tool, if you set its Steam Launch Options to
 
     STEAM_COMPAT_LAUNCHER_SERVICE=scout-in-container %command%

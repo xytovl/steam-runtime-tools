@@ -1,5 +1,5 @@
-Container based Steam Runtime 3 'sniper'
-========================================
+Steam Linux Runtime 3.0 (sniper)
+================================
 
 This container-based release of the Steam Runtime is used for native
 Linux games, and for Proton 8.0+.

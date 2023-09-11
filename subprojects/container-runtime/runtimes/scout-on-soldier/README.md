@@ -1,5 +1,5 @@
-Container-based Steam Runtime v1 'scout' (scout-on-soldier)
-===========================================================
+Steam Linux Runtime 1.0 (scout)
+===============================
 
 This container-based release of the Steam Runtime is enabled on a
 per-title basis by forcing its use in the title's Properties dialog,
@@ -12,7 +12,7 @@ Release notes
 -------------
 
 Please see
-<https://gitlab.steamos.cloud/steamrt/steamrt/-/wikis/SteamLinuxRuntime-container-release-notes>
+<https://gitlab.steamos.cloud/steamrt/steamrt/-/wikis/Steam-Linux-Runtime-1.0-(scout)-release-notes>
 
 Known issues
 ------------
