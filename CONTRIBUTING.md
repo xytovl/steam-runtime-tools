@@ -160,7 +160,7 @@ several things have to be pulled together:
 * `steam-runtime-launcher-service` and `pressure-vessel-adverb` need to be
     compiled in a way that will work both on the host system and inside
     the test containers. The most reliable way to provide this is to build
-    them for Steam Linux Runtime 1 'scout'.
+    them in the Steam Runtime 1 'scout' SDK.
     `build-aux/many-builds.py install` puts a complete relocatable
     installation of pressure-vessel in `_build/containers/pressure-vessel`
     by default.
