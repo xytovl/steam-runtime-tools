@@ -3963,6 +3963,8 @@ pv_runtime_take_from_provider (PvRuntime *self,
         {
           if (flags & TAKE_FROM_PROVIDER_FLAGS_COPY_FALLBACK)
             {
+              g_autofree char *proc_fd_name = g_strdup_printf ("/proc/self/fd/%d",
+                                                               source_fd);
               glnx_autofd int file_fd = -1;
               glnx_autofd int dest_fd = -1;
 
@@ -3970,11 +3972,15 @@ pv_runtime_take_from_provider (PvRuntime *self,
                        dest_in_container,
                        self->provider->path_in_current_ns,
                        source_in_provider);
-              file_fd = _srt_resolve_in_sysroot (self->provider->fd,
-                                                 source_in_provider,
-                                                 SRT_RESOLVE_FLAGS_READABLE,
-                                                 NULL, error);
-              if (file_fd < 0)
+
+              if (source_fd < 0)
+                {
+                  g_warn_if_fail (resolve_error != NULL);
+                  g_propagate_error (error, g_steal_pointer (&resolve_error));
+                  return FALSE;
+                }
+
+              if (!glnx_openat_rdonly (-1, proc_fd_name, TRUE, &file_fd, error))
                 {
                   g_prefix_error (error,
                                   "Unable to make \"%s\" available in container: ",
