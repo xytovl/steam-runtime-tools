@@ -595,7 +595,7 @@ _srt_graphics_get_vulkan_search_paths (const char *sysroot,
                                        const char * const *multiarch_tuples,
                                        const char *suffix)
 {
-  GPtrArray *search_paths = g_ptr_array_new ();
+  GPtrArray *search_paths = g_ptr_array_new_with_free_func (g_free);
   g_auto(GStrv) dirs = NULL;
   g_autofree gchar *flatpak_info = NULL;
   const char *home;
@@ -690,8 +690,25 @@ _srt_graphics_get_vulkan_search_paths (const char *sysroot,
 
   /* When steam-for-linux#8337 has been fixed, this should become an 'else if' */
   if (home != NULL)
-    g_ptr_array_add (search_paths,
-                     g_build_filename (home, ".local", "share", suffix, NULL));
+    {
+      g_ptr_array_add (search_paths,
+                       g_build_filename (home, ".local", "share", suffix, NULL));
+
+      if (value != NULL)
+        {
+          /* Avoid searching the same directory twice if a fully
+           * spec-compliant Vulkan loader would not */
+          const char *in_xdh;
+          const char *in_fallback;
+
+          g_assert (search_paths->len > 2);
+          in_xdh = search_paths->pdata[search_paths->len - 2];
+          in_fallback = search_paths->pdata[search_paths->len - 1];
+
+          if (_srt_fstatat_is_same_file (-1, in_xdh, -1, in_fallback))
+            g_ptr_array_remove_index (search_paths, search_paths->len - 1);
+        }
+    }
 
   /* 5. $XDG_DATA_DIRS or /usr/local/share:/usr/share */
   value = g_environ_getenv (envp, "XDG_DATA_DIRS");
