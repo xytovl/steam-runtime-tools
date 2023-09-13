@@ -3821,6 +3821,7 @@ typedef enum
   TAKE_FROM_PROVIDER_FLAGS_IF_CONTAINER_COMPATIBLE = (1 << 2),
   TAKE_FROM_PROVIDER_FLAGS_COPY_FALLBACK = (1 << 3),
   TAKE_FROM_PROVIDER_FLAGS_IF_REGULAR = (1 << 4),
+  TAKE_FROM_PROVIDER_FLAGS_REALPATH = (1 << 5),
   TAKE_FROM_PROVIDER_FLAGS_NONE = 0
 } TakeFromProviderFlags;
 
@@ -3919,6 +3920,10 @@ pv_runtime_take_from_provider (PvRuntime *self,
           return TRUE;
         }
     }
+
+  if ((flags & TAKE_FROM_PROVIDER_FLAGS_REALPATH)
+      && realpath_in_provider != NULL)
+    source_in_provider = realpath_in_provider;
 
   if (self->mutable_sysroot != NULL)
     {
@@ -4849,7 +4854,8 @@ setup_json_manifest (PvRuntime *self,
       if (!pv_runtime_take_from_provider (self, bwrap,
                                           json_in_provider,
                                           json_in_container,
-                                          TAKE_FROM_PROVIDER_FLAGS_COPY_FALLBACK,
+                                          (TAKE_FROM_PROVIDER_FLAGS_COPY_FALLBACK
+                                           | TAKE_FROM_PROVIDER_FLAGS_REALPATH),
                                           error))
         return FALSE;
 
