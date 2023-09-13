@@ -3824,6 +3824,11 @@ typedef enum
   TAKE_FROM_PROVIDER_FLAGS_NONE = 0
 } TakeFromProviderFlags;
 
+#define TAKE_FROM_PROVIDER_TESTS \
+  (TAKE_FROM_PROVIDER_FLAGS_IF_DIR \
+   | TAKE_FROM_PROVIDER_FLAGS_IF_EXISTS \
+   | TAKE_FROM_PROVIDER_FLAGS_IF_REGULAR)
+
 /*
  * pv_runtime_take_from_provider:
  * @self: the runtime
@@ -3849,50 +3854,68 @@ pv_runtime_take_from_provider (PvRuntime *self,
                                TakeFromProviderFlags flags,
                                GError **error)
 {
+  g_autoptr(GError) resolve_error = NULL;
+  g_autofree gchar *realpath_in_provider = NULL;
+  SrtResolveFlags resolve_flags = SRT_RESOLVE_FLAGS_NONE;
+  glnx_autofd int source_fd = -1;
+
   g_return_val_if_fail (PV_IS_RUNTIME (self), FALSE);
   g_return_val_if_fail (self->provider != NULL, FALSE);
   g_return_val_if_fail (bwrap == NULL || !pv_bwrap_was_finished (bwrap), FALSE);
   g_return_val_if_fail (bwrap != NULL || self->mutable_sysroot != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
+  g_return_val_if_fail (__builtin_popcount (flags & TAKE_FROM_PROVIDER_TESTS) <= 1,
+                        FALSE);
+
+  if (flags & TAKE_FROM_PROVIDER_FLAGS_IF_DIR)
+    resolve_flags |= SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY;
+
+  /* IF_EXISTS doesn't need any special flags passed in */
+
+  if (flags & TAKE_FROM_PROVIDER_FLAGS_IF_REGULAR)
+    resolve_flags |= SRT_RESOLVE_FLAGS_MUST_BE_REGULAR;
+
+  source_fd = _srt_resolve_in_sysroot (self->provider->fd,
+                                       source_in_provider, resolve_flags,
+                                       &realpath_in_provider,
+                                       &resolve_error);
+
   if (flags & TAKE_FROM_PROVIDER_FLAGS_IF_DIR)
     {
-      if (!_srt_file_test_in_sysroot (self->provider->path_in_current_ns,
-                                      self->provider->fd,
-                                      source_in_provider, G_FILE_TEST_IS_DIR))
+      if (source_fd < 0)
         {
           g_debug ("Not replacing \"${container}/%s\" with \"%s/%s\": "
-                   "source is not a directory",
+                   "source is not a directory: %s",
                    dest_in_container,
-                   self->provider->path_in_current_ns, source_in_provider);
+                   self->provider->path_in_current_ns, source_in_provider,
+                   resolve_error->message);
           return TRUE;
         }
     }
 
   if (flags & TAKE_FROM_PROVIDER_FLAGS_IF_REGULAR)
     {
-      if (!_srt_file_test_in_sysroot (self->provider->path_in_current_ns,
-                                      self->provider->fd,
-                                      source_in_provider, G_FILE_TEST_IS_REGULAR))
+      if (source_fd < 0)
         {
           g_debug ("Not replacing \"${container}/%s\" with \"%s/%s\": "
-                   "source is not a regular file",
+                   "source is not a regular file: %s",
                    dest_in_container,
-                   self->provider->path_in_current_ns, source_in_provider);
+                   self->provider->path_in_current_ns, source_in_provider,
+                   resolve_error->message);
           return TRUE;
         }
     }
 
   if (flags & TAKE_FROM_PROVIDER_FLAGS_IF_EXISTS)
     {
-      if (!_srt_file_test_in_sysroot (self->provider->path_in_current_ns,
-                                      self->provider->fd,
-                                      source_in_provider, G_FILE_TEST_EXISTS))
+      if (source_fd < 0)
         {
           g_debug ("Not replacing \"${container}/%s\" with \"%s/%s\": "
-                   "source does not exist",
+                   "source does not exist: %s",
                    dest_in_container,
-                   self->provider->path_in_current_ns, source_in_provider);
+                   self->provider->path_in_current_ns, source_in_provider,
+                   resolve_error->message);
           return TRUE;
         }
     }
@@ -4014,9 +4037,7 @@ pv_runtime_take_from_provider (PvRuntime *self,
   else
     {
       g_autofree gchar *source_in_current_ns = NULL;
-      g_autofree gchar *realpath_in_provider = NULL;
       g_autofree gchar *abs_dest = NULL;
-      glnx_autofd int source_fd = -1;
 
       /* We can't edit the runtime in-place, so tell bubblewrap to mount
        * a new version over the top */
@@ -4026,13 +4047,13 @@ pv_runtime_take_from_provider (PvRuntime *self,
                "bind mount",
                dest_in_container, self->provider->path_in_current_ns,
                source_in_provider);
-      source_fd = _srt_resolve_in_sysroot (self->provider->fd,
-                                           source_in_provider,
-                                           SRT_RESOLVE_FLAGS_NONE,
-                                           &realpath_in_provider, error);
 
       if (source_fd < 0)
-        return FALSE;
+        {
+          g_warn_if_fail (resolve_error != NULL);
+          g_propagate_error (error, g_steal_pointer (&resolve_error));
+          return FALSE;
+        }
 
       if (flags & TAKE_FROM_PROVIDER_FLAGS_IF_CONTAINER_COMPATIBLE)
         {
