@@ -2120,6 +2120,8 @@ _test_layer_values (SrtVulkanLayer *layer,
   g_autoptr(GError) error = NULL;
   g_autoptr(SrtVulkanLayer) layer_dup = NULL;
 
+  g_test_message ("Layer: %s", srt_vulkan_layer_get_json_path (layer));
+
   if (test->error_message_suffix != NULL)
     {
       g_assert_false (srt_vulkan_layer_check_error (layer, &error));
@@ -2218,7 +2220,8 @@ test_layer_vulkan (Fixture *f,
       const GList *iter;
       gsize j;
 
-      g_test_message ("%s: %s", test->sysroot, test->description);
+      g_test_message ("%s #%" G_GSIZE_FORMAT ": %s: %s",
+                      G_STRFUNC, i, test->sysroot, test->description);
 
       g_mkdir (this_test_dir, 0755);
 
@@ -2269,6 +2272,10 @@ test_layer_vulkan (Fixture *f,
       explicit_layers = srt_system_info_list_explicit_vulkan_layers (info);
 
       for (iter = explicit_layers, j = 0; iter != NULL; iter = iter->next, j++)
+        g_test_message ("Explicit layer #%" G_GSIZE_FORMAT ": %s",
+                        j, srt_vulkan_layer_get_json_path (iter->data));
+
+      for (iter = explicit_layers, j = 0; iter != NULL; iter = iter->next, j++)
         {
           layer_test = test->explicit_layers[j];
           _test_layer_values (iter->data, &layer_test, this_test_dir, sysroot);
@@ -2276,6 +2283,10 @@ test_layer_vulkan (Fixture *f,
       g_assert_cmpstr (test->explicit_layers[j].name, ==, NULL);
 
       implicit_layers = srt_system_info_list_implicit_vulkan_layers (info);
+
+      for (iter = implicit_layers, j = 0; iter != NULL; iter = iter->next, j++)
+        g_test_message ("Implicit layer #%" G_GSIZE_FORMAT ": %s",
+                        j, srt_vulkan_layer_get_json_path (iter->data));
 
       for (iter = implicit_layers, j = 0; iter != NULL; iter = iter->next, j++)
         {
