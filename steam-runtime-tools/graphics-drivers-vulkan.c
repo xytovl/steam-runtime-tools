@@ -821,6 +821,18 @@ _srt_load_vulkan_icds (const char *helpers_path,
   return g_list_reverse (ret);
 }
 
+/*
+ * Set library_arch field, increasing the file_format_version to the
+ * minimum version that described library_arch if necessary.
+ */
+void
+_srt_vulkan_icd_set_library_arch (SrtVulkanIcd *self,
+                                  const char *library_arch)
+{
+  g_return_if_fail (SRT_IS_VULKAN_ICD (self));
+  _srt_loadable_set_library_arch (&self->icd, library_arch, "1.0.1");
+}
+
 /**
  * SrtVulkanLayer:
  *
@@ -2126,4 +2138,13 @@ srt_vulkan_layer_check_error (const SrtVulkanLayer *self,
     *error = g_error_copy (self->layer.error);
 
   return (self->layer.error == NULL);
+}
+
+/* Same as _srt_vulkan_icd_set_library_arch(), but for layers */
+void
+_srt_vulkan_layer_set_library_arch (SrtVulkanLayer *self,
+                                    const char *library_arch)
+{
+  g_return_if_fail (SRT_IS_VULKAN_LAYER (self));
+  _srt_loadable_set_library_arch (&self->layer, library_arch, "1.2.1");
 }

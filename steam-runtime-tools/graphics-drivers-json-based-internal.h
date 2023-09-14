@@ -116,6 +116,9 @@ void _srt_loadable_flag_duplicates (GType which,
                                     const char *helpers_path,
                                     const char * const *multiarch_tuples,
                                     GList *loadable);
+void _srt_loadable_set_library_arch (SrtLoadable *self,
+                                     const char *library_arch,
+                                     const char *min_file_format_version);
 
 /*
  * A #GCompareFunc that does not sort the members of the directory.

@@ -932,3 +932,22 @@ out:
       g_return_if_reached ();
     }
 }
+
+void
+_srt_loadable_set_library_arch (SrtLoadable *self,
+                                const char *library_arch,
+                                const char *min_file_format_version)
+{
+  g_return_if_fail (library_arch != NULL);
+  g_return_if_fail (min_file_format_version != NULL);
+
+  g_clear_pointer (&self->library_arch, g_free);
+  self->library_arch = g_strdup (library_arch);
+
+  if (self->file_format_version == NULL
+      || strverscmp (self->file_format_version, min_file_format_version) < 0)
+    {
+      g_clear_pointer (&self->file_format_version, g_free);
+      self->file_format_version = g_strdup (min_file_format_version);
+    }
+}
