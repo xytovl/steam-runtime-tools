@@ -53,6 +53,7 @@ test_architecture_get_by_tuple (Fixture *f,
   g_assert_cmpint (x86_64_arch->machine_type, ==, SRT_MACHINE_TYPE_X86_64);
   g_assert_cmpint (x86_64_arch->elf_class, ==, ELFCLASS64);
   g_assert_cmpint (x86_64_arch->elf_encoding, ==, ELFDATA2LSB);
+  g_assert_cmpint (x86_64_arch->sizeof_pointer, ==, 8);
 
   i386_arch = _srt_architecture_get_by_tuple (SRT_ABI_I386);
   g_assert_nonnull (i386_arch);
@@ -62,6 +63,7 @@ test_architecture_get_by_tuple (Fixture *f,
   g_assert_cmpint (i386_arch->machine_type, ==, SRT_MACHINE_TYPE_386);
   g_assert_cmpint (i386_arch->elf_class, ==, ELFCLASS32);
   g_assert_cmpint (i386_arch->elf_encoding, ==, ELFDATA2LSB);
+  g_assert_cmpint (i386_arch->sizeof_pointer, ==, 4);
 
   arch = _srt_architecture_get_by_tuple (SRT_ABI_AARCH64);
   g_assert_nonnull (arch);
@@ -71,6 +73,7 @@ test_architecture_get_by_tuple (Fixture *f,
   g_assert_cmpint (arch->machine_type, ==, SRT_MACHINE_TYPE_AARCH64);
   g_assert_cmpint (arch->elf_class, ==, ELFCLASS64);
   g_assert_cmpint (arch->elf_encoding, ==, ELFDATA2LSB);
+  g_assert_cmpint (arch->sizeof_pointer, ==, 8);
 
   /* Used in unit tests */
   arch = _srt_architecture_get_by_tuple ("x86_64-mock-abi");
@@ -79,6 +82,7 @@ test_architecture_get_by_tuple (Fixture *f,
   g_assert_cmpstr (arch->interoperable_runtime_linker, ==, NULL);
   g_assert_cmpint (arch->machine_type, ==, SRT_MACHINE_TYPE_UNKNOWN);
   g_assert_cmpint (arch->elf_class, ==, ELFCLASSNONE);
+  g_assert_cmpint (arch->sizeof_pointer, ==, 8);
 
 #ifdef _SRT_MULTIARCH
   arch = _srt_architecture_get_by_tuple (_SRT_MULTIARCH);
@@ -89,6 +93,7 @@ test_architecture_get_by_tuple (Fixture *f,
   g_assert_true (arch == i386_arch);
 #endif
   g_assert_cmpstr (arch->multiarch_tuple, ==, _SRT_MULTIARCH);
+  g_assert_cmpint (arch->sizeof_pointer, ==, sizeof (void *));
 #endif
 }
 

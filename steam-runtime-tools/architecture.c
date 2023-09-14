@@ -66,6 +66,7 @@ static const SrtKnownArchitecture known_architectures[] =
       .machine_type = EM_X86_64,
       .elf_class = ELFCLASS64,
       .elf_encoding = ELFDATA2LSB,
+      .sizeof_pointer = 8,
     },
 
     {
@@ -74,6 +75,7 @@ static const SrtKnownArchitecture known_architectures[] =
       .machine_type = EM_386,
       .elf_class = ELFCLASS32,
       .elf_encoding = ELFDATA2LSB,
+      .sizeof_pointer = 4,
     },
 
     {
@@ -82,6 +84,7 @@ static const SrtKnownArchitecture known_architectures[] =
       .machine_type = EM_X86_64,
       .elf_class = ELFCLASS32,
       .elf_encoding = ELFDATA2LSB,
+      .sizeof_pointer = 4,
     },
 
     {
@@ -90,6 +93,7 @@ static const SrtKnownArchitecture known_architectures[] =
       .machine_type = EM_AARCH64,
       .elf_class = ELFCLASS64,
       .elf_encoding = ELFDATA2LSB,
+      .sizeof_pointer = 8,
     },
 
     { NULL }
