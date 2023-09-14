@@ -1539,6 +1539,7 @@ assert_vulkan_icds (const SrtObjectList *icds,
       resolved = srt_vulkan_icd_resolve_library_path (iter->data);
       g_assert_cmpstr (resolved, ==,
                        "/usr/lib/x86_64-mock-abi/vulkan/icd.d/../libvulkan_relative.so");
+      g_assert_cmpstr (srt_vulkan_icd_get_library_arch (iter->data), ==, NULL);
       g_assert_cmpint (srt_vulkan_icd_get_issues (iter->data), ==,
                        SRT_LOADABLE_ISSUES_DUPLICATED);
       g_free (resolved);
@@ -1573,6 +1574,7 @@ assert_vulkan_icds (const SrtObjectList *icds,
       resolved = srt_vulkan_icd_resolve_library_path (iter->data);
       g_assert_cmpstr (resolved, ==,
                        "/usr/lib/x86_64-mock-abi/vulkan/icd.d/../libvulkan_relative.so");
+      g_assert_cmpstr (srt_vulkan_icd_get_library_arch (iter->data), ==, "64");
       g_assert_cmpint (srt_vulkan_icd_get_issues (iter->data), ==,
                        SRT_LOADABLE_ISSUES_DUPLICATED);
       g_free (resolved);
@@ -1589,6 +1591,7 @@ assert_vulkan_icds (const SrtObjectList *icds,
       g_assert_cmpstr (srt_vulkan_icd_get_api_version (iter->data), ==, "1.1.102");
       resolved = srt_vulkan_icd_resolve_library_path (iter->data);
       g_assert_cmpstr (resolved, ==, "/usr/lib/i386-mock-abi/libvulkan_intel.so");
+      g_assert_cmpstr (srt_vulkan_icd_get_library_arch (iter->data), ==, "32");
       g_assert_cmpint (srt_vulkan_icd_get_issues (iter->data), ==,
                        SRT_LOADABLE_ISSUES_NONE);
 
@@ -1854,6 +1857,7 @@ typedef struct
   const gchar *name;
   const gchar *description;
   const gchar *library_path;
+  const gchar *library_arch;
   const gchar *api_version;
   const gchar *component_layers[5];
   /* This needs to be an explicit value because, if in input we had a single
@@ -2065,6 +2069,7 @@ static const VulkanLayersTest vulkan_layers_test[] =
       {
         .name = "VK_LAYER_GLEXT_explicit",
         .description = "GL extension's explicit layer",
+        .library_arch = "32",
         .library_path = "libVkLayer_GLEXT_explicit.so",
         .api_version = "1.1.73",
       },
@@ -2136,6 +2141,8 @@ _test_layer_values (SrtVulkanLayer *layer,
                     srt_vulkan_layer_get_description (layer));
   g_assert_cmpstr (test->library_path, ==,
                     srt_vulkan_layer_get_library_path (layer));
+  g_assert_cmpstr (test->library_arch, ==,
+                    srt_vulkan_layer_get_library_arch (layer));
   g_assert_cmpstr (test->api_version, ==,
                     srt_vulkan_layer_get_api_version (layer));
   g_assert_cmpint (test->issues, ==, srt_vulkan_layer_get_issues (layer));
