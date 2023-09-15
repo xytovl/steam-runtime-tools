@@ -4737,8 +4737,11 @@ setup_json_manifest (PvRuntime *self,
 
   for (i = 0; i < PV_N_SUPPORTED_ARCHITECTURES; i++)
     {
+      const char *tuple;
       g_assert (i < G_N_ELEMENTS (details->kinds));
       g_assert (i < G_N_ELEMENTS (details->paths_in_container));
+
+      tuple = pv_multiarch_tuples[i];
 
       if (details->kinds[i] == ICD_KIND_ABSOLUTE)
         {
@@ -4760,11 +4763,11 @@ setup_json_manifest (PvRuntime *self,
           if (SRT_IS_VULKAN_LAYER (details->icd))
             relative_to_overrides = g_strdup_printf ("%s/%.*" G_GSIZE_FORMAT "-%s.json",
                                                      sub_dir, digits, seq,
-                                                     pv_multiarch_tuples[i]);
+                                                     tuple);
           else
             relative_to_overrides = pv_generate_unique_filepath (sub_dir, digits, seq,
                                                                  json_basename,
-                                                                 pv_multiarch_tuples[i],
+                                                                 tuple,
                                                                  json_set);
 
           write_to_file = g_build_filename (self->overrides,
