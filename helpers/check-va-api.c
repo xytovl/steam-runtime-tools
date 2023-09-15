@@ -123,7 +123,7 @@ static VAPictureParameterBufferH264 pic_param_h264 =
   /* The size has been arbitrarily chosen */
   .picture_width_in_mbs_minus1 = 10,
   .picture_height_in_mbs_minus1 = 10,
-  .num_ref_frames = 1,
+  .num_ref_frames = 0,
 };
 
 static VAIQMatrixBufferH264 iq_matrix_h264 =
@@ -262,6 +262,10 @@ test_decode_capability (VADisplay va_display,
   do_vaapi_or_exit (vaCreateConfig (va_display, profile, VAEntrypointVLD,
                                     NULL, 0, &config));
 
+  do_vaapi_or_exit (vaCreateContext (va_display, config, width, height,
+                                     VA_PROGRESSIVE, surfaces,
+                                     surfaces_count, &context));
+
   do_vaapi_or_exit (vaCreateBuffer (va_display, context,
                                     VAPictureParameterBufferType,
                                     in_pic_param_size, 1, in_pic_param,
@@ -281,10 +285,6 @@ test_decode_capability (VADisplay va_display,
                                     VASliceDataBufferType,
                                     in_clip_size, 1, in_clip,
                                     &slice_data_buf));
-
-  do_vaapi_or_exit (vaCreateContext (va_display, config, width, height,
-                                     VA_PROGRESSIVE, surfaces,
-                                     surfaces_count, &context));
 
   do_vaapi_or_exit (vaBeginPicture (va_display, context, surfaces[1]));
   /* Send the buffers to the server */
