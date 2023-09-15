@@ -31,6 +31,7 @@
 
 #include <steam-runtime-tools/steam-runtime-tools.h>
 
+#include "steam-runtime-tools/architecture-internal.h"
 #include "steam-runtime-tools/graphics-internal.h"
 #include "steam-runtime-tools/profiling-internal.h"
 #include "steam-runtime-tools/resolve-in-sysroot-internal.h"
@@ -4687,6 +4688,7 @@ setup_json_manifest (PvRuntime *self,
   gboolean need_provider_json = FALSE;
   g_autofree gchar *json_basename = NULL;
   const char *json_in_provider = NULL;
+  const char *library_arch = NULL;
   gsize i;
 
   g_return_val_if_fail (self->provider != NULL, FALSE);
@@ -4699,12 +4701,14 @@ setup_json_manifest (PvRuntime *self,
       layer = SRT_VULKAN_LAYER (details->icd);
       loaded = srt_vulkan_layer_check_error (layer, NULL);
       json_in_provider = srt_vulkan_layer_get_json_path (layer);
+      library_arch = srt_vulkan_layer_get_library_arch (layer);
     }
   else if (SRT_IS_VULKAN_ICD (details->icd))
     {
       icd = SRT_VULKAN_ICD (details->icd);
       loaded = srt_vulkan_icd_check_error (icd, NULL);
       json_in_provider = srt_vulkan_icd_get_json_path (icd);
+      library_arch = srt_vulkan_icd_get_library_arch (icd);
     }
   else if (SRT_IS_EGL_ICD (details->icd))
     {
@@ -4737,11 +4741,23 @@ setup_json_manifest (PvRuntime *self,
 
   for (i = 0; i < PV_N_SUPPORTED_ARCHITECTURES; i++)
     {
+      const SrtKnownArchitecture *arch;
       const char *tuple;
+      g_autofree gchar *arch_bits = NULL;
+
       g_assert (i < G_N_ELEMENTS (details->kinds));
       g_assert (i < G_N_ELEMENTS (details->paths_in_container));
 
       tuple = pv_multiarch_tuples[i];
+      arch = _srt_architecture_get_by_tuple (tuple);
+
+      /* The architectures supported by pressure-vessel are always a
+       * subset of the architectures that libsteam-runtime-tools knows
+       * about. */
+      g_assert (arch != NULL);
+      g_assert (arch->sizeof_pointer > 0);
+
+      arch_bits = g_strdup_printf ("%u", arch->sizeof_pointer * 8);
 
       if (details->kinds[i] == ICD_KIND_ABSOLUTE)
         {
@@ -4791,6 +4807,9 @@ setup_json_manifest (PvRuntime *self,
               replacement = srt_vulkan_layer_new_replace_library_path (layer,
                                                                        details->paths_in_container[i]);
 
+              if (arch_bits != NULL && library_arch == NULL)
+                _srt_vulkan_layer_set_library_arch (replacement, arch_bits);
+
               if (!srt_vulkan_layer_write_to_file (replacement, write_to_file, error))
                 return FALSE;
             }
@@ -4820,6 +4839,9 @@ setup_json_manifest (PvRuntime *self,
               g_autoptr(SrtVulkanIcd) replacement = NULL;
               replacement = srt_vulkan_icd_new_replace_library_path (icd,
                                                                      details->paths_in_container[i]);
+
+              if (arch_bits != NULL && library_arch == NULL)
+                _srt_vulkan_icd_set_library_arch (replacement, arch_bits);
 
               if (!srt_vulkan_icd_write_to_file (replacement, write_to_file, error))
                 return FALSE;
