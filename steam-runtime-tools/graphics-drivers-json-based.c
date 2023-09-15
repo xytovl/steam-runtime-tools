@@ -217,7 +217,9 @@ srt_loadable_write_to_file (const SrtLoadable *self,
            * lowest version that is required, based on the fields we have. */
           if (self->file_format_version == NULL)
             {
-              if (self->pre_instance_functions != NULL)
+              if (self->library_arch != NULL)
+                json_builder_add_string_value (builder, "1.2.1");
+              else if (self->pre_instance_functions != NULL)
                 json_builder_add_string_value (builder, "1.1.2");
               else if (self->component_layers != NULL && self->component_layers[0] != NULL)
                 json_builder_add_string_value (builder, "1.1.1");
@@ -242,6 +244,12 @@ srt_loadable_write_to_file (const SrtLoadable *self,
                 {
                   json_builder_set_member_name (builder, "library_path");
                   json_builder_add_string_value (builder, self->library_path);
+                }
+
+              if (self->library_arch != NULL)
+                {
+                  json_builder_set_member_name (builder, "library_arch");
+                  json_builder_add_string_value (builder, self->library_arch);
                 }
 
               json_builder_set_member_name (builder, "api_version");
