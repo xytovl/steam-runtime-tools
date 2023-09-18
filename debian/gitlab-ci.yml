@@ -41,7 +41,7 @@ variables:
     SCOUT_DOCKER_REGISTRY: '${CI_REGISTRY}'
     SCOUT_DOCKER_IMAGE: steamrt/scout/sdk:beta
     SCOUT_I386_DOCKER_IMAGE: steamrt/scout/sdk/i386:beta
-    SCOUT_APT_SOURCES_FILE: ''
+    SCOUT_APT_SOURCES_FILE: 'ci/scout.sources.list'
     # There's no public Docker image for heavy right now
     HEAVY_DOCKER_REGISTRY: ''
     HEAVY_DOCKER_IMAGE: ''
