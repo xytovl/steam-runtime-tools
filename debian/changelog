@@ -1,13 +1,21 @@
-steam-runtime-tools (0.20230918.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20230919.0) UNRELEASED; urgency=medium
 
   * system-info:
     - Fix an incorrect use of VA-API that can cause an assertion failure in
       debug builds of Mesa (steam-runtime-tools#117). Thanks to David Rosca
     - Fix an incorrect use of VA-API that can cause the check to fail
       with non-Mesa drivers. Thanks to Emil Velikov
+    - Log a warning if machine-readable output cannot be closed
+    - Refactoring
+  * input-monitor:
+    - Fix an ongoing memory leak
   * Documentation updates
+  * Tests:
+    - Fix continuous-integration failure when the beta and stable scout SDKs
+      currently have different versions of a library that gets bundled
+      with pressure-vessel, notably GLib
 
- -- Simon McVittie <smcv@collabora.com>  Mon, 18 Sep 2023 19:20:29 +0100
+ -- Simon McVittie <smcv@collabora.com>  Tue, 19 Sep 2023 12:35:11 +0100
 
 steam-runtime-tools (0.20230905.0) steamrt; urgency=medium
 
