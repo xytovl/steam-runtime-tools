@@ -1,10 +1,20 @@
 steam-runtime-tools (0.20230919.0) UNRELEASED; urgency=medium
 
+  * pressure-vessel:
+    - Use a fully-resolved path when pointing to Vulkan drivers' and layers'
+      JSON manifests, fixing broken symlinks when running under Flatpak
+      (steam-runtime-tools#124)
+    - Try to avoid duplicating Vulkan drivers and layers, by marking their
+      manifests with the `library_arch` parameter where appropriate.
+      In particular this fixes loading of released MangoHud versions
+      under Flatpak (steam-runtime#618)
   * system-info:
     - Fix an incorrect use of VA-API that can cause an assertion failure in
       debug builds of Mesa (steam-runtime-tools#117). Thanks to David Rosca
     - Fix an incorrect use of VA-API that can cause the check to fail
       with non-Mesa drivers. Thanks to Emil Velikov
+    - Avoid searching ~/.local/share for Vulkan drivers twice if it
+      resolves to the same path as $XDG_DATA_HOME
     - Log a warning if machine-readable output cannot be closed
     - Refactoring
   * input-monitor:
@@ -14,8 +24,9 @@ steam-runtime-tools (0.20230919.0) UNRELEASED; urgency=medium
     - Fix continuous-integration failure when the beta and stable scout SDKs
       currently have different versions of a library that gets bundled
       with pressure-vessel, notably GLib
+    - Improve logging when testing graphics driver discovery
 
- -- Simon McVittie <smcv@collabora.com>  Tue, 19 Sep 2023 12:35:11 +0100
+ -- Simon McVittie <smcv@collabora.com>  Tue, 19 Sep 2023 18:31:05 +0100
 
 steam-runtime-tools (0.20230905.0) steamrt; urgency=medium
 
