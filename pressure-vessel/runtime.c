@@ -31,6 +31,7 @@
 
 #include <steam-runtime-tools/steam-runtime-tools.h>
 
+#include "steam-runtime-tools/architecture-internal.h"
 #include "steam-runtime-tools/graphics-internal.h"
 #include "steam-runtime-tools/profiling-internal.h"
 #include "steam-runtime-tools/resolve-in-sysroot-internal.h"
@@ -3821,8 +3822,14 @@ typedef enum
   TAKE_FROM_PROVIDER_FLAGS_IF_CONTAINER_COMPATIBLE = (1 << 2),
   TAKE_FROM_PROVIDER_FLAGS_COPY_FALLBACK = (1 << 3),
   TAKE_FROM_PROVIDER_FLAGS_IF_REGULAR = (1 << 4),
+  TAKE_FROM_PROVIDER_FLAGS_REALPATH = (1 << 5),
   TAKE_FROM_PROVIDER_FLAGS_NONE = 0
 } TakeFromProviderFlags;
+
+#define TAKE_FROM_PROVIDER_TESTS \
+  (TAKE_FROM_PROVIDER_FLAGS_IF_DIR \
+   | TAKE_FROM_PROVIDER_FLAGS_IF_EXISTS \
+   | TAKE_FROM_PROVIDER_FLAGS_IF_REGULAR)
 
 /*
  * pv_runtime_take_from_provider:
@@ -3849,53 +3856,75 @@ pv_runtime_take_from_provider (PvRuntime *self,
                                TakeFromProviderFlags flags,
                                GError **error)
 {
+  g_autoptr(GError) resolve_error = NULL;
+  g_autofree gchar *realpath_in_provider = NULL;
+  SrtResolveFlags resolve_flags = SRT_RESOLVE_FLAGS_NONE;
+  glnx_autofd int source_fd = -1;
+
   g_return_val_if_fail (PV_IS_RUNTIME (self), FALSE);
   g_return_val_if_fail (self->provider != NULL, FALSE);
   g_return_val_if_fail (bwrap == NULL || !pv_bwrap_was_finished (bwrap), FALSE);
   g_return_val_if_fail (bwrap != NULL || self->mutable_sysroot != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
+  g_return_val_if_fail (__builtin_popcount (flags & TAKE_FROM_PROVIDER_TESTS) <= 1,
+                        FALSE);
+
+  if (flags & TAKE_FROM_PROVIDER_FLAGS_IF_DIR)
+    resolve_flags |= SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY;
+
+  /* IF_EXISTS doesn't need any special flags passed in */
+
+  if (flags & TAKE_FROM_PROVIDER_FLAGS_IF_REGULAR)
+    resolve_flags |= SRT_RESOLVE_FLAGS_MUST_BE_REGULAR;
+
+  source_fd = _srt_resolve_in_sysroot (self->provider->fd,
+                                       source_in_provider, resolve_flags,
+                                       &realpath_in_provider,
+                                       &resolve_error);
+
   if (flags & TAKE_FROM_PROVIDER_FLAGS_IF_DIR)
     {
-      if (!_srt_file_test_in_sysroot (self->provider->path_in_current_ns,
-                                      self->provider->fd,
-                                      source_in_provider, G_FILE_TEST_IS_DIR))
+      if (source_fd < 0)
         {
           g_debug ("Not replacing \"${container}/%s\" with \"%s/%s\": "
-                   "source is not a directory",
+                   "source is not a directory: %s",
                    dest_in_container,
-                   self->provider->path_in_current_ns, source_in_provider);
+                   self->provider->path_in_current_ns, source_in_provider,
+                   resolve_error->message);
           return TRUE;
         }
     }
 
   if (flags & TAKE_FROM_PROVIDER_FLAGS_IF_REGULAR)
     {
-      if (!_srt_file_test_in_sysroot (self->provider->path_in_current_ns,
-                                      self->provider->fd,
-                                      source_in_provider, G_FILE_TEST_IS_REGULAR))
+      if (source_fd < 0)
         {
           g_debug ("Not replacing \"${container}/%s\" with \"%s/%s\": "
-                   "source is not a regular file",
+                   "source is not a regular file: %s",
                    dest_in_container,
-                   self->provider->path_in_current_ns, source_in_provider);
+                   self->provider->path_in_current_ns, source_in_provider,
+                   resolve_error->message);
           return TRUE;
         }
     }
 
   if (flags & TAKE_FROM_PROVIDER_FLAGS_IF_EXISTS)
     {
-      if (!_srt_file_test_in_sysroot (self->provider->path_in_current_ns,
-                                      self->provider->fd,
-                                      source_in_provider, G_FILE_TEST_EXISTS))
+      if (source_fd < 0)
         {
           g_debug ("Not replacing \"${container}/%s\" with \"%s/%s\": "
-                   "source does not exist",
+                   "source does not exist: %s",
                    dest_in_container,
-                   self->provider->path_in_current_ns, source_in_provider);
+                   self->provider->path_in_current_ns, source_in_provider,
+                   resolve_error->message);
           return TRUE;
         }
     }
+
+  if ((flags & TAKE_FROM_PROVIDER_FLAGS_REALPATH)
+      && realpath_in_provider != NULL)
+    source_in_provider = realpath_in_provider;
 
   if (self->mutable_sysroot != NULL)
     {
@@ -3940,6 +3969,8 @@ pv_runtime_take_from_provider (PvRuntime *self,
         {
           if (flags & TAKE_FROM_PROVIDER_FLAGS_COPY_FALLBACK)
             {
+              g_autofree char *proc_fd_name = g_strdup_printf ("/proc/self/fd/%d",
+                                                               source_fd);
               glnx_autofd int file_fd = -1;
               glnx_autofd int dest_fd = -1;
 
@@ -3947,11 +3978,15 @@ pv_runtime_take_from_provider (PvRuntime *self,
                        dest_in_container,
                        self->provider->path_in_current_ns,
                        source_in_provider);
-              file_fd = _srt_resolve_in_sysroot (self->provider->fd,
-                                                 source_in_provider,
-                                                 SRT_RESOLVE_FLAGS_READABLE,
-                                                 NULL, error);
-              if (file_fd < 0)
+
+              if (source_fd < 0)
+                {
+                  g_warn_if_fail (resolve_error != NULL);
+                  g_propagate_error (error, g_steal_pointer (&resolve_error));
+                  return FALSE;
+                }
+
+              if (!glnx_openat_rdonly (-1, proc_fd_name, TRUE, &file_fd, error))
                 {
                   g_prefix_error (error,
                                   "Unable to make \"%s\" available in container: ",
@@ -4014,9 +4049,7 @@ pv_runtime_take_from_provider (PvRuntime *self,
   else
     {
       g_autofree gchar *source_in_current_ns = NULL;
-      g_autofree gchar *realpath_in_provider = NULL;
       g_autofree gchar *abs_dest = NULL;
-      glnx_autofd int source_fd = -1;
 
       /* We can't edit the runtime in-place, so tell bubblewrap to mount
        * a new version over the top */
@@ -4026,13 +4059,13 @@ pv_runtime_take_from_provider (PvRuntime *self,
                "bind mount",
                dest_in_container, self->provider->path_in_current_ns,
                source_in_provider);
-      source_fd = _srt_resolve_in_sysroot (self->provider->fd,
-                                           source_in_provider,
-                                           SRT_RESOLVE_FLAGS_NONE,
-                                           &realpath_in_provider, error);
 
       if (source_fd < 0)
-        return FALSE;
+        {
+          g_warn_if_fail (resolve_error != NULL);
+          g_propagate_error (error, g_steal_pointer (&resolve_error));
+          return FALSE;
+        }
 
       if (flags & TAKE_FROM_PROVIDER_FLAGS_IF_CONTAINER_COMPATIBLE)
         {
@@ -4655,6 +4688,7 @@ setup_json_manifest (PvRuntime *self,
   gboolean need_provider_json = FALSE;
   g_autofree gchar *json_basename = NULL;
   const char *json_in_provider = NULL;
+  const char *library_arch = NULL;
   gsize i;
 
   g_return_val_if_fail (self->provider != NULL, FALSE);
@@ -4667,12 +4701,14 @@ setup_json_manifest (PvRuntime *self,
       layer = SRT_VULKAN_LAYER (details->icd);
       loaded = srt_vulkan_layer_check_error (layer, NULL);
       json_in_provider = srt_vulkan_layer_get_json_path (layer);
+      library_arch = srt_vulkan_layer_get_library_arch (layer);
     }
   else if (SRT_IS_VULKAN_ICD (details->icd))
     {
       icd = SRT_VULKAN_ICD (details->icd);
       loaded = srt_vulkan_icd_check_error (icd, NULL);
       json_in_provider = srt_vulkan_icd_get_json_path (icd);
+      library_arch = srt_vulkan_icd_get_library_arch (icd);
     }
   else if (SRT_IS_EGL_ICD (details->icd))
     {
@@ -4705,8 +4741,33 @@ setup_json_manifest (PvRuntime *self,
 
   for (i = 0; i < PV_N_SUPPORTED_ARCHITECTURES; i++)
     {
+      const SrtKnownArchitecture *arch;
+      const char *tuple;
+      g_autofree gchar *arch_bits = NULL;
+
       g_assert (i < G_N_ELEMENTS (details->kinds));
       g_assert (i < G_N_ELEMENTS (details->paths_in_container));
+
+      tuple = pv_multiarch_tuples[i];
+      arch = _srt_architecture_get_by_tuple (tuple);
+
+      /* The architectures supported by pressure-vessel are always a
+       * subset of the architectures that libsteam-runtime-tools knows
+       * about. */
+      g_assert (arch != NULL);
+      g_assert (arch->sizeof_pointer > 0);
+
+      arch_bits = g_strdup_printf ("%u", arch->sizeof_pointer * 8);
+
+      if (library_arch != NULL)
+        {
+          if (!g_str_equal (library_arch, arch_bits))
+            {
+              g_debug ("Skipping %s because library_arch from manifest is %s != %s",
+                       tuple, library_arch, arch_bits);
+              continue;
+            }
+        }
 
       if (details->kinds[i] == ICD_KIND_ABSOLUTE)
         {
@@ -4728,11 +4789,11 @@ setup_json_manifest (PvRuntime *self,
           if (SRT_IS_VULKAN_LAYER (details->icd))
             relative_to_overrides = g_strdup_printf ("%s/%.*" G_GSIZE_FORMAT "-%s.json",
                                                      sub_dir, digits, seq,
-                                                     pv_multiarch_tuples[i]);
+                                                     tuple);
           else
             relative_to_overrides = pv_generate_unique_filepath (sub_dir, digits, seq,
                                                                  json_basename,
-                                                                 pv_multiarch_tuples[i],
+                                                                 tuple,
                                                                  json_set);
 
           write_to_file = g_build_filename (self->overrides,
@@ -4755,6 +4816,9 @@ setup_json_manifest (PvRuntime *self,
               g_autoptr(SrtVulkanLayer) replacement = NULL;
               replacement = srt_vulkan_layer_new_replace_library_path (layer,
                                                                        details->paths_in_container[i]);
+
+              if (arch_bits != NULL && library_arch == NULL)
+                _srt_vulkan_layer_set_library_arch (replacement, arch_bits);
 
               if (!srt_vulkan_layer_write_to_file (replacement, write_to_file, error))
                 return FALSE;
@@ -4785,6 +4849,9 @@ setup_json_manifest (PvRuntime *self,
               g_autoptr(SrtVulkanIcd) replacement = NULL;
               replacement = srt_vulkan_icd_new_replace_library_path (icd,
                                                                      details->paths_in_container[i]);
+
+              if (arch_bits != NULL && library_arch == NULL)
+                _srt_vulkan_icd_set_library_arch (replacement, arch_bits);
 
               if (!srt_vulkan_icd_write_to_file (replacement, write_to_file, error))
                 return FALSE;
@@ -4822,7 +4889,8 @@ setup_json_manifest (PvRuntime *self,
       if (!pv_runtime_take_from_provider (self, bwrap,
                                           json_in_provider,
                                           json_in_container,
-                                          TAKE_FROM_PROVIDER_FLAGS_COPY_FALLBACK,
+                                          (TAKE_FROM_PROVIDER_FLAGS_COPY_FALLBACK
+                                           | TAKE_FROM_PROVIDER_FLAGS_REALPATH),
                                           error))
         return FALSE;
 

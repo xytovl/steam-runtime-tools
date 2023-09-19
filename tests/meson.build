@@ -30,6 +30,7 @@ no_activation_session_conf = files('session.conf')
 
 tests = [
   {'name': 'architecture'},
+  {'name': 'architecture-internals', 'static': true},
   {'name': 'container'},
   {'name': 'cpu-feature', 'static': true},
   {'name': 'desktop-entry'},

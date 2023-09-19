@@ -770,6 +770,7 @@ with open(
 {
     "ICD": {
         "api_version": "1.1.2",
+        "library_arch": "64",
         "library_path": "/usr/lib/x86_64-mock-abi/vulkan/icd.d/../libvulkan_relative.so"
     },
     "file_format_version": "1.0.0"
@@ -919,6 +920,7 @@ with open(
         "type": "GLOBAL",
         "api_version": "1.1.73",
         "library_path": "libVkLayer_GLEXT_explicit.so",
+        "library_arch": "32",
         "implementation_version": "1",
         "description": "GL extension's explicit layer"
     }
@@ -966,6 +968,7 @@ with open(
 {
     "ICD": {
         "api_version": "1.1.102",
+        "library_arch": "32",
         "library_path": "/usr/lib/i386-mock-abi/libvulkan_intel.so"
     },
     "file_format_version": "1.0.0"

@@ -595,7 +595,7 @@ _srt_graphics_get_vulkan_search_paths (const char *sysroot,
                                        const char * const *multiarch_tuples,
                                        const char *suffix)
 {
-  GPtrArray *search_paths = g_ptr_array_new ();
+  GPtrArray *search_paths = g_ptr_array_new_with_free_func (g_free);
   g_auto(GStrv) dirs = NULL;
   g_autofree gchar *flatpak_info = NULL;
   const char *home;
@@ -690,8 +690,25 @@ _srt_graphics_get_vulkan_search_paths (const char *sysroot,
 
   /* When steam-for-linux#8337 has been fixed, this should become an 'else if' */
   if (home != NULL)
-    g_ptr_array_add (search_paths,
-                     g_build_filename (home, ".local", "share", suffix, NULL));
+    {
+      g_ptr_array_add (search_paths,
+                       g_build_filename (home, ".local", "share", suffix, NULL));
+
+      if (value != NULL)
+        {
+          /* Avoid searching the same directory twice if a fully
+           * spec-compliant Vulkan loader would not */
+          const char *in_xdh;
+          const char *in_fallback;
+
+          g_assert (search_paths->len > 2);
+          in_xdh = search_paths->pdata[search_paths->len - 2];
+          in_fallback = search_paths->pdata[search_paths->len - 1];
+
+          if (_srt_fstatat_is_same_file (-1, in_xdh, -1, in_fallback))
+            g_ptr_array_remove_index (search_paths, search_paths->len - 1);
+        }
+    }
 
   /* 5. $XDG_DATA_DIRS or /usr/local/share:/usr/share */
   value = g_environ_getenv (envp, "XDG_DATA_DIRS");
@@ -802,6 +819,18 @@ _srt_load_vulkan_icds (const char *helpers_path,
                                    multiarch_tuples, ret);
 
   return g_list_reverse (ret);
+}
+
+/*
+ * Set library_arch field, increasing the file_format_version to the
+ * minimum version that described library_arch if necessary.
+ */
+void
+_srt_vulkan_icd_set_library_arch (SrtVulkanIcd *self,
+                                  const char *library_arch)
+{
+  g_return_if_fail (SRT_IS_VULKAN_ICD (self));
+  _srt_loadable_set_library_arch (&self->icd, library_arch, "1.0.1");
 }
 
 /**
@@ -2109,4 +2138,13 @@ srt_vulkan_layer_check_error (const SrtVulkanLayer *self,
     *error = g_error_copy (self->layer.error);
 
   return (self->layer.error == NULL);
+}
+
+/* Same as _srt_vulkan_icd_set_library_arch(), but for layers */
+void
+_srt_vulkan_layer_set_library_arch (SrtVulkanLayer *self,
+                                    const char *library_arch)
+{
+  g_return_if_fail (SRT_IS_VULKAN_LAYER (self));
+  _srt_loadable_set_library_arch (&self->layer, library_arch, "1.2.1");
 }

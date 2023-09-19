@@ -66,6 +66,7 @@ static const SrtKnownArchitecture known_architectures[] =
       .machine_type = EM_X86_64,
       .elf_class = ELFCLASS64,
       .elf_encoding = ELFDATA2LSB,
+      .sizeof_pointer = 8,
     },
 
     {
@@ -74,6 +75,7 @@ static const SrtKnownArchitecture known_architectures[] =
       .machine_type = EM_386,
       .elf_class = ELFCLASS32,
       .elf_encoding = ELFDATA2LSB,
+      .sizeof_pointer = 4,
     },
 
     {
@@ -82,6 +84,7 @@ static const SrtKnownArchitecture known_architectures[] =
       .machine_type = EM_X86_64,
       .elf_class = ELFCLASS32,
       .elf_encoding = ELFDATA2LSB,
+      .sizeof_pointer = 4,
     },
 
     {
@@ -90,6 +93,7 @@ static const SrtKnownArchitecture known_architectures[] =
       .machine_type = EM_AARCH64,
       .elf_class = ELFCLASS64,
       .elf_encoding = ELFDATA2LSB,
+      .sizeof_pointer = 8,
     },
 
     { NULL }
@@ -231,16 +235,51 @@ srt_architecture_can_run_x86_64 (void)
 const char *
 srt_architecture_get_expected_runtime_linker (const char *multiarch_tuple)
 {
-  gsize i;
+  const SrtKnownArchitecture *arch;
 
   g_return_val_if_fail (multiarch_tuple != NULL, NULL);
 
+  arch = _srt_architecture_get_by_tuple (multiarch_tuple);
+
+  if (arch != NULL)
+    return arch->interoperable_runtime_linker;
+
+  return NULL;
+}
+
+#ifdef _SRT_MULTIARCH
+const SrtKnownArchitecture this_abi =
+{
+  .multiarch_tuple = SRT_ABI_X86_64,
+  .sizeof_pointer = sizeof (void *),
+};
+#endif
+
+const SrtKnownArchitecture mock_abi =
+{
+  .multiarch_tuple = "x86_64-mock-abi",
+  .sizeof_pointer = 8,
+};
+
+const SrtKnownArchitecture *
+_srt_architecture_get_by_tuple (const char *tuple)
+{
+  gsize i;
+
   for (i = 0; known_architectures[i].multiarch_tuple != NULL; i++)
     {
-      if (strcmp (multiarch_tuple,
-                  known_architectures[i].multiarch_tuple) == 0)
-        return known_architectures[i].interoperable_runtime_linker;
+      if (strcmp (tuple, known_architectures[i].multiarch_tuple) == 0)
+        return &known_architectures[i];
     }
+
+#ifdef _SRT_MULTIARCH
+  if (strcmp (tuple, _SRT_MULTIARCH) == 0)
+    return &this_abi;
+#endif
+
+  /* For unit tests */
+  if (strcmp (tuple, "x86_64-mock-abi") == 0)
+    return &mock_abi;
 
   return NULL;
 }

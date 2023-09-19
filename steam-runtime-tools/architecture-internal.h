@@ -35,9 +35,11 @@ typedef struct
   guint16 machine_type;
   guint8 elf_class;
   guint8 elf_encoding;
+  guint8 sizeof_pointer;
 } SrtKnownArchitecture;
 
 G_GNUC_INTERNAL const SrtKnownArchitecture *_srt_architecture_get_known (void);
+G_GNUC_INTERNAL const SrtKnownArchitecture *_srt_architecture_get_by_tuple (const char *multiarch_tuple);
 
 G_GNUC_INTERNAL gboolean _srt_architecture_can_run (gchar **envp,
                                                     const char *helpers_path,

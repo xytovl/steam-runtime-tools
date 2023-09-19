@@ -379,6 +379,8 @@ SrtVulkanIcd *srt_vulkan_icd_new (const gchar *json_path,
                                   const gchar *library_arch,
                                   gboolean portability_driver,
                                   SrtLoadableIssues issues);
+void _srt_vulkan_icd_set_library_arch (SrtVulkanIcd *self,
+                                       const char *library_arch);
 SrtVulkanLayer *srt_vulkan_layer_new_error (const gchar *json_path,
                                             SrtLoadableIssues issues,
                                             const GError *error);
@@ -392,3 +394,5 @@ SrtVulkanLayer *srt_vulkan_layer_new (const gchar *json_path,
                                       const gchar *description,
                                       GStrv component_layers,
                                       SrtLoadableIssues issues);
+void _srt_vulkan_layer_set_library_arch (SrtVulkanLayer *self,
+                                         const char *library_arch);
