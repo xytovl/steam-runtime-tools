@@ -41,6 +41,7 @@
 
 #include <json-glib/json-glib.h>
 
+#include <steam-runtime-tools/json-glib-backports-internal.h>
 #include <steam-runtime-tools/json-utils-internal.h>
 #include <steam-runtime-tools/utils-internal.h>
 
@@ -928,7 +929,7 @@ main (int argc,
 {
   FILE *original_stdout = NULL;
   GError *error = NULL;
-  SrtSystemInfo *info;
+  g_autoptr(SrtSystemInfo) info = NULL;
   SrtLibraryIssues library_issues = SRT_LIBRARY_ISSUES_NONE;
   SrtSteamIssues steam_issues = SRT_STEAM_ISSUES_NONE;
   SrtRuntimeIssues runtime_issues = SRT_RUNTIME_ISSUES_NONE;
@@ -944,22 +945,17 @@ main (int argc,
   g_auto(GStrv) driver_environment = NULL;
   char *expectations = NULL;
   gboolean verbose = FALSE;
-  JsonBuilder *builder;
-  JsonGenerator *generator;
+  g_autoptr(JsonBuilder) builder = NULL;
   gboolean can_run = FALSE;
   const gchar *test_json_path = NULL;
   g_autofree gchar *steamscript_path = NULL;
   g_autofree gchar *steamscript_version = NULL;
   g_autofree gchar *xdg_portal_messages = NULL;
-  gchar *json_output;
-  gchar *version = NULL;
-  gchar *inst_path = NULL;
-  gchar *data_path = NULL;
-  gchar *bin32_path = NULL;
-  gchar *rt_path = NULL;
-  gchar **overrides = NULL;
-  gchar **messages = NULL;
-  gchar **values = NULL;
+  g_autofree gchar *version = NULL;
+  g_autofree gchar *inst_path = NULL;
+  g_autofree gchar *data_path = NULL;
+  g_autofree gchar *bin32_path = NULL;
+  g_autofree gchar *rt_path = NULL;
   int opt;
 
 #if defined(__i386__) || defined(__x86_64__)
@@ -1086,6 +1082,9 @@ main (int argc,
   json_builder_set_member_name (builder, "runtime");
   json_builder_begin_object (builder);
     {
+      g_auto(GStrv) overrides = NULL;
+      g_auto(GStrv) messages = NULL;
+
       json_builder_set_member_name (builder, "path");
       rt_path = srt_system_info_dup_runtime_path (info);
       json_builder_add_string_value (builder, rt_path);
@@ -1115,48 +1114,45 @@ main (int argc,
                                             FALSE);
 
           json_builder_end_object (builder);
-
-          g_strfreev (overrides);
-          g_strfreev (messages);
         }
 
       if (rt_path != NULL && g_strcmp0 (rt_path, "/") != 0)
-      {
-        values = srt_system_info_list_pinned_libs_32 (info, &messages);
+        {
+          g_auto(GStrv) values = NULL;
 
-        json_builder_set_member_name (builder, "pinned_libs_32");
-        json_builder_begin_object (builder);
+          g_clear_pointer (&messages, g_strfreev);
+          values = srt_system_info_list_pinned_libs_32 (info, &messages);
 
-        _srt_json_builder_add_strv_value (builder, "list",
-                                          (const gchar * const *)values,
-                                          FALSE);
+          json_builder_set_member_name (builder, "pinned_libs_32");
+          json_builder_begin_object (builder);
 
-        _srt_json_builder_add_strv_value (builder, "messages",
-                                          (const gchar * const *)messages,
-                                          FALSE);
+          _srt_json_builder_add_strv_value (builder, "list",
+                                            (const gchar * const *)values,
+                                            FALSE);
 
-        json_builder_end_object (builder);
+          _srt_json_builder_add_strv_value (builder, "messages",
+                                            (const gchar * const *)messages,
+                                            FALSE);
 
-        g_strfreev (values);
-        g_strfreev (messages);
-        values = srt_system_info_list_pinned_libs_64 (info, &messages);
+          json_builder_end_object (builder);
 
-        json_builder_set_member_name (builder, "pinned_libs_64");
-        json_builder_begin_object (builder);
+          g_clear_pointer (&values, g_strfreev);
+          g_clear_pointer (&messages, g_strfreev);
+          values = srt_system_info_list_pinned_libs_64 (info, &messages);
 
-        _srt_json_builder_add_strv_value (builder, "list",
-                                          (const gchar * const *)values,
-                                          FALSE);
+          json_builder_set_member_name (builder, "pinned_libs_64");
+          json_builder_begin_object (builder);
 
-        _srt_json_builder_add_strv_value (builder, "messages",
-                                          (const gchar * const *)messages,
-                                          FALSE);
+          _srt_json_builder_add_strv_value (builder, "list",
+                                            (const gchar * const *)values,
+                                            FALSE);
 
-        json_builder_end_object (builder);
+          _srt_json_builder_add_strv_value (builder, "messages",
+                                            (const gchar * const *)messages,
+                                            FALSE);
 
-        g_strfreev (values);
-        g_strfreev (messages);
-      }
+          json_builder_end_object (builder);
+        }
     }
   json_builder_end_object (builder);
 
@@ -1618,31 +1614,15 @@ main (int argc,
 
   json_builder_end_object (builder); // End global object
 
-  JsonNode *root = json_builder_get_root (builder);
-  generator = json_generator_new ();
-  json_generator_set_root (generator, root);
-  json_generator_set_pretty (generator, TRUE);
-  json_output = json_generator_to_data (generator, NULL);
-
-  if (fputs (json_output, original_stdout) < 0)
-    g_warning ("Unable to write output: %s", g_strerror (errno));
-
-  if (fputs ("\n", original_stdout) < 0)
-    g_warning ("Unable to write final newline: %s", g_strerror (errno));
+  if (!_srt_json_builder_print (builder, original_stdout,
+                                SRT_JSON_OUTPUT_FLAGS_PRETTY, &error))
+    {
+      g_warning ("%s", error->message);
+      g_clear_error (&error);
+    }
 
   if (fclose (original_stdout) != 0)
     g_warning ("Unable to close stdout: %s", g_strerror (errno));
-
-  g_free (json_output);
-  g_object_unref (generator);
-  json_node_free (root);
-  g_object_unref (builder);
-  g_object_unref (info);
-  g_free (bin32_path);
-  g_free (rt_path);
-  g_free (data_path);
-  g_free (inst_path);
-  g_free (version);
 
   return 0;
 }

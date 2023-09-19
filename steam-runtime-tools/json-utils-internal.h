@@ -74,3 +74,26 @@ gboolean _srt_json_object_get_enum_member (JsonObject *object,
                                            const gchar *member_name,
                                            GType type,
                                            int *value_out);
+
+/* ASCII record separator, as used in application/json-seq */
+#define JSON_SEQ_RECORD_SEPARATOR "\x1e"
+
+/*
+ * SrtJsonOutputFlags:
+ * @SRT_JSON_OUTPUT_FLAGS_PRETTY: Pretty-print JSON across multiple lines
+ * @SRT_JSON_OUTPUT_FLAGS_SEQ: Output is application/json-seq (see RFC 7464)
+ * @SRT_JSON_OUTPUT_FLAGS_NONE: None of the above
+ *
+ * Flags affecting JSON output.
+ */
+typedef enum
+{
+  SRT_JSON_OUTPUT_FLAGS_PRETTY = (1 << 0),
+  SRT_JSON_OUTPUT_FLAGS_SEQ = (1 << 1),
+  SRT_JSON_OUTPUT_FLAGS_NONE = 0
+} SrtJsonOutputFlags;
+
+gboolean _srt_json_builder_print (JsonBuilder *builder,
+                                  FILE *fh,
+                                  SrtJsonOutputFlags flags,
+                                  GError **error);
