@@ -68,13 +68,18 @@
 # define LD_SO "/lib/ld64.so.1"
 // Others not supported here because we don't know which predefined macros
 // can be used to detect them:
+// arc LE soft- or hard-float: /lib/ld-linux-arc.so.2
+// arc BE: /lib/ld-linux-arceb.so.2
 // C-SKY hardfloat: /lib/ld-linux-cskyv2-hf.so.1
 // C-SKY softfloat: /lib/ld-linux-cskyv2.so.1
 // ia64: /lib/ld-linux-ia64.so.2
+// loongarch hardfloat: /lib64/ld-linux-loongarch-lp64d.so.1
+// loongarch softfloat: /lib64/ld-linux-loongarch-lp64s.so.1
 // mips classic NaN n32: /lib32/ld.so.1
 // mips classic NaN n64: /lib64/ld.so.1
 // mips NaN2008: as for classic NaN but basename is ld-linux-mipsn8.so.1
 // nios2: /lib/ld-linux-nios2.so.1
+// or1k: /lib/ld-linux-or1k.so.1
 // riscv64 softfloat: /lib/ld-linux-riscv64-lp64.so.1
 // riscv64 hardfloat: /lib/ld-linux-riscv64-lp64d.so.1
 #else
