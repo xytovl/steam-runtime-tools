@@ -51,12 +51,16 @@ AX_IS_RELEASE([dash-version])
 dnl -Wno-pointer-arith: We do a lot of arithmetic on void *, relying on gcc
 dnl     making (void * + int) the same as (char * + int)
 dnl -Wno-declaration-after-statement: Stylistic choice, this is C99
+dnl -Wno-stringop-truncation: libcapsule is low-level code and some of it
+dnl     is in a precarious position where malloc() would be a bad move
 AX_COMPILER_FLAGS([], [], [], [], [ \
     -Wno-pointer-arith \
     -Wno-declaration-after-statement \
+    -Wno-stringop-truncation \
 ])
 WARN_CFLAGS=$(echo "$WARN_CFLAGS" | sed -Ee 's,-W(error=)?declaration-after-statement,,')
 WARN_CFLAGS=$(echo "$WARN_CFLAGS" | sed -Ee 's,-W(error=)?pointer-arith,,')
+WARN_CFLAGS=$(echo "$WARN_CFLAGS" | sed -Ee 's,-W(error=)?stringop-truncation,,')
 
 AC_CHECK_FUNCS_ONCE([secure_getenv])
 AC_CHECK_HEADERS_ONCE([stdalign.h])
