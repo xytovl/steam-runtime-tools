@@ -88,21 +88,21 @@
 
 static const char * const libc_patterns[] = {
     "soname:libBrokenLocale.so.1",
-    "soname:libanl.so.1",
+    "soname:libanl.so.1",           /* Integrated into libc.so.6 since 2.34 */
     "soname:libc.so.6",
-    "soname:libcidn.so.1",
-    "soname:libcrypt.so.1",
-    "soname:libdl.so.2",
+    "soname:libcidn.so.1",          /* Removed in 2.28? */
+    "soname:libcrypt.so.1",         /* Might be glibc or libxcrypt */
+    "soname:libdl.so.2",            /* Integrated into libc.so.6 since 2.34 */
     "soname:libm.so.6",
     "soname:libmemusage.so",
     "soname:libmvec.so.1",
-    "soname:libnsl.so.1",
+    "soname:libnsl.so.1",           /* Deprecated since 2.32, but third party libnsl has a new SONAME */
     "soname:libpcprofile.so",
-    "soname:libpthread.so.0",
-    "soname:libresolv.so.2",
-    "soname:librt.so.1",
+    "soname:libpthread.so.0",       /* Integrated into libc.so.6 since 2.34 */
+    "soname:libresolv.so.2",        /* Partially integrated into libc since 2.34 */
+    "soname:librt.so.1",            /* Partially integrated into libc since 2.30 */
     "soname:libthread_db.so.1",
-    "soname:libutil.so.1",
+    "soname:libutil.so.1",          /* Integrated into libc.so.6 since 2.34 */
     NULL
 };
 
