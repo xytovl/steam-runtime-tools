@@ -1542,6 +1542,32 @@ const library_details library_details_for_glibc =
     .public_symbols = (char **) public_symbols_glibc,
 };
 
+static const char *public_symbol_versions_libcrypt[] =
+{
+    "XCRYPT_*",
+    "!GLIBC_PRIVATE",
+    "GLIBC_*",
+    "!",
+    "!*",
+    NULL,
+};
+
+static const char *public_symbols_libcrypt[] =
+{
+    "*",
+    NULL,
+};
+
+const library_details library_details_for_libcrypt =
+{
+    .name = (char *) "libcrypt.so.1",
+    /* No need for a separate library_cmp_function[], just borrow the
+     * one for glibc - we want the same thing anyway */
+    .comparators = (library_cmp_function *) library_cmp_list_for_glibc,
+    .public_symbol_versions = (char **) public_symbol_versions_libcrypt,
+    .public_symbols = (char **) public_symbols_libcrypt,
+};
+
 typedef struct
 {
     const char *name;

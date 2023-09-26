@@ -91,7 +91,8 @@ static const char * const libc_patterns[] = {
     "soname:libanl.so.1",           /* Integrated into libc.so.6 since 2.34 */
     "soname:libc.so.6",
     "soname:libcidn.so.1",          /* Removed in 2.28? */
-    "soname:libcrypt.so.1",         /* Might be glibc or libxcrypt */
+    /* libcrypt.so.1 intentionally excluded: might be glibc or libxcrypt,
+     * and was never really tightly-coupled to the rest of glibc */
     "soname:libdl.so.2",            /* Integrated into libc.so.6 since 2.34 */
     "soname:libm.so.6",
     "soname:libmemusage.so",
@@ -602,6 +603,13 @@ capture_one( const char *soname, const capture_options *options,
                      * enough anymore. Force the hard-coded glibc comparator instead
                      * of the provided knowledge values */
                     details = library_details_for_glibc;
+                }
+                else if( strcmp( needed_basename, "libcrypt.so.1" ) == 0 )
+                {
+                    /* We need to be a bit careful with this one because it
+                     * might be part of glibc, but might also be part of
+                     * libcrypt. */
+                    details = library_details_for_libcrypt;
                 }
                 else
                 {
