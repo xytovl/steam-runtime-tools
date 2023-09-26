@@ -1504,7 +1504,7 @@ library_cmp_choose_provider( const library_details *details,
     return -1;
 }
 
-const library_cmp_function library_cmp_list_for_glibc[] =
+static const library_cmp_function library_cmp_list_for_glibc[] =
 {
   library_cmp_by_versions,
   library_cmp_by_symbols,
@@ -1512,7 +1512,7 @@ const library_cmp_function library_cmp_list_for_glibc[] =
   NULL
 };
 
-const char *public_symbol_versions_glibc[] =
+static const char *public_symbol_versions_glibc[] =
 {
     "!GLIBC_PRIVATE",
     "GLIBC_*",
@@ -1522,7 +1522,7 @@ const char *public_symbol_versions_glibc[] =
     NULL,
 };
 
-const char *public_symbols_glibc[] =
+static const char *public_symbols_glibc[] =
 {
     "!*@GLIBC_PRIVATE",
     "*@GLIBC_*",
