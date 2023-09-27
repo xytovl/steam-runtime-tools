@@ -1848,7 +1848,11 @@ class Gui:
 
                 if isinstance(component, ContainerRuntimeDepot):
                     its_pv = component.pressure_vessel
-                    if its_pv is None or pv.path != its_pv.path:
+                    if (
+                        its_pv is None
+                        or pv.path != its_pv.path
+                        or environ.get('PRESSURE_VESSEL_PREFIX') != pv.path
+                    ):
                         environ['PRESSURE_VESSEL_PREFIX'] = pv.path
                 else:
                     args = [
