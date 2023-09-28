@@ -68,13 +68,18 @@
 # define LD_SO "/lib/ld64.so.1"
 // Others not supported here because we don't know which predefined macros
 // can be used to detect them:
+// arc LE soft- or hard-float: /lib/ld-linux-arc.so.2
+// arc BE: /lib/ld-linux-arceb.so.2
 // C-SKY hardfloat: /lib/ld-linux-cskyv2-hf.so.1
 // C-SKY softfloat: /lib/ld-linux-cskyv2.so.1
 // ia64: /lib/ld-linux-ia64.so.2
+// loongarch hardfloat: /lib64/ld-linux-loongarch-lp64d.so.1
+// loongarch softfloat: /lib64/ld-linux-loongarch-lp64s.so.1
 // mips classic NaN n32: /lib32/ld.so.1
 // mips classic NaN n64: /lib64/ld.so.1
 // mips NaN2008: as for classic NaN but basename is ld-linux-mipsn8.so.1
 // nios2: /lib/ld-linux-nios2.so.1
+// or1k: /lib/ld-linux-or1k.so.1
 // riscv64 softfloat: /lib/ld-linux-riscv64-lp64.so.1
 // riscv64 hardfloat: /lib/ld-linux-riscv64-lp64d.so.1
 #else
@@ -83,21 +88,22 @@
 
 static const char * const libc_patterns[] = {
     "soname:libBrokenLocale.so.1",
-    "soname:libanl.so.1",
+    "soname:libanl.so.1",           /* Integrated into libc.so.6 since 2.34 */
     "soname:libc.so.6",
-    "soname:libcidn.so.1",
-    "soname:libcrypt.so.1",
-    "soname:libdl.so.2",
+    "soname:libcidn.so.1",          /* Removed in 2.28? */
+    /* libcrypt.so.1 intentionally excluded: might be glibc or libxcrypt,
+     * and was never really tightly-coupled to the rest of glibc */
+    "soname:libdl.so.2",            /* Integrated into libc.so.6 since 2.34 */
     "soname:libm.so.6",
     "soname:libmemusage.so",
     "soname:libmvec.so.1",
-    "soname:libnsl.so.1",
+    "soname:libnsl.so.1",           /* Deprecated since 2.32, but third party libnsl has a new SONAME */
     "soname:libpcprofile.so",
-    "soname:libpthread.so.0",
-    "soname:libresolv.so.2",
-    "soname:librt.so.1",
+    "soname:libpthread.so.0",       /* Integrated into libc.so.6 since 2.34 */
+    "soname:libresolv.so.2",        /* Partially integrated into libc since 2.34 */
+    "soname:librt.so.1",            /* Partially integrated into libc since 2.30 */
     "soname:libthread_db.so.1",
-    "soname:libutil.so.1",
+    "soname:libutil.so.1",          /* Integrated into libc.so.6 since 2.34 */
     NULL
 };
 
@@ -597,6 +603,13 @@ capture_one( const char *soname, const capture_options *options,
                      * enough anymore. Force the hard-coded glibc comparator instead
                      * of the provided knowledge values */
                     details = library_details_for_glibc;
+                }
+                else if( strcmp( needed_basename, "libcrypt.so.1" ) == 0 )
+                {
+                    /* We need to be a bit careful with this one because it
+                     * might be part of glibc, but might also be part of
+                     * libcrypt. */
+                    details = library_details_for_libcrypt;
                 }
                 else
                 {

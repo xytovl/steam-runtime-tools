@@ -1,3 +1,12 @@
+libcapsule (0.20230928.0-0co1) upstream; urgency=medium
+
+  * capture-libs: Don't treat libcrypt.so.1 as part of glibc, to account for
+    libxcrypt taking over that name in newer distributions
+    (steamrt/tasks#332)
+  * build: Disable -Wstringop-truncation
+
+ -- Simon McVittie <smcv@collabora.com>  Thu, 28 Sep 2023 18:09:26 +0100
+
 libcapsule (0.20230802.0-0co1) upstream; urgency=medium
 
   * capture-libs: Log a warning for several unexpected situations, even if
