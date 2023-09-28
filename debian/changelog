@@ -1,3 +1,15 @@
+steam-runtime-tools (0.20230928.0) steamrt; urgency=medium
+
+  * pressure-vessel: Update libcapsule to v0.20230928.0
+    - Don't treat libcrypt.so.1 as part of glibc.
+      It's build-time optional since glibc 2.28, and is not built
+      by default since 2.38. In newer distributions like Debian >= 11 and
+      Ubuntu >= 20.04, it's usually replaced by libxcrypt.
+      (steamrt/tasks#332)
+  * launch-options: Override PRESSURE_VESSEL_PREFIX when needed
+
+ -- Simon McVittie <smcv@collabora.com>  Thu, 28 Sep 2023 18:30:13 +0100
+
 steam-runtime-tools (0.20230922.0) steamrt; urgency=medium
 
   * system-info:
