@@ -65,6 +65,7 @@ struct _library_details
 };
 
 extern const library_details library_details_for_glibc;
+extern const library_details library_details_for_libcrypt;
 
 library_cmp_function *library_cmp_list_from_string( const char *spec,
                                                     const char *delimiters,
