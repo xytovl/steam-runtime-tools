@@ -54,6 +54,7 @@ srt_loadable_clear (SrtLoadable *self)
   g_clear_pointer (&self->enable_env_var.value, g_free);
   g_clear_pointer (&self->disable_env_var.name, g_free);
   g_clear_pointer (&self->disable_env_var.value, g_free);
+  g_clear_pointer (&self->original_json, g_free);
 }
 
 /*
@@ -756,6 +757,7 @@ load_icd_from_json (GType type,
 {
   g_autoptr(JsonParser) parser = NULL;
   g_autofree gchar *canon = NULL;
+  g_autofree gchar *contents = NULL;
   g_autofree gchar *path = NULL;
   g_autoptr(GError) error = NULL;
   /* These are all borrowed from the parser */
@@ -769,6 +771,7 @@ load_icd_from_json (GType type,
   const char *library_arch = NULL;
   gboolean portability_driver = FALSE;
   SrtLoadableIssues issues = SRT_LOADABLE_ISSUES_NONE;
+  gsize len = 0;
 
   g_return_if_fail (type == SRT_TYPE_VULKAN_ICD
                     || type == SRT_TYPE_EGL_ICD
@@ -788,7 +791,34 @@ load_icd_from_json (GType type,
 
   parser = json_parser_new ();
 
-  if (!json_parser_load_from_file (parser, path, &error))
+  if (!g_file_get_contents (path, &contents, &len, &error))
+    {
+      issues |= SRT_LOADABLE_ISSUES_CANNOT_LOAD;
+      goto out;
+    }
+
+  if (G_UNLIKELY (len > G_MAXSSIZE))
+    {
+      g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
+                   "Unreasonably large JSON file \"%s\"", path);
+      issues |= SRT_LOADABLE_ISSUES_CANNOT_LOAD;
+      goto out;
+    }
+
+  if (G_UNLIKELY (strnlen (contents, len + 1) < len))
+    {
+      /* In practice json-glib does diagnose this as an error, but the
+       * error message is misleading (it claims the file isn't UTF-8);
+       * and we want to check for this explicitly anyway, because if
+       * the content could contain \0 then it would be wrong to store it
+       * as a gchar * and not a (content,length) pair. */
+      g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
+                   "JSON file \"%s\" contains \\0", path);
+      issues |= SRT_LOADABLE_ISSUES_CANNOT_LOAD;
+      goto out;
+    }
+
+  if (!json_parser_load_from_data (parser, contents, len, &error))
     {
       issues |= SRT_LOADABLE_ISSUES_CANNOT_LOAD;
       goto out;
@@ -907,11 +937,17 @@ out:
       SrtVulkanIcd *icd;
 
       if (error == NULL)
-        icd = srt_vulkan_icd_new (filename, api_version,
-                                  library_path, library_arch,
-                                  portability_driver, issues);
+        {
+          icd = srt_vulkan_icd_new (filename, api_version,
+                                    library_path, library_arch,
+                                    portability_driver, issues);
+          _srt_loadable_take_original_json (&icd->icd,
+                                            g_steal_pointer (&contents));
+        }
       else
-        icd = srt_vulkan_icd_new_error (filename, issues, error);
+        {
+          icd = srt_vulkan_icd_new_error (filename, issues, error);
+        }
 
       *list = g_list_prepend (*list, icd);
     }
@@ -920,9 +956,15 @@ out:
       SrtEglIcd *icd;
 
       if (error == NULL)
-        icd = srt_egl_icd_new (filename, library_path, issues);
+        {
+          icd = srt_egl_icd_new (filename, library_path, issues);
+          _srt_loadable_take_original_json (&icd->icd,
+                                            g_steal_pointer (&contents));
+        }
       else
-        icd = srt_egl_icd_new_error (filename, issues, error);
+        {
+          icd = srt_egl_icd_new_error (filename, issues, error);
+        }
 
       *list = g_list_prepend (*list, icd);
     }
@@ -931,9 +973,15 @@ out:
       SrtEglExternalPlatform *ep;
 
       if (error == NULL)
-        ep = srt_egl_external_platform_new (filename, library_path, issues);
+        {
+          ep = srt_egl_external_platform_new (filename, library_path, issues);
+          _srt_loadable_take_original_json (&ep->module,
+                                            g_steal_pointer (&contents));
+        }
       else
-        ep = srt_egl_external_platform_new_error (filename, issues, error);
+        {
+          ep = srt_egl_external_platform_new_error (filename, issues, error);
+        }
 
       *list = g_list_prepend (*list, ep);
     }
@@ -960,4 +1008,12 @@ _srt_loadable_set_library_arch (SrtLoadable *self,
       g_clear_pointer (&self->file_format_version, g_free);
       self->file_format_version = g_strdup (min_file_format_version);
     }
+}
+
+void
+_srt_loadable_take_original_json (SrtLoadable *self,
+                                  gchar *contents)
+{
+  g_clear_pointer (&self->original_json, g_free);
+  self->original_json = contents;
 }
