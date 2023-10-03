@@ -904,28 +904,38 @@ load_icd_from_json (GType type,
 out:
   if (type == SRT_TYPE_VULKAN_ICD)
     {
+      SrtVulkanIcd *icd;
+
       if (error == NULL)
-        *list = g_list_prepend (*list, srt_vulkan_icd_new (filename, api_version,
-                                                           library_path, library_arch,
-                                                           portability_driver, issues));
+        icd = srt_vulkan_icd_new (filename, api_version,
+                                  library_path, library_arch,
+                                  portability_driver, issues);
       else
-        *list = g_list_prepend (*list, srt_vulkan_icd_new_error (filename, issues, error));
+        icd = srt_vulkan_icd_new_error (filename, issues, error);
+
+      *list = g_list_prepend (*list, icd);
     }
   else if (type == SRT_TYPE_EGL_ICD)
     {
+      SrtEglIcd *icd;
+
       if (error == NULL)
-        *list = g_list_prepend (*list, srt_egl_icd_new (filename, library_path, issues));
+        icd = srt_egl_icd_new (filename, library_path, issues);
       else
-        *list = g_list_prepend (*list, srt_egl_icd_new_error (filename, issues, error));
+        icd = srt_egl_icd_new_error (filename, issues, error);
+
+      *list = g_list_prepend (*list, icd);
     }
   else if (type == SRT_TYPE_EGL_EXTERNAL_PLATFORM)
     {
+      SrtEglExternalPlatform *ep;
+
       if (error == NULL)
-        *list = g_list_prepend (*list, srt_egl_external_platform_new (filename, library_path,
-                                                                      issues));
+        ep = srt_egl_external_platform_new (filename, library_path, issues);
       else
-        *list = g_list_prepend (*list, srt_egl_external_platform_new_error (filename, issues,
-                                                                            error));
+        ep = srt_egl_external_platform_new_error (filename, issues, error);
+
+      *list = g_list_prepend (*list, ep);
     }
   else
     {
