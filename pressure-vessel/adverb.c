@@ -1256,40 +1256,40 @@ main (int argc,
 
   if (opt_verbose)
     {
-      g_message ("Command-line:");
+      g_debug ("Command-line:");
 
       for (i = 0; i < wrapped_command->argv->len - 1; i++)
         {
           g_autofree gchar *quoted = NULL;
 
           quoted = g_shell_quote (g_ptr_array_index (wrapped_command->argv, i));
-          g_message ("\t%s", quoted);
+          g_debug ("\t%s", quoted);
         }
 
       g_assert (wrapped_command->argv->pdata[i] == NULL);
 
-      g_message ("Environment:");
+      g_debug ("Environment:");
 
       for (i = 0; wrapped_command->envp != NULL && wrapped_command->envp[i] != NULL; i++)
         {
           g_autofree gchar *quoted = NULL;
 
           quoted = g_shell_quote (wrapped_command->envp[i]);
-          g_message ("\t%s", quoted);
+          g_debug ("\t%s", quoted);
         }
 
-      g_message ("Inherited file descriptors:");
+      g_debug ("Inherited file descriptors:");
 
       for (i = 0; i < pass_fds->len; i++)
-        g_message ("\t%d", g_array_index (pass_fds, int, i));
+        g_debug ("\t%d", g_array_index (pass_fds, int, i));
 
-      g_message ("Redirections:");
+      g_debug ("Redirections:");
 
       for (i = 0; i < assign_fds->len; i++)
         {
           const AssignFd *item = &g_array_index (assign_fds, AssignFd, i);
 
-          g_message ("\t%d>&%d", item->target, item->source);
+          g_debug ("\t%d>&%d", item->target, item->source);
         }
     }
 
