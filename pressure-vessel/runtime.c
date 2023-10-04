@@ -33,6 +33,7 @@
 
 #include "steam-runtime-tools/architecture-internal.h"
 #include "steam-runtime-tools/graphics-internal.h"
+#include "steam-runtime-tools/graphics-drivers-json-based-internal.h"
 #include "steam-runtime-tools/profiling-internal.h"
 #include "steam-runtime-tools/resolve-in-sysroot-internal.h"
 #include "steam-runtime-tools/system-info-internal.h"
@@ -4664,6 +4665,9 @@ pv_runtime_take_ld_so_from_provider (PvRuntime *self,
  *  `{ owned string => itself }` representing the set
  *  of JSON manifests already created. Used internally to notice when
  *  to use unique sub directories to avoid naming conflicts
+ * @content_seen: A map `{ unowned string => unowned path }` representing
+ *  JSON manifests with unique content, used to detect and suppress
+ *  exact duplicates.
  * @search_path: Used to build `$VK_DRIVER_FILES` or a similar search path
  * @error: Used to raise an error on failure
  *
@@ -4677,6 +4681,7 @@ setup_json_manifest (PvRuntime *self,
                      int digits,
                      gsize seq,
                      GHashTable *json_set,
+                     GHashTable *content_seen,
                      GString *search_path,
                      GError **error)
 {
@@ -4689,7 +4694,9 @@ setup_json_manifest (PvRuntime *self,
   g_autofree gchar *json_basename = NULL;
   const char *json_in_provider = NULL;
   const char *library_arch = NULL;
+  const char *original_json = NULL;
   gsize i;
+  void *other_voidp;
 
   g_return_val_if_fail (self->provider != NULL, FALSE);
   g_return_val_if_fail (bwrap != NULL || self->mutable_sysroot != NULL, FALSE);
@@ -4709,18 +4716,21 @@ setup_json_manifest (PvRuntime *self,
       loaded = srt_vulkan_icd_check_error (icd, NULL);
       json_in_provider = srt_vulkan_icd_get_json_path (icd);
       library_arch = srt_vulkan_icd_get_library_arch (icd);
+      original_json = icd->icd.original_json;
     }
   else if (SRT_IS_EGL_ICD (details->icd))
     {
       egl = SRT_EGL_ICD (details->icd);
       loaded = srt_egl_icd_check_error (egl, NULL);
       json_in_provider = srt_egl_icd_get_json_path (egl);
+      original_json = egl->icd.original_json;
     }
   else if (SRT_IS_EGL_EXTERNAL_PLATFORM (details->icd))
     {
       ext_platform = SRT_EGL_EXTERNAL_PLATFORM (details->icd);
       loaded = srt_egl_external_platform_check_error (ext_platform, NULL);
       json_in_provider = srt_egl_external_platform_get_json_path (ext_platform);
+      original_json = ext_platform->module.original_json;
     }
   else
     {
@@ -4737,6 +4747,37 @@ setup_json_manifest (PvRuntime *self,
     {
       g_debug ("Original JSON manifest failed to load, nothing to do");
       return TRUE;
+    }
+
+  if (original_json != NULL)
+    {
+      /* In a Flatpak environment with i386 multiarch compatibility,
+       * we can see two identical copies of files like nvidia_icd.json,
+       * each listing a SONAME which can be loaded equally well by both
+       * word sizes. Deduplicate them by their content.
+       *
+       * Layers don't need this treatment, because Vulkan-Loader will
+       * deduplicate those by their names anyway.
+       *
+       * Mesa also doesn't need (or get) this treatment, because it installs
+       * per-architecture filenames like radeon_icd.x86_64.json, which
+       * contain absolute paths that will only work for the appropriate
+       * architecture. */
+      if (g_hash_table_lookup_extended (content_seen, original_json, NULL,
+                                        &other_voidp))
+        {
+          const char *other = other_voidp;
+
+          g_info ("Ignoring \"%s\" because it has the same content as \"%s\"",
+                  json_in_provider, other);
+          return TRUE;
+        }
+
+      /* Remember it so we can ignore any subsequent duplicates.
+       * Casts are required because GHashTable is not const-correct for
+       * "borrowed" keys and values. */
+      g_hash_table_replace (content_seen, (void *) original_json,
+                            (void *) json_in_provider);
     }
 
   for (i = 0; i < PV_N_SUPPORTED_ARCHITECTURES; i++)
@@ -4924,18 +4965,21 @@ setup_each_json_manifest (PvRuntime *self,
 {
   gsize j;
   g_autoptr(GHashTable) json_set = NULL;
+  g_autoptr(GHashTable) content_seen = NULL;
   int digits = pv_count_decimal_digits (details->len);
 
   g_return_val_if_fail (self->provider != NULL, FALSE);
   g_return_val_if_fail (bwrap != NULL || self->mutable_sysroot != NULL, FALSE);
 
   json_set = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
+  content_seen = g_hash_table_new_full (g_str_hash, g_str_equal, NULL, NULL);
 
   for (j = 0; j < details->len; j++)
     {
       if (!setup_json_manifest (self, bwrap, sub_dir,
                                 g_ptr_array_index (details, j),
-                                digits, j, json_set, search_path, error))
+                                digits, j, json_set, content_seen,
+                                search_path, error))
         return FALSE;
     }
 
