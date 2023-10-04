@@ -693,7 +693,6 @@ class TestInsideRuntime(BaseTest):
                     'libBrokenLocale.so.1',
                     'libanl.so.1',
                     'libc.so.6',
-                    'libcrypt.so.1',
                     'libdl.so.2',
                     'libm.so.6',
                     'libnsl.so.1',
