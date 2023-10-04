@@ -82,6 +82,24 @@ typedef struct
   EnvironmentVariable disable_env_var;
 } SrtLoadable;
 
+struct _SrtVulkanIcd
+{
+  GObject parent;
+  SrtLoadable icd;
+};
+
+struct _SrtEglIcd
+{
+  GObject parent;
+  SrtLoadable icd;
+};
+
+struct _SrtEglExternalPlatform
+{
+  GObject parent;
+  SrtLoadable module;
+};
+
 static inline void
 device_extension_free (gpointer p)
 {
