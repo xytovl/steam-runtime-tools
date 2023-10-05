@@ -49,13 +49,6 @@
  * Opaque object representing a Vulkan ICD.
  */
 
-struct _SrtVulkanIcd
-{
-  /*< private >*/
-  GObject parent;
-  SrtLoadable icd;
-};
-
 struct _SrtVulkanIcdClass
 {
   /*< private >*/

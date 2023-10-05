@@ -51,13 +51,6 @@
  * Opaque object representing an EGL external platform module.
  */
 
-struct _SrtEglExternalPlatform
-{
-  /*< private >*/
-  GObject parent;
-  SrtLoadable module;
-};
-
 struct _SrtEglExternalPlatformClass
 {
   /*< private >*/
@@ -460,13 +453,6 @@ srt_egl_external_platform_write_to_file (SrtEglExternalPlatform *self,
  *
  * Opaque object representing an EGL ICD.
  */
-
-struct _SrtEglIcd
-{
-  /*< private >*/
-  GObject parent;
-  SrtLoadable icd;
-};
 
 struct _SrtEglIcdClass
 {

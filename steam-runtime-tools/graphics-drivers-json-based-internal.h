@@ -80,7 +80,26 @@ typedef struct
   GList *device_extensions;
   EnvironmentVariable enable_env_var;
   EnvironmentVariable disable_env_var;
+  gchar *original_json;
 } SrtLoadable;
+
+struct _SrtVulkanIcd
+{
+  GObject parent;
+  SrtLoadable icd;
+};
+
+struct _SrtEglIcd
+{
+  GObject parent;
+  SrtLoadable icd;
+};
+
+struct _SrtEglExternalPlatform
+{
+  GObject parent;
+  SrtLoadable module;
+};
 
 static inline void
 device_extension_free (gpointer p)
@@ -119,6 +138,8 @@ void _srt_loadable_flag_duplicates (GType which,
 void _srt_loadable_set_library_arch (SrtLoadable *self,
                                      const char *library_arch,
                                      const char *min_file_format_version);
+void _srt_loadable_take_original_json (SrtLoadable *self,
+                                       gchar *contents);
 
 /*
  * A #GCompareFunc that does not sort the members of the directory.
