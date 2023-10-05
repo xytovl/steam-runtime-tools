@@ -36,5 +36,5 @@ typedef struct _SrtProfilingTimer SrtProfilingTimer;
 G_GNUC_PRINTF (1, 2) G_GNUC_INTERNAL
 SrtProfilingTimer *_srt_profiling_start (const char *format, ...);
 G_GNUC_INTERNAL void _srt_profiling_end (SrtProfilingTimer *start);
-G_GNUC_INTERNAL void _srt_profiling_enable (void);
+G_GNUC_INTERNAL void _srt_profiling_enable (GLogLevelFlags level);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC (SrtProfilingTimer, _srt_profiling_end)

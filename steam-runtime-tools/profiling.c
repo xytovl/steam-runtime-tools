@@ -30,20 +30,26 @@
 
 /* If strictly positive, profiling is enabled. */
 static long profiling_ticks_per_sec = 0;
+static GLogLevelFlags profiling_level = G_LOG_LEVEL_DEBUG;
 
 /*
  * Enable time measurement and profiling messages.
  */
 void
-_srt_profiling_enable (void)
+_srt_profiling_enable (GLogLevelFlags level)
 {
   errno = 0;
   profiling_ticks_per_sec = sysconf (_SC_CLK_TCK);
 
+  if (level & G_LOG_LEVEL_MASK)
+    profiling_level = level;
+  else
+    profiling_level = G_LOG_LEVEL_DEBUG;
+
   if (profiling_ticks_per_sec <= 0)
     g_warning ("Unable to enable profiling: %s", g_strerror (errno));
   else
-    g_message ("Enabled profiling");
+    g_log (G_LOG_DOMAIN, profiling_level, "Enabled profiling");
 }
 
 struct _SrtProfilingTimer
@@ -75,7 +81,7 @@ _srt_profiling_start (const char *format,
   ret->message = g_strdup_vprintf (format, args);
   va_end (args);
 
-  g_message ("Profiling: start: %s", ret->message);
+  g_log (G_LOG_DOMAIN, profiling_level, "Profiling: start: %s", ret->message);
   ret->wallclock = times (&ret->cpu);
   return ret;
 }
@@ -100,17 +106,18 @@ _srt_profiling_end (SrtProfilingTimer *start)
 
   end = times (&end_cpu);
 
-  g_message ("Profiling: end (real %.1fs, user %.1fs, sys %.1fs): %s",
-           (end - start->wallclock) / (double) profiling_ticks_per_sec,
-           (end_cpu.tms_utime
-            + end_cpu.tms_cutime
-            - start->cpu.tms_utime
-            - start->cpu.tms_cutime) / (double) profiling_ticks_per_sec,
-           (end_cpu.tms_stime
-            + end_cpu.tms_cstime
-            - start->cpu.tms_stime
-            - start->cpu.tms_cstime) / (double) profiling_ticks_per_sec,
-           start->message);
+  g_log (G_LOG_DOMAIN, profiling_level,
+         "Profiling: end (real %.1fs, user %.1fs, sys %.1fs): %s",
+         (end - start->wallclock) / (double) profiling_ticks_per_sec,
+         (end_cpu.tms_utime
+          + end_cpu.tms_cutime
+          - start->cpu.tms_utime
+          - start->cpu.tms_cutime) / (double) profiling_ticks_per_sec,
+         (end_cpu.tms_stime
+          + end_cpu.tms_cstime
+          - start->cpu.tms_stime
+          - start->cpu.tms_cstime) / (double) profiling_ticks_per_sec,
+         start->message);
   g_free (start->message);
   g_free (start);
 }
