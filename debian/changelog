@@ -1,3 +1,23 @@
+steam-runtime-tools (0.20230928.1) steamrt; urgency=medium
+
+  * Hotfix for versions >= 0.20230919.0
+  * pv-runtime: Deduplicate Vulkan drivers, etc. by their manifest content.
+    When using Flatpak with the Nvidia drivers, we see two identical
+    sets of manifests: they are intended to describe the x86_64 and i386
+    drivers, but each one is equally valid to load the other, resulting in
+    the same driver being loaded twice.
+    Some games like Red Dead Redemption 2 and The Elder Scrolls Online
+    have been reported to crash when this happens.
+    Until 0.20230919.0, this was accidentally mitigated by
+    steam-runtime-tools#124, but fixing that bug exposed the crashes.
+    Avoid this by not making JSON manifests available in the container if
+    they are a byte-for-byte duplicate of a manifest we already processed.
+    (Regression in 0.20230919.0; steam-runtime#624)
+  * tests: Stop assuming libcrypt will be pulled into a scout container.
+    (Regression in 0.20230928.0)
+
+ -- Simon McVittie <smcv@collabora.com>  Thu, 05 Oct 2023 14:47:34 +0100
+
 steam-runtime-tools (0.20230928.0) steamrt; urgency=medium
 
   * pressure-vessel: Update libcapsule to v0.20230928.0
