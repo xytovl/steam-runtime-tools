@@ -661,10 +661,10 @@ _srt_util_set_glib_log_handler (const char *prgname,
   g_log_set_handler (extra_log_domain, log_levels, log_handler, NULL);
   g_log_set_handler (G_LOG_DOMAIN, log_levels, log_handler, NULL);
 
-  if ((flags & SRT_LOG_FLAGS_TIMING)
-      || ((flags & SRT_LOG_FLAGS_DEBUG)
-          && !(flags & SRT_LOG_FLAGS_DIFFABLE)))
-    _srt_profiling_enable ();
+  if (flags & SRT_LOG_FLAGS_TIMING)
+    _srt_profiling_enable (G_LOG_LEVEL_MESSAGE);
+  else if ((flags & SRT_LOG_FLAGS_DEBUG) && !(flags & SRT_LOG_FLAGS_DIFFABLE))
+    _srt_profiling_enable (G_LOG_LEVEL_DEBUG);
 
   /* We ensure stdin is open first, because otherwise any fd we open is
    * likely to become unintentionally the new stdin. */
