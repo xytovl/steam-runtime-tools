@@ -3324,6 +3324,7 @@ bind_runtime_base (PvRuntime *self,
                                                      member, NULL);
           g_autofree gchar *full = NULL;
           g_autofree gchar *target = NULL;
+          gboolean only_in_interpreter_root = FALSE;
 
           if (g_strv_contains (dont_bind, dest))
             continue;
@@ -3346,6 +3347,7 @@ bind_runtime_base (PvRuntime *self,
                * of the real /etc, but the latter is controlled by us. */
               dest = g_build_filename (PV_RUNTIME_PATH_INTERPRETER_ROOT,
                                        original_dest, NULL);
+              only_in_interpreter_root = TRUE;
             }
 
           full = g_build_filename (self->runtime_files,
@@ -3357,6 +3359,15 @@ bind_runtime_base (PvRuntime *self,
           if (target != NULL)
             {
               flatpak_bwrap_add_args (bwrap, "--symlink", target, dest, NULL);
+
+              if (!only_in_interpreter_root)
+                {
+                  g_autofree gchar *dest_in_interpreter_root = NULL;
+
+                  dest_in_interpreter_root = g_build_filename (PV_RUNTIME_PATH_INTERPRETER_ROOT,
+                                                               dest, NULL);
+                  flatpak_bwrap_add_args (bwrap, "--symlink", target, dest_in_interpreter_root, NULL);
+                }
             }
           else
             {
