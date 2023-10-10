@@ -7878,8 +7878,8 @@ pv_runtime_use_shared_sockets (PvRuntime *self,
       /* Make the PulseAudio driver the default.
        * We do this unconditionally when we are under Flatpak for parity
        * with the freedesktop.org Platform. */
-      const gchar *alsa_config = "pcm.!default pulse\n"
-                                 "ctl.!default pulse\n";
+      const gchar *alsa_config = "pcm.!default {\n    type pulse\n}\n"
+                                 "ctl.!default {\n    type pulse\n}\n";
 
       if (bwrap != NULL)
         {
