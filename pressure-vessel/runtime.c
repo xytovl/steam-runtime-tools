@@ -5255,19 +5255,22 @@ collect_graphics_libraries_patterns (GPtrArray *patterns)
    */
   static const char * const soname_globs_even_if_older[] =
   {
-    /* NVIDIA proprietary stack */
+    /* Vendor-neutral (GLVND) */
     "libEGL.so.*",
-    "libEGL_nvidia.so.*",
     "libGL.so.*",
     "libGLESv1_CM.so.*",
-    "libGLESv1_CM_nvidia.so.*",
     "libGLESv2.so.*",
-    "libGLESv2_nvidia.so.*",
     "libGLX.so.*",
-    "libGLX_nvidia.so.*",
     "libGLX_indirect.so.*",
     "libGLdispatch.so.*",
+    "libOpenCL.so.*",
     "libOpenGL.so.*",
+
+    /* NVIDIA proprietary stack */
+    "libEGL_nvidia.so.*",
+    "libGLESv1_CM_nvidia.so.*",
+    "libGLESv2_nvidia.so.*",
+    "libGLX_nvidia.so.*",
     "libXNVCtrl.so.*",
     "libcuda.so.*",
     "libglx.so.*",
@@ -5290,7 +5293,6 @@ collect_graphics_libraries_patterns (GPtrArray *patterns)
     "libnvidia-ptxjitcompiler.so.*",
     "libnvidia-rtcore.so.*",
     "libnvidia-tls.so.*",
-    "libOpenCL.so.*",
     "libvdpau_nvidia.so.*",
   };
   gsize i;
