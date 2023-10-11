@@ -598,11 +598,10 @@ load_json_dir (SrtSysroot *sysroot,
                void *user_data)
 {
   g_autoptr(GError) error = NULL;
-  g_autoptr(GDir) dir_iter = NULL;
+  g_auto(GLnxDirFdIterator) iter = { .initialized = FALSE };
   g_autofree gchar *canon = NULL;
-  g_autofree gchar *sysrooted_dir = NULL;
   g_autofree gchar *suffixed_dir = NULL;
-  const char *iter_dir;
+  glnx_autofd int dirfd = -1;
   const char *member;
   g_autoptr(GPtrArray) members = NULL;
   gsize i;
@@ -625,28 +624,42 @@ load_json_dir (SrtSysroot *sysroot,
       dir = suffixed_dir;
     }
 
-  /* TODO: Use fd-based I/O if appropriate */
-  sysrooted_dir = g_build_filename (sysroot->path, dir, NULL);
-  iter_dir = sysrooted_dir;
-
   g_debug ("Looking for ICDs in %s (in sysroot %s)...", dir, sysroot->path);
 
-  dir_iter = g_dir_open (iter_dir, 0, &error);
+  dirfd = _srt_sysroot_open (sysroot, dir,
+                             (SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY
+                              | SRT_RESOLVE_FLAGS_READABLE),
+                             NULL, &error);
 
-  if (dir_iter == NULL)
+  if (dirfd < 0 ||
+      !glnx_dirfd_iterator_init_take_fd (&dirfd, &iter, &error))
     {
-      g_debug ("Failed to open \"%s\": %s", iter_dir, error->message);
+      g_debug ("Failed to open \"%s%s\": %s",
+               sysroot->path, dir, error->message);
       return;
     }
 
   members = g_ptr_array_new_with_free_func (g_free);
 
-  while ((member = g_dir_read_name (dir_iter)) != NULL)
+  while (TRUE)
     {
-      if (!g_str_has_suffix (member, ".json"))
+      struct dirent *dent = NULL;
+
+      if (!glnx_dirfd_iterator_next_dent (&iter, &dent, NULL, &error))
+        {
+          g_warning ("I/O error reading members of \"%s%s\": %s",
+                     sysroot->path, dir, error->message);
+          g_clear_error (&error);
+          break;
+        }
+
+      if (dent == NULL)
+        break;
+
+      if (!g_str_has_suffix (dent->d_name, ".json"))
         continue;
 
-      g_ptr_array_add (members, g_strdup (member));
+      g_ptr_array_add (members, g_strdup (dent->d_name));
     }
 
   if (sort != READDIR_ORDER)
