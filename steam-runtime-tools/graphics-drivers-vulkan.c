@@ -1572,15 +1572,17 @@ load_vulkan_layer_json (SrtSysroot *sysroot,
               /* Try to continue parsing */
               g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
                            "the layer in \"%s\" is not an object as expected", path);
-              ret_list = g_list_prepend (ret_list,
-                                         srt_vulkan_layer_new_error (path,
-                                                                     SRT_LOADABLE_ISSUES_CANNOT_LOAD,
-                                                                     error));
+              layer = srt_vulkan_layer_new_error (path,
+                                                  SRT_LOADABLE_ISSUES_CANNOT_LOAD,
+                                                  error);
               g_clear_error (&error);
-              continue;
             }
-          ret_list = g_list_prepend (ret_list, vulkan_layer_parse_json (path, file_format_version,
-                                                                        json_layer));
+          else
+            {
+              layer = vulkan_layer_parse_json (path, file_format_version, json_layer);
+            }
+
+          ret_list = g_list_prepend (ret_list, g_steal_pointer (&layer));
         }
     }
   else if (json_object_has_member (object, "layer"))
@@ -1592,8 +1594,9 @@ load_vulkan_layer_json (SrtSysroot *sysroot,
                        "\"layer\" in \"%s\" is not an object as expected", path);
           goto return_error;
         }
-      ret_list = g_list_prepend (ret_list, vulkan_layer_parse_json (path, file_format_version,
-                                                                    json_layer));
+
+      layer = vulkan_layer_parse_json (path, file_format_version, json_layer);
+      ret_list = g_list_prepend (ret_list, g_steal_pointer (&layer));
     }
   else
     {
