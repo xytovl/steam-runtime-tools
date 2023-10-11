@@ -1468,6 +1468,7 @@ vulkan_layer_parse_json (const gchar *path,
 
 /**
  * load_vulkan_layer_json:
+ * @sysroot: (not nullable): Sysroot in which to load the layer
  * @path: (not nullable): Path to a Vulkan layer JSON file
  *
  * Returns: (transfer full) (element-type SrtVulkanLayer): A list of Vulkan
@@ -1485,14 +1486,16 @@ load_vulkan_layer_json (SrtSysroot *sysroot,
   JsonObject *json_layer = NULL;
   JsonArray *json_layers = NULL;
   const gchar *file_format_version = NULL;
-  g_autofree gchar *in_sysroot = NULL;
+  g_autofree gchar *contents = NULL;
   g_autofree gchar *canon = NULL;
+  gsize contents_len = 0;
   guint length;
   gsize i;
   GList *ret_list = NULL;
   SrtLoadableIssues issues = SRT_LOADABLE_ISSUES_CANNOT_LOAD;
   g_autoptr(SrtVulkanLayer) layer = NULL;
 
+  g_return_val_if_fail (SRT_IS_SYSROOT (sysroot), NULL);
   g_return_val_if_fail (path != NULL, NULL);
 
   if (!g_path_is_absolute (path))
@@ -1501,14 +1504,34 @@ load_vulkan_layer_json (SrtSysroot *sysroot,
       path = canon;
     }
 
-  /* TODO: Use fd-relative I/O if appropriate */
-  in_sysroot = g_build_filename (sysroot->path, path, NULL);
+  g_debug ("Attempting to load JSON layer from %s%s",
+           sysroot->path, path);
 
-  g_debug ("Attempting to load the json layer from %s", in_sysroot);
+  if (!_srt_sysroot_load (sysroot, path, SRT_RESOLVE_FLAGS_NONE,
+                          NULL, &contents, &contents_len, &error))
+    goto return_error;
+
+  if (G_UNLIKELY (contents_len > G_MAXSSIZE))
+    {
+      g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
+                   "Unreasonably large JSON file \"%s%s\"",
+                   sysroot->path, path);
+      goto return_error;
+    }
+
+  if (G_UNLIKELY (strnlen (contents, contents_len + 1) < contents_len))
+    {
+      /* In practice json-glib does diagnose this as an error, but the
+       * error message is misleading (it claims the file isn't UTF-8). */
+      g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
+                   "JSON file \"%s%s\" contains \\0",
+                   sysroot->path, path);
+      goto return_error;
+    }
 
   parser = json_parser_new ();
 
-  if (!json_parser_load_from_file (parser, in_sysroot, &error))
+  if (!json_parser_load_from_data (parser, contents, contents_len, &error))
     {
       g_debug ("error %s", error->message);
       goto return_error;
