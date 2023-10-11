@@ -1490,6 +1490,8 @@ load_vulkan_layer_json (SrtSysroot *sysroot,
   guint length;
   gsize i;
   GList *ret_list = NULL;
+  SrtLoadableIssues issues = SRT_LOADABLE_ISSUES_CANNOT_LOAD;
+  g_autoptr(SrtVulkanLayer) layer = NULL;
 
   g_return_val_if_fail (path != NULL, NULL);
 
@@ -1509,10 +1511,7 @@ load_vulkan_layer_json (SrtSysroot *sysroot,
   if (!json_parser_load_from_file (parser, in_sysroot, &error))
     {
       g_debug ("error %s", error->message);
-      return g_list_prepend (ret_list,
-                             srt_vulkan_layer_new_error (path,
-                                                         SRT_LOADABLE_ISSUES_CANNOT_LOAD,
-                                                         error));
+      goto return_error;
     }
 
   node = json_parser_get_root (parser);
@@ -1521,10 +1520,7 @@ load_vulkan_layer_json (SrtSysroot *sysroot,
     {
       g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
                    "Expected to find a JSON object in \"%s\"", path);
-      return g_list_prepend (ret_list,
-                             srt_vulkan_layer_new_error (path,
-                                                         SRT_LOADABLE_ISSUES_CANNOT_LOAD,
-                                                         error));
+      goto return_error;
     }
 
   object = json_node_get_object (node);
@@ -1537,10 +1533,7 @@ load_vulkan_layer_json (SrtSysroot *sysroot,
     {
       g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
                    "file_format_version in \"%s\" is missing or not a string", path);
-      return g_list_prepend (ret_list,
-                             srt_vulkan_layer_new_error (path,
-                                                         SRT_LOADABLE_ISSUES_CANNOT_LOAD,
-                                                         error));
+      goto return_error;
     }
 
   /* At the time of writing the latest layer manifest file version is
@@ -1554,11 +1547,10 @@ load_vulkan_layer_json (SrtSysroot *sysroot,
       g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
                    "Vulkan layer file_format_version \"%s\" in \"%s\" is not supported",
                    file_format_version, path);
-      return g_list_prepend (ret_list,
-                             srt_vulkan_layer_new_error (path,
-                                                         SRT_LOADABLE_ISSUES_UNSUPPORTED,
-                                                         error));
+      issues = SRT_LOADABLE_ISSUES_UNSUPPORTED;
+      goto return_error;
     }
+
   if (json_object_has_member (object, "layers"))
     {
       arr_node = json_object_get_member (object, "layers");
@@ -1569,10 +1561,7 @@ load_vulkan_layer_json (SrtSysroot *sysroot,
         {
           g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
                        "\"layers\" in \"%s\" is not an array as expected", path);
-          return g_list_prepend (ret_list,
-                                 srt_vulkan_layer_new_error (path,
-                                                             SRT_LOADABLE_ISSUES_CANNOT_LOAD,
-                                                             error));
+          goto return_error;
         }
       length = json_array_get_length (json_layers);
       for (i = 0; i < length; i++)
@@ -1601,10 +1590,7 @@ load_vulkan_layer_json (SrtSysroot *sysroot,
         {
           g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
                        "\"layer\" in \"%s\" is not an object as expected", path);
-          return g_list_prepend (ret_list,
-                                 srt_vulkan_layer_new_error (path,
-                                                             SRT_LOADABLE_ISSUES_CANNOT_LOAD,
-                                                             error));
+          goto return_error;
         }
       ret_list = g_list_prepend (ret_list, vulkan_layer_parse_json (path, file_format_version,
                                                                     json_layer));
@@ -1614,12 +1600,15 @@ load_vulkan_layer_json (SrtSysroot *sysroot,
       g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
                    "The layer definitions in \"%s\" is missing both the \"layer\" and \"layers\" fields",
                    path);
-          return g_list_prepend (ret_list,
-                                 srt_vulkan_layer_new_error (path,
-                                                             SRT_LOADABLE_ISSUES_CANNOT_LOAD,
-                                                             error));
+      goto return_error;
     }
+
   return ret_list;
+
+return_error:
+  g_assert (error != NULL);
+  layer = srt_vulkan_layer_new_error (path, issues, error);
+  return g_list_prepend (ret_list, g_steal_pointer (&layer));
 }
 
 static void
