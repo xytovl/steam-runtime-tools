@@ -1,3 +1,22 @@
+steam-runtime-tools (0.20231012.0) UNRELEASED; urgency=medium
+
+  * pressure-vessel:
+    - Add libnvidia-gpucomp to the list of NVIDIA driver libraries.
+      A future version of the driver is likely to need this.
+      Thanks to Daniel Dadap (steamrt/tasks#340)
+    - pv-runtime: Duplicate symlinks in /etc, /var into the FEX-Emu
+      interpreter root, fixing incorrect /etc/os-release under FEX-Emu
+      (steamrt/tasks#342)
+    - pv-adverb: Reduce environment variables, etc. to debug level.
+      This reduces noise when redirecting to the systemd Journal.
+    - pv-runtime: Use a closer match for 99-pulseaudio-default.conf
+      when the host system uses PulseAudio.
+      Thanks to Nozomi Miyamori (steam-runtime#623)
+  * Reduce profiling messages to debug level unless SRT_LOG=timing.
+    This reduces noise when redirecting to the systemd Journal.
+
+ -- Simon McVittie <smcv@collabora.com>  Thu, 12 Oct 2023 12:07:52 +0100
+
 steam-runtime-tools (0.20230928.1) steamrt; urgency=medium
 
   * Hotfix for versions >= 0.20230919.0
