@@ -12,6 +12,7 @@ Build-Depends:
  glslang-tools,
  gtk-doc-tools <!nodoc>,
  libcap-dev,
+ libdrm-dev,
  libelf-dev,
  libgl1-mesa-dev | libgl-dev,
  libglib2.0-dev,

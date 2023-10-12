@@ -9,6 +9,7 @@ variables:
         glslang-tools
         gtk-doc-tools
         libcap-dev
+        libdrm-dev
         libelf-dev
         libegl1-mesa-dev
         libgl1-mesa-dev
