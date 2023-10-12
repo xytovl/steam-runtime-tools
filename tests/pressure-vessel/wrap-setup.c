@@ -73,8 +73,19 @@ typedef struct
 
 typedef struct
 {
-  int unused;
+  PvRuntimeFlags runtime_flags;
 } Config;
+
+static const Config default_config = {};
+static const Config copy_config =
+{
+  .runtime_flags = PV_RUNTIME_FLAGS_COPY_RUNTIME,
+};
+static const Config interpreter_root_config =
+{
+  .runtime_flags = (PV_RUNTIME_FLAGS_COPY_RUNTIME
+                    | PV_RUNTIME_FLAGS_INTERPRETER_ROOT),
+};
 
 static int
 open_or_die (const char *path,
@@ -538,6 +549,236 @@ test_export_root_dirs (Fixture *f,
   /* We would export these if they existed, but they don't */
   assert_bwrap_does_not_contain (f->bwrap, "/mnt");
   assert_bwrap_does_not_contain (f->bwrap, "/srv");
+}
+
+static void
+test_make_symlink_in_container (Fixture *f,
+                                gconstpointer context)
+{
+  const Config *config = context;
+  g_autoptr(GError) error = NULL;
+  g_autoptr(PvRuntime) runtime = NULL;
+  gboolean ok;
+  SrtSysroot *mutable_sysroot;
+
+  runtime = fixture_create_runtime (f, config->runtime_flags);
+  mutable_sysroot = pv_runtime_get_mutable_sysroot (runtime);
+
+  if (config->runtime_flags & PV_RUNTIME_FLAGS_COPY_RUNTIME)
+    g_assert_nonnull (mutable_sysroot);
+  else
+    g_assert_null (mutable_sysroot);
+
+  /* Successful cases */
+
+  ok = pv_runtime_make_symlink_in_container (runtime, f->bwrap,
+                                             "../usr/lib/os-release",
+                                             "/etc/os-release",
+                                             PV_RUNTIME_EMULATION_ROOTS_BOTH,
+                                             &error);
+  g_assert_no_error (error);
+  g_assert_true (ok);
+
+  ok = pv_runtime_make_symlink_in_container (runtime, f->bwrap,
+                                             "/run/host/foo",
+                                             "/var/foo",
+                                             PV_RUNTIME_EMULATION_ROOTS_REAL_ONLY,
+                                             &error);
+  g_assert_no_error (error);
+  g_assert_true (ok);
+
+  ok = pv_runtime_make_symlink_in_container (runtime, f->bwrap,
+                                             "/run/x86/bar",
+                                             "/var/bar",
+                                             PV_RUNTIME_EMULATION_ROOTS_INTERPRETER_ONLY,
+                                             &error);
+  g_assert_no_error (error);
+  g_assert_true (ok);
+
+  /* Conditionally OK, if there is an on-disk directory we can edit */
+
+  ok = pv_runtime_make_symlink_in_container (runtime, f->bwrap,
+                                             "/run/host/foo",
+                                             "/usr/foo",
+                                             PV_RUNTIME_EMULATION_ROOTS_REAL_ONLY,
+                                             &error);
+
+  if (mutable_sysroot == NULL)
+    {
+      g_assert_error (error, G_IO_ERROR, G_IO_ERROR_READ_ONLY);
+      g_assert_false (ok);
+      g_test_message ("Editing /usr not allowed, as expected: %s",
+                      error->message);
+      g_clear_error (&error);
+    }
+  else if (config->runtime_flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT)
+    {
+      g_assert_error (error, G_IO_ERROR, G_IO_ERROR_READ_ONLY);
+      g_assert_false (ok);
+      g_test_message ("Editing real /usr not allowed, as expected: %s",
+                      error->message);
+      g_clear_error (&error);
+    }
+  else
+    {
+      g_assert_no_error (error);
+      g_assert_true (ok);
+
+    }
+
+  ok = pv_runtime_make_symlink_in_container (runtime, f->bwrap,
+                                             "/run/x86/bar",
+                                             "/usr/bar",
+                                             PV_RUNTIME_EMULATION_ROOTS_INTERPRETER_ONLY,
+                                             &error);
+
+  if (mutable_sysroot == NULL)
+    {
+      g_assert_error (error, G_IO_ERROR, G_IO_ERROR_READ_ONLY);
+      g_assert_false (ok);
+      g_test_message ("Editing /usr not allowed, as expected: %s",
+                      error->message);
+      g_clear_error (&error);
+    }
+  else
+    {
+      g_assert_no_error (error);
+      g_assert_true (ok);
+    }
+
+  ok = pv_runtime_make_symlink_in_container (runtime, f->bwrap,
+                                             "/run/baz",
+                                             "/usr/baz",
+                                             PV_RUNTIME_EMULATION_ROOTS_BOTH,
+                                             &error);
+
+  if (mutable_sysroot == NULL)
+    {
+      g_assert_error (error, G_IO_ERROR, G_IO_ERROR_READ_ONLY);
+      g_assert_false (ok);
+      g_test_message ("Editing /usr not allowed, as expected: %s",
+                      error->message);
+      g_clear_error (&error);
+    }
+  else if (config->runtime_flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT)
+    {
+      g_assert_error (error, G_IO_ERROR, G_IO_ERROR_READ_ONLY);
+      g_assert_false (ok);
+      g_test_message ("Editing real /usr not allowed, as expected: %s",
+                      error->message);
+      g_clear_error (&error);
+    }
+  else
+    {
+      g_assert_no_error (error);
+      g_assert_true (ok);
+    }
+
+  /* Error cases */
+
+  ok = pv_runtime_make_symlink_in_container (runtime, f->bwrap,
+                                             "/nope",
+                                             "/nope",
+                                             PV_RUNTIME_EMULATION_ROOTS_REAL_ONLY,
+                                             &error);
+  g_assert_error (error, G_IO_ERROR, G_IO_ERROR_READ_ONLY);
+  g_assert_false (ok);
+  g_test_message ("Editing /nope not allowed, as expected: %s", error->message);
+  g_clear_error (&error);
+
+  /* Check that the right things happened */
+
+  dump_bwrap (f->bwrap);
+  assert_bwrap_does_not_contain (f->bwrap, "/nope");
+  /* /etc/os-release is in the real root (and, if used, the interpreter
+   * root, but that's checked later) */
+  assert_bwrap_contains (f->bwrap,
+                         "--symlink", "../usr/lib/os-release", "/etc/os-release");
+  /* /var/foo is in the real root only */
+  assert_bwrap_contains (f->bwrap,
+                         "--symlink", "/run/host/foo", "/var/foo");
+  assert_bwrap_does_not_contain (f->bwrap,
+                                 PV_RUNTIME_PATH_INTERPRETER_ROOT "/var/foo");
+
+  if (config->runtime_flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT)
+    {
+      /* /etc/os-release is in the interpreter root (and the real root) */
+      assert_bwrap_contains (f->bwrap,
+                             "--symlink", "../usr/lib/os-release",
+                             PV_RUNTIME_PATH_INTERPRETER_ROOT "/etc/os-release");
+      /* /var/bar is in the interpreter root only */
+      assert_bwrap_contains (f->bwrap,
+                             "--symlink", "/run/x86/bar",
+                             PV_RUNTIME_PATH_INTERPRETER_ROOT "/var/bar");
+    }
+  else
+    {
+      /* We're not using an interpreter root */
+      assert_bwrap_does_not_contain (f->bwrap,
+                                     PV_RUNTIME_PATH_INTERPRETER_ROOT "/etc/os-release");
+      assert_bwrap_does_not_contain (f->bwrap,
+                                     PV_RUNTIME_PATH_INTERPRETER_ROOT "/var/bar");
+
+      /* /var/bar would have been in the interpreter root only, but because
+       * we don't have an interpreter root, it ends up in the real root */
+      assert_bwrap_contains (f->bwrap, "--symlink", "/run/x86/bar", "/var/bar");
+    }
+
+  /* We must not try to edit /usr with --symlink: that can't work,
+   * because /usr is read-only */
+  assert_bwrap_does_not_contain (f->bwrap, "/usr/foo");
+  assert_bwrap_does_not_contain (f->bwrap, "/usr/bar");
+  assert_bwrap_does_not_contain (f->bwrap, "/usr/baz");
+  assert_bwrap_does_not_contain (f->bwrap,
+                                 PV_RUNTIME_PATH_INTERPRETER_ROOT "/usr/foo");
+  assert_bwrap_does_not_contain (f->bwrap,
+                                 PV_RUNTIME_PATH_INTERPRETER_ROOT "/usr/bar");
+  assert_bwrap_does_not_contain (f->bwrap,
+                                 PV_RUNTIME_PATH_INTERPRETER_ROOT "/usr/baz");
+
+  if (mutable_sysroot != NULL)
+    {
+      g_autofree gchar *target = NULL;
+      struct stat stat_buf;
+
+      /* /usr/foo is only created if the mutable sysroot is the real root */
+      target = glnx_readlinkat_malloc (mutable_sysroot->fd,
+                                       "usr/foo", NULL, NULL);
+
+      if (config->runtime_flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT)
+        g_assert_cmpstr (target, ==, NULL);
+      else
+        g_assert_cmpstr (target, ==, "/run/host/foo");
+
+      g_clear_pointer (&target, g_free);
+
+      /* /usr/bar is created if the mutable sysroot is the interpreter root,
+       * or if we are not using a separate interpreter root */
+      target = glnx_readlinkat_malloc (mutable_sysroot->fd,
+                                       "usr/bar", NULL, NULL);
+      g_assert_cmpstr (target, ==, "/run/x86/bar");
+      g_clear_pointer (&target, g_free);
+
+      /* /usr/baz was only created if we are not using a separate
+       * interpreter root, because if we were, we would have been unable
+       * to create it in both roots */
+      target = glnx_readlinkat_malloc (mutable_sysroot->fd,
+                                       "usr/baz", NULL, NULL);
+
+      if (config->runtime_flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT)
+        g_assert_cmpstr (target, ==, NULL);
+      else
+        g_assert_cmpstr (target, ==, "/run/baz");
+
+      g_clear_pointer (&target, g_free);
+
+      /* We never create/edit the interpreter root as a subdir of the
+       * mutable sysroot */
+      g_assert_cmpint (fstatat (mutable_sysroot->fd,
+                                "run/pressure-vessel/interpreter-root",
+                                &stat_buf, 0) == 0 ? 0 : errno,
+                       ==, ENOENT);
+    }
 }
 
 static void
@@ -1095,6 +1336,15 @@ main (int argc,
               setup, test_bind_usr, teardown);
   g_test_add ("/export-root-dirs", Fixture, NULL,
               setup, test_export_root_dirs, teardown);
+  g_test_add ("/make-symlink-in-container/normal", Fixture,
+              &default_config,
+              setup, test_make_symlink_in_container, teardown);
+  g_test_add ("/make-symlink-in-container/copy", Fixture,
+              &copy_config,
+              setup, test_make_symlink_in_container, teardown);
+  g_test_add ("/make-symlink-in-container/interpreter-root", Fixture,
+              &interpreter_root_config,
+              setup, test_make_symlink_in_container, teardown);
   g_test_add ("/remap-ld-preload", Fixture, NULL,
               setup_ld_preload, test_remap_ld_preload, teardown);
   g_test_add ("/remap-ld-preload-flatpak", Fixture, NULL,

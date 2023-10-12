@@ -323,7 +323,7 @@ path_visible_in_provider_namespace (PvRuntimeFlags flags,
  *
  * Returns: %TRUE on success
  */
-static gboolean
+gboolean
 pv_runtime_make_symlink_in_container (PvRuntime *self,
                                       FlatpakBwrap *bwrap,
                                       const char *target,
@@ -8201,4 +8201,10 @@ pv_runtime_log_container (PvRuntime *self)
     g_debug ("\t%s", listing[i]);
 
   g_debug ("End of files in container");
+}
+
+SrtSysroot *
+pv_runtime_get_mutable_sysroot (PvRuntime *self)
+{
+  return self->mutable_sysroot;
 }

@@ -24,6 +24,7 @@
 #include <glib-object.h>
 
 #include "steam-runtime-tools/glib-backports-internal.h"
+#include "steam-runtime-tools/resolve-in-sysroot-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
 #include "libglnx.h"
 
@@ -142,6 +143,15 @@ gboolean pv_runtime_has_library (PvRuntime *self,
 
 void pv_runtime_log_overrides (PvRuntime *self);
 void pv_runtime_log_container (PvRuntime *self);
+
+/* Only exposed for testing purposes */
+gboolean pv_runtime_make_symlink_in_container (PvRuntime *self,
+                                               FlatpakBwrap *bwrap,
+                                               const char *target,
+                                               const char *path,
+                                               PvRuntimeEmulationRoots roots,
+                                               GError **error);
+SrtSysroot *pv_runtime_get_mutable_sysroot (PvRuntime *self);
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC (PvRuntime, g_object_unref)
 
