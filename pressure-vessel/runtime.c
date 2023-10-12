@@ -164,7 +164,6 @@ path_mutable_in_container_namespace (const char *path)
     "run",
     "tmp",
     "var",
-    "usr",
   };
   gsize i;
 
