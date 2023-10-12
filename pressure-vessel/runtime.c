@@ -305,18 +305,15 @@ path_visible_in_provider_namespace (PvRuntimeFlags flags,
   return FALSE;
 }
 
-typedef enum
-{
-  MAKE_SYMLINK_FLAGS_INTERPRETER_ROOT = (1 << 0),
-  MAKE_SYMLINK_FLAGS_NONE = 0
-} MakeSymlinkFlags;
-
 /*
  * pv_runtime_make_symlink_in_container:
  * @self: the runtime
  * @bwrap: the arguments for bubblewrap
  * @target: target of the symlink
- * @path: absolute or root-relative path in the container
+ * @path: absolute or root-relative path in the container and/or
+ *  interpreter root
+ * @roots: if using an interpreter root for FEX-Emu or similar, whether
+ *  to modify the real root, the interpreter root or both
  * @error: you know how this works
  *
  * Try to make @path a symlink to @target in the container, by whichever
@@ -331,29 +328,49 @@ pv_runtime_make_symlink_in_container (PvRuntime *self,
                                       FlatpakBwrap *bwrap,
                                       const char *target,
                                       const char *path,
-                                      MakeSymlinkFlags flags,
+                                      PvRuntimeEmulationRoots roots,
                                       GError **error)
 {
-  g_autofree char *alloc_dest = NULL;
-  const char *dest = path;
+  g_autofree char *interpreter_dest = NULL;
+  const char *real_dest = path;
 
   g_return_val_if_fail (PV_IS_RUNTIME (self), FALSE);
   g_return_val_if_fail (target != NULL, FALSE);
   g_return_val_if_fail (path != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
-  g_return_val_if_fail ((flags & MAKE_SYMLINK_FLAGS_INTERPRETER_ROOT) == 0
+  g_return_val_if_fail (roots == PV_RUNTIME_EMULATION_ROOTS_REAL_ONLY
                         || pv_runtime_path_belongs_in_interpreter_root (path),
                         FALSE);
 
-  if ((flags & MAKE_SYMLINK_FLAGS_INTERPRETER_ROOT)
-      && (self->flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT))
-    dest = alloc_dest = g_build_filename (PV_RUNTIME_PATH_INTERPRETER_ROOT,
-                                          path, NULL);
+  if (self->flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT)
+    {
+      if (roots != PV_RUNTIME_EMULATION_ROOTS_REAL_ONLY)
+        interpreter_dest = g_build_filename (PV_RUNTIME_PATH_INTERPRETER_ROOT,
+                                             path, NULL);
 
-  g_debug ("Creating symlink \"${container}/%s\" -> \"%s\"", dest, target);
+      if (roots == PV_RUNTIME_EMULATION_ROOTS_INTERPRETER_ONLY)
+        real_dest = NULL;
+    }
+
+  if (real_dest != NULL)
+    g_debug ("Creating symlink \"${container}/%s\" -> \"%s\"", real_dest, target);
+
+  if (interpreter_dest != NULL)
+    g_debug ("Creating symlink \"${container}/%s\" -> \"%s\"", interpreter_dest, target);
 
   if (_srt_get_path_after (path, "usr") != NULL)
     {
+      /* We will mount the mutable sysroot (if used) on /usr inside the
+       * interpreter root if used, or on /usr if not using an interpreter
+       * root. We can't change the real /usr. */
+      if ((self->flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT)
+          && roots != PV_RUNTIME_EMULATION_ROOTS_INTERPRETER_ONLY)
+        {
+          g_set_error (error, G_IO_ERROR, G_IO_ERROR_READ_ONLY,
+                       "Cannot modify real /usr while using emulation");
+          goto error;
+        }
+
       if (self->mutable_sysroot != NULL)
         {
           g_autofree gchar *parent = g_path_get_dirname (path);
@@ -386,11 +403,20 @@ pv_runtime_make_symlink_in_container (PvRuntime *self,
     {
       /* Note that "--symlink foo bar" is equivalent to "--symlink foo /bar":
        * both end up creating the symlink at /newroot/bar */
-      flatpak_bwrap_add_args (bwrap,
-                              "--symlink",
-                              target,
-                              dest,
-                              NULL);
+      if (real_dest != NULL)
+        flatpak_bwrap_add_args (bwrap,
+                                "--symlink",
+                                target,
+                                real_dest,
+                                NULL);
+
+      if (interpreter_dest != NULL)
+        flatpak_bwrap_add_args (bwrap,
+                                "--symlink",
+                                target,
+                                interpreter_dest,
+                                NULL);
+
       return TRUE;
     }
 
@@ -398,7 +424,7 @@ pv_runtime_make_symlink_in_container (PvRuntime *self,
                "Not modifiable in current configuration");
 error:
   g_prefix_error (error, "Not making \"%s\" a symlink to \"%s\": ",
-                  dest, target);
+                  path, target);
   return FALSE;
 }
 
@@ -3326,7 +3352,7 @@ bind_runtime_base (PvRuntime *self,
       if (!pv_runtime_make_symlink_in_container (self, bwrap,
                                                  &self->overrides_in_container[1],
                                                  "/overrides",
-                                                 MAKE_SYMLINK_FLAGS_INTERPRETER_ROOT,
+                                                 PV_RUNTIME_EMULATION_ROOTS_INTERPRETER_ONLY,
                                                  &local_error))
         g_warning ("%s", local_error->message);
 
@@ -3765,7 +3791,7 @@ bind_runtime_ld_so (PvRuntime *self,
                                                      bwrap,
                                                      mutable_cache_path,
                                                      path,
-                                                     MAKE_SYMLINK_FLAGS_INTERPRETER_ROOT,
+                                                     PV_RUNTIME_EMULATION_ROOTS_INTERPRETER_ONLY,
                                                      &local_error))
             g_warning ("%s", local_error->message);
         }
@@ -3780,7 +3806,7 @@ bind_runtime_ld_so (PvRuntime *self,
                                                      bwrap,
                                                      mutable_conf_path,
                                                      path,
-                                                     MAKE_SYMLINK_FLAGS_INTERPRETER_ROOT,
+                                                     PV_RUNTIME_EMULATION_ROOTS_INTERPRETER_ONLY,
                                                      &local_error))
             g_warning ("%s", local_error->message);
         }
@@ -3809,7 +3835,7 @@ bind_runtime_ld_so (PvRuntime *self,
                                                          bwrap,
                                                          mutable_cache_path,
                                                          path,
-                                                         MAKE_SYMLINK_FLAGS_INTERPRETER_ROOT,
+                                                         PV_RUNTIME_EMULATION_ROOTS_INTERPRETER_ONLY,
                                                          &local_error))
                 g_warning ("%s", local_error->message);
             }

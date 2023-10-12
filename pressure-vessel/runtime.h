@@ -87,6 +87,13 @@ typedef enum
    | PV_RUNTIME_FLAGS_DETERMINISTIC \
    )
 
+typedef enum
+{
+  PV_RUNTIME_EMULATION_ROOTS_BOTH,
+  PV_RUNTIME_EMULATION_ROOTS_REAL_ONLY,
+  PV_RUNTIME_EMULATION_ROOTS_INTERPRETER_ONLY
+} PvRuntimeEmulationRoots;
+
 typedef struct _PvRuntime PvRuntime;
 typedef struct _PvRuntimeClass PvRuntimeClass;
 
