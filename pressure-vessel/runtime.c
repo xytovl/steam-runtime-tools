@@ -3525,6 +3525,8 @@ bind_runtime_base (PvRuntime *self,
       g_auto(SrtDirIter) dir = SRT_DIR_ITER_CLEARED;
       struct dirent *dent;
 
+      g_assert (pv_runtime_path_belongs_in_interpreter_root (bind_mutable[i]));
+
       if (!_srt_dir_iter_init_at (&dir, AT_FDCWD, path,
                                   SRT_DIR_ITER_FLAGS_FOLLOW,
                                   self->arbitrary_dirent_order,
@@ -3538,7 +3540,7 @@ bind_runtime_base (PvRuntime *self,
                                                      member, NULL);
           g_autofree gchar *full = NULL;
           g_autofree gchar *target = NULL;
-          gboolean only_in_interpreter_root = FALSE;
+          PvRuntimeEmulationRoots roots = PV_RUNTIME_EMULATION_ROOTS_BOTH;
 
           if (g_strv_contains (dont_bind, dest))
             continue;
@@ -3553,15 +3555,11 @@ bind_runtime_base (PvRuntime *self,
               && g_str_has_prefix (dest, "/etc")
               && g_strv_contains (redirect_into_interpreter_root, dest))
             {
-              g_autofree gchar *original_dest = g_steal_pointer (&dest);
-
               /* We have to distinguish between the real /etc, used for
                * FEX-Emu or a similar interpreter/emulator, and the /etc
                * used for the emulated process. The former is a 1:1 copy
                * of the real /etc, but the latter is controlled by us. */
-              dest = g_build_filename (PV_RUNTIME_PATH_INTERPRETER_ROOT,
-                                       original_dest, NULL);
-              only_in_interpreter_root = TRUE;
+              roots = PV_RUNTIME_EMULATION_ROOTS_INTERPRETER_ONLY;
             }
 
           full = g_build_filename (self->runtime_files,
@@ -3572,23 +3570,21 @@ bind_runtime_base (PvRuntime *self,
 
           if (target != NULL)
             {
-              flatpak_bwrap_add_args (bwrap, "--symlink", target, dest, NULL);
-
-              if (!only_in_interpreter_root)
-                {
-                  g_autofree gchar *dest_in_interpreter_root = NULL;
-
-                  dest_in_interpreter_root = g_build_filename (PV_RUNTIME_PATH_INTERPRETER_ROOT,
-                                                               dest, NULL);
-                  flatpak_bwrap_add_args (bwrap, "--symlink", target, dest_in_interpreter_root, NULL);
-                }
+              if (!pv_runtime_make_symlink_in_container (self, bwrap,
+                                                         target, dest,
+                                                         roots, error))
+                g_return_val_if_reached (FALSE);
             }
           else
             {
               /* We will run bwrap in the host system, so translate the path
                * if necessary */
               g_autofree gchar *on_host = pv_current_namespace_path_to_host_path (full);
-              flatpak_bwrap_add_args (bwrap, "--ro-bind", on_host, dest, NULL);
+
+              if (!pv_runtime_bind_into_container (self, bwrap,
+                                                   on_host, NULL, 0,
+                                                   dest, roots, error))
+                g_return_val_if_reached (FALSE);
             }
         }
     }
