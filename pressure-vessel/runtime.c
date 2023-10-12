@@ -3405,6 +3405,7 @@ bind_runtime_base (PvRuntime *self,
   };
   g_autofree gchar *xrd = g_strdup_printf ("/run/user/%ld", (long) geteuid ());
   gsize i;
+  gboolean have_machine_id = FALSE;
 
   g_return_val_if_fail (PV_IS_RUNTIME (self), FALSE);
   g_return_val_if_fail (exports != NULL, FALSE);
@@ -3595,11 +3596,14 @@ bind_runtime_base (PvRuntime *self,
   if (_srt_sysroot_test (self->host_root, "/etc/machine-id",
                          SRT_RESOLVE_FLAGS_NONE, NULL))
     {
-      flatpak_bwrap_add_args (bwrap,
-                              "--ro-bind", "/etc/machine-id", "/etc/machine-id",
-                              "--symlink", "/etc/machine-id",
-                              "/var/lib/dbus/machine-id",
-                              NULL);
+      if (!pv_runtime_bind_into_container (self, bwrap,
+                                           "/etc/machine-id", NULL, 0,
+                                           "/etc/machine-id",
+                                           PV_RUNTIME_EMULATION_ROOTS_BOTH,
+                                           error))
+        g_return_val_if_reached (FALSE);
+
+      have_machine_id = TRUE;
     }
   /* We leave this for completeness but in practice we do not expect to have
    * access to the "/var" host directory because Flatpak usually just binds
@@ -3607,13 +3611,23 @@ bind_runtime_base (PvRuntime *self,
   else if (_srt_sysroot_test (self->host_root, "/var/lib/dbus/machine-id",
                               SRT_RESOLVE_FLAGS_NONE, NULL))
     {
-      flatpak_bwrap_add_args (bwrap,
-                              "--ro-bind", "/var/lib/dbus/machine-id",
-                              "/etc/machine-id",
-                              "--symlink", "/etc/machine-id",
-                              "/var/lib/dbus/machine-id",
-                              NULL);
+      if (!pv_runtime_bind_into_container (self, bwrap,
+                                           "/var/lib/dbus/machine-id", NULL, 0,
+                                           "/etc/machine-id",
+                                           PV_RUNTIME_EMULATION_ROOTS_BOTH,
+                                           error))
+        g_return_val_if_reached (FALSE);
+
+      have_machine_id = TRUE;
     }
+
+  if (have_machine_id
+      && !pv_runtime_make_symlink_in_container (self, bwrap,
+                                                "/etc/machine-id",
+                                                "/var/lib/dbus/machine-id",
+                                                PV_RUNTIME_EMULATION_ROOTS_BOTH,
+                                                error))
+    g_return_val_if_reached (FALSE);
 
   for (i = 0; from_host[i] != NULL; i++)
     {
