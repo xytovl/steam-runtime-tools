@@ -6818,8 +6818,8 @@ pv_enumerate_egl_ext_platforms (SrtSystemInfo *system_info,
 
       if (!srt_egl_external_platform_check_error (ext, &local_error))
         {
-          g_info ("Failed to load EGL external platform #%" G_GSIZE_FORMAT  " from %s: %s",
-                  i, path, local_error->message);
+          g_warning ("Failed to load EGL external platform #%" G_GSIZE_FORMAT  " from %s: %s",
+                     i, path, local_error->message);
           g_clear_error (&local_error);
           continue;
         }
@@ -6863,8 +6863,8 @@ pv_enumerate_egl_icds (SrtSystemInfo *system_info,
 
       if (!srt_egl_icd_check_error (icd, &local_error))
         {
-          g_info ("Failed to load EGL ICD #%" G_GSIZE_FORMAT  " from %s: %s",
-                  i, path, local_error->message);
+          g_warning ("Failed to load EGL ICD #%" G_GSIZE_FORMAT  " from %s: %s",
+                     i, path, local_error->message);
           g_clear_error (&local_error);
           continue;
         }
@@ -6909,8 +6909,8 @@ pv_enumerate_vulkan_icds (SrtSystemInfo *system_info,
 
       if (!srt_vulkan_icd_check_error (icd, &local_error))
         {
-          g_info ("Failed to load Vulkan ICD #%" G_GSIZE_FORMAT " from %s: %s",
-                  i, path, local_error->message);
+          g_warning ("Failed to load Vulkan ICD #%" G_GSIZE_FORMAT " from %s: %s",
+                     i, path, local_error->message);
           g_clear_error (&local_error);
           continue;
         }
@@ -6943,8 +6943,8 @@ pv_append_vulkan_layers_details (GList *vulkan_layers,
 
       if (!srt_vulkan_layer_check_error (layer, &local_error))
         {
-          g_info ("Failed to load Vulkan %s layer #%" G_GSIZE_FORMAT
-                  " from %s: %s", which, i, path, local_error->message);
+          g_warning ("Failed to load Vulkan %s layer #%" G_GSIZE_FORMAT
+                     " from %s: %s", which, i, path, local_error->message);
           g_clear_error (&local_error);
           continue;
         }
