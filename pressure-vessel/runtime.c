@@ -3653,6 +3653,17 @@ bind_runtime_base (PvRuntime *self,
           g_autoptr(GError) local_error = NULL;
           g_autofree char *path_in_provider = NULL;
           glnx_autofd int fd = -1;
+          PvRuntimeEmulationRoots roots;
+
+          /* In FEX-Emu or similar, the graphics provider is only used for
+           * the emulated architecture, so we put it in the interpreter's
+           * overlay rather than in the real root directory - unless it's
+           * outside the scope of the overlay (like sockets in /run)
+           * in which case we want it to be in the root. */
+          if (pv_runtime_path_belongs_in_interpreter_root (item))
+            roots = PV_RUNTIME_EMULATION_ROOTS_INTERPRETER_ONLY;
+          else
+            roots = PV_RUNTIME_EMULATION_ROOTS_REAL_ONLY;
 
           fd = _srt_sysroot_open (self->provider->in_current_ns, item,
                                   SRT_RESOLVE_FLAGS_NONE,
@@ -3660,26 +3671,15 @@ bind_runtime_base (PvRuntime *self,
 
           if (fd >= 0)
             {
-              g_autofree char *alloc_dest = NULL;
               g_autofree char *host_path = NULL;
-              const char *dest = item;
-
-              /* In FEX-Emu or similar, the graphics provider is only used
-               * for the emulated architecture, so we put it in the
-               * interpreter's overlay rather than in the real root
-               * directory. */
-              if (self->flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT)
-                {
-                  alloc_dest = g_build_filename (PV_RUNTIME_PATH_INTERPRETER_ROOT,
-                                                 item, NULL);
-                  dest = alloc_dest;
-                }
 
               host_path = g_build_filename (self->provider->path_in_host_ns,
                                             path_in_provider, NULL);
-              flatpak_bwrap_add_args (bwrap,
-                                      "--ro-bind", host_path, dest,
-                                      NULL);
+
+              if (!pv_runtime_bind_into_container (self, bwrap,
+                                                   host_path, NULL, 0, item,
+                                                   roots, error))
+                g_return_val_if_reached (FALSE);
             }
           else
             {
