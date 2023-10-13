@@ -213,13 +213,11 @@ build:clang:
         - |
             set -eux
 
-            export CC=clang
-            export CXX=clang++
-
             # gtk-doc doesn't play nicely with AddressSanitizer, so
             # disable it here (it's also rather slow, so only use it
             # for one build, the 'devel' build above)
             meson \
+                --native-file=build-aux/meson/clang.txt \
                 -Db_lundef=false \
                 -Db_sanitize=address,undefined \
                 -Dgtk_doc=disabled \

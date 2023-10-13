@@ -1,5 +1,5 @@
 # Copyright 2022 Collabora Ltd.
 # SPDX-License-Identifier: MIT
 [binaries]
-c = clang
-cpp = clang++
+c = 'clang'
+cpp = 'clang++'
