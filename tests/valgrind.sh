@@ -38,12 +38,19 @@ here="$(dirname "$0")"
 export G_DEBUG="gc-friendly${G_DEBUG+",${G_DEBUG}"}"
 export G_SLICE=always-malloc
 
+if [ -r /usr/share/glib-2.0/valgrind/glib.supp ]; then
+    have_glib_supp=yes
+else
+    have_glib_supp=
+fi
+
 exec valgrind \
 ${VALGRIND_FATAL:+--error-exitcode=1} \
 --gen-suppressions=all \
 --leak-check=full \
 --num-callers=20 \
 --show-reachable=yes \
+${have_glib_supp:+--suppressions=/usr/share/glib-2.0/valgrind/glib.supp} \
 --suppressions="${here}/valgrind.supp" \
 --trace-children=yes \
 ${VALGRIND_VERBOSE:+--verbose} \

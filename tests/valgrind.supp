@@ -5,8 +5,17 @@
 {
    libsrt deliberate one-per-process leak
    Memcheck:Leak
+   match-leak-kinds: reachable
    ...
    fun:g_build_filename
+   fun:_srt_find_myself
+}
+{
+   libsrt deliberate one-per-process leak
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:g_path_get_dirname
    fun:_srt_find_myself
 }
 
@@ -77,6 +86,12 @@
    fun:g_quark_from_string
 }
 {
+   GLib quarks are basically interned strings
+   Memcheck:Leak
+   ...
+   fun:g_quark_from_static_string
+}
+{
    GObject type classes are allocated and never freed
    Memcheck:Leak
    ...
@@ -87,4 +102,66 @@
    Memcheck:Leak
    ...
    fun:g_type_register_static
+}
+{
+   GIO extension point registration
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:g_io_extension_point_implement
+}
+{
+   GIO extension point registration
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:g_io_extension_point_register
+}
+{
+   Filename charsets are allocated once per process
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:g_malloc
+   fun:g_get_filename_charsets
+}
+{
+   GType
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:g_type_interface_add_prerequisite
+}
+{
+   GType
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:g_type_add_interface_static
+}
+{
+   g_vfs_get_default once per process
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   obj:*/libgio-2.0.so.*
+   fun:g_vfs_get_default
+}
+{
+   g_strerror once per process
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:g_hash_table_new_full
+   fun:g_strerror
+}
+{
+   GObject constructor
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   obj:*/libgobject-2.0.so.*
+   fun:call_init
+   ...
+   fun:_dl_init
 }
