@@ -1,9 +1,8 @@
-steam-runtime-tools (0.20231012.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20231013.0) UNRELEASED; urgency=medium
 
   * pressure-vessel:
-    - Add libnvidia-gpucomp to the list of NVIDIA driver libraries.
-      A future version of the driver is likely to need this.
-      Thanks to Daniel Dadap (steamrt/tasks#340)
+    - Add more entries to the list of NVIDIA driver libraries,
+      notably libnvidia-gpucomp. Thanks to Daniel Dadap (steamrt/tasks#340)
     - pv-runtime: Duplicate symlinks in /etc, /var into the FEX-Emu
       interpreter root, fixing incorrect /etc/os-release under FEX-Emu
       (steamrt/tasks#342)
@@ -12,10 +11,17 @@ steam-runtime-tools (0.20231012.0) UNRELEASED; urgency=medium
     - pv-runtime: Use a closer match for 99-pulseaudio-default.conf
       when the host system uses PulseAudio.
       Thanks to Nozomi Miyamori (steam-runtime#623)
+    - pv-runtime: Show warnings if unable to load drivers/layers
+      (steam-runtime-tools#108)
   * Reduce profiling messages to debug level unless SRT_LOG=timing.
     This reduces noise when redirecting to the systemd Journal.
+  * build:
+    - Quote clang, clang++ commands correctly
+    - Fix generation of timestamp for scout-on-soldier at merge commits
+    - debian: Work around Debian#1053836
+  * tests: Silence valgrind false-positives for one-per-process allocations
 
- -- Simon McVittie <smcv@collabora.com>  Thu, 12 Oct 2023 12:07:52 +0100
+ -- Simon McVittie <smcv@collabora.com>  Fri, 13 Oct 2023 15:32:08 +0100
 
 steam-runtime-tools (0.20230928.1) steamrt; urgency=medium
 
