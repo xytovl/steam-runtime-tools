@@ -337,6 +337,98 @@ assert_bwrap_does_not_contain (FlatpakBwrap *bwrap,
 }
 
 static void
+test_bind_into_container (Fixture *f,
+                          gconstpointer context)
+{
+  const Config *config = context;
+  g_autoptr(PvRuntime) runtime = NULL;
+  g_autoptr(GError) error = NULL;
+  gboolean ok;
+
+  runtime = fixture_create_runtime (f, config->runtime_flags);
+
+  /* Successful cases */
+
+  ok = pv_runtime_bind_into_container (runtime, f->bwrap,
+                                       "/etc/machine-id", NULL, 0,
+                                       "/etc/machine-id",
+                                       PV_RUNTIME_EMULATION_ROOTS_BOTH,
+                                       &error);
+  g_assert_no_error (error);
+  g_assert_true (ok);
+
+  ok = pv_runtime_bind_into_container (runtime, f->bwrap,
+                                       "/etc/arm-file", NULL, 0,
+                                       "/etc/arm-file",
+                                       PV_RUNTIME_EMULATION_ROOTS_REAL_ONLY,
+                                       &error);
+  g_assert_no_error (error);
+  g_assert_true (ok);
+
+  ok = pv_runtime_bind_into_container (runtime, f->bwrap,
+                                       "/fex/etc/x86-file", NULL, 0,
+                                       "/etc/x86-file",
+                                       PV_RUNTIME_EMULATION_ROOTS_INTERPRETER_ONLY,
+                                       &error);
+  g_assert_no_error (error);
+  g_assert_true (ok);
+
+  /* Error cases */
+
+  ok = pv_runtime_bind_into_container (runtime, f->bwrap,
+                                       "/nope", NULL, 0,
+                                       "/nope",
+                                       PV_RUNTIME_EMULATION_ROOTS_REAL_ONLY,
+                                       &error);
+  g_assert_error (error, G_IO_ERROR, G_IO_ERROR_READ_ONLY);
+  g_assert_false (ok);
+  g_test_message ("Editing /nope not allowed, as expected: %s", error->message);
+  g_clear_error (&error);
+
+  ok = pv_runtime_bind_into_container (runtime, f->bwrap,
+                                       "/usr/foo", NULL, 0,
+                                       "/usr/foo",
+                                       PV_RUNTIME_EMULATION_ROOTS_BOTH,
+                                       &error);
+  g_assert_error (error, G_IO_ERROR, G_IO_ERROR_READ_ONLY);
+  g_assert_false (ok);
+  g_test_message ("Editing /usr/foo not allowed, as expected: %s", error->message);
+  g_clear_error (&error);
+
+  /* Check that the right things happened */
+
+  dump_bwrap (f->bwrap);
+  assert_bwrap_does_not_contain (f->bwrap, "/nope");
+  assert_bwrap_does_not_contain (f->bwrap, "/usr/foo");
+  assert_bwrap_contains (f->bwrap,
+                         "--ro-bind", "/etc/machine-id", "/etc/machine-id");
+  assert_bwrap_contains (f->bwrap,
+                         "--ro-bind", "/etc/arm-file", "/etc/arm-file");
+  assert_bwrap_does_not_contain (f->bwrap,
+                                 PV_RUNTIME_PATH_INTERPRETER_ROOT "/etc/arm-file");
+
+  if (config->runtime_flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT)
+    {
+      assert_bwrap_contains (f->bwrap,
+                             "--ro-bind", "/etc/machine-id",
+                             PV_RUNTIME_PATH_INTERPRETER_ROOT "/etc/machine-id");
+      assert_bwrap_contains (f->bwrap,
+                             "--ro-bind", "/fex/etc/x86-file",
+                             PV_RUNTIME_PATH_INTERPRETER_ROOT "/etc/x86-file");
+      assert_bwrap_does_not_contain (f->bwrap, "/etc/x86-file");
+    }
+  else
+    {
+      assert_bwrap_contains (f->bwrap,
+                             "--ro-bind", "/fex/etc/x86-file", "/etc/x86-file");
+      assert_bwrap_does_not_contain (f->bwrap,
+                                     PV_RUNTIME_PATH_INTERPRETER_ROOT "/etc/os-machine-id");
+      assert_bwrap_does_not_contain (f->bwrap,
+                                     PV_RUNTIME_PATH_INTERPRETER_ROOT "/etc/x86-file");
+    }
+}
+
+static void
 test_bind_merged_usr (Fixture *f,
                       gconstpointer context)
 {
@@ -1328,6 +1420,15 @@ main (int argc,
 
   _srt_tests_init (&argc, &argv, NULL);
 
+  g_test_add ("/bind-into-container/normal", Fixture,
+              &default_config,
+              setup, test_bind_into_container, teardown);
+  g_test_add ("/bind-into-container/copy", Fixture,
+              &copy_config,
+              setup, test_bind_into_container, teardown);
+  g_test_add ("/bind-into-container/interpreter-root", Fixture,
+              &interpreter_root_config,
+              setup, test_bind_into_container, teardown);
   g_test_add ("/bind-merged-usr", Fixture, NULL,
               setup, test_bind_merged_usr, teardown);
   g_test_add ("/bind-unmerged-usr", Fixture, NULL,
