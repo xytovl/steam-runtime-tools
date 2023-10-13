@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20231013.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20231013.0) steamrt; urgency=medium
 
   * pressure-vessel:
     - Add more entries to the list of NVIDIA driver libraries,
@@ -21,7 +21,7 @@ steam-runtime-tools (0.20231013.0) UNRELEASED; urgency=medium
     - debian: Work around Debian#1053836
   * tests: Silence valgrind false-positives for one-per-process allocations
 
- -- Simon McVittie <smcv@collabora.com>  Fri, 13 Oct 2023 15:32:08 +0100
+ -- Simon McVittie <smcv@collabora.com>  Fri, 13 Oct 2023 18:05:59 +0100
 
 steam-runtime-tools (0.20230928.1) steamrt; urgency=medium
 
