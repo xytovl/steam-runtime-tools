@@ -29,7 +29,7 @@ if [ -n "${SOURCE_DATE_EPOCH-}" ]; then
 elif [ -n "${CI_COMMIT_TIMESTAMP-}" ]; then
     timestamp="${CI_COMMIT_TIMESTAMP}"
 else
-    timestamp="$(git log --pretty=format:'@%at' HEAD~..)"
+    timestamp="$(git log -1 --pretty=format:'@%at' HEAD)"
 fi
 
 echo "${depot_version#v}" > subprojects/container-runtime/.tarball-version
