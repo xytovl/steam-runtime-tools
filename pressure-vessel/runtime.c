@@ -3979,14 +3979,16 @@ bind_runtime_ld_so (PvRuntime *self,
   return TRUE;
 }
 
-static void
+static gboolean
 bind_runtime_finish (PvRuntime *self,
                      FlatpakExports *exports,
-                     FlatpakBwrap *bwrap)
+                     FlatpakBwrap *bwrap,
+                     GError **error)
 {
-  g_return_if_fail (PV_IS_RUNTIME (self));
-  g_return_if_fail (exports != NULL);
-  g_return_if_fail (!pv_bwrap_was_finished (bwrap));
+  g_return_val_if_fail (PV_IS_RUNTIME (self), FALSE);
+  g_return_val_if_fail (exports != NULL, FALSE);
+  g_return_val_if_fail (!pv_bwrap_was_finished (bwrap), FALSE);
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
   pv_export_symlink_targets (exports, self->overrides, "overrides");
 
@@ -4032,27 +4034,36 @@ bind_runtime_finish (PvRuntime *self,
 
       if (is_reachable)
         {
-          flatpak_bwrap_add_args (bwrap,
-                                  "--symlink", target, "/etc/localtime",
-                                  NULL);
+          if (!pv_runtime_make_symlink_in_container (self, bwrap,
+                                                     target, "/etc/localtime",
+                                                     PV_RUNTIME_EMULATION_ROOTS_BOTH,
+                                                     error))
+            g_return_val_if_reached (FALSE);
         }
       else
         {
-          flatpak_bwrap_add_args (bwrap,
-                                  "--ro-bind", "/etc/localtime", "/etc/localtime",
-                                  NULL);
+          if (!pv_runtime_bind_into_container (self, bwrap,
+                                               "/etc/localtime", NULL, 0,
+                                               "/etc/localtime",
+                                               PV_RUNTIME_EMULATION_ROOTS_BOTH,
+                                               error))
+            g_return_val_if_reached (FALSE);
         }
 
       /* Historically we completely ignored errors here, so just warn
        * instead of bailing out. */
-      if (!flatpak_bwrap_add_args_data (bwrap, "timezone",
-                                        timezone_content, -1, "/etc/timezone",
-                                        &local_error))
+      if (!pv_runtime_bind_into_container (self, bwrap,
+                                           "timezone", timezone_content, -1,
+                                           "/etc/timezone",
+                                           PV_RUNTIME_EMULATION_ROOTS_BOTH,
+                                           &local_error))
         {
           g_warning ("%s", local_error->message);
           g_clear_error (&local_error);
         }
     }
+
+  return TRUE;
 }
 
 typedef enum
@@ -7950,8 +7961,9 @@ pv_runtime_bind (PvRuntime *self,
         return FALSE;
     }
 
-  if (bwrap != NULL)
-    bind_runtime_finish (self, exports, bwrap);
+  if (bwrap != NULL
+      && !bind_runtime_finish (self, exports, bwrap, error))
+    return FALSE;
 
   /* Make sure pressure-vessel itself is visible there. */
   if (self->mutable_sysroot != NULL)
