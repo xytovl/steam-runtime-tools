@@ -3633,11 +3633,16 @@ bind_runtime_base (PvRuntime *self,
     {
       const char *item = from_host[i];
 
+      g_assert (pv_runtime_path_belongs_in_interpreter_root (item));
+
       if (_srt_sysroot_test (self->host_root, item,
-                             SRT_RESOLVE_FLAGS_NONE, NULL))
-        flatpak_bwrap_add_args (bwrap,
-                                "--ro-bind", item, item,
-                                NULL);
+                             SRT_RESOLVE_FLAGS_NONE, NULL)
+          && !pv_runtime_bind_into_container (self, bwrap,
+                                              item, NULL, 0,
+                                              item,
+                                              PV_RUNTIME_EMULATION_ROOTS_BOTH,
+                                              error))
+        g_return_val_if_reached (FALSE);
     }
 
   if (self->provider != NULL)
