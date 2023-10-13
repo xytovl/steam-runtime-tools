@@ -3785,6 +3785,7 @@ bind_runtime_finish (PvRuntime *self,
   if (_srt_sysroot_test (self->host_root, "/etc/localtime",
                          SRT_RESOLVE_FLAGS_NONE, NULL))
     {
+      g_autoptr(GError) local_error = NULL;
       g_autofree char *target = NULL;
       gboolean is_reachable = FALSE;
       g_autofree char *tz = flatpak_get_timezone ();
@@ -3820,9 +3821,15 @@ bind_runtime_finish (PvRuntime *self,
                                   NULL);
         }
 
-      flatpak_bwrap_add_args_data (bwrap, "timezone",
-                                   timezone_content, -1, "/etc/timezone",
-                                   NULL);
+      /* Historically we completely ignored errors here, so just warn
+       * instead of bailing out. */
+      if (!flatpak_bwrap_add_args_data (bwrap, "timezone",
+                                        timezone_content, -1, "/etc/timezone",
+                                        &local_error))
+        {
+          g_warning ("%s", local_error->message);
+          g_clear_error (&local_error);
+        }
     }
 }
 
