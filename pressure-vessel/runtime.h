@@ -145,6 +145,14 @@ void pv_runtime_log_overrides (PvRuntime *self);
 void pv_runtime_log_container (PvRuntime *self);
 
 /* Only exposed for testing purposes */
+gboolean pv_runtime_bind_into_container (PvRuntime *self,
+                                         FlatpakBwrap *bwrap,
+                                         const char *host_path,
+                                         const void *content,
+                                         gssize content_size,
+                                         const char *path,
+                                         PvRuntimeEmulationRoots roots,
+                                         GError **error);
 gboolean pv_runtime_make_symlink_in_container (PvRuntime *self,
                                                FlatpakBwrap *bwrap,
                                                const char *target,

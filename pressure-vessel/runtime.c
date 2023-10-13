@@ -306,6 +306,130 @@ path_visible_in_provider_namespace (PvRuntimeFlags flags,
 }
 
 /*
+ * pv_runtime_bind_into_container:
+ * @self: the runtime
+ * @bwrap: the arguments for bubblewrap
+ * @host_path: absolute path on the host system (not necessarily the
+ *  current execution environment); or if @content is non-%NULL, a basename
+ *  for debugging
+ * @content: content for a dynamically-created file
+ * @content_size: length of @content in bytes, or -1 if 0-terminated
+ * @path: absolute or root-relative path in the container and/or
+ *  interpreter root, which should be in a path for which
+ *  path_mutable_in_container_namespace() returns true
+ * @roots: if using an interpreter root for FEX-Emu or similar, whether
+ *  to modify the real root, the interpreter root or both
+ * @error: you know how this works
+ *
+ * Try to make @path a bind-mount for @target in the container.
+ */
+gboolean
+pv_runtime_bind_into_container (PvRuntime *self,
+                                FlatpakBwrap *bwrap,
+                                const char *host_path,
+                                const void *content,
+                                gssize content_size,
+                                const char *path,
+                                PvRuntimeEmulationRoots roots,
+                                GError **error)
+{
+  g_autofree char *interpreter_dest = NULL;
+  const char *real_dest = path;
+
+  g_return_val_if_fail (PV_IS_RUNTIME (self), FALSE);
+  g_return_val_if_fail (bwrap != NULL, FALSE);
+  g_return_val_if_fail (!pv_bwrap_was_finished (bwrap), FALSE);
+  g_return_val_if_fail (host_path != NULL, FALSE);
+  g_return_val_if_fail (path != NULL, FALSE);
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+  g_return_val_if_fail (roots == PV_RUNTIME_EMULATION_ROOTS_REAL_ONLY
+                        || pv_runtime_path_belongs_in_interpreter_root (path),
+                        FALSE);
+
+  if (content != NULL)
+    g_return_val_if_fail (strchr (host_path, '/') == NULL, FALSE);
+  else
+    g_return_val_if_fail (host_path[0] == '/', FALSE);
+
+  if (!path_mutable_in_container_namespace (path))
+    {
+      g_set_error (error, G_IO_ERROR, G_IO_ERROR_READ_ONLY,
+                   "Not making \"%s\" a bind-mount: not modifiable", path);
+      return FALSE;
+    }
+
+  if (self->flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT)
+    {
+      if (roots != PV_RUNTIME_EMULATION_ROOTS_REAL_ONLY)
+        interpreter_dest = g_build_filename (PV_RUNTIME_PATH_INTERPRETER_ROOT,
+                                             path, NULL);
+
+      if (roots == PV_RUNTIME_EMULATION_ROOTS_INTERPRETER_ONLY)
+        real_dest = NULL;
+    }
+
+  if (real_dest != NULL)
+    {
+      gboolean ok = TRUE;
+
+      g_debug ("Creating bind-mount \"%s\" => \"${container}/%s\"",
+               host_path, real_dest);
+
+      if (content != NULL)
+        ok = flatpak_bwrap_add_args_data (bwrap,
+                                          host_path,
+                                          content,
+                                          content_size,
+                                          real_dest,
+                                          error);
+      else
+        flatpak_bwrap_add_args (bwrap,
+                                "--ro-bind",
+                                host_path,
+                                real_dest,
+                                NULL);
+
+      if (!ok)
+        {
+          g_prefix_error (error, "Unable to bind-mount \"%s\" on \"%s\": ",
+                          host_path, real_dest);
+          return FALSE;
+        }
+    }
+
+  if (interpreter_dest != NULL)
+    {
+      gboolean ok = TRUE;
+
+      g_debug ("Creating bind-mount \"%s\" => \"${container}/%s\"",
+               host_path, interpreter_dest);
+
+      if (content != NULL)
+        ok = flatpak_bwrap_add_args_data (bwrap,
+                                          host_path,
+                                          content,
+                                          content_size,
+                                          interpreter_dest,
+                                          error);
+      else
+        flatpak_bwrap_add_args (bwrap,
+                                "--ro-bind",
+                                host_path,
+                                interpreter_dest,
+                                NULL);
+
+      if (!ok)
+        {
+          g_prefix_error (error, "Unable to bind-mount \"%s\" on \"%s\": ",
+                          host_path, interpreter_dest);
+          return FALSE;
+        }
+    }
+
+  return TRUE;
+}
+
+/*
  * pv_runtime_make_symlink_in_container:
  * @self: the runtime
  * @bwrap: the arguments for bubblewrap
