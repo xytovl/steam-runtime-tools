@@ -723,7 +723,6 @@ jsonify_container (JsonBuilder *builder,
   SrtContainerType type = SRT_CONTAINER_TYPE_UNKNOWN;
   const gchar *flatpak_version = NULL;
   const gchar *host_directory = NULL;
-  g_autoptr(SrtSystemInfo) host = NULL;
 
   type = srt_container_info_get_container_type (container_info);
   flatpak_version = srt_container_info_get_flatpak_version (container_info);
@@ -751,7 +750,7 @@ jsonify_container (JsonBuilder *builder,
 
               if (host_directory != NULL)
                 {
-                  host = srt_system_info_new (NULL);
+                  g_autoptr(SrtSystemInfo) host = srt_system_info_new (NULL);
                   srt_system_info_set_sysroot (host, host_directory);
                   jsonify_os_release (builder, host);
                 }
