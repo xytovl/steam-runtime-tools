@@ -189,6 +189,7 @@ test_from_data (Fixture *f,
       const DataTest *test = &from_data[i];
       gsize len;
       SrtOsRelease os_release;
+      g_autoptr(GString) messages = g_string_new ("");
 
       _srt_os_release_init (&os_release);
 
@@ -199,7 +200,8 @@ test_from_data (Fixture *f,
       else
         len = strlen (test->data);
 
-      _srt_os_release_populate_from_data (&os_release, "<data>", test->data, len);
+      _srt_os_release_populate_from_data (&os_release, "<data>", test->data, len,
+                                          messages);
 
       g_assert_cmpstr (os_release.build_id, ==, test->build_id);
       g_assert_cmpstr (os_release.id, ==, test->id);

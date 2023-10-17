@@ -62,58 +62,60 @@ os_release_paths[] =
   { "/os-release", TRUE }
 };
 
-static void
+static gboolean
 do_line (GHashTable *fields,
          const char *path,
-         gchar *line)
+         gchar *line,
+         gchar **message_out,
+         GError **error)
 {
   g_autofree gchar *unquoted = NULL;
   char *equals;
-  GError *local_error = NULL;
 
   /* Modify line in-place to strip leading and trailing whitespace */
   g_strstrip (line);
 
   if (line[0] == '\0' || line[0] == '#')
-    return;
+    return TRUE;
 
   g_debug ("%s: %s", path, line);
 
   equals = strchr (line, '=');
 
   if (equals == NULL)
-    {
-      g_debug ("Unable to parse line \"%s\" in %s: no \"=\" found",
-               line, path);
-      return;
-    }
+    return glnx_throw (error, "Unable to parse line \"%s\" in %s: no \"=\" found",
+                       line, path);
 
-  unquoted = g_shell_unquote (equals + 1, &local_error);
+  unquoted = g_shell_unquote (equals + 1, error);
 
   if (unquoted == NULL)
-    {
-      g_debug ("Unable to parse line \"%s\" in %s: %s",
-               line, path, local_error->message);
-      g_clear_error (&local_error);
-      return;
-    }
+    return glnx_prefix_error (error, "Unable to parse line \"%s\" in %s",
+                              line, path);
 
   *equals = '\0';
 
   if (g_hash_table_contains (fields, line))
     {
-      g_debug ("%s appears more than once in %s, will use last instance",
-               line, path);
+      g_autofree gchar *message = NULL;
+
+      message = g_strdup_printf ("%s appears more than once in %s, will use last instance",
+                                 line, path);
+      g_debug ("%s", message);
+
+      if (message_out != NULL)
+        *message_out = g_steal_pointer (&message);
     }
 
   g_hash_table_replace (fields, g_strdup (line), g_steal_pointer (&unquoted));
+  return TRUE;
 }
 
 void
 _srt_os_release_populate_from_data (SrtOsRelease *self,
                                     const char *path,
                                     const char *contents,
-                                    gsize len)
+                                    gsize len,
+                                    GString *messages)
 {
   g_autoptr(GHashTable) fields = NULL;
   gsize j;
@@ -137,12 +139,26 @@ _srt_os_release_populate_from_data (SrtOsRelease *self,
     {
       if (contents[j] == '\n')
         {
+          g_autoptr(GError) local_error = NULL;
           g_autofree gchar *line = g_strndup (&contents[beginning_of_line],
                                               j - beginning_of_line);
+          g_autofree gchar *message = NULL;
 
           beginning_of_line = j + 1;
 
-          do_line (fields, path, line);
+          if (!do_line (fields, path, line, &message, &local_error))
+            {
+              g_string_append (messages, local_error->message);
+              g_string_append_c (messages, '\n');
+              g_debug ("%s", local_error->message);
+              continue;
+            }
+
+          if (message != NULL)
+            {
+              g_string_append (messages, message);
+              g_string_append_c (messages, '\n');
+            }
         }
     }
 
@@ -151,8 +167,21 @@ _srt_os_release_populate_from_data (SrtOsRelease *self,
     {
       g_autofree gchar *line = g_strndup (&contents[beginning_of_line],
                                           len - beginning_of_line);
+      g_autofree gchar *message = NULL;
+      g_autoptr(GError) local_error = NULL;
 
-      do_line (fields, path, line);
+      if (!do_line (fields, path, line, &message, &local_error))
+        {
+          g_string_append (messages, local_error->message);
+          g_string_append_c (messages, '\n');
+          g_debug ("%s", local_error->message);
+        }
+
+      if (message != NULL)
+        {
+          g_string_append (messages, message);
+          g_string_append_c (messages, '\n');
+        }
     }
 
   /* Special case for the Steam Runtime: Flatpak-style scout images have
@@ -182,7 +211,8 @@ _srt_os_release_populate_from_data (SrtOsRelease *self,
 
 G_GNUC_INTERNAL void
 _srt_os_release_populate (SrtOsRelease *self,
-                          SrtSysroot *sysroot)
+                          SrtSysroot *sysroot,
+                          GString *messages)
 {
   gsize i;
 
@@ -206,14 +236,21 @@ _srt_os_release_populate (SrtOsRelease *self,
                               SRT_RESOLVE_FLAGS_NONE,
                               NULL, &contents, &len, &local_error))
         {
+          if (!g_error_matches (local_error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND))
+            {
+              g_string_append (messages, local_error->message);
+              g_string_append_c (messages, '\n');
+            }
+
           g_debug ("%s", local_error->message);
           continue;
         }
 
-      _srt_os_release_populate_from_data (self, path, contents, len);
+      _srt_os_release_populate_from_data (self, path, contents, len, messages);
       return;
     }
 
+  g_string_append (messages, "os-release(5) not found\n");
   self->populated = TRUE;
 }
 

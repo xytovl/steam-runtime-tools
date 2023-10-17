@@ -2287,7 +2287,11 @@ ensure_os_cached (SrtSystemInfo *self)
   if (!self->os_release.populated
       && !self->immutable_values
       && self->sysroot != NULL)
-    _srt_os_release_populate (&self->os_release, self->sysroot);
+    {
+      g_autoptr(GString) messages = g_string_new ("");
+
+      _srt_os_release_populate (&self->os_release, self->sysroot, messages);
+    }
 }
 
 /**
