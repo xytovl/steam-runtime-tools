@@ -155,6 +155,18 @@ _srt_os_release_populate_from_data (SrtOsRelease *self,
       do_line (fields, path, line);
     }
 
+  /* Special case for the Steam Runtime: Flatpak-style scout images have
+   * historically not had a VERSION_CODENAME in os-release(5), but
+   * we know that version 1 is scout, so let's add it. */
+  if (!g_hash_table_contains (fields, "VERSION_CODENAME")
+      && g_strcmp0 (g_hash_table_lookup (fields, "ID"), "steamrt") == 0
+      && g_strcmp0 (g_hash_table_lookup (fields, "VERSION_ID"), "1") == 0)
+    g_hash_table_replace (fields, g_strdup ("VERSION_CODENAME"), g_strdup ("scout"));
+
+  /* Special case for the Steam Runtime: we got this wrong in the past. */
+  if (g_strcmp0 (g_hash_table_lookup (fields, "ID_LIKE"), "ubuntu") == 0)
+    g_hash_table_replace (fields, g_strdup ("ID_LIKE"), g_strdup ("ubuntu debian"));
+
   self->build_id = g_strdup (g_hash_table_lookup (fields, "BUILD_ID"));
   self->id = g_strdup (g_hash_table_lookup (fields, "ID"));
   self->id_like = g_strdup (g_hash_table_lookup (fields, "ID_LIKE"));
@@ -164,21 +176,6 @@ _srt_os_release_populate_from_data (SrtOsRelease *self,
   self->variant_id = g_strdup (g_hash_table_lookup (fields, "VARIANT_ID"));
   self->version_codename = g_strdup (g_hash_table_lookup (fields, "VERSION_CODENAME"));
   self->version_id = g_strdup (g_hash_table_lookup (fields, "VERSION_ID"));
-
-  /* Special case for the Steam Runtime: Flatpak-style scout images have
-   * historically not had a VERSION_CODENAME in os-release(5), but
-   * we know that version 1 is scout, so let's add it. */
-  if (self->version_codename == NULL
-      && g_strcmp0 (self->id, "steamrt") == 0
-      && g_strcmp0 (self->version_id, "1") == 0)
-    self->version_codename = g_strdup ("scout");
-
-  /* Special case for the Steam Runtime: we got this wrong in the past. */
-  if (g_strcmp0 (self->id_like, "ubuntu") == 0)
-    {
-      g_free (self->id_like);
-      self->id_like = g_strdup ("ubuntu debian");
-    }
 
   self->populated = TRUE;
 }
