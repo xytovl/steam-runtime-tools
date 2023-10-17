@@ -63,13 +63,12 @@ os_release_paths[] =
 };
 
 static void
-do_line (SrtOsRelease *self,
+do_line (GHashTable *fields,
          const char *path,
          gchar *line)
 {
+  g_autofree gchar *unquoted = NULL;
   char *equals;
-  gchar *unquoted = NULL;
-  gchar **dest = NULL;
   GError *local_error = NULL;
 
   /* Modify line in-place to strip leading and trailing whitespace */
@@ -101,48 +100,20 @@ do_line (SrtOsRelease *self,
 
   *equals = '\0';
 
-  if (strcmp (line, "BUILD_ID") == 0)
-    dest = &self->build_id;
-  else if (strcmp (line, "ID") == 0)
-    dest = &self->id;
-  else if (strcmp (line, "ID_LIKE") == 0)
-    dest = &self->id_like;
-  else if (strcmp (line, "NAME") == 0)
-    dest = &self->name;
-  else if (strcmp (line, "PRETTY_NAME") == 0)
-    dest = &self->pretty_name;
-  else if (strcmp (line, "VARIANT") == 0)
-    dest = &self->variant;
-  else if (strcmp (line, "VARIANT_ID") == 0)
-    dest = &self->variant_id;
-  else if (strcmp (line, "VERSION_CODENAME") == 0)
-    dest = &self->version_codename;
-  else if (strcmp (line, "VERSION_ID") == 0)
-    dest = &self->version_id;
-
-  if (dest != NULL)
+  if (g_hash_table_contains (fields, line))
     {
-      if (*dest != NULL)
-        {
-          /* Using the last one matches the behaviour of a shell script
-           * that uses ". /usr/lib/os-release" */
-          g_debug ("%s appears more than once in %s, will use last instance",
-                   line, path);
-          g_free (*dest);
-        }
+      g_debug ("%s appears more than once in %s, will use last instance",
+               line, path);
+    }
 
-      *dest = unquoted;
-    }
-  else
-    {
-      g_free (unquoted);
-    }
+  g_hash_table_replace (fields, g_strdup (line), g_steal_pointer (&unquoted));
 }
 
 G_GNUC_INTERNAL void
 _srt_os_release_populate (SrtOsRelease *self,
                           SrtSysroot *sysroot)
 {
+  g_autoptr(GHashTable) fields = NULL;
   gsize i;
 
   g_return_if_fail (_srt_check_not_setuid ());
@@ -156,6 +127,8 @@ _srt_os_release_populate (SrtOsRelease *self,
   g_return_if_fail (self->version_codename == NULL);
   g_return_if_fail (self->version_id == NULL);
   g_return_if_fail (SRT_IS_SYSROOT (sysroot));
+
+  fields = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
 
   for (i = 0; i < G_N_ELEMENTS (os_release_paths); i++)
     {
@@ -190,7 +163,7 @@ _srt_os_release_populate (SrtOsRelease *self,
           if (contents[j] == '\n')
             {
               contents[j] = '\0';
-              do_line (self, path, beginning_of_line);
+              do_line (fields, path, beginning_of_line);
               /* _srt_sysroot_load adds an extra \0 at contents[len],
                * so this is safe to do without overrunning the buffer */
               beginning_of_line = contents + j + 1;
@@ -198,9 +171,19 @@ _srt_os_release_populate (SrtOsRelease *self,
         }
 
       /* Collect a possible partial line */
-      do_line (self, path, beginning_of_line);
+      do_line (fields, path, beginning_of_line);
       break;
     }
+
+  self->build_id = g_strdup (g_hash_table_lookup (fields, "BUILD_ID"));
+  self->id = g_strdup (g_hash_table_lookup (fields, "ID"));
+  self->id_like = g_strdup (g_hash_table_lookup (fields, "ID_LIKE"));
+  self->name = g_strdup (g_hash_table_lookup (fields, "NAME"));
+  self->pretty_name = g_strdup (g_hash_table_lookup (fields, "PRETTY_NAME"));
+  self->variant = g_strdup (g_hash_table_lookup (fields, "VARIANT"));
+  self->variant_id = g_strdup (g_hash_table_lookup (fields, "VARIANT_ID"));
+  self->version_codename = g_strdup (g_hash_table_lookup (fields, "VERSION_CODENAME"));
+  self->version_id = g_strdup (g_hash_table_lookup (fields, "VERSION_ID"));
 
   /* Special case for the Steam Runtime: Flatpak-style scout images have
    * historically not had a VERSION_CODENAME in os-release(5), but
