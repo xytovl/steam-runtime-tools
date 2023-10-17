@@ -72,6 +72,8 @@ typedef struct
   const char *variant_id;
   const char *version_codename;
   const char *version_id;
+  /* Arbitrary length, increase as necessary */
+  const char * const expect_messages[4];
 } DataTest;
 
 static const DataTest from_data[] =
@@ -167,6 +169,10 @@ static const DataTest from_data[] =
       ),
       -1,
       .name = "bar",
+      .expect_messages =
+      {
+        "NAME appears more than once in <data>, will use last instance",
+      },
     },
     {
       "incorrect",
@@ -175,6 +181,11 @@ static const DataTest from_data[] =
         "BAR='\n"
       ),
       -1,
+      .expect_messages =
+      {
+        "Unable to parse line \"FOO\" in <data>: no \"=\" found",
+        "Unable to parse line \"BAR='\" in <data>: ...",
+      },
     },
 };
 
@@ -212,6 +223,44 @@ test_from_data (Fixture *f,
       g_assert_cmpstr (os_release.variant_id, ==, test->variant_id);
       g_assert_cmpstr (os_release.version_codename, ==, test->version_codename);
       g_assert_cmpstr (os_release.version_id, ==, test->version_id);
+
+      if (test->expect_messages[0] == NULL)
+        {
+          g_assert_cmpstr (messages->str, ==, "");
+        }
+      else
+        {
+          g_auto(GStrv) lines = NULL;
+          gsize j;
+
+          g_assert_cmpstr (messages->str, !=, "");
+          lines = g_strsplit (messages->str, "\n", -1);
+
+          for (j = 0; lines[j] != NULL; j++)
+            g_test_message ("Diagnostic message: %s", lines[j]);
+
+          for (j = 0; test->expect_messages[j] != NULL; j++)
+            {
+              g_assert_nonnull (lines[j]);
+
+              if (g_str_has_suffix (test->expect_messages[j], "..."))
+                {
+                  gsize cmp_len = strlen (test->expect_messages[j]) - 3;
+                  g_autofree gchar *expected = g_strndup (test->expect_messages[j], cmp_len);
+                  g_autofree gchar *prefix = g_strndup (lines[j], cmp_len);
+                  g_assert_cmpstr (prefix, ==, expected);
+                }
+              else
+                {
+                  g_assert_cmpstr (lines[j], ==, test->expect_messages[j]);
+                }
+            }
+
+          /* messages ends with a newline, which g_strsplit() turns
+           * into a blank line */
+          g_assert_cmpstr (lines[j], ==, "");
+          g_assert_cmpstr (lines[j + 1], ==, NULL);
+        }
 
       _srt_os_release_clear (&os_release);
     }
