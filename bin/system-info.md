@@ -336,6 +336,13 @@ keys:
     :   Additional fields from **os-release**(5), only logged if
         **--verbose** was used.
 
+    **source_path**
+    :   The source of this information, usually **/etc/os-release**
+        but potentially another filename such as **/usr/lib/os-release**.
+
+    **messages**
+    :   A human-readable array of diagnostic messages.
+
 **virtualization**
 :   Details of the virtual machine or emulator we are running in, if any.
     The keys are strings:

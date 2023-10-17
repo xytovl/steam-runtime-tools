@@ -257,8 +257,10 @@ SrtOsInfo *
 _srt_os_info_new_from_report (JsonObject *json_obj)
 {
   g_autoptr(GHashTable) fields = NULL;
+  g_autofree gchar *messages = NULL;
   JsonObject *json_sub_obj;
   JsonArray *array;
+  const char *source_path = NULL;
 
   g_return_val_if_fail (json_obj != NULL, NULL);
 
@@ -343,9 +345,15 @@ _srt_os_info_new_from_report (JsonObject *json_obj)
                                       g_strdup (value));
             }
         }
+
+      messages = _srt_json_object_dup_array_of_lines_member (json_sub_obj,
+                                                             "messages");
+      source_path = json_object_get_string_member_with_default (json_sub_obj,
+                                                                "source_path",
+                                                                NULL);
     }
 
-  return _srt_os_info_new (fields, NULL, NULL);
+  return _srt_os_info_new (fields, messages, source_path);
 }
 
 /*

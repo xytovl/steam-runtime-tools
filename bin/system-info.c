@@ -653,6 +653,19 @@ jsonify_os_release (JsonBuilder *builder,
             }
           json_builder_end_object (builder);
         }
+
+      value = srt_os_info_get_source_path (info);
+
+      if (value != NULL)
+        {
+          json_builder_set_member_name (builder, "source_path");
+          json_builder_add_string_value (builder, value);
+        }
+
+      value = srt_os_info_get_messages (info);
+
+      if (value != NULL)
+        _srt_json_builder_add_array_of_lines (builder, "messages", value);
     }
   json_builder_end_object (builder);
 }

@@ -42,7 +42,11 @@
     "build_id" : "rolling",
     "fields" : {
       "LOGO": "archlinux"
-    }
+    },
+    "source_path" : "/usr/lib/os-release",
+    "messages" : [
+      "Failed to load /etc/os-release: Permission denied"
+    ]
   },
   "virtualization" : {
     "type" : "fex-emu",
