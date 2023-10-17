@@ -44,6 +44,7 @@
 #include <steam-runtime-tools/json-glib-backports-internal.h>
 #include <steam-runtime-tools/json-utils-internal.h>
 #include <steam-runtime-tools/log-internal.h>
+#include <steam-runtime-tools/os-internal.h>
 #include <steam-runtime-tools/utils-internal.h>
 
 enum
@@ -596,89 +597,37 @@ print_vdpau_details (JsonBuilder *builder,
 
 static void
 jsonify_os_release (JsonBuilder *builder,
-                    SrtSystemInfo *info)
+                    SrtOsInfo *info)
 {
   json_builder_set_member_name (builder, "os-release");
   json_builder_begin_object (builder);
     {
-      g_auto(GStrv) strv = NULL;
-      gchar *tmp;
+      g_autoptr(GHashTable) fields = srt_os_info_dup_fields (info);
+      gsize i;
+      const char *value;
 
-      tmp = srt_system_info_dup_os_id (info);
-
-      if (tmp != NULL)
+      for (i = 0; _srt_interesting_os_release_fields[i] != NULL; i++)
         {
-          json_builder_set_member_name (builder, "id");
-          json_builder_add_string_value (builder, tmp);
-          g_free (tmp);
-        }
+          const char *member = _srt_interesting_os_release_fields[i];
 
-      strv = srt_system_info_dup_os_id_like (info, FALSE);
+          if (g_str_equal (member, "id_like"))
+            {
+              const char * const *values = srt_os_info_get_id_like (info);
 
-      _srt_json_builder_add_strv_value (builder, "id_like", (const gchar * const *)strv,
-                                        FALSE);
+              _srt_json_builder_add_strv_value (builder, member, values, FALSE);
+            }
+          else
+            {
+              g_autofree gchar *key = g_ascii_strup (member, -1);
 
-      tmp = srt_system_info_dup_os_name (info);
+              value = g_hash_table_lookup (fields, key);
 
-      if (tmp != NULL)
-        {
-          json_builder_set_member_name (builder, "name");
-          json_builder_add_string_value (builder, tmp);
-          g_free (tmp);
-        }
-
-      tmp = srt_system_info_dup_os_pretty_name (info);
-
-      if (tmp != NULL)
-        {
-          json_builder_set_member_name (builder, "pretty_name");
-          json_builder_add_string_value (builder, tmp);
-          g_free (tmp);
-        }
-
-      tmp = srt_system_info_dup_os_version_id (info);
-
-      if (tmp != NULL)
-        {
-          json_builder_set_member_name (builder, "version_id");
-          json_builder_add_string_value (builder, tmp);
-          g_free (tmp);
-        }
-
-      tmp = srt_system_info_dup_os_version_codename (info);
-
-      if (tmp != NULL)
-        {
-          json_builder_set_member_name (builder, "version_codename");
-          json_builder_add_string_value (builder, tmp);
-          g_free (tmp);
-        }
-
-      tmp = srt_system_info_dup_os_build_id (info);
-
-      if (tmp != NULL)
-        {
-          json_builder_set_member_name (builder, "build_id");
-          json_builder_add_string_value (builder, tmp);
-          g_free (tmp);
-        }
-
-      tmp = srt_system_info_dup_os_variant_id (info);
-
-      if (tmp != NULL)
-        {
-          json_builder_set_member_name (builder, "variant_id");
-          json_builder_add_string_value (builder, tmp);
-          g_free (tmp);
-        }
-
-      tmp = srt_system_info_dup_os_variant (info);
-
-      if (tmp != NULL)
-        {
-          json_builder_set_member_name (builder, "variant");
-          json_builder_add_string_value (builder, tmp);
-          g_free (tmp);
+              if (value != NULL)
+                {
+                  json_builder_set_member_name (builder, member);
+                  json_builder_add_string_value (builder, value);
+                }
+            }
         }
     }
   json_builder_end_object (builder);
@@ -756,8 +705,11 @@ jsonify_container (JsonBuilder *builder,
               if (host_directory != NULL)
                 {
                   g_autoptr(SrtSystemInfo) host = srt_system_info_new (NULL);
+                  g_autoptr(SrtOsInfo) os_info = NULL;
+
                   srt_system_info_set_sysroot (host, host_directory);
-                  jsonify_os_release (builder, host);
+                  os_info = srt_system_info_check_os (host);
+                  jsonify_os_release (builder, os_info);
                 }
             }
           json_builder_end_object (builder);
@@ -935,6 +887,7 @@ main (int argc,
   int original_stdout_fd = -1;
   GError *error = NULL;
   g_autoptr(SrtSystemInfo) info = NULL;
+  g_autoptr(SrtOsInfo) os_info = NULL;
   SrtLibraryIssues library_issues = SRT_LIBRARY_ISSUES_NONE;
   SrtSteamIssues steam_issues = SRT_STEAM_ISSUES_NONE;
   SrtRuntimeIssues runtime_issues = SRT_RUNTIME_ISSUES_NONE;
@@ -1184,7 +1137,8 @@ main (int argc,
     }
   json_builder_end_object (builder);
 
-  jsonify_os_release (builder, info);
+  os_info = srt_system_info_check_os (info);
+  jsonify_os_release (builder, os_info);
   jsonify_virtualization (builder, info);
   jsonify_container (builder, info);
 
