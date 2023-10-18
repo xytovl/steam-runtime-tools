@@ -672,15 +672,20 @@ jsonify_os_release (JsonBuilder *builder,
 
 static void
 jsonify_virtualization (JsonBuilder *builder,
-                        SrtSystemInfo *info)
+                        SrtSystemInfo *info,
+                        gboolean verbose)
 {
   g_autoptr(SrtVirtualizationInfo) virt_info = srt_system_info_check_virtualization (info);
   SrtVirtualizationType type = SRT_VIRTUALIZATION_TYPE_UNKNOWN;
   SrtMachineType host_machine = SRT_MACHINE_TYPE_UNKNOWN;
+  SrtOsInfo *host_os = NULL;
+  const gchar *host_path = NULL;
   const gchar *interpreter_root = NULL;
 
   type = srt_virtualization_info_get_virtualization_type (virt_info);
   host_machine = srt_virtualization_info_get_host_machine (virt_info);
+  host_os = srt_virtualization_info_get_host_os_info (virt_info);
+  host_path = srt_virtualization_info_get_host_path (virt_info);
   interpreter_root = srt_virtualization_info_get_interpreter_root (virt_info);
 
   json_builder_set_member_name (builder, "virtualization");
@@ -694,6 +699,23 @@ jsonify_virtualization (JsonBuilder *builder,
         {
           json_builder_set_member_name (builder, "host-machine");
           jsonify_enum (builder, SRT_TYPE_MACHINE_TYPE, host_machine);
+        }
+
+      if (host_os != NULL || host_path != NULL)
+        {
+          json_builder_set_member_name (builder, "host");
+          json_builder_begin_object (builder);
+            {
+              if (host_os != NULL)
+                jsonify_os_release (builder, host_os, verbose);
+
+              if (host_path != NULL)
+                {
+                  json_builder_set_member_name (builder, "path");
+                  json_builder_add_string_value (builder, host_path);
+                }
+            }
+          json_builder_end_object (builder);
         }
 
       if (type == SRT_VIRTUALIZATION_TYPE_FEX_EMU
@@ -1174,7 +1196,7 @@ main (int argc,
 
   os_info = srt_system_info_check_os (info);
   jsonify_os_release (builder, os_info, verbose);
-  jsonify_virtualization (builder, info);
+  jsonify_virtualization (builder, info, verbose);
   jsonify_container (builder, info, verbose);
 
   driver_environment = srt_system_info_list_driver_environment (info);

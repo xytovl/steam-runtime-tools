@@ -51,6 +51,12 @@
   "virtualization" : {
     "type" : "fex-emu",
     "host-machine" : "aarch64",
+    "host" : {
+        "os-release" : {
+            "name" : "Debian GNU/Linux"
+        },
+        "path" : "/proc/self/root"
+    },
     "interpreter-root" : "/home/me/rootfs"
   },
   "container" : {

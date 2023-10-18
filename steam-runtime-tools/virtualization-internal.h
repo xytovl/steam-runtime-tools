@@ -32,6 +32,10 @@
 /*
  * _srt_virtualization_info_new:
  * @host_machine: Machine that emulation is running on
+ * @host_os_info: (nullable): Information about the OS that the emulation is
+ *  running on
+ * @host_path: (nullable): Path through which the real OS root that the
+ *  emulation is running on can be accessed
  * @interpreter_root: (nullable) (type filename): Sysroot with libraries
  *  for the emulated architecture
  * @type: Type of virtualization or emulation
@@ -42,6 +46,8 @@
  * Returns: (transfer full): A new #SrtVirtualizationInfo
  */
 static inline SrtVirtualizationInfo *_srt_virtualization_info_new (SrtMachineType host_machine,
+                                                                   SrtOsInfo *host_os_info,
+                                                                   const char *host_path,
                                                                    const gchar *interpreter_root,
                                                                    SrtVirtualizationType type);
 
@@ -58,11 +64,15 @@ static inline SrtVirtualizationInfo *_srt_virtualization_info_new_empty (void);
 #ifndef __GTK_DOC_IGNORE__
 static inline SrtVirtualizationInfo *
 _srt_virtualization_info_new (SrtMachineType host_machine,
+                              SrtOsInfo *host_os_info,
+                              const char *host_path,
                               const gchar *interpreter_root,
                               SrtVirtualizationType type)
 {
   return g_object_new (SRT_TYPE_VIRTUALIZATION_INFO,
                        "host-machine", host_machine,
+                       "host-os-info", host_os_info,
+                       "host-path", host_path,
                        "interpreter-root", interpreter_root,
                        "type", type,
                        NULL);

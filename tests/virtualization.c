@@ -86,6 +86,8 @@ teardown (Fixture *f,
 static void
 check_virt_info (SrtVirtualizationInfo *virt)
 {
+  g_autoptr(SrtOsInfo) host_os_info = NULL;
+  g_autofree gchar *host_path = NULL;
   g_autofree gchar *interpreter_root = NULL;
   SrtVirtualizationType type;
   SrtMachineType host_machine;
@@ -94,6 +96,8 @@ check_virt_info (SrtVirtualizationInfo *virt)
   g_assert_true (SRT_IS_VIRTUALIZATION_INFO (virt));
   g_object_get (virt,
                 "host-machine", &host_machine,
+                "host-os-info", &host_os_info,
+                "host-path", &host_path,
                 "interpreter-root", &interpreter_root,
                 "type", &type,
                 NULL);
@@ -101,6 +105,9 @@ check_virt_info (SrtVirtualizationInfo *virt)
                    srt_virtualization_info_get_virtualization_type (virt));
   g_assert_cmpint (host_machine, ==,
                    srt_virtualization_info_get_host_machine (virt));
+  g_assert_true (host_os_info == srt_virtualization_info_get_host_os_info (virt));
+  g_assert_cmpstr (host_path, ==,
+                   srt_virtualization_info_get_host_path (virt));
   g_assert_cmpstr (interpreter_root, ==,
                    srt_virtualization_info_get_interpreter_root (virt));
 }
@@ -132,7 +139,9 @@ test_cpuid (Fixture *f,
                        SRT_VIRTUALIZATION_TYPE_NONE);
       g_assert_cmpint (srt_virtualization_info_get_host_machine (virt), ==,
                        SRT_MACHINE_TYPE_UNKNOWN);
+      g_assert_cmpstr (srt_virtualization_info_get_host_path (virt), ==, NULL);
       g_assert_cmpstr (srt_virtualization_info_get_interpreter_root (virt), ==, NULL);
+      g_assert_null (srt_virtualization_info_get_host_os_info (virt));
     }
 
 #if defined(__x86_64__) || defined(__i386__)
@@ -149,7 +158,9 @@ test_cpuid (Fixture *f,
                        SRT_VIRTUALIZATION_TYPE_UNKNOWN);
       g_assert_cmpint (srt_virtualization_info_get_host_machine (virt), ==,
                        SRT_MACHINE_TYPE_UNKNOWN);
+      g_assert_cmpstr (srt_virtualization_info_get_host_path (virt), ==, NULL);
       g_assert_cmpstr (srt_virtualization_info_get_interpreter_root (virt), ==, NULL);
+      g_assert_null (srt_virtualization_info_get_host_os_info (virt));
     }
 
     {
@@ -168,7 +179,9 @@ test_cpuid (Fixture *f,
                        SRT_VIRTUALIZATION_TYPE_KVM);
       g_assert_cmpint (srt_virtualization_info_get_host_machine (virt), ==,
                        SRT_MACHINE_TYPE_UNKNOWN);
+      g_assert_cmpstr (srt_virtualization_info_get_host_path (virt), ==, NULL);
       g_assert_cmpstr (srt_virtualization_info_get_interpreter_root (virt), ==, NULL);
+      g_assert_null (srt_virtualization_info_get_host_os_info (virt));
     }
 
     {
@@ -191,8 +204,11 @@ test_cpuid (Fixture *f,
                        SRT_VIRTUALIZATION_TYPE_FEX_EMU);
       g_assert_cmpint (srt_virtualization_info_get_host_machine (virt), ==,
                        SRT_MACHINE_TYPE_AARCH64);
+      g_assert_cmpstr (srt_virtualization_info_get_host_path (virt), ==,
+                       "/proc/self/root");
       g_assert_cmpstr (srt_virtualization_info_get_interpreter_root (virt),
                        ==, "/mock-rootfs");
+      g_assert_nonnull (srt_virtualization_info_get_host_os_info (virt));
     }
 #endif
 }

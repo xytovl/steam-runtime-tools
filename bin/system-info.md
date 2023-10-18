@@ -230,6 +230,8 @@ keys:
     the execution environment that is presented to programs of the same
     architecture as **steam-runtime-system-info**, which is not necessarily
     the same as the machine on which the emulator is running.
+    Information about the real machine, if available, is shown in
+    **virtualization** → **host** → **os-release**.
 
     **id**
     :   A short lower-case string identifying the operating system,
@@ -370,6 +372,20 @@ keys:
     :   A short lower-case machine-readable string resembling ELF's **EM_**
         constants, identifying the CPU architecture that is running an
         emulator, such as **386**, **x86-64**, **aarch64** or **unknown**.
+
+    **host**
+    :   An object with additional details of the host machine:
+
+        **os-release**
+        :   The same as the **os-release** described above, but describing
+            the host system rather than the virtualized or
+            emulated environment.
+
+        **path**
+        :   Absolute path to a directory where important files from the
+            host system can be found, or absent or **null** if unavailable.
+            In FEX-Emu, this will typically be **/proc/self/root**, which
+            bypasses its path virtualization.
 
     **interpreter-root**
     :   Absolute path to a directory that acts as a pseudo-overlay over

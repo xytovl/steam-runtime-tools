@@ -742,6 +742,8 @@ SrtVirtualizationInfo *
 _srt_virtualization_info_get_from_report (JsonObject *json_obj)
 {
   JsonObject *json_sub_obj;
+  g_autoptr(SrtOsInfo) host_os_info = NULL;
+  const char *host_path = NULL;
   const gchar *interpreter_root = NULL;
   int type = SRT_CONTAINER_TYPE_UNKNOWN;
   int host_machine = SRT_MACHINE_TYPE_UNKNOWN;
@@ -750,6 +752,8 @@ _srt_virtualization_info_get_from_report (JsonObject *json_obj)
 
   if (json_object_has_member (json_obj, "virtualization"))
     {
+      JsonObject *host_obj = NULL;
+
       json_sub_obj = json_object_get_object_member (json_obj, "virtualization");
 
       if (json_sub_obj == NULL)
@@ -762,10 +766,21 @@ _srt_virtualization_info_get_from_report (JsonObject *json_obj)
       interpreter_root = json_object_get_string_member_with_default (json_sub_obj,
                                                                      "interpreter-root",
                                                                      NULL);
+      if (json_object_has_member (json_sub_obj, "host"))
+        host_obj = json_object_get_object_member (json_sub_obj, "host");
+
+      if (host_obj != NULL)
+        {
+          host_path = json_object_get_string_member_with_default (host_obj,
+                                                                  "path",
+                                                                  NULL);
+
+          if (json_object_has_member (host_obj, "os-release"))
+            host_os_info = _srt_os_info_new_from_report (host_obj);
+        }
     }
 
 out:
-  return _srt_virtualization_info_new (host_machine,
-                                       interpreter_root,
-                                       type);
+  return _srt_virtualization_info_new (host_machine, host_os_info, host_path,
+                                       interpreter_root, type);
 }
