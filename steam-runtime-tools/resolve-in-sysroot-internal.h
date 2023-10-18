@@ -21,6 +21,68 @@
 #pragma once
 
 #include <glib.h>
+#include <libglnx.h>
+
+#include "steam-runtime-tools/glib-backports-internal.h"
+
+typedef struct _SrtSysroot SrtSysroot;
+typedef struct _SrtSysrootClass SrtSysrootClass;
+
+typedef enum
+{
+  SRT_SYSROOT_MODE_NORMAL = 0,
+  SRT_SYSROOT_MODE_DIRECT,
+} SrtSysrootMode;
+
+struct _SrtSysroot
+{
+  GObject parent;
+  gchar *path;
+  int fd;
+  SrtSysrootMode mode;
+};
+
+struct _SrtSysrootClass
+{
+  /*< private >*/
+  GObjectClass parent_class;
+};
+
+#define SRT_TYPE_SYSROOT (_srt_sysroot_get_type ())
+#define SRT_SYSROOT(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), SRT_TYPE_SYSROOT, SrtSysroot))
+#define SRT_SYSROOT_CLASS(cls) (G_TYPE_CHECK_CLASS_CAST ((cls), SRT_TYPE_SYSROOT, SrtSysrootClass))
+#define SRT_IS_SYSROOT(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), SRT_TYPE_SYSROOT))
+#define SRT_IS_SYSROOT_CLASS(cls) (G_TYPE_CHECK_CLASS_TYPE ((cls), SRT_TYPE_SYSROOT))
+#define SRT_SYSROOT_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS((obj), SRT_TYPE_SYSROOT, SrtSysrootClass)
+
+GType _srt_sysroot_get_type (void);
+SrtSysroot *_srt_sysroot_new_take (gchar *path,
+                                   int fd);
+SrtSysroot *_srt_sysroot_new (const char *path,
+                              GError **error);
+SrtSysroot *_srt_sysroot_new_direct (GError **error);
+SrtSysroot *_srt_sysroot_new_real_root (GError **error);
+SrtSysroot *_srt_sysroot_new_flatpak_host (GError **error);
+
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (SrtSysroot, g_object_unref)
+
+static inline const char *
+_srt_sysroot_get_path (SrtSysroot *self)
+{
+  return self->path;
+}
+
+static inline gboolean
+_srt_sysroot_is_direct (SrtSysroot *self)
+{
+  return (self->mode == SRT_SYSROOT_MODE_DIRECT);
+}
+
+static inline int
+_srt_sysroot_get_fd (SrtSysroot *self)
+{
+  return self->fd;
+}
 
 /*
  * SrtResolveFlags:

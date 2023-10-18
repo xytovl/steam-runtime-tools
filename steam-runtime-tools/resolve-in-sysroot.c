@@ -36,6 +36,129 @@
 #define trace(...) do { } while (0)
 #endif
 
+G_DEFINE_TYPE (SrtSysroot, _srt_sysroot, G_TYPE_OBJECT)
+
+static void
+_srt_sysroot_init (SrtSysroot *self)
+{
+  self->fd = -1;
+}
+
+static void
+_srt_sysroot_finalize (GObject *object)
+{
+  SrtSysroot *self = SRT_SYSROOT (object);
+
+  glnx_close_fd (&self->fd);
+  g_free (self->path);
+
+  G_OBJECT_CLASS (_srt_sysroot_parent_class)->finalize (object);
+}
+
+static void
+_srt_sysroot_class_init (SrtSysrootClass *cls)
+{
+  GObjectClass *object_class = G_OBJECT_CLASS (cls);
+
+  object_class->finalize = _srt_sysroot_finalize;
+}
+
+/*
+ * _srt_sysroot_new_take:
+ * @path: (transfer full): A path
+ * @fd: A file descriptor opened on @path
+ *
+ * Return a sysroot object, taking ownership of @path and @fd.
+ * This function cannot fail.
+ *
+ * Returns: (transfer full): The new object
+ */
+SrtSysroot *
+_srt_sysroot_new_take (gchar *path,
+                       int fd)
+{
+  g_autoptr(SrtSysroot) self = g_object_new (SRT_TYPE_SYSROOT, NULL);
+
+  self->path = path;
+  self->fd = fd;
+  return g_steal_pointer (&self);
+}
+
+/*
+ * _srt_sysroot_new:
+ * @path: A path
+ * @error: Used to report an error if @path cannot be opened
+ *
+ * Return a sysroot object representing @path.
+ *
+ * Returns: (transfer full): The new object, or %NULL on failure
+ */
+SrtSysroot *
+_srt_sysroot_new (const char *path,
+                  GError **error)
+{
+  glnx_autofd int fd = -1;
+
+  if (!glnx_opendirat (-1, path, TRUE, &fd, error))
+    return NULL;
+
+  return _srt_sysroot_new_take (g_strdup (path), g_steal_fd (&fd));
+}
+
+/*
+ * _srt_sysroot_new_direct:
+ * @error: Used to report an error if the root directory cannot be opened
+ *
+ * Return a sysroot object representing the root directory.
+ * I/O for this sysroot should be done via naive filesystem functions
+ * rather than resolving paths from first principles, giving frameworks
+ * like FEX-Emu the opportunity to change the meaning of filesystem paths.
+ *
+ * Returns: (transfer full): The new object, or %NULL on failure
+ */
+SrtSysroot *
+_srt_sysroot_new_direct (GError **error)
+{
+  g_autoptr(SrtSysroot) self = _srt_sysroot_new ("/", error);
+
+  if (self == NULL)
+    return NULL;
+
+  self->mode = SRT_SYSROOT_MODE_DIRECT;
+  return g_steal_pointer (&self);
+}
+
+/*
+ * _srt_sysroot_new_real_root:
+ * @error: Used to report an error if the root directory cannot be opened
+ *
+ * Return a sysroot object representing the real root directory.
+ * Unlike _srt_sysroot_new_direct(), this will usually bypass user-space
+ * filesystem virtualization like FEX-Emu.
+ *
+ * Returns: (transfer full): The new object, or %NULL on failure
+ */
+SrtSysroot *
+_srt_sysroot_new_real_root (GError **error)
+{
+  return _srt_sysroot_new ("/proc/self/root", error);
+}
+
+/*
+ * _srt_sysroot_new_flatpak_host:
+ * @error: Used to report an error if the host directory cannot be opened
+ *
+ * Return a sysroot object representing the filesystem of the host outside
+ * a Flatpak sandbox or similar container.
+ *
+ * Returns: (transfer full): The new object, or %NULL on failure
+ */
+SrtSysroot *
+_srt_sysroot_new_flatpak_host (GError **error)
+{
+  return _srt_sysroot_new ("/run/host", error);
+}
+
 /*
  * clear_fd:
  * @p: A pointer into the data array underlying a #GArray.
