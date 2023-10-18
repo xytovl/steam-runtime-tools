@@ -27,7 +27,7 @@
 
 enum {
   PROP_0,
-  PROP_PATH_IN_CURRENT_NS,
+  PROP_IN_CURRENT_NS,
   PROP_PATH_IN_CONTAINER_NS,
   PROP_USE_SRT_HELPERS,
   N_PROPERTIES
@@ -35,17 +35,11 @@ enum {
 
 static GParamSpec *properties[N_PROPERTIES] = { NULL };
 
-static void pv_graphics_provider_initable_iface_init (GInitableIface *iface,
-                                                      gpointer unused);
-
-G_DEFINE_TYPE_WITH_CODE (PvGraphicsProvider, pv_graphics_provider, G_TYPE_OBJECT,
-                         G_IMPLEMENT_INTERFACE (G_TYPE_INITABLE,
-                                                pv_graphics_provider_initable_iface_init))
+G_DEFINE_TYPE (PvGraphicsProvider, pv_graphics_provider, G_TYPE_OBJECT)
 
 static void
 pv_graphics_provider_init (PvGraphicsProvider *self)
 {
-  self->fd = -1;
 }
 
 static void
@@ -58,8 +52,8 @@ pv_graphics_provider_get_property (GObject *object,
 
   switch (prop_id)
     {
-      case PROP_PATH_IN_CURRENT_NS:
-        g_value_set_string (value, self->path_in_current_ns);
+      case PROP_IN_CURRENT_NS:
+        g_value_set_object (value, self->in_current_ns);
         break;
 
       case PROP_PATH_IN_CONTAINER_NS:
@@ -85,10 +79,10 @@ pv_graphics_provider_set_property (GObject *object,
 
   switch (prop_id)
     {
-      case PROP_PATH_IN_CURRENT_NS:
+      case PROP_IN_CURRENT_NS:
         /* Construct-only */
-        g_return_if_fail (self->path_in_current_ns == NULL);
-        self->path_in_current_ns = g_value_dup_string (value);
+        g_return_if_fail (self->in_current_ns == NULL);
+        self->in_current_ns = g_value_dup_object (value);
         break;
 
       case PROP_PATH_IN_CONTAINER_NS:
@@ -114,28 +108,23 @@ pv_graphics_provider_constructed (GObject *object)
 
   G_OBJECT_CLASS (pv_graphics_provider_parent_class)->constructed (object);
 
-  g_return_if_fail (self->path_in_current_ns != NULL);
+  g_return_if_fail (SRT_IS_SYSROOT (self->in_current_ns));
+  g_return_if_fail (self->in_current_ns->path != NULL);
+  g_return_if_fail (self->in_current_ns->fd >= 0);
   g_return_if_fail (self->path_in_container_ns != NULL);
-}
-
-static gboolean
-pv_graphics_provider_initable_init (GInitable *initable,
-                                    GCancellable *cancellable G_GNUC_UNUSED,
-                                    GError **error)
-{
-  PvGraphicsProvider *self = PV_GRAPHICS_PROVIDER (initable);
-
-  g_return_val_if_fail (PV_IS_GRAPHICS_PROVIDER (self), FALSE);
-  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
-
-  if (!glnx_opendirat (-1, self->path_in_current_ns, FALSE,
-                       &self->fd, error))
-    return FALSE;
 
   /* Path that, when resolved in the host namespace, points to us */
-  self->path_in_host_ns = pv_current_namespace_path_to_host_path (self->path_in_current_ns);
+  self->path_in_host_ns = pv_current_namespace_path_to_host_path (self->in_current_ns->path);
+}
 
-  return TRUE;
+static void
+pv_graphics_provider_dispose (GObject *object)
+{
+  PvGraphicsProvider *self = PV_GRAPHICS_PROVIDER (object);
+
+  g_clear_object (&self->in_current_ns);
+
+  G_OBJECT_CLASS (pv_graphics_provider_parent_class)->dispose (object);
 }
 
 static void
@@ -143,8 +132,6 @@ pv_graphics_provider_finalize (GObject *object)
 {
   PvGraphicsProvider *self = PV_GRAPHICS_PROVIDER (object);
 
-  glnx_close_fd (&self->fd);
-  g_free (self->path_in_current_ns);
   g_free (self->path_in_host_ns);
   g_free (self->path_in_container_ns);
 
@@ -159,13 +146,14 @@ pv_graphics_provider_class_init (PvGraphicsProviderClass *cls)
   object_class->get_property = pv_graphics_provider_get_property;
   object_class->set_property = pv_graphics_provider_set_property;
   object_class->constructed = pv_graphics_provider_constructed;
+  object_class->dispose = pv_graphics_provider_dispose;
   object_class->finalize = pv_graphics_provider_finalize;
 
-  properties[PROP_PATH_IN_CURRENT_NS] =
-    g_param_spec_string ("path-in-current-ns", "Path in current namespace",
-                         ("Path to the graphics provider in the current "
-                          "namespace, typically /"),
-                         NULL,
+  properties[PROP_IN_CURRENT_NS] =
+    g_param_spec_object ("in-current-ns", "Representation in current namespace",
+                         ("Path and file descriptor for this provider in the "
+                          "current execution environment"),
+                         SRT_TYPE_SYSROOT,
                          (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
                           G_PARAM_STATIC_STRINGS));
 
@@ -237,7 +225,8 @@ pv_graphics_provider_search_in_path_and_bin (PvGraphicsProvider *self,
       else
         test_path = g_build_filename (path, program_name, NULL);
 
-      if (_srt_file_test_in_sysroot (self->path_in_current_ns, self->fd,
+      if (_srt_file_test_in_sysroot (self->in_current_ns->path,
+                                     self->in_current_ns->fd,
                                      test_path, G_FILE_TEST_IS_EXECUTABLE))
         return g_steal_pointer (&test_path);
     }
@@ -251,17 +240,25 @@ pv_graphics_provider_new (const char *path_in_current_ns,
                           gboolean use_srt_helpers,
                           GError **error)
 {
+  g_autoptr(SrtSysroot) sysroot = NULL;
+
   g_return_val_if_fail (path_in_current_ns != NULL, NULL);
   g_return_val_if_fail (path_in_container_ns != NULL, NULL);
   g_return_val_if_fail (error == NULL || *error == NULL, NULL);
 
-  return g_initable_new (PV_TYPE_GRAPHICS_PROVIDER,
-                         NULL,
-                         error,
-                         "path-in-container-ns", path_in_container_ns,
-                         "path-in-current-ns", path_in_current_ns,
-                         "use-srt-helpers", use_srt_helpers,
-                         NULL);
+  if (g_str_equal (path_in_current_ns, "/"))
+    sysroot = _srt_sysroot_new_direct (error);
+  else
+    sysroot = _srt_sysroot_new (path_in_current_ns, error);
+
+  if (sysroot == NULL)
+    return NULL;
+
+  return g_object_new (PV_TYPE_GRAPHICS_PROVIDER,
+                       "in-current-ns", sysroot,
+                       "path-in-container-ns", path_in_container_ns,
+                       "use-srt-helpers", use_srt_helpers,
+                       NULL);
 }
 
 /*
@@ -280,14 +277,7 @@ pv_graphics_provider_create_system_info (PvGraphicsProvider *self)
     flags |= SRT_CHECK_FLAGS_NO_HELPERS;
 
   system_info = srt_system_info_new (NULL);
-  srt_system_info_set_sysroot (system_info, self->path_in_current_ns);
+  _srt_system_info_set_sysroot (system_info, self->in_current_ns);
   _srt_system_info_set_check_flags (system_info, flags);
   return g_steal_pointer (&system_info);
-}
-
-static void
-pv_graphics_provider_initable_iface_init (GInitableIface *iface,
-                                          gpointer unused G_GNUC_UNUSED)
-{
-  iface->init = pv_graphics_provider_initable_init;
 }

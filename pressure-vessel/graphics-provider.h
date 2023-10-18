@@ -27,6 +27,8 @@
 
 #include <steam-runtime-tools/steam-runtime-tools.h>
 
+#include "steam-runtime-tools/resolve-in-sysroot-internal.h"
+
 typedef struct _PvGraphicsProvider PvGraphicsProvider;
 typedef struct _PvGraphicsProviderClass PvGraphicsProviderClass;
 
@@ -36,11 +38,10 @@ struct _PvGraphicsProvider
 
   /* All members are read-only after initable_init(), which means it's
    * OK to access this object from more than one thread. */
-  gchar *path_in_current_ns;
+  SrtSysroot *in_current_ns;
   gchar *path_in_container_ns;
   gchar *path_in_host_ns;
   gboolean use_srt_helpers;
-  int fd;
 };
 
 struct _PvGraphicsProviderClass

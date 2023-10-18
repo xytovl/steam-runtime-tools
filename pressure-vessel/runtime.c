@@ -2434,8 +2434,7 @@ pv_runtime_get_capsule_capture_libs (PvRuntime *self,
                           "--remap-link-prefix", remap_app,
                           "--remap-link-prefix", remap_usr,
                           "--remap-link-prefix", remap_lib,
-                          "--provider",
-                            self->provider->path_in_current_ns,
+                          "--provider", self->provider->in_current_ns->path,
                           "--container",
                           NULL);
 
@@ -2476,7 +2475,7 @@ collect_s2tc (PvRuntime *self,
 
   g_return_val_if_fail (self->provider != NULL, FALSE);
 
-  s2tc_in_current_namespace = g_build_filename (self->provider->path_in_current_ns,
+  s2tc_in_current_namespace = g_build_filename (self->provider->in_current_ns->path,
                                                 s2tc, NULL);
 
   if (g_file_test (s2tc_in_current_namespace, G_FILE_TEST_EXISTS))
@@ -2875,7 +2874,7 @@ bind_icds (PvRuntime *self,
           if (details->kinds[multiarch_index] != ICD_KIND_ABSOLUTE)
             continue;
 
-          fd = _srt_resolve_in_sysroot (self->provider->fd,
+          fd = _srt_resolve_in_sysroot (self->provider->in_current_ns->fd,
                                         details->resolved_libraries[multiarch_index],
                                         SRT_RESOLVE_FLAGS_NONE,
                                         NULL, NULL);
@@ -3114,12 +3113,12 @@ bind_gfx_provider (PvRuntime *self,
 
   if (!pv_bwrap_bind_usr (bwrap,
                           self->provider->path_in_host_ns,
-                          self->provider->fd,
+                          self->provider->in_current_ns->fd,
                           mount_point,
                           error))
     return FALSE;
 
-  provider_etc = g_build_filename (self->provider->path_in_current_ns,
+  provider_etc = g_build_filename (self->provider->in_current_ns->path,
                                    "etc", NULL);
 
   if (g_file_test (provider_etc, G_FILE_TEST_IS_DIR))
@@ -3427,7 +3426,7 @@ bind_runtime_base (PvRuntime *self,
           g_autofree char *path_in_provider = NULL;
           glnx_autofd int fd = -1;
 
-          fd = _srt_resolve_in_sysroot (self->provider->fd, item,
+          fd = _srt_resolve_in_sysroot (self->provider->in_current_ns->fd, item,
                                         SRT_RESOLVE_FLAGS_NONE,
                                         &path_in_provider,
                                         &local_error);
@@ -3458,7 +3457,7 @@ bind_runtime_base (PvRuntime *self,
           else
             {
               g_debug ("Cannot resolve \"%s\" in \"%s\": %s",
-                       item, self->provider->path_in_current_ns,
+                       item, self->provider->in_current_ns->path,
                        local_error->message);
               g_clear_error (&local_error);
             }
@@ -3891,7 +3890,7 @@ pv_runtime_take_from_provider (PvRuntime *self,
   if (flags & TAKE_FROM_PROVIDER_FLAGS_IF_REGULAR)
     resolve_flags |= SRT_RESOLVE_FLAGS_MUST_BE_REGULAR;
 
-  source_fd = _srt_resolve_in_sysroot (self->provider->fd,
+  source_fd = _srt_resolve_in_sysroot (self->provider->in_current_ns->fd,
                                        source_in_provider, resolve_flags,
                                        &realpath_in_provider,
                                        &resolve_error);
@@ -3903,7 +3902,7 @@ pv_runtime_take_from_provider (PvRuntime *self,
           g_debug ("Not replacing \"${container}/%s\" with \"%s/%s\": "
                    "source is not a directory: %s",
                    dest_in_container,
-                   self->provider->path_in_current_ns, source_in_provider,
+                   self->provider->in_current_ns->path, source_in_provider,
                    resolve_error->message);
           return TRUE;
         }
@@ -3916,7 +3915,7 @@ pv_runtime_take_from_provider (PvRuntime *self,
           g_debug ("Not replacing \"${container}/%s\" with \"%s/%s\": "
                    "source is not a regular file: %s",
                    dest_in_container,
-                   self->provider->path_in_current_ns, source_in_provider,
+                   self->provider->in_current_ns->path, source_in_provider,
                    resolve_error->message);
           return TRUE;
         }
@@ -3929,7 +3928,7 @@ pv_runtime_take_from_provider (PvRuntime *self,
           g_debug ("Not replacing \"${container}/%s\" with \"%s/%s\": "
                    "source does not exist: %s",
                    dest_in_container,
-                   self->provider->path_in_current_ns, source_in_provider,
+                   self->provider->in_current_ns->path, source_in_provider,
                    resolve_error->message);
           return TRUE;
         }
@@ -3989,7 +3988,7 @@ pv_runtime_take_from_provider (PvRuntime *self,
 
               g_debug ("Creating \"${container}/%s\" by copying \"%s/%s\"",
                        dest_in_container,
-                       self->provider->path_in_current_ns,
+                       self->provider->in_current_ns->path,
                        source_in_provider);
 
               if (source_fd < 0)
@@ -4025,7 +4024,7 @@ pv_runtime_take_from_provider (PvRuntime *self,
               if (glnx_regfile_copy_bytes (file_fd, dest_fd, (off_t) -1) < 0)
                 return glnx_throw_errno_prefix (error,
                                                 "Unable to copy contents of \"%s/%s\" to \"%s\"",
-                                                self->provider->path_in_current_ns,
+                                                self->provider->in_current_ns->path,
                                                 source_in_provider,
                                                 dest_in_container);
 
@@ -4070,7 +4069,7 @@ pv_runtime_take_from_provider (PvRuntime *self,
 
       g_debug ("Trying to replace \"${container}/%s\" with \"%s/%s\" via "
                "bind mount",
-               dest_in_container, self->provider->path_in_current_ns,
+               dest_in_container, self->provider->in_current_ns->path,
                source_in_provider);
 
       if (source_fd < 0)
@@ -4101,7 +4100,7 @@ pv_runtime_take_from_provider (PvRuntime *self,
           if (fstat (source_fd, &stat_buf) != 0)
             return glnx_throw_errno_prefix (error,
                                             "fstat \"%s/%s\"",
-                                            self->provider->path_in_current_ns,
+                                            self->provider->in_current_ns->path,
                                             realpath_in_provider);
 
           if (S_ISDIR (stat_buf.st_mode))
@@ -4110,7 +4109,7 @@ pv_runtime_take_from_provider (PvRuntime *self,
                 {
                   g_warning ("Not mounting \"%s/%s\" over "
                              "non-directory file or nonexistent path \"%s\"",
-                             self->provider->path_in_current_ns,
+                             self->provider->in_current_ns->path,
                              source_in_provider, dest);
                   return TRUE;
                 }
@@ -4122,7 +4121,7 @@ pv_runtime_take_from_provider (PvRuntime *self,
                 {
                   g_warning ("Not mounting \"%s/%s\" over directory or "
                              "nonexistent path \"%s\"",
-                             self->provider->path_in_current_ns,
+                             self->provider->in_current_ns->path,
                              source_in_provider, dest);
                   return TRUE;
                 }
@@ -4131,7 +4130,7 @@ pv_runtime_take_from_provider (PvRuntime *self,
 
       /* This is not 100% robust against the provider sysroot being
        * modified while we're looking at it, but it's the best we can do. */
-      source_in_current_ns = g_build_filename (self->provider->path_in_current_ns,
+      source_in_current_ns = g_build_filename (self->provider->in_current_ns->path,
                                                realpath_in_provider,
                                                NULL);
       abs_dest = g_build_filename ("/", dest_in_container, NULL);
@@ -4203,7 +4202,7 @@ pv_runtime_take_any_from_provider (PvRuntime *self,
       glnx_autofd int fd = -1;
       g_autoptr(GError) local_error = NULL;
 
-      fd = _srt_resolve_in_sysroot (self->provider->fd,
+      fd = _srt_resolve_in_sysroot (self->provider->in_current_ns->fd,
                                     source_in_provider, resolve_flags,
                                     NULL, &local_error);
 
@@ -4211,7 +4210,7 @@ pv_runtime_take_any_from_provider (PvRuntime *self,
         {
           if (!g_error_matches (local_error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND))
             g_debug ("\"%s/%s\": %s",
-                     self->provider->path_in_current_ns,
+                     self->provider->in_current_ns->path,
                      source_in_provider, local_error->message);
 
           continue;
@@ -4616,7 +4615,7 @@ pv_runtime_take_ld_so_from_provider (PvRuntime *self,
 
   g_debug ("Making provider's ld.so visible in container");
 
-  path_fd = _srt_resolve_in_sysroot (self->provider->fd,
+  path_fd = _srt_resolve_in_sysroot (self->provider->in_current_ns->fd,
                                      arch->ld_so, SRT_RESOLVE_FLAGS_READABLE,
                                      &ld_so_relative_to_provider, error);
 
@@ -5063,7 +5062,7 @@ collect_vulkan_layers (PvRuntime *self,
            * no API to tell us. The only way we can find out the library's
            * real location is to tell libdl to load (dlopen) the library, and
            * see what the resulting path is. */
-          if (g_strcmp0 (self->provider->path_in_current_ns, "/") == 0)
+          if (_srt_sysroot_is_direct (self->provider->in_current_ns))
             {
               /* It's in our current namespace, so we can dlopen it. */
               g_info ("Evaluating dynamic string tokens in \"%s\"", resolved_library);
@@ -5187,7 +5186,7 @@ pv_runtime_get_ld_so (PvRuntime *self,
 
           if (!pv_bwrap_bind_usr (temp_bwrap,
                                   self->provider->path_in_host_ns,
-                                  self->provider->fd,
+                                  self->provider->in_current_ns->fd,
                                   self->provider->path_in_container_ns,
                                   error))
             return FALSE;
@@ -5455,8 +5454,8 @@ pv_runtime_collect_libc_family (PvRuntime *self,
       gconv_dir_in_provider = g_build_filename (gconv_prefix, dir, "gconv", NULL);
       g_debug ("Checking for gconv in %s", gconv_dir_in_provider);
 
-      if (_srt_file_test_in_sysroot (self->provider->path_in_current_ns,
-                                     self->provider->fd,
+      if (_srt_file_test_in_sysroot (self->provider->in_current_ns->path,
+                                     self->provider->in_current_ns->fd,
                                      gconv_dir_in_provider,
                                      G_FILE_TEST_IS_DIR))
         {
@@ -5489,8 +5488,8 @@ pv_runtime_collect_libc_family (PvRuntime *self,
           g_debug ("Checking for gconv (after removing hwcaps subdirectories) in %s",
                    gconv_dir_in_provider);
 
-          if (_srt_file_test_in_sysroot (self->provider->path_in_current_ns,
-                                         self->provider->fd,
+          if (_srt_file_test_in_sysroot (self->provider->in_current_ns->path,
+                                         self->provider->in_current_ns->fd,
                                          gconv_dir_in_provider,
                                          G_FILE_TEST_IS_DIR))
             {
@@ -5585,8 +5584,8 @@ pv_runtime_collect_lib_data (PvRuntime *self,
   dir_in_provider_usr_share = g_build_filename ("usr", "share", dir_basename, NULL);
 
   if ((flags & PV_RUNTIME_DATA_FLAGS_USR_SHARE_FIRST)
-      && _srt_file_test_in_sysroot (self->provider->path_in_current_ns,
-                                    self->provider->fd,
+      && _srt_file_test_in_sysroot (self->provider->in_current_ns->path,
+                                    self->provider->in_current_ns->fd,
                                     dir_in_provider_usr_share,
                                     G_FILE_TEST_IS_DIR))
     {
@@ -5662,8 +5661,8 @@ pv_runtime_collect_lib_data (PvRuntime *self,
 
   g_return_if_fail (dir_in_provider[0] != '/');
 
-  if (_srt_file_test_in_sysroot (self->provider->path_in_current_ns,
-                                 self->provider->fd,
+  if (_srt_file_test_in_sysroot (self->provider->in_current_ns->path,
+                                 self->provider->in_current_ns->fd,
                                  dir_in_provider,
                                  G_FILE_TEST_IS_DIR))
     {
@@ -5676,8 +5675,8 @@ pv_runtime_collect_lib_data (PvRuntime *self,
 
   if (!(flags & PV_RUNTIME_DATA_FLAGS_USR_SHARE_FIRST)
       && strcmp (dir_in_provider, dir_in_provider_usr_share) != 0
-      && _srt_file_test_in_sysroot (self->provider->path_in_current_ns,
-                                    self->provider->fd,
+      && _srt_file_test_in_sysroot (self->provider->in_current_ns->path,
+                                    self->provider->in_current_ns->fd,
                                     dir_in_provider_usr_share,
                                     G_FILE_TEST_IS_DIR))
     {
@@ -6161,7 +6160,7 @@ pv_runtime_finish_libc_family (PvRuntime *self,
           TakeFromProviderFlags flags;
           const gchar *search_paths = NULL;
 
-          if (g_str_equal (self->provider->path_in_current_ns, "/"))
+          if (_srt_sysroot_is_direct (self->provider->in_current_ns))
             search_paths = g_environ_getenv (self->original_environ, "PATH");
 
           provider_impl = pv_graphics_provider_search_in_path_and_bin (self->provider,
@@ -7111,7 +7110,7 @@ pv_runtime_use_provider_graphics_stack (PvRuntime *self,
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
   timer = _srt_profiling_start ("Using graphics stack from %s",
-                                self->provider->path_in_current_ns);
+                                self->provider->in_current_ns->path);
 
   if (!pv_runtime_provide_container_access (self, error))
     return FALSE;
@@ -8049,11 +8048,11 @@ pv_runtime_has_library (PvRuntime *self,
            * it's OK to use libraries from it in LD_PRELOAD, because there
            * is no other version that might have been meant. */
           if (self->provider != NULL
-              && g_strcmp0 (self->provider->path_in_current_ns, "/") != 0)
+              && _srt_sysroot_is_direct (self->provider->in_current_ns))
             {
               glnx_autofd int fd = -1;
 
-              fd = _srt_resolve_in_sysroot (self->provider->fd, path,
+              fd = _srt_resolve_in_sysroot (self->provider->in_current_ns->fd, path,
                                             SRT_RESOLVE_FLAGS_NONE,
                                             NULL, NULL);
 
