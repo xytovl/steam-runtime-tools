@@ -46,7 +46,7 @@
  *  or g_ptr_array_free().
  */
 static GPtrArray *
-_initial_capsule_capture_libs_argv (const char *sysroot,
+_initial_capsule_capture_libs_argv (SrtSysroot *sysroot,
                                     const char *helpers_path,
                                     const char *multiarch_tuple,
                                     const char *temp_dir,
@@ -63,14 +63,14 @@ _initial_capsule_capture_libs_argv (const char *sysroot,
   g_ptr_array_add (argv, g_strdup ("--dest"));
   g_ptr_array_add (argv, g_strdup (temp_dir));
   g_ptr_array_add (argv, g_strdup ("--provider"));
-  g_ptr_array_add (argv, g_strdup (sysroot));
+  g_ptr_array_add (argv, g_strdup (sysroot->path));
 
   return argv;
 }
 
 static GPtrArray *
 _argv_for_list_vdpau_drivers (gchar **envp,
-                              const char *sysroot,
+                              SrtSysroot *sysroot,
                               const char *helpers_path,
                               const char *multiarch_tuple,
                               const char *temp_dir,
@@ -110,7 +110,7 @@ _argv_for_list_vdpau_drivers (gchar **envp,
 
 static GPtrArray *
 _argv_for_list_loader_libraries (gchar **envp,
-                                 const char *sysroot,
+                                 SrtSysroot *sysroot,
                                  const char *helpers_path,
                                  const char *multiarch_tuple,
                                  const char *temp_dir,
@@ -146,7 +146,7 @@ _argv_for_list_loader_libraries (gchar **envp,
 }
 
 static GPtrArray *
-_argv_for_list_glx_icds (const char *sysroot,
+_argv_for_list_glx_icds (SrtSysroot *sysroot,
                          const char *helpers_path,
                          const char *multiarch_tuple,
                          const char *temp_dir,
@@ -176,7 +176,7 @@ _argv_for_list_glx_icds (const char *sysroot,
 }
 
 static GPtrArray *
-_argv_for_list_glx_icds_in_path (const char *sysroot,
+_argv_for_list_glx_icds_in_path (SrtSysroot *sysroot,
                                  const char *helpers_path,
                                  const char *multiarch_tuple,
                                  const char *temp_dir,
@@ -453,7 +453,7 @@ _srt_list_links_from_directory (gchar **envp,
 
 /*
  * _srt_get_modules_from_path:
- * @sysroot_fd: A file descriptor opened on the root directory, usually '/'
+ * @sysroot: The root directory, usually '/'
  * @envp: (array zero-terminated=1) (not nullable): Behave as though `environ` was this array
  * @helpers_path: (nullable): An optional path to find "inspect-library" helper, PATH
  *  is used if %NULL
@@ -475,7 +475,7 @@ _srt_list_links_from_directory (gchar **envp,
  * (`r600_dri.so` is before `r200_dri.so`, which is before `i965_dri.so`).
  */
 static void
-_srt_get_modules_from_path (int sysroot_fd,
+_srt_get_modules_from_path (SrtSysroot *sysroot,
                             gchar **envp,
                             const char *helpers_path,
                             const char *multiarch_tuple,
@@ -494,7 +494,7 @@ _srt_get_modules_from_path (int sysroot_fd,
   g_auto(SrtDirIter) dfd_iter = SRT_DIR_ITER_CLEARED;
   g_autoptr(GError) error = NULL;
 
-  g_return_if_fail (sysroot_fd >= 0);
+  g_return_if_fail (SRT_IS_SYSROOT (sysroot));
   g_return_if_fail (envp != NULL);
   g_return_if_fail (module_directory_path != NULL);
   g_return_if_fail (drivers_out != NULL);
@@ -528,7 +528,7 @@ _srt_get_modules_from_path (int sysroot_fd,
            is_extra ? "extra " : "",
            module_directory_path);
 
-  module_dirfd = _srt_resolve_in_sysroot (sysroot_fd, module_directory_path,
+  module_dirfd = _srt_resolve_in_sysroot (sysroot->fd, module_directory_path,
                                           (SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY
                                            | SRT_RESOLVE_FLAGS_READABLE),
                                           NULL, &error);
@@ -773,7 +773,7 @@ _srt_get_library_class (gchar **envp,
 }
 
 /*
- * @sysroot_fd: A file descriptor opened on the root directory, usually '/'
+ * @sysroot: The root directory, usually '/'
  * @loader_path: absolute and canonicalized path to a loader
  *  such as libva.so.2
  * @is_extra: If true, any modules found will be marked as "extra"
@@ -786,7 +786,7 @@ _srt_get_library_class (gchar **envp,
  *  The type depends on @module, the same as for _srt_get_modules_from_path().
  */
 static void
-_srt_get_modules_from_loader_library (int sysroot_fd,
+_srt_get_modules_from_loader_library (SrtSysroot *sysroot,
                                       const gchar *loader_path,
                                       gchar **envp,
                                       const char *helpers_path,
@@ -800,7 +800,7 @@ _srt_get_modules_from_loader_library (int sysroot_fd,
   g_autofree gchar *libdir = NULL;
   g_autofree gchar *libdir_driver = NULL;
 
-  g_return_if_fail (sysroot_fd >= 0);
+  g_return_if_fail (SRT_IS_SYSROOT (sysroot));
   g_return_if_fail (loader_path != NULL);
   g_return_if_fail (loader_path[0] == '/');
   g_return_if_fail (drivers_set != NULL);
@@ -815,7 +815,7 @@ _srt_get_modules_from_loader_library (int sysroot_fd,
   if (!g_hash_table_contains (drivers_set, libdir_driver))
     {
       g_hash_table_add (drivers_set, g_strdup (libdir_driver));
-      _srt_get_modules_from_path (sysroot_fd, envp, helpers_path, multiarch_tuple,
+      _srt_get_modules_from_path (sysroot, envp, helpers_path, multiarch_tuple,
                                   check_flags, libdir_driver, is_extra, module,
                                   drivers_out);
     }
@@ -830,7 +830,7 @@ _srt_get_modules_from_loader_library (int sysroot_fd,
 
       if (!g_hash_table_contains (drivers_set, slackware))
         {
-          _srt_get_modules_from_path (sysroot_fd, envp, helpers_path,
+          _srt_get_modules_from_path (sysroot, envp, helpers_path,
                                       multiarch_tuple, check_flags, slackware,
                                       is_extra, module, drivers_out);
           g_hash_table_add (drivers_set, g_steal_pointer (&slackware));
@@ -854,7 +854,7 @@ _srt_get_modules_from_loader_library (int sysroot_fd,
                   g_debug ("Checking extra modules in directory \"%s\"",
                            (gchar *)this_extra_path->data);
                   g_hash_table_add (drivers_set, g_strdup (this_extra_path->data));
-                  _srt_get_modules_from_path (sysroot_fd, envp, helpers_path,
+                  _srt_get_modules_from_path (sysroot, envp, helpers_path,
                                               multiarch_tuple, check_flags,
                                               this_extra_path->data, TRUE,
                                               module, drivers_out);
@@ -880,7 +880,7 @@ _srt_get_modules_from_loader_library (int sysroot_fd,
  * Implementation of srt_system_info_list_glx_icds().
  */
 static void
-_srt_list_glx_icds (const char *sysroot,
+_srt_list_glx_icds (SrtSysroot *sysroot,
                     gchar **envp,
                     const char *helpers_path,
                     const char *multiarch_tuple,
@@ -894,7 +894,7 @@ _srt_list_glx_icds (const char *sysroot,
   gchar *overrides_path = NULL;
   GHashTable *known_libs = NULL;
 
-  g_return_if_fail (sysroot != NULL);
+  g_return_if_fail (SRT_IS_SYSROOT (sysroot));
   g_return_if_fail (multiarch_tuple != NULL);
   g_return_if_fail (drivers_out != NULL);
   g_return_if_fail (_srt_check_not_setuid ());
@@ -922,7 +922,8 @@ _srt_list_glx_icds (const char *sysroot,
   /* When in a container we might miss valid GLX drivers because the `ld.so.cache` in
    * use doesn't have a reference about them. To fix that we also include every
    * "libGLX_*.so.*" libraries that we find in the "/overrides/lib/${multiarch}" folder */
-  overrides_path = g_build_filename (sysroot, "/overrides", NULL);
+  /* TODO: Use fd-relative I/O here? */
+  overrides_path = g_build_filename (sysroot->path, "/overrides", NULL);
   if (g_file_test (overrides_path, G_FILE_TEST_IS_DIR))
     {
       overrides_tmp_dir = g_dir_make_tmp ("glx-icds-XXXXXX", &error);
@@ -968,7 +969,6 @@ out:
 /*
  * _srt_get_modules_full:
  * @sysroot: (not nullable): The root directory, usually `/`
- * @sysroot_fd: A file descriptor opened on @sysroot
  * @envp: (array zero-terminated=1) (not nullable): Behave as though `environ` was this array
  * @helpers_path: (nullable): An optional path to find "inspect-library" helper, PATH is used if %NULL
  * @multiarch_tuple: (not nullable) (type filename): A Debian-style multiarch tuple
@@ -986,8 +986,7 @@ out:
  * is before `nouveau_dri.so`.
  */
 static void
-_srt_get_modules_full (const char *sysroot,
-                       int sysroot_fd,
+_srt_get_modules_full (SrtSysroot *sysroot,
                        gchar **envp,
                        const char *helpers_path,
                        const char *multiarch_tuple,
@@ -1013,8 +1012,7 @@ _srt_get_modules_full (const char *sysroot,
   gsize i;
   gsize j;
 
-  g_return_if_fail (sysroot != NULL);
-  g_return_if_fail (sysroot_fd >= 0);
+  g_return_if_fail (SRT_IS_SYSROOT (sysroot));
   g_return_if_fail (envp != NULL);
   g_return_if_fail (multiarch_tuple != NULL);
   g_return_if_fail (drivers_out != NULL);
@@ -1046,7 +1044,8 @@ _srt_get_modules_full (const char *sysroot,
   drivers_path = g_environ_getenv (envp, env_override);
   ld_library_path = g_environ_getenv (envp, "LD_LIBRARY_PATH");
 
-  flatpak_info = g_build_filename (sysroot, ".flatpak-info", NULL);
+  /* TODO: Use fd-relative I/O for this */
+  flatpak_info = g_build_filename (sysroot->path, ".flatpak-info", NULL);
   drivers_set = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
 
   if (drivers_path)
@@ -1082,7 +1081,7 @@ _srt_get_modules_full (const char *sysroot,
           if (!g_hash_table_contains (drivers_set, *entry))
             {
               g_hash_table_add (drivers_set, g_strdup (*entry));
-              _srt_get_modules_from_path (sysroot_fd, envp, helpers_path, multiarch_tuple,
+              _srt_get_modules_from_path (sysroot, envp, helpers_path, multiarch_tuple,
                                           check_flags, *entry, FALSE, module, drivers_out);
             }
         }
@@ -1126,14 +1125,14 @@ _srt_get_modules_full (const char *sysroot,
           if (!g_hash_table_contains (drivers_set, libdir_dri))
             {
               g_hash_table_add (drivers_set, g_strdup (libdir_dri));
-              _srt_get_modules_from_path (sysroot_fd, envp, helpers_path,
+              _srt_get_modules_from_path (sysroot, envp, helpers_path,
                                           multiarch_tuple, check_flags, libdir_dri,
                                           is_extra, module, drivers_out);
             }
           if (!g_hash_table_contains (drivers_set, intel_vaapi))
             {
               g_hash_table_add (drivers_set, g_strdup (intel_vaapi));
-              _srt_get_modules_from_path (sysroot_fd, envp, helpers_path,
+              _srt_get_modules_from_path (sysroot, envp, helpers_path,
                                           multiarch_tuple, check_flags, intel_vaapi,
                                           is_extra, module, drivers_out);
             }
@@ -1146,7 +1145,7 @@ _srt_get_modules_full (const char *sysroot,
           if (!g_hash_table_contains (drivers_set, gl_lib_dri))
             {
               g_hash_table_add (drivers_set, g_strdup (gl_lib_dri));
-              _srt_get_modules_from_path (sysroot_fd, envp, helpers_path,
+              _srt_get_modules_from_path (sysroot, envp, helpers_path,
                                           multiarch_tuple, check_flags, gl_lib_dri,
                                           is_extra, module, drivers_out);
             }
@@ -1195,13 +1194,14 @@ _srt_get_modules_full (const char *sysroot,
               g_autofree gchar *library_path = g_build_filename (libdirs[j],
                                                                  loader_libraries[i],
                                                                  NULL);
-              g_autofree gchar *library_path_in_sysroot = g_build_filename (sysroot,
+              /* TODO: Use fd-relative I/O for this */
+              g_autofree gchar *library_path_in_sysroot = g_build_filename (sysroot->path,
                                                                             library_path,
                                                                             NULL);
               if (g_file_test (library_path_in_sysroot, G_FILE_TEST_EXISTS))
                 {
                   g_debug ("Searching modules in the library path \"%s\"", library_path);
-                  _srt_get_modules_from_loader_library (sysroot_fd, library_path,
+                  _srt_get_modules_from_loader_library (sysroot, library_path,
                                                         envp, helpers_path, multiarch_tuple,
                                                         check_flags, is_extra, module,
                                                         drivers_set, drivers_out);
@@ -1215,7 +1215,7 @@ _srt_get_modules_full (const char *sysroot,
       goto out;
     }
 
-  if (g_strcmp0 (sysroot, "/") != 0)
+  if (!_srt_sysroot_is_direct (sysroot))
     {
       /* If the sysroot is not "/", we can't use _srt_check_library_presence()
        * to locate the loader libraries because it doesn't take into
@@ -1247,7 +1247,7 @@ _srt_get_modules_full (const char *sysroot,
       for (i = 0; loader_lib_link != NULL && loader_lib_link[i] != NULL; i++)
         {
           g_debug ("Searching modules using the loader path \"%s\"", loader_lib_link[i]);
-          _srt_get_modules_from_loader_library (sysroot_fd, loader_lib_link[i],
+          _srt_get_modules_from_loader_library (sysroot, loader_lib_link[i],
                                                 envp, helpers_path, multiarch_tuple,
                                                 check_flags, is_extra, module,
                                                 drivers_set, drivers_out);
@@ -1295,6 +1295,7 @@ _srt_get_modules_full (const char *sysroot,
           /* The path may be a symbolic link or it can contain ./ or ../
            * The sysroot is "/", so we don't have to worry about symlinks that
            * could escape from the sysroot. */
+          g_assert (_srt_sysroot_is_direct (sysroot));
           driver_canonical_path = realpath (loader_path, NULL);
           if (driver_canonical_path == NULL)
             {
@@ -1302,7 +1303,7 @@ _srt_get_modules_full (const char *sysroot,
               continue;
             }
 
-          _srt_get_modules_from_loader_library (sysroot_fd, driver_canonical_path,
+          _srt_get_modules_from_loader_library (sysroot, driver_canonical_path,
                                                 envp, helpers_path, multiarch_tuple,
                                                 check_flags, is_extra, module,
                                                 drivers_set, drivers_out);
@@ -1332,7 +1333,7 @@ _srt_get_modules_full (const char *sysroot,
               if (*entry[0] == '\0')
                 continue;
 
-              file_fd = _srt_resolve_in_sysroot (sysroot_fd,
+              file_fd = _srt_resolve_in_sysroot (sysroot->fd,
                                                  *entry,
                                                  SRT_RESOLVE_FLAGS_RETURN_ABSOLUTE,
                                                  &absolute_path_in_sysroot, &error);
@@ -1349,7 +1350,7 @@ _srt_get_modules_full (const char *sysroot,
               if (!g_hash_table_contains (drivers_set, absolute_path_in_sysroot))
                 {
                   g_hash_table_add (drivers_set, g_strdup (absolute_path_in_sysroot));
-                  _srt_get_modules_from_path (sysroot_fd, envp, helpers_path,
+                  _srt_get_modules_from_path (sysroot, envp, helpers_path,
                                               multiarch_tuple, check_flags,
                                               absolute_path_in_sysroot, is_extra,
                                               module, drivers_out);
@@ -1386,7 +1387,7 @@ _srt_get_modules_full (const char *sysroot,
 
           if (!g_hash_table_contains (drivers_set, debian_additional))
             {
-              _srt_get_modules_from_path (sysroot_fd, envp, helpers_path,
+              _srt_get_modules_from_path (sysroot, envp, helpers_path,
                                           multiarch_tuple, check_flags, debian_additional,
                                           TRUE, module, drivers_out);
             }
@@ -1410,8 +1411,6 @@ out:
 /*
  * _srt_list_graphics_modules:
  * @sysroot: (not nullable): The root directory, usually `/`
- * @sysroot_fd: A file descriptor opened on @sysroot, or negative to
- *  reopen it
  * @envp: (array zero-terminated=1) (not nullable): Behave as though `environ` was this array
  * @helpers_path: (nullable): An optional path to find "inspect-library" helper, PATH is used if %NULL
  * @multiarch_tuple: (not nullable) (type filename): A Debian-style multiarch tuple
@@ -1433,8 +1432,7 @@ out:
  *  `g_list_free_full(list, g_object_unref)`.
  */
 GList *
-_srt_list_graphics_modules (const char *sysroot,
-                            int sysroot_fd,
+_srt_list_graphics_modules (SrtSysroot *sysroot,
                             gchar **envp,
                             const char *helpers_path,
                             const char *multiarch_tuple,
@@ -1443,13 +1441,13 @@ _srt_list_graphics_modules (const char *sysroot,
 {
   GList *drivers = NULL;
 
-  g_return_val_if_fail (sysroot != NULL, NULL);
+  g_return_val_if_fail (SRT_IS_SYSROOT (sysroot), NULL);
   g_return_val_if_fail (multiarch_tuple != NULL, NULL);
 
   if (which == SRT_GRAPHICS_GLX_MODULE)
     _srt_list_glx_icds (sysroot, envp, helpers_path, multiarch_tuple, &drivers);
   else
-    _srt_get_modules_full (sysroot, sysroot_fd, envp, helpers_path, multiarch_tuple,
+    _srt_get_modules_full (sysroot, envp, helpers_path, multiarch_tuple,
                            check_flags, which, &drivers);
 
   return g_list_reverse (drivers);

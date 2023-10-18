@@ -303,8 +303,7 @@ GList *_srt_load_vulkan_icds (const char *helpers_path,
                               SrtCheckFlags check_flags);
 
 G_GNUC_INTERNAL
-GList *_srt_list_graphics_modules (const gchar *sysroot,
-                                   int sysroot_fd,
+GList *_srt_list_graphics_modules (SrtSysroot *sysroot,
                                    gchar **envp,
                                    const char *helpers_path,
                                    const char *multiarch_tuple,
