@@ -140,6 +140,14 @@ check_os_release (SrtSystemInfo *info)
         path = "<unspecified>";
 
       g_test_message ("OS info from %s:", path);
+
+      path = srt_os_info_get_source_path_resolved (os_info);
+
+      if (path == NULL)
+        path = "<unspecified>";
+
+      g_test_message ("\tResolved source path: %s", path);
+
       fields = srt_os_info_dup_fields (os_info);
       text = srt_os_info_get_messages (os_info);
 

@@ -2293,7 +2293,7 @@ ensure_os_cached (SrtSystemInfo *self)
           g_autofree gchar *message = NULL;
 
           message = g_strdup_printf ("Unable to open sysroot");
-          self->os_info = _srt_os_info_new (NULL, message, NULL);
+          self->os_info = _srt_os_info_new (NULL, message, NULL, NULL);
         }
     }
 }

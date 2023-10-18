@@ -68,6 +68,7 @@ struct _SrtOsInfo
   GHashTable *fields;
   gchar *messages;
   gchar *source_path;
+  gchar *source_path_resolved;
 
   const gchar *build_id;
   const gchar *id;
@@ -91,6 +92,7 @@ enum {
   PROP_FIELDS,
   PROP_MESSAGES,
   PROP_SOURCE_PATH,
+  PROP_SOURCE_PATH_RESOLVED,
   N_PROPERTIES
 };
 
@@ -145,6 +147,10 @@ srt_os_info_get_property (GObject *object,
         g_value_set_string (value, self->source_path);
         break;
 
+      case PROP_SOURCE_PATH_RESOLVED:
+        g_value_set_string (value, self->source_path_resolved);
+        break;
+
       default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
     }
@@ -186,6 +192,12 @@ srt_os_info_set_property (GObject *object,
         self->source_path = g_value_dup_string (value);
         break;
 
+      case PROP_SOURCE_PATH_RESOLVED:
+        /* Construct-only */
+        g_return_if_fail (self->source_path_resolved == NULL);
+        self->source_path_resolved = g_value_dup_string (value);
+        break;
+
       default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
     }
@@ -225,6 +237,7 @@ srt_os_info_finalize (GObject *object)
   g_hash_table_unref (self->fields);
   g_free (self->messages);
   g_free (self->source_path);
+  g_free (self->source_path_resolved);
   g_strfreev (self->id_like);
 
   G_OBJECT_CLASS (srt_os_info_parent_class)->finalize (object);
@@ -263,6 +276,13 @@ srt_os_info_class_init (SrtOsInfoClass *cls)
                          G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
                          G_PARAM_STATIC_STRINGS);
 
+  properties[PROP_SOURCE_PATH_RESOLVED] =
+    g_param_spec_string ("source-path-resolved", "Source path (resolved)",
+                         "Fully resolved path to the source of data, if any",
+                         NULL,
+                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+                         G_PARAM_STATIC_STRINGS);
+
   g_object_class_install_properties (object_class, N_PROPERTIES, properties);
 }
 
@@ -285,7 +305,7 @@ srt_os_info_dup_fields (SrtOsInfo *self)
  * srt_os_info_get_source_path:
  * @self: The OS information
  *
- * Return the path from which the OS information was derived.
+ * Return the logical path from which the OS information was derived.
  *
  * Returns: The path, which is owned by @self and must not be freed,
  *  or %NULL.
@@ -295,6 +315,24 @@ srt_os_info_get_source_path (SrtOsInfo *self)
 {
   g_return_val_if_fail (SRT_IS_OS_INFO (self), NULL);
   return self->source_path;
+}
+
+/**
+ * srt_os_info_get_source_path_resolved:
+ * @self: The OS information
+ *
+ * Return the physical path from which the OS information was derived.
+ * For example, this might be the target of a symbolic link, or it might
+ * be in the emulated root filesystem of an emulation framework like FEX-Emu.
+ *
+ * Returns: The path, which is owned by @self and must not be freed,
+ *  or %NULL.
+ */
+const char *
+srt_os_info_get_source_path_resolved (SrtOsInfo *self)
+{
+  g_return_val_if_fail (SRT_IS_OS_INFO (self), NULL);
+  return self->source_path_resolved;
 }
 
 /**
@@ -589,6 +627,7 @@ do_line (GHashTable *fields,
 
 SrtOsInfo *
 _srt_os_info_new_from_data (const char *path,
+                            const char *path_resolved,
                             const char *contents,
                             gsize len,
                             const char *previous_messages)
@@ -668,7 +707,7 @@ _srt_os_info_new_from_data (const char *path,
   if (g_strcmp0 (g_hash_table_lookup (fields, "ID_LIKE"), "ubuntu") == 0)
     g_hash_table_replace (fields, g_strdup ("ID_LIKE"), g_strdup ("ubuntu debian"));
 
-  return _srt_os_info_new (fields, messages->str, path);
+  return _srt_os_info_new (fields, messages->str, path, path_resolved);
 }
 
 SrtOsInfo *
@@ -687,6 +726,7 @@ _srt_os_info_new_from_sysroot (SrtSysroot *sysroot)
       g_autoptr(GError) local_error = NULL;
       const char *path = os_release_paths[i].path;
       gboolean only_in_run_host = os_release_paths[i].only_in_run_host;
+      g_autofree gchar *resolved = NULL;
       g_autofree gchar *contents = NULL;
       gsize len;
 
@@ -695,8 +735,8 @@ _srt_os_info_new_from_sysroot (SrtSysroot *sysroot)
         continue;
 
       if (!_srt_sysroot_load (sysroot, path,
-                              SRT_RESOLVE_FLAGS_NONE,
-                              NULL, &contents, &len, &local_error))
+                              SRT_RESOLVE_FLAGS_RETURN_ABSOLUTE,
+                              &resolved, &contents, &len, &local_error))
         {
           if (!g_error_matches (local_error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND))
             {
@@ -708,10 +748,11 @@ _srt_os_info_new_from_sysroot (SrtSysroot *sysroot)
           continue;
         }
 
-      return _srt_os_info_new_from_data (path, contents, len, messages->str);
+      return _srt_os_info_new_from_data (path, resolved, contents, len,
+                                         messages->str);
     }
 
   g_string_append (messages, "os-release(5) not found\n");
 
-  return _srt_os_info_new (NULL, messages->str, NULL);
+  return _srt_os_info_new (NULL, messages->str, NULL, NULL);
 }

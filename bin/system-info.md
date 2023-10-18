@@ -342,6 +342,9 @@ keys:
     :   The source of this information, usually **/etc/os-release**
         but potentially another filename such as **/usr/lib/os-release**.
 
+    **source_path_resolved**
+    :   The physical location of the *source_path*.
+
     **messages**
     :   A human-readable array of diagnostic messages.
 

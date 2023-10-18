@@ -33,6 +33,7 @@
 extern const char * const _srt_interesting_os_release_fields[];
 
 SrtOsInfo *_srt_os_info_new_from_data (const char *path,
+                                       const char *path_resolved,
                                        const char *data,
                                        gsize len,
                                        const char *previous_messages);
@@ -41,11 +42,13 @@ SrtOsInfo *_srt_os_info_new_from_sysroot (SrtSysroot *sysroot);
 static inline SrtOsInfo *
 _srt_os_info_new (GHashTable *fields,
                   const char *messages,
-                  const char *source_path)
+                  const char *source_path,
+                  const char *source_path_resolved)
 {
   return g_object_new (SRT_TYPE_OS_INFO,
                        "fields", fields,
                        "messages", messages,
                        "source-path", source_path,
+                       "source-path-resolved", source_path_resolved,
                        NULL);
 }

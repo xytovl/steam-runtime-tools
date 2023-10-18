@@ -50,6 +50,8 @@ _SRT_PUBLIC
 const char *srt_os_info_get_messages (SrtOsInfo *self);
 _SRT_PUBLIC
 const char *srt_os_info_get_source_path (SrtOsInfo *self);
+_SRT_PUBLIC
+const char *srt_os_info_get_source_path_resolved (SrtOsInfo *self);
 
 #ifdef G_DEFINE_AUTOPTR_CLEANUP_FUNC
 G_DEFINE_AUTOPTR_CLEANUP_FUNC (SrtOsInfo, g_object_unref)

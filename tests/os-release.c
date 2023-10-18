@@ -46,7 +46,7 @@ test_empty (Fixture *f,
   g_autofree gchar *messages_property = NULL;
   g_autofree gchar *path_property = NULL;
 
-  info = _srt_os_info_new (NULL, NULL, NULL);
+  info = _srt_os_info_new (NULL, NULL, NULL, NULL);
 
   fields = srt_os_info_dup_fields (info);
   g_assert_nonnull (fields);
@@ -62,6 +62,7 @@ test_empty (Fixture *f,
   g_assert_cmpstr (srt_os_info_get_version_id (info), ==, NULL);
   g_assert_cmpstr (srt_os_info_get_messages (info), ==, NULL);
   g_assert_cmpstr (srt_os_info_get_source_path (info), ==, NULL);
+  g_assert_cmpstr (srt_os_info_get_source_path_resolved (info), ==, NULL);
 
   g_object_get (info,
                 "fields", &fields_property,
@@ -83,6 +84,7 @@ typedef struct
   const char *data;
   gssize len;
   const char *source_path;
+  const char *source_path_resolved;
   const char *previous_messages;
   const char *build_id;
   const char *id;
@@ -131,6 +133,7 @@ static const DataTest from_data[] =
       ),
       -1,
       .source_path = "/etc/os-release",
+      .source_path_resolved = "/usr/lib/os-release",
       .previous_messages = "Failed to reticulate splines",
       .build_id = "666",
       .id = "myos",
@@ -253,10 +256,13 @@ test_from_data (Fixture *f,
         len = strlen (test->data);
 
       info = _srt_os_info_new_from_data (source_path,
+                                         test->source_path_resolved,
                                          test->data, len,
                                          test->previous_messages);
 
       g_assert_cmpstr (srt_os_info_get_source_path (info), ==, source_path);
+      g_assert_cmpstr (srt_os_info_get_source_path_resolved (info), ==,
+                       test->source_path_resolved);
       g_assert_cmpstr (srt_os_info_get_build_id (info), ==, test->build_id);
       g_assert_cmpstr (srt_os_info_get_id (info), ==, test->id);
 

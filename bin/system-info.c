@@ -606,6 +606,7 @@ jsonify_os_release (JsonBuilder *builder,
       g_autoptr(GHashTable) fields = srt_os_info_dup_fields (info);
       gsize i;
       const char *value;
+      const char *resolved;
 
       for (i = 0; _srt_interesting_os_release_fields[i] != NULL; i++)
         {
@@ -660,6 +661,15 @@ jsonify_os_release (JsonBuilder *builder,
         {
           json_builder_set_member_name (builder, "source_path");
           json_builder_add_string_value (builder, value);
+        }
+
+      resolved = srt_os_info_get_source_path_resolved (info);
+
+      if (resolved != NULL
+          && (verbose || g_strcmp0 (resolved, value) != 0))
+        {
+          json_builder_set_member_name (builder, "source_path_resolved");
+          json_builder_add_string_value (builder, resolved);
         }
 
       value = srt_os_info_get_messages (info);

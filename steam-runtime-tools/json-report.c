@@ -261,6 +261,7 @@ _srt_os_info_new_from_report (JsonObject *json_obj)
   JsonObject *json_sub_obj;
   JsonArray *array;
   const char *source_path = NULL;
+  const char *source_path_resolved = NULL;
 
   g_return_val_if_fail (json_obj != NULL, NULL);
 
@@ -273,7 +274,8 @@ _srt_os_info_new_from_report (JsonObject *json_obj)
       json_sub_obj = json_object_get_object_member (json_obj, "os-release");
 
       if (json_sub_obj == NULL)
-        return _srt_os_info_new (NULL, "'os-release' is not a JSON object", NULL);
+        return _srt_os_info_new (NULL, "'os-release' is not a JSON object",
+                                 NULL, NULL);
 
       if (json_object_has_member (json_sub_obj, "id_like"))
         {
@@ -351,9 +353,12 @@ _srt_os_info_new_from_report (JsonObject *json_obj)
       source_path = json_object_get_string_member_with_default (json_sub_obj,
                                                                 "source_path",
                                                                 NULL);
+      source_path_resolved = json_object_get_string_member_with_default (json_sub_obj,
+                                                                         "source_path_resolved",
+                                                                         NULL);
     }
 
-  return _srt_os_info_new (fields, messages, source_path);
+  return _srt_os_info_new (fields, messages, source_path, source_path_resolved);
 }
 
 /*

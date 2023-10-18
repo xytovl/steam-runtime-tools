@@ -37,6 +37,7 @@
       "LOGO": "archlinux"
     },
     "source_path" : "/usr/lib/os-release",
+    "source_path_resolved" : "/home/me/rootfs/usr/lib/os-release",
     "messages" : [
       "Failed to load /etc/os-release: Permission denied"
     ]
