@@ -973,7 +973,7 @@ test_recursive_list (Fixture *f,
 
   if (G_LIKELY (!g_file_test ("/nonexistent", G_FILE_TEST_EXISTS)))
     {
-      listing = _srt_recursive_list_content ("/", -1, "/nonexistent",
+      listing = _srt_recursive_list_content ("/", -1, "/nonexistent", -1,
                                              environ, NULL);
       g_assert_nonnull (listing);
       g_assert_null (listing[0]);
@@ -988,7 +988,7 @@ test_recursive_list (Fixture *f,
 
   if (G_LIKELY (g_file_test ("/dev/null", G_FILE_TEST_EXISTS)))
     {
-      listing = _srt_recursive_list_content ("/", -1, "/dev",
+      listing = _srt_recursive_list_content ("/", -1, "/dev", -1,
                                              environ, NULL);
       g_assert_nonnull (listing);
       g_assert_nonnull (listing[0]);
