@@ -50,6 +50,7 @@ enum
   OPTION_HELP = 1,
   OPTION_EXPECTATION,
   OPTION_IGNORE_EXTRA_DRIVERS,
+  OPTION_NO_GRAPHICS_TESTS,
   OPTION_NO_LIBRARIES,
   OPTION_VERBOSE,
   OPTION_VERSION,
@@ -59,6 +60,7 @@ struct option long_options[] =
 {
     { "expectations", required_argument, NULL, OPTION_EXPECTATION },
     { "ignore-extra-drivers", no_argument, NULL, OPTION_IGNORE_EXTRA_DRIVERS },
+    { "no-graphics-tests", no_argument, NULL, OPTION_NO_GRAPHICS_TESTS },
     { "no-libraries", no_argument, NULL, OPTION_NO_LIBRARIES },
     { "verbose", no_argument, NULL, OPTION_VERBOSE },
     { "version", no_argument, NULL, OPTION_VERSION },
@@ -972,6 +974,7 @@ main (int argc,
   GList *desktop_entries;
   const GList *icd_iter;
   SrtDriverFlags extra_driver_flags = SRT_DRIVER_FLAGS_INCLUDE_ALL;
+  gboolean check_graphics = TRUE;
   gboolean check_libraries = TRUE;
 
   _srt_setenv_disable_gio_modules ();
@@ -1000,6 +1003,10 @@ main (int argc,
 
           case OPTION_IGNORE_EXTRA_DRIVERS:
             extra_driver_flags = SRT_DRIVER_FLAGS_NONE;
+            break;
+
+          case OPTION_NO_GRAPHICS_TESTS:
+            check_graphics = FALSE;
             break;
 
           case OPTION_NO_LIBRARIES:
@@ -1266,9 +1273,14 @@ main (int argc,
       if (libraries != NULL && (library_issues != SRT_LIBRARY_ISSUES_NONE || verbose))
           print_libraries_details (builder, libraries, verbose);
 
-      GList *graphics_list = srt_system_info_check_all_graphics (info,
-                                                                 multiarch_tuples[i]);
-      print_graphics_details (builder, graphics_list);
+      if (check_graphics)
+        {
+          g_autoptr(SrtObjectList) graphics_list = NULL;
+
+          graphics_list = srt_system_info_check_all_graphics (info,
+                                                              multiarch_tuples[i]);
+          print_graphics_details (builder, graphics_list);
+        }
 
       dri_list = srt_system_info_list_dri_drivers (info, multiarch_tuples[i],
                                                    extra_driver_flags);
@@ -1288,7 +1300,6 @@ main (int argc,
 
       json_builder_end_object (builder); // End multiarch_tuple object
       g_list_free_full (libraries, g_object_unref);
-      g_list_free_full (graphics_list, g_object_unref);
       g_list_free_full (dri_list, g_object_unref);
       g_list_free_full (va_api_list, g_object_unref);
       g_list_free_full (vdpau_list, g_object_unref);

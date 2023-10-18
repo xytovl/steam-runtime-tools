@@ -27,6 +27,11 @@ steam-runtime-system-info - examine the Steam runtime environment and diagnose p
     expected to be available. By default, *$STEAM_RUNTIME***/usr/lib/steamrt**
     or **/usr/lib/steamrt** is used.
 
+**--no-graphics-tests**
+:   Don't check that graphics drivers work.
+    This avoids needing an X11 display, and can also save time if that
+    information is not required.
+
 **--no-libraries**
 :   Don't check shared libraries against expectations.
     This saves time if that information is not required,
