@@ -43,6 +43,7 @@
 
 #include <steam-runtime-tools/json-glib-backports-internal.h>
 #include <steam-runtime-tools/json-utils-internal.h>
+#include <steam-runtime-tools/log-internal.h>
 #include <steam-runtime-tools/utils-internal.h>
 
 enum
@@ -931,6 +932,7 @@ main (int argc,
       char **argv)
 {
   FILE *original_stdout = NULL;
+  int original_stdout_fd = -1;
   GError *error = NULL;
   g_autoptr(SrtSystemInfo) info = NULL;
   SrtLibraryIssues library_issues = SRT_LIBRARY_ISSUES_NONE;
@@ -1027,15 +1029,28 @@ main (int argc,
   if (optind != argc)
     usage (1);
 
-  /* stdout is reserved for machine-readable output, so avoid having
-   * things like g_debug() pollute it. */
-  original_stdout = _srt_divert_stdout_to_stderr (&error);
-
-  if (original_stdout == NULL)
+  if (!_srt_util_set_glib_log_handler ("steam-runtime-system-info",
+                                       G_LOG_DOMAIN,
+                                       (SRT_LOG_FLAGS_OPTIONALLY_JOURNAL
+                                        | SRT_LOG_FLAGS_DIVERT_STDOUT),
+                                       &original_stdout_fd, NULL, &error))
     {
       g_warning ("%s", error->message);
       g_clear_error (&error);
       return 1;
+    }
+
+  original_stdout = fdopen (original_stdout_fd, "w");
+
+  if (original_stdout == NULL)
+    {
+      g_warning ("Unable to create a stdio wrapper for fd %d: %s",
+                 original_stdout_fd, g_strerror (errno));
+      return 1;
+    }
+  else
+    {
+      original_stdout_fd = -1;    /* ownership taken, do not close */
     }
 
   _srt_unblock_signals ();
