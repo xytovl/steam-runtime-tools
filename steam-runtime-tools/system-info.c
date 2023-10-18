@@ -3806,8 +3806,14 @@ ensure_container_info (SrtSystemInfo *self)
 {
   g_return_if_fail (SRT_IS_SYSTEM_INFO (self));
 
-  if (self->container_info == NULL && !self->immutable_values)
-    self->container_info = _srt_check_container (self->sysroot_fd, self->sysroot);
+  if (self->container_info == NULL)
+    {
+      if (!self->immutable_values)
+        self->container_info = _srt_check_container (self->sysroot_fd,
+                                                     self->sysroot);
+      else
+        self->container_info = _srt_container_info_new_empty ();
+    }
 }
 
 /**
