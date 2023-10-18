@@ -127,6 +127,9 @@ test_resolve_in_sysroot (Fixture *f,
   static const ResolveTest tests[] =
   {
     { { "a/b/c/d" }, { "a/b/c/d" } },
+    { { "a/b/c/d", SRT_RESOLVE_FLAGS_RETURN_ABSOLUTE }, { "/a/b/c/d" } },
+    { { "/" }, { "." } },
+    { { "/", SRT_RESOLVE_FLAGS_RETURN_ABSOLUTE }, { "/" } },
     { { "a/b/c/d/" }, { "a/b/c/d" } },
     {
       { "a/b/c/d", SRT_RESOLVE_FLAGS_NONE, RESOLVE_CALL_FLAGS_IGNORE_PATH },
@@ -289,6 +292,9 @@ test_resolve_in_sysroot (Fixture *f,
       if (it->call.flags & SRT_RESOLVE_FLAGS_READABLE)
         g_string_append (description, " (open for reading)");
 
+      if (it->call.flags & SRT_RESOLVE_FLAGS_RETURN_ABSOLUTE)
+        g_string_append (description, " (return absolute path)");
+
       g_test_message ("%" G_GSIZE_FORMAT ": Resolving %s%s",
                       i, it->call.path, description->str);
 
@@ -302,14 +308,31 @@ test_resolve_in_sysroot (Fixture *f,
 
       if (it->expect.path != NULL)
         {
+          const char *rel_path;
+
           g_assert_no_error (error);
           g_assert_cmpint (fd, >=, 0);
 
           if (out_path != NULL)
             g_assert_cmpstr (*out_path, ==, it->expect.path);
 
+          if (it->call.flags & SRT_RESOLVE_FLAGS_RETURN_ABSOLUTE)
+            {
+              g_assert (it->expect.path[0] == '/');
+
+              if (it->expect.path[1] == '\0')
+                rel_path = ".";
+              else
+                rel_path = it->expect.path + 1;
+            }
+          else
+            {
+              g_assert (it->expect.path[0] != '/');
+              rel_path = it->expect.path;
+            }
+
           g_assert_true (fd_same_as_rel_path_nofollow (fd, tmpdir.fd,
-                                                       it->expect.path));
+                                                       rel_path));
         }
       else
         {

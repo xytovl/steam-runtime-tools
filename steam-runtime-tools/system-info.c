@@ -4198,7 +4198,7 @@ static void
 ensure_runtime_linker (SrtSystemInfo *self,
                        Abi *abi)
 {
-  g_autofree gchar *tmp = NULL;
+  g_autofree gchar *real_path = NULL;
   int fd;
 
   if (abi->runtime_linker_resolved != NULL)
@@ -4229,13 +4229,14 @@ ensure_runtime_linker (SrtSystemInfo *self,
 
   fd = _srt_resolve_in_sysroot (self->sysroot_fd,
                                 abi->known_architecture->interoperable_runtime_linker,
-                                SRT_RESOLVE_FLAGS_READABLE,
-                                &tmp,
+                                (SRT_RESOLVE_FLAGS_READABLE
+                                 | SRT_RESOLVE_FLAGS_RETURN_ABSOLUTE),
+                                &real_path,
                                 &abi->runtime_linker_error);
 
   if (fd >= 0)
     {
-      abi->runtime_linker_resolved = g_strconcat ("/", tmp, NULL);
+      abi->runtime_linker_resolved = g_steal_pointer (&real_path);
       close (fd);
     }
 }

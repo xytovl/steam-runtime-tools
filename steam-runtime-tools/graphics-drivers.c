@@ -1325,7 +1325,6 @@ _srt_get_modules_full (const char *sysroot,
           for (entry = entries; entry != NULL && *entry != NULL; entry++)
             {
               glnx_autofd int file_fd = -1;
-              g_autofree gchar *entry_realpath_in_sysroot = NULL;
               g_autofree gchar *absolute_path_in_sysroot = NULL;
 
               /* Scripts that manipulate LD_LIBRARY_PATH have a habit of
@@ -1334,8 +1333,9 @@ _srt_get_modules_full (const char *sysroot,
                 continue;
 
               file_fd = _srt_resolve_in_sysroot (sysroot_fd,
-                                                 *entry, SRT_RESOLVE_FLAGS_NONE,
-                                                 &entry_realpath_in_sysroot, &error);
+                                                 *entry,
+                                                 SRT_RESOLVE_FLAGS_RETURN_ABSOLUTE,
+                                                 &absolute_path_in_sysroot, &error);
 
               if (file_fd < 0)
                 {
@@ -1345,10 +1345,6 @@ _srt_get_modules_full (const char *sysroot,
                   g_clear_error (&error);
                   continue;
                 }
-
-              /* Convert the resolved realpath to an absolute path */
-              absolute_path_in_sysroot = g_build_filename ("/", entry_realpath_in_sysroot,
-                                                           NULL);
 
               if (!g_hash_table_contains (drivers_set, absolute_path_in_sysroot))
                 {
