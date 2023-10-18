@@ -544,7 +544,7 @@ forget_xdg_portal (SrtSystemInfo *self)
 }
 
 static void
-srt_system_info_finalize (GObject *object)
+srt_system_info_dispose (GObject *object)
 {
   SrtSystemInfo *self = SRT_SYSTEM_INFO (object);
 
@@ -559,6 +559,16 @@ srt_system_info_finalize (GObject *object)
   forget_runtime (self);
   forget_steam (self);
   forget_xdg_portal (self);
+  g_ptr_array_set_size (self->abis, 0);
+  g_clear_object (&self->virtualization_info);
+
+  G_OBJECT_CLASS (srt_system_info_parent_class)->dispose (object);
+}
+
+static void
+srt_system_info_finalize (GObject *object)
+{
+  SrtSystemInfo *self = SRT_SYSTEM_INFO (object);
 
   g_clear_pointer (&self->abis, g_ptr_array_unref);
   g_clear_pointer (&self->multiarch_tuples, g_array_unref);
@@ -568,7 +578,6 @@ srt_system_info_finalize (GObject *object)
   glnx_close_fd (&self->sysroot_fd);
   g_strfreev (self->env);
   g_clear_pointer (&self->cached_driver_environment, g_strfreev);
-  g_clear_object (&self->virtualization_info);
 
   if (self->cached_hidden_deps)
     g_hash_table_unref (self->cached_hidden_deps);
@@ -585,6 +594,7 @@ srt_system_info_class_init (SrtSystemInfoClass *cls)
 
   object_class->get_property = srt_system_info_get_property;
   object_class->set_property = srt_system_info_set_property;
+  object_class->dispose = srt_system_info_dispose;
   object_class->finalize = srt_system_info_finalize;
 
   properties[PROP_EXPECTATIONS] =
