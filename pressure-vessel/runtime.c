@@ -79,7 +79,7 @@ struct _PvRuntime
   gchar *libcapsule_knowledge;  /* relative to runtime_files */
   gchar *runtime_abi_json;
   gchar *variable_dir;
-  gchar *mutable_sysroot;
+  SrtSysroot *mutable_sysroot;
   SrtSysroot *real_root;
   SrtSysroot *host_root;
   gchar *tmpdir;
@@ -87,7 +87,7 @@ struct _PvRuntime
   const gchar *overrides_in_container;
   gchar *container_access;
   FlatpakBwrap *container_access_adverb;
-  const gchar *runtime_files;   /* either source_files or mutable_sysroot */
+  const gchar *runtime_files;   /* either source_files or mutable_sysroot->path */
   gchar *runtime_usr;           /* either runtime_files or that + "/usr" */
   gchar *runtime_app;           /* runtime_files + "/app" */
   gchar *runtime_files_on_host;
@@ -102,7 +102,6 @@ struct _PvRuntime
   GCompareFunc arbitrary_str_order;
 
   PvRuntimeFlags flags;
-  int mutable_sysroot_fd;
   int overrides_fd;
   int runtime_files_fd;
   int variable_dir_fd;
@@ -311,13 +310,13 @@ pv_runtime_make_symlink_in_container (PvRuntime *self,
 
   if (_srt_get_path_after (path, "usr") != NULL)
     {
-      if (self->mutable_sysroot_fd >= 0)
+      if (self->mutable_sysroot != NULL)
         {
           g_autofree gchar *parent = g_path_get_dirname (path);
           const char *base = glnx_basename (path);
           glnx_autofd int parent_fd = -1;
 
-          parent_fd = _srt_resolve_in_sysroot (self->mutable_sysroot_fd,
+          parent_fd = _srt_resolve_in_sysroot (self->mutable_sysroot->fd,
                                                parent,
                                                SRT_RESOLVE_FLAGS_MKDIR_P,
                                                NULL, error);
@@ -472,7 +471,6 @@ pv_runtime_init (PvRuntime *self)
 {
   self->any_libc_from_provider = FALSE;
   self->all_libc_from_provider = FALSE;
-  self->mutable_sysroot_fd = -1;
   self->overrides_fd = -1;
   self->runtime_files_fd = -1;
   self->variable_dir_fd = -1;
@@ -1142,8 +1140,8 @@ pv_runtime_create_copy (PvRuntime *self,
    * on the copy. We'll release source_lock when we leave this scope */
   source_lock = g_steal_pointer (&self->runtime_lock);
   self->runtime_lock = g_steal_pointer (&copy_lock);
-  self->mutable_sysroot = g_steal_pointer (&temp_dir);
-  self->mutable_sysroot_fd = g_steal_fd (&temp_dir_fd);
+  self->mutable_sysroot = _srt_sysroot_new_take (g_steal_pointer (&temp_dir),
+                                                 g_steal_fd (&temp_dir_fd));
 
   return TRUE;
 }
@@ -1838,9 +1836,9 @@ pv_runtime_initable_init (GInitable *initable,
   if (self->mutable_sysroot != NULL)
     {
       self->overrides_in_container = "/usr/lib/pressure-vessel/overrides";
-      self->overrides = g_build_filename (self->mutable_sysroot,
+      self->overrides = g_build_filename (self->mutable_sysroot->path,
                                           self->overrides_in_container, NULL);
-      self->runtime_files = self->mutable_sysroot;
+      self->runtime_files = self->mutable_sysroot->path;
     }
   else
     {
@@ -1995,8 +1993,12 @@ pv_runtime_dispose (GObject *object)
 {
   PvRuntime *self = PV_RUNTIME (object);
 
+  /* This is borrowed from mutable_sysroot, so must be cleared here */
+  self->runtime_files = NULL;
+
   g_clear_object (&self->provider);
   g_clear_object (&self->interpreter_host_provider);
+  g_clear_object (&self->mutable_sysroot);
   g_clear_object (&self->real_root);
   g_clear_object (&self->host_root);
   enumeration_thread_clear (&self->indep_thread);
@@ -2019,8 +2021,6 @@ pv_runtime_finalize (GObject *object)
   g_free (self->deployment);
   g_free (self->id);
   g_free (self->libcapsule_knowledge);
-  g_free (self->mutable_sysroot);
-  glnx_close_fd (&self->mutable_sysroot_fd);
   g_strfreev (self->original_environ);
   glnx_close_fd (&self->overrides_fd);
   g_free (self->runtime_abi_json);
@@ -3270,11 +3270,11 @@ bind_runtime_base (PvRuntime *self,
       /* Also make a matching symbolic link on disk, to make it easier
        * to inspect the sysroot. */
       if (TEMP_FAILURE_RETRY (symlinkat (&self->overrides_in_container[1],
-                                         self->mutable_sysroot_fd,
+                                         self->mutable_sysroot->fd,
                                          "overrides")) != 0)
         return glnx_throw_errno_prefix (error,
                                         "Unable to create symlink \"%s/overrides\" -> \"%s\"",
-                                        self->mutable_sysroot,
+                                        self->mutable_sysroot->path,
                                         &self->overrides_in_container[1]);
     }
 
@@ -3514,7 +3514,7 @@ bind_runtime_ld_so (PvRuntime *self,
       glnx_autofd int sysroot_etc_dirfd = -1;
       glnx_autofd int ldso_runtime_dirfd = -1;
 
-      sysroot_etc_dirfd = _srt_resolve_in_sysroot (self->mutable_sysroot_fd,
+      sysroot_etc_dirfd = _srt_resolve_in_sysroot (self->mutable_sysroot->fd,
                                                    "/etc",
                                                    SRT_RESOLVE_FLAGS_MKDIR_P,
                                                    NULL, error);
@@ -3546,17 +3546,17 @@ bind_runtime_ld_so (PvRuntime *self,
 
       /* Rename the original ld.so.cache and conf because we will create
        * symlinks in their places */
-      if (!glnx_renameat (self->mutable_sysroot_fd, "etc/ld.so.cache",
-                          self->mutable_sysroot_fd, "etc/runtime-ld.so.cache", error))
+      if (!glnx_renameat (self->mutable_sysroot->fd, "etc/ld.so.cache",
+                          self->mutable_sysroot->fd, "etc/runtime-ld.so.cache", error))
         return FALSE;
-      if (!glnx_renameat (self->mutable_sysroot_fd, "etc/ld.so.conf",
-                          self->mutable_sysroot_fd, "etc/runtime-ld.so.conf", error))
+      if (!glnx_renameat (self->mutable_sysroot->fd, "etc/ld.so.conf",
+                          self->mutable_sysroot->fd, "etc/runtime-ld.so.conf", error))
         return FALSE;
 
-      if (!pv_runtime_symlinkat (xrd_ld_so_cache, self->mutable_sysroot_fd,
+      if (!pv_runtime_symlinkat (xrd_ld_so_cache, self->mutable_sysroot->fd,
                                  "etc/ld.so.cache", error))
         return FALSE;
-      if (!pv_runtime_symlinkat (xrd_ld_so_conf, self->mutable_sysroot_fd,
+      if (!pv_runtime_symlinkat (xrd_ld_so_conf, self->mutable_sysroot->fd,
                                  "etc/ld.so.conf", error))
         return FALSE;
 
@@ -3949,7 +3949,7 @@ pv_runtime_take_from_provider (PvRuntime *self,
       glnx_autofd int parent_dirfd = -1;
 
       parent_in_container = g_path_get_dirname (dest_in_container);
-      parent_dirfd = _srt_resolve_in_sysroot (self->mutable_sysroot_fd,
+      parent_dirfd = _srt_resolve_in_sysroot (self->mutable_sysroot->fd,
                                               parent_in_container,
                                               SRT_RESOLVE_FLAGS_MKDIR_P,
                                               NULL, error);
@@ -4056,7 +4056,7 @@ pv_runtime_take_from_provider (PvRuntime *self,
       if (TEMP_FAILURE_RETRY (symlinkat (target, parent_dirfd, base)) != 0)
         return glnx_throw_errno_prefix (error,
                                         "Unable to create symlink \"%s/%s\" -> \"%s\"",
-                                        self->mutable_sysroot,
+                                        self->mutable_sysroot->path,
                                         dest_in_container, target);
     }
   else
@@ -4279,7 +4279,7 @@ pv_runtime_remove_overridden_libraries (PvRuntime *self,
         {
           g_autoptr(GError) local_error = NULL;
 
-          libdir_fd = _srt_resolve_in_sysroot (self->mutable_sysroot_fd,
+          libdir_fd = _srt_resolve_in_sysroot (self->mutable_sysroot->fd,
                                                libdir,
                                                SRT_RESOLVE_FLAGS_READABLE,
                                                NULL, &local_error);
@@ -4320,7 +4320,7 @@ pv_runtime_remove_overridden_libraries (PvRuntime *self,
                                        error))
         {
           glnx_prefix_error (error, "Unable to start iterating \"%s%s\"",
-                             self->mutable_sysroot,
+                             self->mutable_sysroot->path,
                              libdir);
           goto out;
         }
@@ -4337,7 +4337,7 @@ pv_runtime_remove_overridden_libraries (PvRuntime *self,
           if (!_srt_dir_iter_next_dent (&iters[i], &dent, NULL, error))
             {
               glnx_prefix_error (error, "Unable to iterate over \"%s%s\"",
-                                 self->mutable_sysroot, libdir);
+                                 self->mutable_sysroot->path, libdir);
               goto out;
             }
 
@@ -4523,7 +4523,7 @@ pv_runtime_remove_overridden_libraries (PvRuntime *self,
           if (!_srt_dir_iter_next_dent (&iters[i], &dent, NULL, error))
             {
               glnx_prefix_error (error, "Unable to iterate over \"%s%s\"",
-                                 self->mutable_sysroot, libdir);
+                                 self->mutable_sysroot->path, libdir);
               goto out;
             }
 
@@ -4574,7 +4574,7 @@ pv_runtime_remove_overridden_libraries (PvRuntime *self,
           if (!glnx_unlinkat (iters[i].real_iter.fd, name, 0, &local_error))
             {
               g_warning ("Unable to delete %s%s/%s: %s",
-                         self->mutable_sysroot, libdir,
+                         self->mutable_sysroot->path, libdir,
                          name, local_error->message);
               g_clear_error (&local_error);
             }
@@ -5134,7 +5134,7 @@ pv_runtime_get_ld_so (PvRuntime *self,
     {
       G_GNUC_UNUSED glnx_autofd int fd = -1;
 
-      fd = _srt_resolve_in_sysroot (self->mutable_sysroot_fd,
+      fd = _srt_resolve_in_sysroot (self->mutable_sysroot->fd,
                                     arch->ld_so,
                                     SRT_RESOLVE_FLAGS_NONE,
                                     ld_so_in_runtime,
@@ -7726,7 +7726,7 @@ pv_runtime_bind (PvRuntime *self,
       g_autofree gchar *dest = NULL;
       glnx_autofd int parent_dirfd = -1;
 
-      parent_dirfd = _srt_resolve_in_sysroot (self->mutable_sysroot_fd,
+      parent_dirfd = _srt_resolve_in_sysroot (self->mutable_sysroot->fd,
                                               "/usr/lib/pressure-vessel",
                                               SRT_RESOLVE_FLAGS_MKDIR_P,
                                               NULL, error);
@@ -7912,13 +7912,13 @@ pv_runtime_use_shared_sockets (PvRuntime *self,
                                        "/etc/asound.conf",
                                        NULL);
         }
-      else if (self->mutable_sysroot_fd >= 0)
+      else if (self->mutable_sysroot != NULL)
         {
           /* In a Flatpak sub-sandbox, we can rely on the fact that
            * Flatpak will mount each item in our copy of the runtime's
            * usr/etc/ into /etc, including some that we would normally
            * skip. */
-          if (!glnx_file_replace_contents_at (self->mutable_sysroot_fd,
+          if (!glnx_file_replace_contents_at (self->mutable_sysroot->fd,
                                               "usr/etc/asound.conf",
                                               (const guint8 *) alsa_config,
                                               strlen (alsa_config),
@@ -8000,11 +8000,11 @@ pv_runtime_has_library (PvRuntime *self,
           const char *libdir = g_ptr_array_index (dirs, j);
           g_autofree gchar *path = g_build_filename (libdir, library, NULL);
 
-          if (self->mutable_sysroot_fd >= 0)
+          if (self->mutable_sysroot != NULL)
             {
               glnx_autofd int fd = -1;
 
-              fd = _srt_resolve_in_sysroot (self->mutable_sysroot_fd, path,
+              fd = _srt_resolve_in_sysroot (self->mutable_sysroot->fd, path,
                                             SRT_RESOLVE_FLAGS_NONE,
                                             NULL, NULL);
 
