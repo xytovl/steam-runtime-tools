@@ -332,6 +332,10 @@ keys:
 
         This is the **VARIANT** from **os-release**(5).
 
+    **fields**
+    :   Additional fields from **os-release**(5), only logged if
+        **--verbose** was used.
+
 **virtualization**
 :   Details of the virtual machine or emulator we are running in, if any.
     The keys are strings:

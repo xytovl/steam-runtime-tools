@@ -39,7 +39,10 @@
     ],
     "name" : "Arch Linux",
     "pretty_name" : "Arch Linux",
-    "build_id" : "rolling"
+    "build_id" : "rolling",
+    "fields" : {
+      "LOGO": "archlinux"
+    }
   },
   "virtualization" : {
     "type" : "fex-emu",

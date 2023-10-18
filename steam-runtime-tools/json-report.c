@@ -314,6 +314,30 @@ _srt_os_info_new_from_report (JsonObject *json_obj)
                                   g_ascii_strup (member, -1),
                                   g_strdup (value));
         }
+
+      if (json_object_has_member (json_sub_obj, "fields"))
+        {
+          g_autoptr(GList) members = NULL;
+          JsonObject *fields_obj;
+          const char *value;
+
+          fields_obj = json_object_get_object_member (json_sub_obj, "fields");
+
+          if (fields_obj != NULL)
+            members = json_object_get_members (fields_obj);
+
+          for (GList *l = members; l != NULL; l = l->next)
+            {
+              value = json_object_get_string_member_with_default (fields_obj,
+                                                                  l->data,
+                                                                  NULL);
+
+              if (value != NULL)
+                g_hash_table_replace (fields,
+                                      g_strdup (l->data),
+                                      g_strdup (value));
+            }
+        }
     }
 
   return _srt_os_info_new (fields, NULL, NULL);

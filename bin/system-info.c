@@ -597,7 +597,8 @@ print_vdpau_details (JsonBuilder *builder,
 
 static void
 jsonify_os_release (JsonBuilder *builder,
-                    SrtOsInfo *info)
+                    SrtOsInfo *info,
+                    gboolean verbose)
 {
   json_builder_set_member_name (builder, "os-release");
   json_builder_begin_object (builder);
@@ -615,6 +616,7 @@ jsonify_os_release (JsonBuilder *builder,
               const char * const *values = srt_os_info_get_id_like (info);
 
               _srt_json_builder_add_strv_value (builder, member, values, FALSE);
+              g_hash_table_remove (fields, "ID_LIKE");
             }
           else
             {
@@ -627,7 +629,29 @@ jsonify_os_release (JsonBuilder *builder,
                   json_builder_set_member_name (builder, member);
                   json_builder_add_string_value (builder, value);
                 }
+
+              g_hash_table_remove (fields, key);
             }
+        }
+
+      if (verbose && g_hash_table_size (fields) > 0)
+        {
+          json_builder_set_member_name (builder, "fields");
+          json_builder_begin_object (builder);
+            {
+              g_auto(SrtHashTableIter) iter = SRT_HASH_TABLE_ITER_CLEARED;
+              gpointer k, v;
+
+              _srt_hash_table_iter_init_sorted (&iter, fields,
+                                                _srt_generic_strcmp0);
+
+              while (_srt_hash_table_iter_next (&iter, &k, &v))
+                {
+                  json_builder_set_member_name (builder, k);
+                  json_builder_add_string_value (builder, v);
+                }
+            }
+          json_builder_end_object (builder);
         }
     }
   json_builder_end_object (builder);
@@ -671,7 +695,8 @@ jsonify_virtualization (JsonBuilder *builder,
 
 static void
 jsonify_container (JsonBuilder *builder,
-                   SrtSystemInfo *info)
+                   SrtSystemInfo *info,
+                   gboolean verbose)
 {
   g_autoptr(SrtContainerInfo) container_info = srt_system_info_check_container (info);
   SrtContainerType type = SRT_CONTAINER_TYPE_UNKNOWN;
@@ -709,7 +734,7 @@ jsonify_container (JsonBuilder *builder,
 
                   srt_system_info_set_sysroot (host, host_directory);
                   os_info = srt_system_info_check_os (host);
-                  jsonify_os_release (builder, os_info);
+                  jsonify_os_release (builder, os_info, verbose);
                 }
             }
           json_builder_end_object (builder);
@@ -1138,9 +1163,9 @@ main (int argc,
   json_builder_end_object (builder);
 
   os_info = srt_system_info_check_os (info);
-  jsonify_os_release (builder, os_info);
+  jsonify_os_release (builder, os_info, verbose);
   jsonify_virtualization (builder, info);
-  jsonify_container (builder, info);
+  jsonify_container (builder, info, verbose);
 
   driver_environment = srt_system_info_list_driver_environment (info);
   _srt_json_builder_add_strv_value (builder, "driver_environment",
