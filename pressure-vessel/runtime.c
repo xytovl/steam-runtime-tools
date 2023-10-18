@@ -81,6 +81,7 @@ struct _PvRuntime
   gchar *variable_dir;
   gchar *mutable_sysroot;
   SrtSysroot *real_root;
+  SrtSysroot *host_root;
   gchar *tmpdir;
   gchar *overrides;
   const gchar *overrides_in_container;
@@ -93,7 +94,6 @@ struct _PvRuntime
   const gchar *adverb_in_container;
   PvGraphicsProvider *provider;
   PvGraphicsProvider *interpreter_host_provider;
-  const gchar *host_in_current_namespace;
   EnumerationThread indep_thread;
   EnumerationThread host_thread;
   EnumerationThread *arch_host_threads;
@@ -102,7 +102,6 @@ struct _PvRuntime
   GCompareFunc arbitrary_str_order;
 
   PvRuntimeFlags flags;
-  int host_fd;
   int mutable_sysroot_fd;
   int overrides_fd;
   int runtime_files_fd;
@@ -473,7 +472,6 @@ pv_runtime_init (PvRuntime *self)
 {
   self->any_libc_from_provider = FALSE;
   self->all_libc_from_provider = FALSE;
-  self->host_fd = -1;
   self->mutable_sysroot_fd = -1;
   self->overrides_fd = -1;
   self->runtime_files_fd = -1;
@@ -1958,13 +1956,16 @@ pv_runtime_initable_init (GInitable *initable,
    * current namespace, is the root - but again use /proc/self/root to bypass
    * FEX-Emu's redirection. */
   if (g_file_test ("/.flatpak-info", G_FILE_TEST_IS_REGULAR))
-    self->host_in_current_namespace = "/run/host";
-  else
-    self->host_in_current_namespace = "/proc/self/root";
+    {
+      self->host_root = _srt_sysroot_new_flatpak_host (error);
 
-  if (!glnx_opendirat (-1, self->host_in_current_namespace, TRUE,
-                       &self->host_fd, error))
-    return FALSE;
+      if (self->host_root == NULL)
+        return FALSE;
+    }
+  else
+    {
+      self->host_root = g_object_ref (self->real_root);
+    }
 
   return TRUE;
 }
@@ -1997,6 +1998,7 @@ pv_runtime_dispose (GObject *object)
   g_clear_object (&self->provider);
   g_clear_object (&self->interpreter_host_provider);
   g_clear_object (&self->real_root);
+  g_clear_object (&self->host_root);
   enumeration_thread_clear (&self->indep_thread);
   enumeration_thread_clear (&self->host_thread);
   enumeration_threads_clear (&self->arch_host_threads,
@@ -2015,7 +2017,6 @@ pv_runtime_finalize (GObject *object)
   pv_runtime_cleanup (self);
   g_free (self->bubblewrap);
   g_free (self->deployment);
-  glnx_close_fd (&self->host_fd);
   g_free (self->id);
   g_free (self->libcapsule_knowledge);
   g_free (self->mutable_sysroot);
@@ -3382,7 +3383,7 @@ bind_runtime_base (PvRuntime *self,
   /* If we are in a Flatpak environment, we need to test if these files are
    * available in the host, and not in the current environment, because we will
    * run bwrap in the host system */
-  if (_srt_file_test_in_sysroot (self->host_in_current_namespace, self->host_fd,
+  if (_srt_file_test_in_sysroot (self->host_root->path, self->host_root->fd,
                                  "/etc/machine-id", G_FILE_TEST_EXISTS))
     {
       flatpak_bwrap_add_args (bwrap,
@@ -3394,7 +3395,7 @@ bind_runtime_base (PvRuntime *self,
   /* We leave this for completeness but in practice we do not expect to have
    * access to the "/var" host directory because Flatpak usually just binds
    * the host's "etc" and "usr". */
-  else if (_srt_file_test_in_sysroot (self->host_in_current_namespace, self->host_fd,
+  else if (_srt_file_test_in_sysroot (self->host_root->path, self->host_root->fd,
                                       "/var/lib/dbus/machine-id",
                                       G_FILE_TEST_EXISTS))
     {
@@ -3410,7 +3411,7 @@ bind_runtime_base (PvRuntime *self,
     {
       const char *item = from_host[i];
 
-      if (_srt_file_test_in_sysroot (self->host_in_current_namespace, self->host_fd,
+      if (_srt_file_test_in_sysroot (self->host_root->path, self->host_root->fd,
                                      item, G_FILE_TEST_EXISTS))
         flatpak_bwrap_add_args (bwrap,
                                 "--ro-bind", item, item,
@@ -3783,7 +3784,7 @@ bind_runtime_finish (PvRuntime *self,
    * non-existing targets), in which case we don't want to attempt to create
    * bogus symlinks or bind mounts, as that will cause flatpak run to fail.
    */
-  if (_srt_file_test_in_sysroot (self->host_in_current_namespace, self->host_fd,
+  if (_srt_file_test_in_sysroot (self->host_root->path, self->host_root->fd,
                                  "/etc/localtime", G_FILE_TEST_EXISTS))
     {
       g_autofree char *target = NULL;
@@ -3791,7 +3792,7 @@ bind_runtime_finish (PvRuntime *self,
       g_autofree char *tz = flatpak_get_timezone ();
       g_autofree char *timezone_content = g_strdup_printf ("%s\n", tz);
       g_autofree char *localtime_in_current_namespace =
-        g_build_filename (self->host_in_current_namespace, "/etc/localtime", NULL);
+        g_build_filename (self->host_root->path, "/etc/localtime", NULL);
 
       target = glnx_readlinkat_malloc (-1, localtime_in_current_namespace, NULL, NULL);
 
