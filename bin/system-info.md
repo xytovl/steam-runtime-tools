@@ -315,6 +315,39 @@ keys:
 
         This is the **VARIANT** from **os-release**(5).
 
+**virtualization**
+:   Details of the virtual machine or emulator we are running in, if any.
+    The keys are strings:
+
+    **type**
+    :   A short machine-readable string identifying the container type,
+        such as
+        **acrn**,
+        **amazon**,
+        **bhyve**,
+        **bochs**,
+        **fex-emu**,
+        **kvm**,
+        **microsoft** (Hyper-V),
+        **oracle** (VirtualBox),
+        **parallels**,
+        **qemu**,
+        **qnx**,
+        **vmware**,
+        **xen**,
+        **unknown** (if we appear to be in a virtual machine but the type is
+        unknown), or **none** (if we do not appear to be in a virtual machine).
+
+    **host-machine**
+    :   A short lower-case machine-readable string resembling ELF's **EM_**
+        constants, identifying the CPU architecture that is running an
+        emulator, such as **386**, **x86-64**, **aarch64** or **unknown**.
+
+    **interpreter-root**
+    :   Absolute path to a directory that acts as a pseudo-overlay over
+        the real root filesystem for file access by emulated processes,
+        for example the **$FEX_ROOTFS** for FEX-Emu.
+
 **container**
 :   Details of the container we are running in, if any.
     The keys are strings:
