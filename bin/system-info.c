@@ -50,6 +50,7 @@ enum
   OPTION_HELP = 1,
   OPTION_EXPECTATION,
   OPTION_IGNORE_EXTRA_DRIVERS,
+  OPTION_NO_LIBRARIES,
   OPTION_VERBOSE,
   OPTION_VERSION,
 };
@@ -58,6 +59,7 @@ struct option long_options[] =
 {
     { "expectations", required_argument, NULL, OPTION_EXPECTATION },
     { "ignore-extra-drivers", no_argument, NULL, OPTION_IGNORE_EXTRA_DRIVERS },
+    { "no-libraries", no_argument, NULL, OPTION_NO_LIBRARIES },
     { "verbose", no_argument, NULL, OPTION_VERBOSE },
     { "version", no_argument, NULL, OPTION_VERSION },
     { "help", no_argument, NULL, OPTION_HELP },
@@ -970,6 +972,7 @@ main (int argc,
   GList *desktop_entries;
   const GList *icd_iter;
   SrtDriverFlags extra_driver_flags = SRT_DRIVER_FLAGS_INCLUDE_ALL;
+  gboolean check_libraries = TRUE;
 
   _srt_setenv_disable_gio_modules ();
 
@@ -997,6 +1000,10 @@ main (int argc,
 
           case OPTION_IGNORE_EXTRA_DRIVERS:
             extra_driver_flags = SRT_DRIVER_FLAGS_NONE;
+            break;
+
+          case OPTION_NO_LIBRARIES:
+            check_libraries = FALSE;
             break;
 
           case OPTION_HELP:
@@ -1245,7 +1252,7 @@ main (int argc,
           json_builder_end_object (builder);
         }
 
-      if (can_run)
+      if (can_run && check_libraries)
         {
           json_builder_set_member_name (builder, "library-issues-summary");
           json_builder_begin_array (builder);

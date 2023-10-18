@@ -27,6 +27,12 @@ steam-runtime-system-info - examine the Steam runtime environment and diagnose p
     expected to be available. By default, *$STEAM_RUNTIME***/usr/lib/steamrt**
     or **/usr/lib/steamrt** is used.
 
+**--no-libraries**
+:   Don't check shared libraries against expectations.
+    This saves time if that information is not required,
+    particularly when using an emulation framework like FEX-Emu that
+    can make process startup more expensive.
+
 **--verbose**
 :   Show additional information. This currently adds details of all the
     expected libraries that loaded successfully.
