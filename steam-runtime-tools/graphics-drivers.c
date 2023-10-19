@@ -1191,11 +1191,9 @@ _srt_get_modules_full (SrtSysroot *sysroot,
               g_autofree gchar *library_path = g_build_filename (libdirs[j],
                                                                  loader_libraries[i],
                                                                  NULL);
-              /* TODO: Use fd-relative I/O for this */
-              g_autofree gchar *library_path_in_sysroot = g_build_filename (sysroot->path,
-                                                                            library_path,
-                                                                            NULL);
-              if (g_file_test (library_path_in_sysroot, G_FILE_TEST_EXISTS))
+
+              if (_srt_sysroot_test (sysroot, library_path,
+                                     SRT_RESOLVE_FLAGS_NONE, NULL))
                 {
                   g_debug ("Searching modules in the library path \"%s\"", library_path);
                   _srt_get_modules_from_loader_library (sysroot, library_path,
