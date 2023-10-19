@@ -84,6 +84,10 @@ srt_virtualization_info_get_property (GObject *object,
 
   switch (prop_id)
     {
+      case PROP_HOST_MACHINE:
+        g_value_set_enum (value, self->host_machine);
+        break;
+
       case PROP_INTERPRETER_ROOT:
         g_value_set_string (value, self->interpreter_root);
         break;

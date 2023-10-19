@@ -79,6 +79,32 @@ teardown (Fixture *f,
   g_free (f->builddir);
 }
 
+/*
+ * Check that @virt is valid and internally consistent, without making any
+ * particular assumption about its contents.
+ */
+static void
+check_virt_info (SrtVirtualizationInfo *virt)
+{
+  g_autofree gchar *interpreter_root = NULL;
+  SrtVirtualizationType type;
+  SrtMachineType host_machine;
+
+  g_assert_nonnull (virt);
+  g_assert_true (SRT_IS_VIRTUALIZATION_INFO (virt));
+  g_object_get (virt,
+                "host-machine", &host_machine,
+                "interpreter-root", &interpreter_root,
+                "type", &type,
+                NULL);
+  g_assert_cmpint (type, ==,
+                   srt_virtualization_info_get_virtualization_type (virt));
+  g_assert_cmpint (host_machine, ==,
+                   srt_virtualization_info_get_host_machine (virt));
+  g_assert_cmpstr (interpreter_root, ==,
+                   srt_virtualization_info_get_interpreter_root (virt));
+}
+
 static void
 test_cpuid (Fixture *f,
             gconstpointer context)
@@ -102,7 +128,7 @@ test_cpuid (Fixture *f,
       g_autoptr(SrtVirtualizationInfo) virt = NULL;
 
       virt = _srt_check_virtualization (mock_cpuid, sysroot_fd);
-      g_assert_nonnull (virt);
+      check_virt_info (virt);
       g_assert_cmpint (srt_virtualization_info_get_virtualization_type (virt), ==,
                        SRT_VIRTUALIZATION_TYPE_NONE);
       g_assert_cmpint (srt_virtualization_info_get_host_machine (virt), ==,
@@ -119,7 +145,7 @@ test_cpuid (Fixture *f,
                             _srt_cpuid_key_new (_SRT_CPUID_LEAF_PROCESSOR_INFO, 0),
                             _srt_cpuid_data_new (0, 0, _SRT_CPUID_FLAG_PROCESSOR_INFO_ECX_HYPERVISOR_PRESENT, 0));
       virt = _srt_check_virtualization (mock_cpuid, sysroot_fd);
-      g_assert_nonnull (virt);
+      check_virt_info (virt);
       g_assert_cmpint (srt_virtualization_info_get_virtualization_type (virt), ==,
                        SRT_VIRTUALIZATION_TYPE_UNKNOWN);
       g_assert_cmpint (srt_virtualization_info_get_host_machine (virt), ==,
@@ -138,7 +164,7 @@ test_cpuid (Fixture *f,
                             _srt_cpuid_key_new (_SRT_CPUID_LEAF_HYPERVISOR_ID, 0),
                             _srt_cpuid_data_new_for_signature ("xxxxKVMKVMKVM"));
       virt = _srt_check_virtualization (mock_cpuid, sysroot_fd);
-      g_assert_nonnull (virt);
+      check_virt_info (virt);
       g_assert_cmpint (srt_virtualization_info_get_virtualization_type (virt), ==,
                        SRT_VIRTUALIZATION_TYPE_KVM);
       g_assert_cmpint (srt_virtualization_info_get_host_machine (virt), ==,
@@ -161,7 +187,7 @@ test_cpuid (Fixture *f,
                             _srt_cpuid_data_new (_SRT_CPUID_FEX_HOST_MACHINE_AARCH64,
                                                  0, 0, 0));
       virt = _srt_check_virtualization (mock_cpuid, sysroot_fd);
-      g_assert_nonnull (virt);
+      check_virt_info (virt);
       g_assert_cmpint (srt_virtualization_info_get_virtualization_type (virt), ==,
                        SRT_VIRTUALIZATION_TYPE_FEX_EMU);
       g_assert_cmpint (srt_virtualization_info_get_host_machine (virt), ==,
