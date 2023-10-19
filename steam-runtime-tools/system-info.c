@@ -109,7 +109,7 @@ struct _SrtSystemInfo
   /* "" if we have tried and failed to auto-detect */
   gchar *expectations;
   /* Root directory to inspect, usually "/" */
-  gchar *sysroot;
+  SrtSysroot *sysroot;
   /* Environment variables */
   gchar **env;
   /* Path to find helper executables, or %NULL to use $SRT_HELPERS_PATH
@@ -188,7 +188,6 @@ struct _SrtSystemInfo
   gchar **cached_driver_environment;
   /* (element-type Abi) */
   GPtrArray *abis;
-  int sysroot_fd;
 };
 
 struct _SrtSystemInfoClass
@@ -367,7 +366,6 @@ srt_system_info_init (SrtSystemInfo *self)
   g_array_prepend_val (self->multiarch_tuples, primary);
 
   self->can_write_uinput = TRI_MAYBE;
-  self->sysroot_fd = -1;
 
   /* Assume that in practice we will usually add two ABIs: amd64 and i386 */
   self->abis = g_ptr_array_new_full (2, abi_free);
@@ -561,6 +559,7 @@ srt_system_info_dispose (GObject *object)
   forget_xdg_portal (self);
   g_ptr_array_set_size (self->abis, 0);
   g_clear_object (&self->virtualization_info);
+  g_clear_object (&self->sysroot);
 
   G_OBJECT_CLASS (srt_system_info_parent_class)->dispose (object);
 }
@@ -574,8 +573,6 @@ srt_system_info_finalize (GObject *object)
   g_clear_pointer (&self->multiarch_tuples, g_array_unref);
   g_free (self->expectations);
   g_free (self->helpers_path);
-  g_free (self->sysroot);
-  glnx_close_fd (&self->sysroot_fd);
   g_strfreev (self->env);
   g_clear_pointer (&self->cached_driver_environment, g_strfreev);
 
@@ -1256,13 +1253,22 @@ ensure_overrides_cached (SrtSystemInfo *self)
 
       self->overrides.have_data = TRUE;
 
+      if (self->sysroot == NULL)
+        {
+          self->overrides.messages = g_new0 (gchar *, 2);
+          self->overrides.messages[0] = g_strdup ("Unable to open sysroot");
+          self->overrides.messages[1] = NULL;
+          return;
+        }
+
       for (i = 0; i < G_N_ELEMENTS (paths); i++)
         {
-          if (_srt_file_test_in_sysroot (self->sysroot, self->sysroot_fd,
+          if (_srt_file_test_in_sysroot (self->sysroot->path,
+                                         self->sysroot->fd,
                                          paths[i], G_FILE_TEST_EXISTS))
             {
-              self->overrides.values = _srt_recursive_list_content (self->sysroot,
-                                                                    self->sysroot_fd,
+              self->overrides.values = _srt_recursive_list_content (self->sysroot->path,
+                                                                    self->sysroot->fd,
                                                                     paths[i],
                                                                     self->env,
                                                                     &self->overrides.messages);
@@ -2046,7 +2052,10 @@ srt_system_info_set_environ (SrtSystemInfo *self,
  * Use @root instead of the real root directory when investigating
  * system properties.
  *
- * If @root is %NULL, go back to using the real root.
+ * If @root is %NULL or `/`, go back to using the real root.
+ *
+ * To bypass any filesystem virtualization that might be imposed by
+ * something like FEX-Emu, use the "magic symlink" `/proc/self/root`.
  *
  * This method is not valid to call on a #SrtSystemInfo that was
  * constructed with srt_system_info_new_from_json().
@@ -2055,13 +2064,47 @@ void
 srt_system_info_set_sysroot (SrtSystemInfo *self,
                              const char *root)
 {
+  g_autoptr(SrtSysroot) sysroot = NULL;
   g_autoptr(GError) local_error = NULL;
-
-  g_return_if_fail (SRT_IS_SYSTEM_INFO (self));
-  g_return_if_fail (!self->immutable_values);
 
   if (root == NULL)
     root = "/";
+
+  if (g_str_equal (root, "/"))
+    sysroot = _srt_sysroot_new_direct (&local_error);
+  else
+    sysroot = _srt_sysroot_new (root, &local_error);
+
+  if (sysroot == NULL)
+    g_warning ("Unable to open sysroot %s: %s",
+               root, local_error->message);
+
+  _srt_system_info_set_sysroot (self, sysroot);
+}
+
+/*
+ * _srt_system_info_set_sysroot:
+ * @self: The #SrtSystemInfo
+ * @sysroot: (nullable): The sysroot
+ *
+ * Use @sysroot instead of the real root directory when investigating
+ * system properties.
+ *
+ * If @sysroot is _srt_sysroot_new_direct(), go back to using the real root.
+ * If @sysroot is %NULL, attempts to access the filesystem will fail.
+ *
+ * To bypass any filesystem virtualization that might be imposed by
+ * something like FEX-Emu, use _srt_sysroot_new_real_root().
+ *
+ * This method is not valid to call on a #SrtSystemInfo that was
+ * constructed with srt_system_info_new_from_json().
+ */
+void
+_srt_system_info_set_sysroot (SrtSystemInfo *self,
+                              SrtSysroot *sysroot)
+{
+  g_return_if_fail (SRT_IS_SYSTEM_INFO (self));
+  g_return_if_fail (!self->immutable_values);
 
   forget_container_info (self);
   forget_graphics_modules (self);
@@ -2071,20 +2114,10 @@ srt_system_info_set_sysroot (SrtSystemInfo *self,
   forget_os (self);
   forget_overrides (self);
   g_clear_object (&self->virtualization_info);
-  g_free (self->sysroot);
-  glnx_close_fd (&self->sysroot_fd);
+  g_clear_object (&self->sysroot);
 
-  self->sysroot = g_strdup (root);
-
-  if (!glnx_opendirat (-1,
-                       self->sysroot,
-                       FALSE,
-                       &self->sysroot_fd,
-                       &local_error))
-    {
-      g_debug ("Unable to open sysroot %s: %s",
-               self->sysroot, local_error->message);
-    }
+  if (sysroot != NULL)
+    self->sysroot = g_object_ref (sysroot);
 }
 
 static void
@@ -2245,9 +2278,9 @@ ensure_os_cached (SrtSystemInfo *self)
 {
   if (!self->os_release.populated
       && !self->immutable_values
-      && self->sysroot_fd >= 0)
-    _srt_os_release_populate (&self->os_release, self->sysroot,
-                              self->sysroot_fd);
+      && self->sysroot != NULL)
+    _srt_os_release_populate (&self->os_release, self->sysroot->path,
+                              self->sysroot->fd);
 }
 
 /**
@@ -3103,7 +3136,7 @@ srt_system_info_list_egl_icds (SrtSystemInfo *self,
 
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
 
-  if (!self->icds.have_egl && !self->immutable_values)
+  if (!self->icds.have_egl && !self->immutable_values && self->sysroot != NULL)
     {
       g_assert (self->icds.egl == NULL);
       g_auto(GStrv) stored_multiarch_tuples = NULL;
@@ -3116,8 +3149,8 @@ srt_system_info_list_egl_icds (SrtSystemInfo *self,
 
       self->icds.egl = _srt_load_egl_things (SRT_TYPE_EGL_ICD,
                                              self->helpers_path,
-                                             self->sysroot,
-                                             self->sysroot_fd,
+                                             self->sysroot->path,
+                                             self->sysroot->fd,
                                              self->env,
                                              multiarch_tuples,
                                              self->check_flags);
@@ -3171,7 +3204,7 @@ srt_system_info_list_egl_external_platforms (SrtSystemInfo *self,
 
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
 
-  if (!self->egl_ext_platform.have && !self->immutable_values)
+  if (!self->egl_ext_platform.have && !self->immutable_values && self->sysroot != NULL)
     {
       g_assert (self->egl_ext_platform.list == NULL);
       g_auto(GStrv) stored_multiarch_tuples = NULL;
@@ -3184,8 +3217,8 @@ srt_system_info_list_egl_external_platforms (SrtSystemInfo *self,
 
       self->egl_ext_platform.list = _srt_load_egl_things (SRT_TYPE_EGL_EXTERNAL_PLATFORM,
                                                           self->helpers_path,
-                                                          self->sysroot,
-                                                          self->sysroot_fd,
+                                                          self->sysroot->path,
+                                                          self->sysroot->fd,
                                                           self->env,
                                                           multiarch_tuples,
                                                           self->check_flags);
@@ -3243,7 +3276,7 @@ srt_system_info_list_vulkan_icds (SrtSystemInfo *self,
 
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
 
-  if (!self->icds.have_vulkan && !self->immutable_values)
+  if (!self->icds.have_vulkan && !self->immutable_values && self->sysroot != NULL)
     {
       g_assert (self->icds.vulkan == NULL);
       g_auto(GStrv) stored_multiarch_tuples = NULL;
@@ -3251,8 +3284,10 @@ srt_system_info_list_vulkan_icds (SrtSystemInfo *self,
       if (multiarch_tuples == NULL)
         stored_multiarch_tuples = srt_system_info_dup_multiarch_tuples (self);
 
-      self->icds.vulkan = _srt_load_vulkan_icds (self->helpers_path, self->sysroot,
-                                                 self->sysroot_fd, self->env,
+      self->icds.vulkan = _srt_load_vulkan_icds (self->helpers_path,
+                                                 self->sysroot->path,
+                                                 self->sysroot->fd,
+                                                 self->env,
                                                  multiarch_tuples == NULL ?
                                                    (const char * const *) stored_multiarch_tuples :
                                                    multiarch_tuples,
@@ -3301,13 +3336,13 @@ srt_system_info_list_explicit_vulkan_layers (SrtSystemInfo *self)
 
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
 
-  if (!self->layers.have_vulkan_explicit && !self->immutable_values)
+  if (!self->layers.have_vulkan_explicit && !self->immutable_values && self->sysroot != NULL)
     {
       g_auto(GStrv) multiarch_tuples = srt_system_info_dup_multiarch_tuples (self);
       g_assert (self->layers.vulkan_explicit == NULL);
       self->layers.vulkan_explicit = _srt_load_vulkan_layers_extended (self->helpers_path,
-                                                                       self->sysroot,
-                                                                       self->sysroot_fd,
+                                                                       self->sysroot->path,
+                                                                       self->sysroot->fd,
                                                                        self->env,
                                                                        (const char * const *) multiarch_tuples,
                                                                        TRUE,
@@ -3356,13 +3391,13 @@ srt_system_info_list_implicit_vulkan_layers (SrtSystemInfo *self)
 
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
 
-  if (!self->layers.have_vulkan_implicit && !self->immutable_values)
+  if (!self->layers.have_vulkan_implicit && !self->immutable_values && self->sysroot != NULL)
     {
       g_auto(GStrv) multiarch_tuples = srt_system_info_dup_multiarch_tuples (self);
       g_assert (self->layers.vulkan_implicit == NULL);
       self->layers.vulkan_implicit = _srt_load_vulkan_layers_extended (self->helpers_path,
-                                                                       self->sysroot,
-                                                                       self->sysroot_fd,
+                                                                       self->sysroot->path,
+                                                                       self->sysroot->fd,
                                                                        self->env,
                                                                        (const char * const *) multiarch_tuples,
                                                                        FALSE,
@@ -3423,10 +3458,10 @@ _srt_system_info_list_graphics_modules (SrtSystemInfo *self,
   if (abi == NULL)
     return NULL;
 
-  if (!abi->graphics_modules[which].available && !self->immutable_values)
+  if (!abi->graphics_modules[which].available && !self->immutable_values && self->sysroot != NULL)
     {
-      abi->graphics_modules[which].modules = _srt_list_graphics_modules (self->sysroot,
-                                                                         self->sysroot_fd,
+      abi->graphics_modules[which].modules = _srt_list_graphics_modules (self->sysroot->path,
+                                                                         self->sysroot->fd,
                                                                          self->env,
                                                                          self->helpers_path,
                                                                          multiarch_tuple,
@@ -3808,9 +3843,9 @@ ensure_container_info (SrtSystemInfo *self)
 
   if (self->container_info == NULL)
     {
-      if (!self->immutable_values)
-        self->container_info = _srt_check_container (self->sysroot_fd,
-                                                     self->sysroot);
+      if (self->sysroot != NULL && !self->immutable_values)
+        self->container_info = _srt_check_container (self->sysroot->fd,
+                                                     self->sysroot->path);
       else
         self->container_info = _srt_container_info_new_empty ();
     }
@@ -3897,11 +3932,11 @@ srt_system_info_check_virtualization (SrtSystemInfo *self)
   if (self->virtualization_info == NULL)
     {
       /* If we don't know already, then we never will */
-      if (self->immutable_values)
+      if (self->immutable_values || self->sysroot == NULL)
         self->virtualization_info = _srt_virtualization_info_new_empty ();
       else
         self->virtualization_info = _srt_check_virtualization (NULL,
-                                                               self->sysroot_fd);
+                                                               self->sysroot->fd);
     }
 
   return g_object_ref (self->virtualization_info);
@@ -4219,7 +4254,7 @@ ensure_runtime_linker (SrtSystemInfo *self,
       return;
     }
 
-  if (self->sysroot_fd < 0)
+  if (self->sysroot == NULL)
     {
       g_set_error (&abi->runtime_linker_error, SRT_ARCHITECTURE_ERROR,
                    SRT_ARCHITECTURE_ERROR_INTERNAL_ERROR,
@@ -4227,7 +4262,7 @@ ensure_runtime_linker (SrtSystemInfo *self,
       return;
     }
 
-  fd = _srt_resolve_in_sysroot (self->sysroot_fd,
+  fd = _srt_resolve_in_sysroot (self->sysroot->fd,
                                 abi->known_architecture->interoperable_runtime_linker,
                                 (SRT_RESOLVE_FLAGS_READABLE
                                  | SRT_RESOLVE_FLAGS_RETURN_ABSOLUTE),
