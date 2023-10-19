@@ -92,6 +92,7 @@ pressure_vessel_utils = static_library(
     threads,
     gio_unix,
     libglnx_dep,
+    libsteamrt_generated_headers_dep,
     libsteamrt_static_dep,
   ],
   include_directories : pv_include_dirs,
@@ -115,6 +116,7 @@ pressure_vessel_adverb_lib = static_library(
   ],
   c_args : pv_c_args,
   dependencies : [
+    libsteamrt_generated_headers_dep,
     pressure_vessel_utils_dep,
     gio_unix,
     libglnx_dep,
@@ -122,6 +124,7 @@ pressure_vessel_adverb_lib = static_library(
   include_directories : pv_include_dirs,
 )
 pressure_vessel_adverb_lib_dep = declare_dependency(
+  dependencies : libsteamrt_generated_headers_dep,
   link_with : pressure_vessel_adverb_lib,
 )
 
@@ -132,6 +135,7 @@ pv_bin += executable(
   ],
   c_args : pv_c_args,
   dependencies : [
+    libsteamrt_generated_headers_dep,
     pressure_vessel_adverb_lib_dep,
     threads,
     gio_unix,
@@ -178,6 +182,7 @@ pressure_vessel_wrap_lib = static_library(
   ],
   c_args : pv_c_args,
   dependencies : [
+    libsteamrt_generated_headers_dep,
     pressure_vessel_utils_dep,
     systemd_codegen_dep,
     gio_unix,
