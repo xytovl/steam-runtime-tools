@@ -1,3 +1,16 @@
+steam-runtime-tools (0.20231019.0) UNRELEASED; urgency=medium
+
+  * system-info:
+    - Document JSON format for virtualization
+    - Add an option to skip checking libraries
+    - Add an option to skip graphics smoke-tests
+    - Use the common log handler, so SRT_LOG takes effect
+  * Library code:
+    - SrtVirtualizationInfo: Add missing getter for host-machine property
+    - Improve test coverage
+
+ -- Simon McVittie <smcv@collabora.com>  Thu, 19 Oct 2023 12:27:46 +0100
+
 steam-runtime-tools (0.20231013.0) steamrt; urgency=medium
 
   * pressure-vessel:
