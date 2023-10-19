@@ -528,10 +528,10 @@ _srt_get_modules_from_path (SrtSysroot *sysroot,
            is_extra ? "extra " : "",
            module_directory_path);
 
-  module_dirfd = _srt_resolve_in_sysroot (sysroot->fd, module_directory_path,
-                                          (SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY
-                                           | SRT_RESOLVE_FLAGS_READABLE),
-                                          NULL, &error);
+  module_dirfd = _srt_sysroot_open (sysroot, module_directory_path,
+                                    (SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY
+                                     | SRT_RESOLVE_FLAGS_READABLE),
+                                    NULL, &error);
 
   if (module_dirfd < 0)
     {
