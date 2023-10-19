@@ -1328,10 +1328,9 @@ _srt_get_modules_full (SrtSysroot *sysroot,
               if (*entry[0] == '\0')
                 continue;
 
-              file_fd = _srt_resolve_in_sysroot (sysroot->fd,
-                                                 *entry,
-                                                 SRT_RESOLVE_FLAGS_RETURN_ABSOLUTE,
-                                                 &absolute_path_in_sysroot, &error);
+              file_fd = _srt_sysroot_open (sysroot, *entry,
+                                           SRT_RESOLVE_FLAGS_RETURN_ABSOLUTE,
+                                           &absolute_path_in_sysroot, &error);
 
               if (file_fd < 0)
                 {
