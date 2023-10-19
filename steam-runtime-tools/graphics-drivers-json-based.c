@@ -713,7 +713,7 @@ load_json_dirs (SrtSysroot *sysroot,
       g_autofree gchar *file_realpath_in_sysroot = NULL;
 
       file_fd = _srt_sysroot_open (sysroot, *iter,
-                                   SRT_RESOLVE_FLAGS_NONE,
+                                   SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY,
                                    &file_realpath_in_sysroot, &error);
 
       if (file_realpath_in_sysroot == NULL)
