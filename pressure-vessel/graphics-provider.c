@@ -225,9 +225,8 @@ pv_graphics_provider_search_in_path_and_bin (PvGraphicsProvider *self,
       else
         test_path = g_build_filename (path, program_name, NULL);
 
-      if (_srt_file_test_in_sysroot (self->in_current_ns->path,
-                                     self->in_current_ns->fd,
-                                     test_path, G_FILE_TEST_IS_EXECUTABLE))
+      if (_srt_sysroot_test (self->in_current_ns, test_path,
+                             SRT_RESOLVE_FLAGS_MUST_BE_EXECUTABLE, NULL))
         return g_steal_pointer (&test_path);
     }
 
