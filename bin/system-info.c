@@ -43,6 +43,7 @@
 
 #include <steam-runtime-tools/json-glib-backports-internal.h>
 #include <steam-runtime-tools/json-utils-internal.h>
+#include <steam-runtime-tools/log-internal.h>
 #include <steam-runtime-tools/utils-internal.h>
 
 enum
@@ -50,6 +51,8 @@ enum
   OPTION_HELP = 1,
   OPTION_EXPECTATION,
   OPTION_IGNORE_EXTRA_DRIVERS,
+  OPTION_NO_GRAPHICS_TESTS,
+  OPTION_NO_LIBRARIES,
   OPTION_VERBOSE,
   OPTION_VERSION,
 };
@@ -58,6 +61,8 @@ struct option long_options[] =
 {
     { "expectations", required_argument, NULL, OPTION_EXPECTATION },
     { "ignore-extra-drivers", no_argument, NULL, OPTION_IGNORE_EXTRA_DRIVERS },
+    { "no-graphics-tests", no_argument, NULL, OPTION_NO_GRAPHICS_TESTS },
+    { "no-libraries", no_argument, NULL, OPTION_NO_LIBRARIES },
     { "verbose", no_argument, NULL, OPTION_VERBOSE },
     { "version", no_argument, NULL, OPTION_VERSION },
     { "help", no_argument, NULL, OPTION_HELP },
@@ -723,7 +728,6 @@ jsonify_container (JsonBuilder *builder,
   SrtContainerType type = SRT_CONTAINER_TYPE_UNKNOWN;
   const gchar *flatpak_version = NULL;
   const gchar *host_directory = NULL;
-  g_autoptr(SrtSystemInfo) host = NULL;
 
   type = srt_container_info_get_container_type (container_info);
   flatpak_version = srt_container_info_get_flatpak_version (container_info);
@@ -751,7 +755,7 @@ jsonify_container (JsonBuilder *builder,
 
               if (host_directory != NULL)
                 {
-                  host = srt_system_info_new (NULL);
+                  g_autoptr(SrtSystemInfo) host = srt_system_info_new (NULL);
                   srt_system_info_set_sysroot (host, host_directory);
                   jsonify_os_release (builder, host);
                 }
@@ -928,6 +932,7 @@ main (int argc,
       char **argv)
 {
   FILE *original_stdout = NULL;
+  int original_stdout_fd = -1;
   GError *error = NULL;
   g_autoptr(SrtSystemInfo) info = NULL;
   SrtLibraryIssues library_issues = SRT_LIBRARY_ISSUES_NONE;
@@ -971,6 +976,8 @@ main (int argc,
   GList *desktop_entries;
   const GList *icd_iter;
   SrtDriverFlags extra_driver_flags = SRT_DRIVER_FLAGS_INCLUDE_ALL;
+  gboolean check_graphics = TRUE;
+  gboolean check_libraries = TRUE;
 
   _srt_setenv_disable_gio_modules ();
 
@@ -1000,6 +1007,14 @@ main (int argc,
             extra_driver_flags = SRT_DRIVER_FLAGS_NONE;
             break;
 
+          case OPTION_NO_GRAPHICS_TESTS:
+            check_graphics = FALSE;
+            break;
+
+          case OPTION_NO_LIBRARIES:
+            check_libraries = FALSE;
+            break;
+
           case OPTION_HELP:
             usage (0);
             break;
@@ -1014,15 +1029,28 @@ main (int argc,
   if (optind != argc)
     usage (1);
 
-  /* stdout is reserved for machine-readable output, so avoid having
-   * things like g_debug() pollute it. */
-  original_stdout = _srt_divert_stdout_to_stderr (&error);
-
-  if (original_stdout == NULL)
+  if (!_srt_util_set_glib_log_handler ("steam-runtime-system-info",
+                                       G_LOG_DOMAIN,
+                                       (SRT_LOG_FLAGS_OPTIONALLY_JOURNAL
+                                        | SRT_LOG_FLAGS_DIVERT_STDOUT),
+                                       &original_stdout_fd, NULL, &error))
     {
       g_warning ("%s", error->message);
       g_clear_error (&error);
       return 1;
+    }
+
+  original_stdout = fdopen (original_stdout_fd, "w");
+
+  if (original_stdout == NULL)
+    {
+      g_warning ("Unable to create a stdio wrapper for fd %d: %s",
+                 original_stdout_fd, g_strerror (errno));
+      return 1;
+    }
+  else
+    {
+      original_stdout_fd = -1;    /* ownership taken, do not close */
     }
 
   _srt_unblock_signals ();
@@ -1246,7 +1274,7 @@ main (int argc,
           json_builder_end_object (builder);
         }
 
-      if (can_run)
+      if (can_run && check_libraries)
         {
           json_builder_set_member_name (builder, "library-issues-summary");
           json_builder_begin_array (builder);
@@ -1260,9 +1288,14 @@ main (int argc,
       if (libraries != NULL && (library_issues != SRT_LIBRARY_ISSUES_NONE || verbose))
           print_libraries_details (builder, libraries, verbose);
 
-      GList *graphics_list = srt_system_info_check_all_graphics (info,
-                                                                 multiarch_tuples[i]);
-      print_graphics_details (builder, graphics_list);
+      if (check_graphics)
+        {
+          g_autoptr(SrtObjectList) graphics_list = NULL;
+
+          graphics_list = srt_system_info_check_all_graphics (info,
+                                                              multiarch_tuples[i]);
+          print_graphics_details (builder, graphics_list);
+        }
 
       dri_list = srt_system_info_list_dri_drivers (info, multiarch_tuples[i],
                                                    extra_driver_flags);
@@ -1282,7 +1315,6 @@ main (int argc,
 
       json_builder_end_object (builder); // End multiarch_tuple object
       g_list_free_full (libraries, g_object_unref);
-      g_list_free_full (graphics_list, g_object_unref);
       g_list_free_full (dri_list, g_object_unref);
       g_list_free_full (va_api_list, g_object_unref);
       g_list_free_full (vdpau_list, g_object_unref);
