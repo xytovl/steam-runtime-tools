@@ -48,4 +48,8 @@ typedef struct
 G_GNUC_INTERNAL void _srt_os_release_init (SrtOsRelease *self);
 G_GNUC_INTERNAL void _srt_os_release_populate (SrtOsRelease *self,
                                                SrtSysroot *sysroot);
+void _srt_os_release_populate_from_data (SrtOsRelease *self,
+                                         const char *path,
+                                         const char *contents,
+                                         gsize len);
 G_GNUC_INTERNAL void _srt_os_release_clear (SrtOsRelease *self);

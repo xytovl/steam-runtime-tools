@@ -109,14 +109,16 @@ do_line (GHashTable *fields,
   g_hash_table_replace (fields, g_strdup (line), g_steal_pointer (&unquoted));
 }
 
-G_GNUC_INTERNAL void
-_srt_os_release_populate (SrtOsRelease *self,
-                          SrtSysroot *sysroot)
+void
+_srt_os_release_populate_from_data (SrtOsRelease *self,
+                                    const char *path,
+                                    const char *contents,
+                                    gsize len)
 {
   g_autoptr(GHashTable) fields = NULL;
-  gsize i;
+  gsize j;
+  gsize beginning_of_line;
 
-  g_return_if_fail (_srt_check_not_setuid ());
   g_return_if_fail (!self->populated);
   g_return_if_fail (self->build_id == NULL);
   g_return_if_fail (self->id == NULL);
@@ -126,53 +128,31 @@ _srt_os_release_populate (SrtOsRelease *self,
   g_return_if_fail (self->variant_id == NULL);
   g_return_if_fail (self->version_codename == NULL);
   g_return_if_fail (self->version_id == NULL);
-  g_return_if_fail (SRT_IS_SYSROOT (sysroot));
 
   fields = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
 
-  for (i = 0; i < G_N_ELEMENTS (os_release_paths); i++)
+  beginning_of_line = 0;
+
+  for (j = 0; j < len; j++)
     {
-      g_autoptr(GError) local_error = NULL;
-      const char *path = os_release_paths[i].path;
-      gboolean only_in_run_host = os_release_paths[i].only_in_run_host;
-      g_autofree gchar *contents = NULL;
-      char *beginning_of_line;
-      gsize len;
-      gsize j;
-
-      if (only_in_run_host
-          && !g_str_has_suffix (sysroot->path, "/run/host"))
-        continue;
-
-      if (!_srt_sysroot_load (sysroot, path,
-                              SRT_RESOLVE_FLAGS_NONE,
-                              NULL, &contents, &len, &local_error))
+      if (contents[j] == '\n')
         {
-          g_debug ("%s", local_error->message);
-          continue;
+          g_autofree gchar *line = g_strndup (&contents[beginning_of_line],
+                                              j - beginning_of_line);
+
+          beginning_of_line = j + 1;
+
+          do_line (fields, path, line);
         }
+    }
 
-      /* _srt_sysroot_load adds an extra \0 at contents[len],
-       * just like g_file_get_contents() */
-      g_assert (contents[len] == '\0');
+  /* Collect a possible partial line */
+  if (beginning_of_line < len)
+    {
+      g_autofree gchar *line = g_strndup (&contents[beginning_of_line],
+                                          len - beginning_of_line);
 
-      beginning_of_line = contents;
-
-      for (j = 0; j < len; j++)
-        {
-          if (contents[j] == '\n')
-            {
-              contents[j] = '\0';
-              do_line (fields, path, beginning_of_line);
-              /* _srt_sysroot_load adds an extra \0 at contents[len],
-               * so this is safe to do without overrunning the buffer */
-              beginning_of_line = contents + j + 1;
-            }
-        }
-
-      /* Collect a possible partial line */
-      do_line (fields, path, beginning_of_line);
-      break;
+      do_line (fields, path, line);
     }
 
   self->build_id = g_strdup (g_hash_table_lookup (fields, "BUILD_ID"));
@@ -198,6 +178,43 @@ _srt_os_release_populate (SrtOsRelease *self,
     {
       g_free (self->id_like);
       self->id_like = g_strdup ("ubuntu debian");
+    }
+
+  self->populated = TRUE;
+}
+
+G_GNUC_INTERNAL void
+_srt_os_release_populate (SrtOsRelease *self,
+                          SrtSysroot *sysroot)
+{
+  gsize i;
+
+  g_return_if_fail (_srt_check_not_setuid ());
+  g_return_if_fail (!self->populated);
+  g_return_if_fail (SRT_IS_SYSROOT (sysroot));
+
+  for (i = 0; i < G_N_ELEMENTS (os_release_paths); i++)
+    {
+      g_autoptr(GError) local_error = NULL;
+      const char *path = os_release_paths[i].path;
+      gboolean only_in_run_host = os_release_paths[i].only_in_run_host;
+      g_autofree gchar *contents = NULL;
+      gsize len;
+
+      if (only_in_run_host
+          && !g_str_has_suffix (sysroot->path, "/run/host"))
+        continue;
+
+      if (!_srt_sysroot_load (sysroot, path,
+                              SRT_RESOLVE_FLAGS_NONE,
+                              NULL, &contents, &len, &local_error))
+        {
+          g_debug ("%s", local_error->message);
+          continue;
+        }
+
+      _srt_os_release_populate_from_data (self, path, contents, len);
+      return;
     }
 
   self->populated = TRUE;
