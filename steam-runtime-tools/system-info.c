@@ -1263,14 +1263,19 @@ ensure_overrides_cached (SrtSystemInfo *self)
 
       for (i = 0; i < G_N_ELEMENTS (paths); i++)
         {
-          if (_srt_file_test_in_sysroot (self->sysroot->path,
-                                         self->sysroot->fd,
-                                         paths[i], G_FILE_TEST_EXISTS))
+          glnx_autofd int fd = -1;
+
+          fd = _srt_sysroot_open (self->sysroot,
+                                  paths[i],
+                                  SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY,
+                                  NULL, NULL);
+
+          if (fd >= 0)
             {
               self->overrides.values = _srt_recursive_list_content (self->sysroot->path,
                                                                     self->sysroot->fd,
                                                                     paths[i],
-                                                                    -1,
+                                                                    fd,
                                                                     self->env,
                                                                     &self->overrides.messages);
               break;
