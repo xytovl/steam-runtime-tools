@@ -129,6 +129,7 @@ test_resolve_in_sysroot (Fixture *f,
   static const char * const prepare_files[] =
   {
     "a/b/c/file",
+    "a/b/c/exe",
   };
   static const Symlink prepare_symlinks[] =
   {
@@ -171,6 +172,18 @@ test_resolve_in_sysroot (Fixture *f,
     },
     { { "a/b/c/file", SRT_RESOLVE_FLAGS_READABLE }, { "a/b/c/file" } },
     { { "a/b/c/file/" }, { NULL, G_IO_ERROR_NOT_DIRECTORY }},
+    {
+      { "a/b/c/file", SRT_RESOLVE_FLAGS_MUST_BE_EXECUTABLE },
+      { NULL, G_IO_ERROR_FAILED }
+    },
+    {
+      { "a/b/c/exe", SRT_RESOLVE_FLAGS_MUST_BE_EXECUTABLE },
+      { "a/b/c/exe" }
+    },
+    {
+      { "a/b/c/d", SRT_RESOLVE_FLAGS_MUST_BE_EXECUTABLE },
+      { "a/b/c/d" }
+    },
     {
       { "a/b/c/d", SRT_RESOLVE_FLAGS_MUST_BE_REGULAR },
       { NULL, G_IO_ERROR_NOT_REGULAR_FILE }
@@ -312,6 +325,11 @@ test_resolve_in_sysroot (Fixture *f,
                                      (guint8 *) "hello", 5,
                                      0, NULL, &error);
       g_assert_no_error (error);
+
+      if (g_str_has_suffix (it, "/exe"))
+        g_assert_no_errno (fchmodat (tmpdir.fd, it, 0755, 0));
+      else
+        g_assert_no_errno (fchmodat (tmpdir.fd, it, 0644, 0));
     }
 
   for (i = 0; i < G_N_ELEMENTS (prepare_symlinks); i++)
@@ -473,7 +491,18 @@ test_resolve_in_sysroot (Fixture *f,
         }
       else
         {
-          g_assert_error (error, G_IO_ERROR, it->expect.code);
+          if (it->expect.code == G_IO_ERROR_FAILED)
+            {
+              /* Any error from the GIOErrorEnum domain is OK */
+              g_assert_nonnull (error);
+              g_assert_cmpstr (g_quark_to_string (error->domain), ==,
+                               g_quark_to_string (G_IO_ERROR));
+            }
+          else
+            {
+              g_assert_error (error, G_IO_ERROR, it->expect.code);
+            }
+
           g_test_message ("Got error as expected: %s", error->message);
           g_assert_cmpint (fd, ==, -1);
 
