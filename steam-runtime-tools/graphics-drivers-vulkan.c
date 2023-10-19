@@ -590,7 +590,6 @@ _srt_graphics_get_vulkan_search_paths (SrtSysroot *sysroot,
 {
   GPtrArray *search_paths = g_ptr_array_new_with_free_func (g_free);
   g_auto(GStrv) dirs = NULL;
-  g_autofree gchar *flatpak_info = NULL;
   const char *home;
   const gchar *value;
   gsize i;
@@ -634,13 +633,10 @@ _srt_graphics_get_vulkan_search_paths (SrtSysroot *sysroot,
   if (g_strcmp0 (value, "/etc") != 0)
     g_ptr_array_add (search_paths, g_build_filename ("/etc", suffix, NULL));
 
-  /* TODO: Use fd-relative I/O if appropriate */
-  flatpak_info = g_build_filename (sysroot->path, ".flatpak-info", NULL);
-
   /* freedesktop-sdk patches the Vulkan loader to look here for ICDs,
    * after EXTRASYSCONFDIR but before XDG_DATA_HOME.
    * https://gitlab.com/freedesktop-sdk/freedesktop-sdk/-/blob/master/patches/vulkan/vulkan-libdir-path.patch */
-  if (g_file_test (flatpak_info, G_FILE_TEST_EXISTS))
+  if (_srt_sysroot_test (sysroot, "/.flatpak-info", SRT_RESOLVE_FLAGS_NONE, NULL))
     {
       g_debug ("Flatpak detected: assuming freedesktop-based runtime");
 

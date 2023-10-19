@@ -983,12 +983,7 @@ _srt_load_egl_things (GType which,
     }
   else
     {
-      g_autofree gchar *flatpak_info = NULL;
-
       value = g_environ_getenv (envp, dirs_var);
-
-      /* TODO: Use fd-relative I/O if appropriate */
-      flatpak_info = g_build_filename (sysroot->path, ".flatpak-info", NULL);
 
       if (value != NULL)
         {
@@ -998,7 +993,8 @@ _srt_load_egl_things (GType which,
                           loader_cb, &ret);
         }
       else if (which == SRT_TYPE_EGL_ICD
-               && g_file_test (flatpak_info, G_FILE_TEST_EXISTS)
+               && _srt_sysroot_test (sysroot, "/.flatpak-info",
+                                     SRT_RESOLVE_FLAGS_NONE, NULL)
                && multiarch_tuples != NULL)
         {
           g_debug ("Flatpak detected: assuming freedesktop-based runtime");

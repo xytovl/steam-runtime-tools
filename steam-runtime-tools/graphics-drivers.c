@@ -1002,7 +1002,6 @@ _srt_get_modules_full (SrtSysroot *sysroot,
   const gchar *env_override;
   const gchar *drivers_path;
   const gchar *ld_library_path = NULL;
-  g_autofree gchar *flatpak_info = NULL;
   g_autofree gchar *tmp_dir = NULL;
   g_autofree gchar *capture_libs_output_dir = NULL;
   g_autoptr(GHashTable) drivers_set = NULL;
@@ -1044,8 +1043,6 @@ _srt_get_modules_full (SrtSysroot *sysroot,
   drivers_path = g_environ_getenv (envp, env_override);
   ld_library_path = g_environ_getenv (envp, "LD_LIBRARY_PATH");
 
-  /* TODO: Use fd-relative I/O for this */
-  flatpak_info = g_build_filename (sysroot->path, ".flatpak-info", NULL);
   drivers_set = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
 
   if (drivers_path)
@@ -1115,7 +1112,7 @@ _srt_get_modules_full (SrtSysroot *sysroot,
    * (reference:
    * <https://gitlab.com/freedesktop-sdk/freedesktop-sdk/blob/master/elements/components/libvdpau.bst>)
    * */
-  if (g_file_test (flatpak_info, G_FILE_TEST_EXISTS))
+  if (_srt_sysroot_test (sysroot, "/.flatpak-info", SRT_RESOLVE_FLAGS_NONE, NULL))
     {
       g_autofree gchar *libdir = g_build_filename ("/usr", "lib", multiarch_tuple, NULL);
       if (module == SRT_GRAPHICS_VAAPI_MODULE)
