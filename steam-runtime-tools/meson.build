@@ -79,6 +79,8 @@ libsteamrt_internals = [
     'direct-input-device-internal.h',
     'direct-input-device.c',
     'display-internal.h',
+    'elf-utils.c',
+    'elf-utils-internal.h',
     'glib-backports.c',
     'glib-backports-internal.h',
     'graphics-internal.h',

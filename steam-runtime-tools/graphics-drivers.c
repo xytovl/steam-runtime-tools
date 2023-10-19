@@ -29,6 +29,7 @@
 
 #include "steam-runtime-tools/architecture.h"
 #include "steam-runtime-tools/architecture-internal.h"
+#include "steam-runtime-tools/elf-utils-internal.h"
 #include "steam-runtime-tools/graphics-internal.h"
 #include "steam-runtime-tools/library.h"
 #include "steam-runtime-tools/library-internal.h"
