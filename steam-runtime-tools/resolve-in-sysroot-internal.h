@@ -120,6 +120,12 @@ typedef enum
   SRT_RESOLVE_FLAGS_NONE = 0
 } SrtResolveFlags;
 
+int _srt_sysroot_open (SrtSysroot *sysroot,
+                       const char *path,
+                       SrtResolveFlags flags,
+                       gchar **resolved,
+                       GError **error) G_GNUC_WARN_UNUSED_RESULT;
+
 G_GNUC_INTERNAL
 int _srt_resolve_in_sysroot (int sysroot,
                              const char *descendant,

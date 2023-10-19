@@ -190,6 +190,33 @@ fd_array_take (GArray *fds,
   g_array_append_val (fds, fd);
 }
 
+static gboolean
+check_fd_is_regular_file (const char *path,
+                          int fd,
+                          GError **error)
+{
+  struct stat stat_buf;
+
+  if (!glnx_fstatat (fd, "", &stat_buf, AT_EMPTY_PATH, error))
+    {
+      g_prefix_error (error,
+                      "Unable to determine whether \"%s\" "
+                      "is a regular file",
+                      path);
+      return FALSE;
+    }
+
+  if (!S_ISREG (stat_buf.st_mode))
+    {
+      g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_REGULAR_FILE,
+                   "\"%s\" is not a regular file (type 0o%o)",
+                   path, stat_buf.st_mode & S_IFMT);
+      return FALSE;
+    }
+
+  return TRUE;
+}
+
 /*
  * _srt_resolve_in_sysroot:
  * @sysroot: (transfer none): A file descriptor representing the root
@@ -455,28 +482,11 @@ _srt_resolve_in_sysroot (int sysroot,
   else if (current_path->len == 0)
     g_string_append_c (current_path, '.');
 
-  if ((flags & SRT_RESOLVE_FLAGS_MUST_BE_REGULAR) != 0)
-    {
-      int fd = g_array_index (fds, int, fds->len - 1);
-      struct stat stat_buf;
-
-      if (!glnx_fstatat (fd, "", &stat_buf, AT_EMPTY_PATH, error))
-        {
-          g_prefix_error (error,
-                          "Unable to determine whether \"%s\" "
-                          "is a regular file",
-                          current_path->str);
-          return -1;
-        }
-
-      if (!S_ISREG (stat_buf.st_mode))
-        {
-          g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_REGULAR_FILE,
-                       "\"%s\" is not a regular file (type 0o%o)",
-                       current_path->str, stat_buf.st_mode & S_IFMT);
-          return -1;
-        }
-    }
+  if ((flags & SRT_RESOLVE_FLAGS_MUST_BE_REGULAR) != 0
+      && !check_fd_is_regular_file (current_path->str,
+                                    g_array_index (fds, int, fds->len - 1),
+                                    error))
+    return -1;
 
   if (flags & SRT_RESOLVE_FLAGS_READABLE)
     {
@@ -518,4 +528,122 @@ _srt_resolve_in_sysroot (int sysroot,
    * We need to steal ownership of the fd back from @fds so it won't be
    * closed with the rest of them when @fds is freed. */
   return g_steal_fd (&g_array_index (fds, int, fds->len - 1));
+}
+
+int
+_srt_sysroot_open (SrtSysroot *sysroot,
+                   const char *path,
+                   SrtResolveFlags flags,
+                   gchar **resolved,
+                   GError **error)
+{
+  glnx_autofd int fd = -1;
+
+  /*
+   * Only a subset of flags are supported here:
+   *
+   * - MKDIR_P is unimplemented (difficult to implement for direct I/O
+   *   with semantics that match _srt_resolve_in_sysroot)
+   * - REJECT_SYMLINKS is unimplemented (ditto)
+   */
+  g_return_val_if_fail ((flags & ~(SRT_RESOLVE_FLAGS_KEEP_FINAL_SYMLINK
+                                   | SRT_RESOLVE_FLAGS_READABLE
+                                   | SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY
+                                   | SRT_RESOLVE_FLAGS_MUST_BE_REGULAR
+                                   | SRT_RESOLVE_FLAGS_RETURN_ABSOLUTE)) == 0,
+                        -1);
+  g_return_val_if_fail (!_srt_all_bits_set (flags,
+                                             SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY
+                                             | SRT_RESOLVE_FLAGS_MUST_BE_REGULAR),
+                        -1);
+
+  if (_srt_sysroot_is_direct (sysroot))
+    {
+      g_autofree gchar *abs_path = NULL;
+
+      /* We want to use normal path resolution that gives FEX-Emu an
+       * opportunity to fake the filesystem layout, so turn relative paths
+       * into absolute. We have to pass AT_FDCWD to openat() when we do this:
+       * <https://github.com/FEX-Emu/FEX/issues/3204>. */
+      if (path[0] != '/')
+        {
+          abs_path = g_build_filename ("/", path, NULL);
+          path = abs_path;
+        }
+
+      if (flags & SRT_RESOLVE_FLAGS_READABLE)
+        {
+          gboolean follow = !(flags & SRT_RESOLVE_FLAGS_KEEP_FINAL_SYMLINK);
+
+          if (flags & SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY)
+            {
+              if (!glnx_opendirat (AT_FDCWD, path, follow, &fd, error))
+                return -1;
+            }
+          else
+            {
+              if (!glnx_openat_rdonly (AT_FDCWD, path, follow, &fd, error))
+                return -1;
+            }
+        }
+      else
+        {
+          int open_flags = O_CLOEXEC | O_PATH;
+
+          if (flags & SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY)
+            open_flags |= O_DIRECTORY;
+
+          if (flags & SRT_RESOLVE_FLAGS_KEEP_FINAL_SYMLINK)
+            open_flags |= O_NOFOLLOW;
+
+          fd = TEMP_FAILURE_RETRY (openat (AT_FDCWD, path, open_flags));
+
+          if (fd < 0)
+            {
+              glnx_throw_errno_prefix (error, "Unable to open \"%s\"", path);
+              return -1;
+            }
+        }
+
+      if ((flags & SRT_RESOLVE_FLAGS_MUST_BE_REGULAR) != 0
+          && !check_fd_is_regular_file (path, fd, error))
+        return -1;
+
+      if (resolved != NULL)
+        {
+          g_autofree gchar *proc_path = NULL;
+
+          proc_path = g_strdup_printf ("/proc/self/fd/%d", fd);
+          *resolved = glnx_readlinkat_malloc (AT_FDCWD, proc_path, NULL, error);
+
+          if (*resolved == NULL)
+            return -1;
+
+          if (!(flags & SRT_RESOLVE_FLAGS_RETURN_ABSOLUTE))
+            {
+              if ((*resolved)[0] == '/' && (*resolved)[1] == '\0')
+                {
+                  /* Replace "/" with "." to avoid returning empty string */
+                  (*resolved)[0] = '.';
+                }
+              else
+                {
+                  /* Replace "/foo/bar" by shifting "foo/bar\0" 1 byte
+                   * to the left */
+                  memmove (*resolved, (*resolved) + 1, strlen (*resolved));
+                }
+            }
+          /* ... else leave it as "/" or "/foo/bar" */
+        }
+    }
+  else
+    {
+      fd = _srt_resolve_in_sysroot (sysroot->fd, path, flags, resolved, error);
+
+      if (fd < 0)
+        return -1;
+    }
+
+  g_assert (fd >= 0);
+  return g_steal_fd (&fd);
 }
