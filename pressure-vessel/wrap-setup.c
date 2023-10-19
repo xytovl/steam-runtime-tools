@@ -1172,7 +1172,7 @@ pv_wrap_detect_virtualization (gchar **interpreter_root_out,
   /* At the moment we only care about FEX-Emu here, which we happen to
    * know implements CPUID, so it's faster to skip the filesystem-based
    * checks */
-  virt_info = _srt_check_virtualization (NULL, -1);
+  virt_info = _srt_check_virtualization (NULL, NULL);
 
   if (host_machine_out != NULL)
     *host_machine_out = srt_virtualization_info_get_host_machine (virt_info);

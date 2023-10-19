@@ -3941,7 +3941,7 @@ srt_system_info_check_virtualization (SrtSystemInfo *self)
         self->virtualization_info = _srt_virtualization_info_new_empty ();
       else
         self->virtualization_info = _srt_check_virtualization (NULL,
-                                                               self->sysroot->fd);
+                                                               self->sysroot);
     }
 
   return g_object_ref (self->virtualization_info);
