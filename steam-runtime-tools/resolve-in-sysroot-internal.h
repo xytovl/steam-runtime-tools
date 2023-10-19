@@ -126,6 +126,14 @@ int _srt_sysroot_open (SrtSysroot *sysroot,
                        gchar **resolved,
                        GError **error) G_GNUC_WARN_UNUSED_RESULT;
 
+gboolean _srt_sysroot_load (SrtSysroot *sysroot,
+                            const char *path,
+                            SrtResolveFlags flags,
+                            gchar **resolved,
+                            gchar **contents_out,
+                            gsize *len_out,
+                            GError **error);
+
 G_GNUC_INTERNAL
 int _srt_resolve_in_sysroot (int sysroot,
                              const char *descendant,

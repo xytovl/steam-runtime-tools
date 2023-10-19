@@ -647,3 +647,49 @@ _srt_sysroot_open (SrtSysroot *sysroot,
   g_assert (fd >= 0);
   return g_steal_fd (&fd);
 }
+
+gboolean
+_srt_sysroot_load (SrtSysroot *sysroot,
+                   const char *path,
+                   SrtResolveFlags flags,
+                   gchar **resolved,
+                   gchar **contents_out,
+                   gsize *len_out,
+                   GError **error)
+{
+  glnx_autofd int fd = -1;
+
+  if (contents_out != NULL || len_out != NULL)
+    flags |= SRT_RESOLVE_FLAGS_READABLE;
+
+  fd = _srt_sysroot_open (sysroot, path, flags, resolved, error);
+
+  if (fd < 0)
+    return FALSE;
+
+  if (contents_out != NULL || len_out != NULL)
+    {
+      g_autoptr(GBytes) bytes = NULL;
+      gsize len;
+
+      bytes = glnx_fd_readall_bytes (fd, NULL, error);
+
+      if (bytes == NULL)
+        return FALSE;
+
+      len = g_bytes_get_size (bytes);
+
+      if (contents_out != NULL)
+        {
+          *contents_out = g_new0 (char, len + 1);
+
+          if (len > 0)
+            memcpy (*contents_out, g_bytes_get_data (bytes, NULL), len);
+        }
+
+      if (len_out != NULL)
+        *len_out = len;
+    }
+
+  return TRUE;
+}
