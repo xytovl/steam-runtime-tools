@@ -66,7 +66,7 @@ static inline void _srt_runtime_clear (SrtRuntime *self)
 G_GNUC_INTERNAL
 void _srt_runtime_check_execution_environment (SrtRuntime *self,
                                                const GStrv env,
-                                               const SrtOsRelease *os_release,
+                                               SrtOsInfo *os_info,
                                                const char *bin32);
 
 G_GNUC_INTERNAL

@@ -1,6 +1,6 @@
 /*<private_header>*/
 /*
- * Copyright © 2019 Collabora Ltd.
+ * Copyright © 2019-2023 Collabora Ltd.
  *
  * SPDX-License-Identifier: MIT
  *
@@ -26,32 +26,26 @@
 
 #pragma once
 
-#include <glib.h>
-#include <glib-object.h>
+#include "steam-runtime-tools/os.h"
 
 #include "steam-runtime-tools/resolve-in-sysroot-internal.h"
 
-typedef struct
-{
-  gchar *build_id;
-  gchar *id;
-  gchar *id_like;
-  gchar *name;
-  gchar *pretty_name;
-  gchar *variant;
-  gchar *variant_id;
-  gchar *version_codename;
-  gchar *version_id;
-  gboolean populated;
-} SrtOsRelease;
+extern const char * const _srt_interesting_os_release_fields[];
 
-G_GNUC_INTERNAL void _srt_os_release_init (SrtOsRelease *self);
-G_GNUC_INTERNAL void _srt_os_release_populate (SrtOsRelease *self,
-                                               SrtSysroot *sysroot,
-                                               GString *messages);
-void _srt_os_release_populate_from_data (SrtOsRelease *self,
-                                         const char *path,
-                                         const char *contents,
-                                         gsize len,
-                                         GString *messages);
-G_GNUC_INTERNAL void _srt_os_release_clear (SrtOsRelease *self);
+SrtOsInfo *_srt_os_info_new_from_data (const char *path,
+                                       const char *data,
+                                       gsize len,
+                                       const char *previous_messages);
+SrtOsInfo *_srt_os_info_new_from_sysroot (SrtSysroot *sysroot);
+
+static inline SrtOsInfo *
+_srt_os_info_new (GHashTable *fields,
+                  const char *messages,
+                  const char *source_path)
+{
+  return g_object_new (SRT_TYPE_OS_INFO,
+                       "fields", fields,
+                       "messages", messages,
+                       "source-path", source_path,
+                       NULL);
+}

@@ -637,7 +637,7 @@ out:
 /*
  * _srt_runtime_check_container:
  * @self: information about the runtime
- * @os_release: information about the container OS
+ * @os_info: information about the container OS
  *
  * Return information about a Steam Runtime container (pressure-vessel,
  * Docker or any other container) if we are running inside one.
@@ -647,14 +647,14 @@ out:
  */
 static gboolean
 _srt_runtime_check_container (SrtRuntime *self,
-                              const SrtOsRelease *os_release)
+                              SrtOsInfo *os_info)
 {
-  if (g_strcmp0 (os_release->id, "steamrt") != 0)
+  if (g_strcmp0 (srt_os_info_get_id (os_info), "steamrt") != 0)
     return FALSE;
 
   _srt_runtime_clear_outputs (self);
   self->path = g_strdup ("/");
-  self->version = g_strdup (os_release->build_id);
+  self->version = g_strdup (srt_os_info_get_build_id (os_info));
   /* We don't use "/" here because in practice, that will often be a tmpfs.
    * As currently implemented in pressure-vessel, /usr comes from the
    * Steam library directory, so we can use that as our oracle. */
@@ -687,7 +687,7 @@ _srt_runtime_check_container (SrtRuntime *self,
  * @self: Information about the runtime. Fields other than @expected_version
  *  will be overwritten.
  * @env: A copy of `environ`, or a mock environment
- * @os_release: Information about the running OS release
+ * @os_info: Information about the running OS release
  * @bin32: Path to `~/.steam/root/ubuntu12_32`
  *
  * Check that the current process is running in a LD_LIBRARY_PATH
@@ -697,14 +697,14 @@ _srt_runtime_check_container (SrtRuntime *self,
 void
 _srt_runtime_check_execution_environment (SrtRuntime *self,
                                           const GStrv env,
-                                          const SrtOsRelease *os_release,
+                                          SrtOsInfo *os_info,
                                           const char *bin32)
 {
   const char *runtime;
 
   g_return_if_fail (self != NULL);
   g_return_if_fail (env != NULL);
-  g_return_if_fail (os_release != NULL);
+  g_return_if_fail (os_info != NULL);
 
   _srt_runtime_clear_outputs (self);
   runtime = g_environ_getenv (env, "STEAM_RUNTIME");
@@ -720,7 +720,7 @@ _srt_runtime_check_execution_environment (SrtRuntime *self,
 
   /* Or, if we are currently running in a container runtime (for example
    * pressure-vessel Platform or Docker SDK), check that it is as expected */
-  if (_srt_runtime_check_container (self, os_release))
+  if (_srt_runtime_check_container (self, os_info))
     return;
 
   /* If we are not currently running in a container runtime, check that

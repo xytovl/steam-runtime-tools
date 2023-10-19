@@ -244,45 +244,29 @@ _srt_library_get_issues_from_report (JsonObject *json_obj)
 }
 
 /**
- * _srt_os_release_populate_from_report:
+ * _srt_os_info_new_from_report:
  * @json_obj: (not nullable): A JSON Object used to search for "os-release"
  *  property
- * @self: (not nullable): A #SrtOsRelease object to populate
- *
- * If the provided @json_obj doesn't have a "os-release" member,
- * @self will be left untouched.
  */
-void
-_srt_os_release_populate_from_report (JsonObject *json_obj,
-                                      SrtOsRelease *self)
+SrtOsInfo *
+_srt_os_info_new_from_report (JsonObject *json_obj)
 {
+  g_autoptr(GHashTable) fields = NULL;
   JsonObject *json_sub_obj;
   JsonArray *array;
 
-  g_return_if_fail (json_obj != NULL);
-  g_return_if_fail (self != NULL);
-  g_return_if_fail (self->build_id == NULL);
-  g_return_if_fail (self->id == NULL);
-  g_return_if_fail (self->id_like == NULL);
-  g_return_if_fail (self->name == NULL);
-  g_return_if_fail (self->pretty_name == NULL);
-  g_return_if_fail (self->variant == NULL);
-  g_return_if_fail (self->variant_id == NULL);
-  g_return_if_fail (self->version_codename == NULL);
-  g_return_if_fail (self->version_id == NULL);
+  g_return_val_if_fail (json_obj != NULL, NULL);
+
+  fields = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
 
   if (json_object_has_member (json_obj, "os-release"))
     {
+      gsize i;
+
       json_sub_obj = json_object_get_object_member (json_obj, "os-release");
 
       if (json_sub_obj == NULL)
-        {
-          g_debug ("'os-release' is not a JSON object as expected");
-          return;
-        }
-
-      self->populated = TRUE;
-      self->id = g_strdup (json_object_get_string_member_with_default (json_sub_obj, "id", NULL));
+        return _srt_os_info_new (NULL, "'os-release' is not a JSON object", NULL);
 
       if (json_object_has_member (json_sub_obj, "id_like"))
         {
@@ -296,7 +280,8 @@ _srt_os_release_populate_from_report (JsonObject *json_obj,
             {
               GString *str = g_string_new ("");
               guint length = json_array_get_length (array);
-              for (guint i = 0; i < length; i++)
+
+              for (i = 0; i < length; i++)
                 {
                   const char *temp_id = json_array_get_string_element (array, i);
 
@@ -305,31 +290,33 @@ _srt_os_release_populate_from_report (JsonObject *json_obj,
 
                   g_string_append (str, temp_id);
                 }
-              self->id_like = g_string_free (str, FALSE);
+
+              g_hash_table_replace (fields, g_strdup ("ID_LIKE"),
+                                    g_string_free (str, FALSE));
             }
         }
 
-      self->name = g_strdup (json_object_get_string_member_with_default (json_sub_obj, "name",
-                                                                         NULL));
-      self->pretty_name = g_strdup (json_object_get_string_member_with_default (json_sub_obj,
-                                                                                "pretty_name",
-                                                                                NULL));
-      self->version_id = g_strdup (json_object_get_string_member_with_default (json_sub_obj,
-                                                                               "version_id",
-                                                                               NULL));
-      self->version_codename = g_strdup (json_object_get_string_member_with_default (json_sub_obj,
-                                                                                     "version_codename",
-                                                                                     NULL));
-      self->build_id = g_strdup (json_object_get_string_member_with_default (json_sub_obj,
-                                                                             "build_id",
-                                                                             NULL));
-      self->variant_id = g_strdup (json_object_get_string_member_with_default (json_sub_obj,
-                                                                               "variant_id",
-                                                                               NULL));
-      self->variant = g_strdup (json_object_get_string_member_with_default (json_sub_obj,
-                                                                            "variant",
-                                                                            NULL));
+      for (i = 0; _srt_interesting_os_release_fields[i] != NULL; i++)
+        {
+          const char *member = _srt_interesting_os_release_fields[i];
+          const char *value;
+
+          /* id_like is handled specially, above */
+          if (g_str_equal (member, "id_like"))
+            continue;
+
+          value = json_object_get_string_member_with_default (json_sub_obj,
+                                                              member,
+                                                              NULL);
+
+          if (value != NULL)
+            g_hash_table_replace (fields,
+                                  g_ascii_strup (member, -1),
+                                  g_strdup (value));
+        }
     }
+
+  return _srt_os_info_new (fields, NULL, NULL);
 }
 
 /*

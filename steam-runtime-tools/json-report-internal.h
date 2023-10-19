@@ -32,14 +32,15 @@
 
 #include <json-glib/json-glib.h>
 
+
 #include "steam-runtime-tools/container.h"
 #include "steam-runtime-tools/cpu-feature.h"
 #include "steam-runtime-tools/desktop-entry.h"
 #include "steam-runtime-tools/library.h"
-#include "steam-runtime-tools/os-internal.h"
 #include "steam-runtime-tools/runtime-internal.h"
 #include "steam-runtime-tools/simple-input-device-internal.h"
 #include "steam-runtime-tools/steam.h"
+#include "steam-runtime-tools/types.h"
 #include "steam-runtime-tools/virtualization.h"
 
 gboolean _srt_architecture_can_run_from_report (JsonObject *json_obj);
@@ -49,8 +50,7 @@ SrtX86FeatureFlags _srt_feature_get_x86_flags_from_report (JsonObject *json_obj,
                                                            SrtX86FeatureFlags *known);
 GList *_srt_get_steam_desktop_entries_from_json_report (JsonObject *json_obj);
 SrtLibraryIssues _srt_library_get_issues_from_report (JsonObject *json_obj);
-void _srt_os_release_populate_from_report (JsonObject *json_obj,
-                                           SrtOsRelease *self);
+SrtOsInfo *_srt_os_info_new_from_report (JsonObject *json_obj);
 SrtSimpleInputDevice *_srt_simple_input_device_new_from_json (JsonObject *obj);
 SrtSteam *_srt_steam_get_from_report (JsonObject *json_obj);
 void _srt_runtime_fill_from_report (SrtRuntime *self,
