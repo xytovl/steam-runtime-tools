@@ -712,9 +712,9 @@ load_json_dirs (SrtSysroot *sysroot,
       glnx_autofd int file_fd = -1;
       g_autofree gchar *file_realpath_in_sysroot = NULL;
 
-      file_fd = _srt_resolve_in_sysroot (sysroot->fd,
-                                         *iter, SRT_RESOLVE_FLAGS_NONE,
-                                         &file_realpath_in_sysroot, &error);
+      file_fd = _srt_sysroot_open (sysroot, *iter,
+                                   SRT_RESOLVE_FLAGS_NONE,
+                                   &file_realpath_in_sysroot, &error);
 
       if (file_realpath_in_sysroot == NULL)
         {
