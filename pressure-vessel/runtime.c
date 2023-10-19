@@ -2875,10 +2875,10 @@ bind_icds (PvRuntime *self,
           if (details->kinds[multiarch_index] != ICD_KIND_ABSOLUTE)
             continue;
 
-          fd = _srt_resolve_in_sysroot (self->provider->in_current_ns->fd,
-                                        details->resolved_libraries[multiarch_index],
-                                        SRT_RESOLVE_FLAGS_NONE,
-                                        NULL, NULL);
+          fd = _srt_sysroot_open (self->provider->in_current_ns,
+                                  details->resolved_libraries[multiarch_index],
+                                  SRT_RESOLVE_FLAGS_NONE,
+                                  NULL, NULL);
 
           if (fd >= 0 && fstat (fd, &stat_buf) == 0)
             {
