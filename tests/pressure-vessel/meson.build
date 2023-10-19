@@ -72,7 +72,6 @@ compiled_tests = [
   {'name': 'adverb-preload', 'adverb': true},
   {'name': 'bwrap-lock'},
   {'name': 'graphics-provider', 'wrap': true},
-  {'name': 'resolve-in-sysroot'},
   {'name': 'wait-for-child-processes'},
   {'name': 'wrap-setup', 'wrap': true},
   {'name': 'utils'},

@@ -49,6 +49,7 @@ tests = [
   {'name': 'libdl', 'static': true},
   {'name': 'library', 'static': true},
   {'name': 'locale'},
+  {'name': 'resolve-in-sysroot', 'static': true},
   {'name': 'system-info'},
   {'name': 'utils', 'static': true},
   {'name': 'virtualization', 'static': true},

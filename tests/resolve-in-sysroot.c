@@ -35,7 +35,6 @@
 #include "libglnx.h"
 
 #include "tests/test-utils.h"
-#include "utils.h"
 
 typedef struct
 {
