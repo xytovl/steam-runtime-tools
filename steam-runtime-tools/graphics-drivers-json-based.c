@@ -743,7 +743,6 @@ load_icd_from_json (GType type,
   g_autoptr(JsonParser) parser = NULL;
   g_autofree gchar *canon = NULL;
   g_autofree gchar *contents = NULL;
-  g_autofree gchar *path = NULL;
   g_autoptr(GError) error = NULL;
   /* These are all borrowed from the parser */
   JsonNode *node;
@@ -770,14 +769,12 @@ load_icd_from_json (GType type,
       filename = canon;
     }
 
-  /* TODO: Use fd-based I/O if appropriate */
-  path = g_build_filename (sysroot->path, filename, NULL);
+  g_debug ("Attempting to load %s from \"%s/%s\"",
+           g_type_name (type), sysroot->path, filename);
 
-  g_debug ("Attempting to load %s from %s", g_type_name (type), path);
-
-  parser = json_parser_new ();
-
-  if (!g_file_get_contents (path, &contents, &len, &error))
+  if (!_srt_sysroot_load (sysroot, filename,
+                          SRT_RESOLVE_FLAGS_NONE,
+                          NULL, &contents, &len, &error))
     {
       issues |= SRT_LOADABLE_ISSUES_CANNOT_LOAD;
       goto out;
@@ -786,7 +783,8 @@ load_icd_from_json (GType type,
   if (G_UNLIKELY (len > G_MAXSSIZE))
     {
       g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
-                   "Unreasonably large JSON file \"%s\"", path);
+                   "Unreasonably large JSON file \"%s%s\"",
+                   sysroot->path, filename);
       issues |= SRT_LOADABLE_ISSUES_CANNOT_LOAD;
       goto out;
     }
@@ -799,10 +797,13 @@ load_icd_from_json (GType type,
        * the content could contain \0 then it would be wrong to store it
        * as a gchar * and not a (content,length) pair. */
       g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
-                   "JSON file \"%s\" contains \\0", path);
+                   "JSON file \"%s%s\" contains \\0",
+                   sysroot->path, filename);
       issues |= SRT_LOADABLE_ISSUES_CANNOT_LOAD;
       goto out;
     }
+
+  parser = json_parser_new ();
 
   if (!json_parser_load_from_data (parser, contents, len, &error))
     {
@@ -815,7 +816,8 @@ load_icd_from_json (GType type,
   if (node == NULL || !JSON_NODE_HOLDS_OBJECT (node))
     {
       g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
-                   "Expected to find a JSON object in \"%s\"", path);
+                   "Expected to find a JSON object in \"%s%s\"",
+                   sysroot->path, filename);
       issues |= SRT_LOADABLE_ISSUES_CANNOT_LOAD;
       goto out;
     }
@@ -827,8 +829,8 @@ load_icd_from_json (GType type,
   if (file_format_version == NULL)
     {
       g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
-                   "file_format_version in \"%s\" is either missing or not a string",
-                   path);
+                   "file_format_version in \"%s%s\" is either missing or not a string",
+                   sysroot->path, filename);
       issues |= SRT_LOADABLE_ISSUES_CANNOT_LOAD;
       goto out;
     }
@@ -849,8 +851,8 @@ load_icd_from_json (GType type,
       if (!g_str_has_prefix (file_format_version, "1.0."))
         {
           g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
-                       "Vulkan file_format_version in \"%s\" is not 1.0.x",
-                       path);
+                       "Vulkan file_format_version in \"%s%s\" is not 1.0.x",
+                       sysroot->path, filename);
           issues |= SRT_LOADABLE_ISSUES_UNSUPPORTED;
           goto out;
         }
@@ -868,8 +870,8 @@ load_icd_from_json (GType type,
       if (!g_str_has_prefix (file_format_version, "1.0."))
         {
           g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
-                       "EGL file_format_version in \"%s\" is not 1.0.x",
-                       path);
+                       "EGL file_format_version in \"%s%s\" is not 1.0.x",
+                       sysroot->path, filename);
           issues |= SRT_LOADABLE_ISSUES_UNSUPPORTED;
           goto out;
         }
@@ -881,7 +883,8 @@ load_icd_from_json (GType type,
       || !JSON_NODE_HOLDS_OBJECT (subnode))
     {
       g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
-                   "No \"ICD\" object in \"%s\"", path);
+                   "No \"ICD\" object in \"%s%s\"",
+                   sysroot->path, filename);
       issues |= SRT_LOADABLE_ISSUES_CANNOT_LOAD;
       goto out;
     }
@@ -895,8 +898,8 @@ load_icd_from_json (GType type,
       if (api_version == NULL)
         {
           g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
-                       "ICD.api_version in \"%s\" is either missing or not a string",
-                       path);
+                       "ICD.api_version in \"%s%s\" is either missing or not a string",
+                       sysroot->path, filename);
           issues |= SRT_LOADABLE_ISSUES_CANNOT_LOAD;
           goto out;
         }
@@ -911,8 +914,8 @@ load_icd_from_json (GType type,
   if (library_path == NULL)
     {
       g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
-                   "ICD.library_path in \"%s\" is either missing or not a string",
-                   path);
+                   "ICD.library_path in \"%s%s\" is either missing or not a string",
+                   sysroot->path, filename);
       issues |= SRT_LOADABLE_ISSUES_CANNOT_LOAD;
       goto out;
     }
