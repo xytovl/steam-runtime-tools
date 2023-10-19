@@ -225,6 +225,12 @@ keys:
     **steam-runtime-system-info** was run. The keys and values are
     strings, and any field that is not known is omitted.
 
+    If **steam-runtime-system-info** is run under a user-space emulation
+    framework such as FEX-Emu, then the information shown here will reflect
+    the execution environment that is presented to programs of the same
+    architecture as **steam-runtime-system-info**, which is not necessarily
+    the same as the machine on which the emulator is running.
+
     **id**
     :   A short lower-case string identifying the operating system,
         for example **debian** or **arch**. In a Steam Runtime
