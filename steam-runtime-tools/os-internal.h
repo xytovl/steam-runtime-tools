@@ -29,6 +29,8 @@
 #include <glib.h>
 #include <glib-object.h>
 
+#include "steam-runtime-tools/resolve-in-sysroot-internal.h"
+
 typedef struct
 {
   gchar *build_id;
@@ -45,6 +47,5 @@ typedef struct
 
 G_GNUC_INTERNAL void _srt_os_release_init (SrtOsRelease *self);
 G_GNUC_INTERNAL void _srt_os_release_populate (SrtOsRelease *self,
-                                               const char *sysroot,
-                                               int sysroot_fd);
+                                               SrtSysroot *sysroot);
 G_GNUC_INTERNAL void _srt_os_release_clear (SrtOsRelease *self);
