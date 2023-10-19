@@ -80,6 +80,7 @@ struct _PvRuntime
   gchar *runtime_abi_json;
   gchar *variable_dir;
   gchar *mutable_sysroot;
+  SrtSysroot *real_root;
   gchar *tmpdir;
   gchar *overrides;
   const gchar *overrides_in_container;
@@ -104,7 +105,6 @@ struct _PvRuntime
   int host_fd;
   int mutable_sysroot_fd;
   int overrides_fd;
-  int root_fd;
   int runtime_files_fd;
   int variable_dir_fd;
   gboolean any_libc_from_provider;
@@ -476,7 +476,6 @@ pv_runtime_init (PvRuntime *self)
   self->host_fd = -1;
   self->mutable_sysroot_fd = -1;
   self->overrides_fd = -1;
-  self->root_fd = -1;
   self->runtime_files_fd = -1;
   self->variable_dir_fd = -1;
   self->is_flatpak_env = g_file_test ("/.flatpak-info",
@@ -1949,7 +1948,9 @@ pv_runtime_initable_init (GInitable *initable,
 
   /* Opening /proc/self/root rather than / lets us bypass FEX-Emu's
    * redirection from the real root filesystem into its "rootfs". */
-  if (!glnx_opendirat (-1, "/proc/self/root", TRUE, &self->root_fd, error))
+  self->real_root = _srt_sysroot_new_real_root (error);
+
+  if (self->real_root == NULL)
     return FALSE;
 
   /* If we are in a Flatpak environment we expect to have the host system
@@ -1995,6 +1996,7 @@ pv_runtime_dispose (GObject *object)
 
   g_clear_object (&self->provider);
   g_clear_object (&self->interpreter_host_provider);
+  g_clear_object (&self->real_root);
   enumeration_thread_clear (&self->indep_thread);
   enumeration_thread_clear (&self->host_thread);
   enumeration_threads_clear (&self->arch_host_threads,
@@ -2020,7 +2022,6 @@ pv_runtime_finalize (GObject *object)
   glnx_close_fd (&self->mutable_sysroot_fd);
   g_strfreev (self->original_environ);
   glnx_close_fd (&self->overrides_fd);
-  glnx_close_fd (&self->root_fd);
   g_free (self->runtime_abi_json);
   g_free (self->runtime_app);
   glnx_close_fd (&self->runtime_files_fd);
@@ -3204,7 +3205,7 @@ bind_runtime_base (PvRuntime *self,
        * OS's /usr as our real root directory, and set the runtime up
        * in a different directory. */
 
-      if (!pv_bwrap_bind_usr (bwrap, "/", self->root_fd, "/", error))
+      if (!pv_bwrap_bind_usr (bwrap, "/", self->real_root->fd, "/", error))
         return FALSE;
 
       /* We need at least a subset of the host's /etc, for ld.so.cache
