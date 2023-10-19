@@ -229,16 +229,14 @@ static gboolean
 append_adjusted_exports (FlatpakBwrap *to,
                          FlatpakBwrap *from,
                          const char *home,
-                         const char *interpreter_root,
+                         SrtSysroot *interpreter_root,
                          PvBwrapFlags bwrap_flags,
                          GError **error)
 {
   g_autofree int *fds = NULL;
-  glnx_autofd int interpreter_fd = -1;
-  glnx_autofd int root_fd = -1;
   /* Bypass FEX-Emu transparent rewrite by using
    * "/proc/self/root" as the root path. */
-  const gchar *root = "/proc/self/root";
+  g_autoptr(SrtSysroot) root = NULL;
   gsize n_fds;
   gsize i;
 
@@ -253,11 +251,14 @@ append_adjusted_exports (FlatpakBwrap *to,
 
   if (interpreter_root != NULL)
     {
-      if (!glnx_opendirat (-1, root, TRUE, &root_fd, error))
+      root = _srt_sysroot_new_real_root (error);
+
+      if (root == NULL)
         return FALSE;
 
-      if (!glnx_opendirat (-1, interpreter_root, TRUE, &interpreter_fd, error))
-        return FALSE;
+      /* Both of these are using fd-relative I/O, not naive path-based I/O */
+      g_assert (!_srt_sysroot_is_direct (interpreter_root));
+      g_assert (!_srt_sysroot_is_direct (root));
     }
 
   g_debug ("Exported directories:");
@@ -323,10 +324,10 @@ append_adjusted_exports (FlatpakBwrap *to,
            * where the source is from the FEX rootfs and the destination is
            * prefixed with the pressure-vessel interpreter root location. */
           if (interpreter_root != NULL
-              && _srt_file_test_in_sysroot (interpreter_root, interpreter_fd,
-                                            from_src, G_FILE_TEST_EXISTS))
+              && _srt_sysroot_test (interpreter_root, from_src,
+                                    SRT_RESOLVE_FLAGS_NONE, NULL))
             {
-              g_autofree gchar *inter_src = g_build_filename (interpreter_root,
+              g_autofree gchar *inter_src = g_build_filename (interpreter_root->path,
                                                               from_src, NULL);
               g_autofree gchar *inter_dest = g_build_filename (PV_RUNTIME_PATH_INTERPRETER_ROOT,
                                                                from_dest, NULL);
@@ -338,8 +339,8 @@ append_adjusted_exports (FlatpakBwrap *to,
             }
 
           if (interpreter_root == NULL
-              || _srt_file_test_in_sysroot (root, root_fd, from_src,
-                                            G_FILE_TEST_EXISTS))
+              || _srt_sysroot_test (root, from_src,
+                                    SRT_RESOLVE_FLAGS_NONE, NULL))
             {
               g_autofree gchar *src = NULL;
               /* Paths in the home directory might need adjusting.
@@ -1141,12 +1142,12 @@ main (int argc,
   g_autoptr(FlatpakBwrap) argv_in_container = NULL;
   g_autoptr(FlatpakBwrap) final_argv = NULL;
   g_autoptr(FlatpakExports) exports = NULL;
+  g_autoptr(SrtSysroot) interpreter_root = NULL;
   g_autofree gchar *bwrap_executable = NULL;
   PvBwrapFlags bwrap_flags = PV_BWRAP_FLAGS_NONE;
   g_autofree gchar *cwd_p = NULL;
   g_autofree gchar *cwd_l = NULL;
   g_autofree gchar *cwd_p_host = NULL;
-  g_autofree gchar *interpreter_root = NULL;
   g_autofree gchar *private_home = NULL;
   const gchar *home;
   g_autofree gchar *tools_dir = NULL;
@@ -1336,7 +1337,7 @@ main (int argc,
       if (value == TRISTATE_MAYBE)
         {
           if (interpreter_root != NULL)
-            opt_graphics_provider = g_strdup (interpreter_root);
+            opt_graphics_provider = g_strdup (interpreter_root->path);
           else
             opt_graphics_provider = g_strdup ("/");
         }
@@ -1348,7 +1349,7 @@ main (int argc,
           if (value == TRISTATE_NO)
             opt_graphics_provider = g_strdup ("");
           else if (interpreter_root != NULL)
-            opt_graphics_provider = g_strdup (interpreter_root);
+            opt_graphics_provider = g_strdup (interpreter_root->path);
           else if (g_file_test ("/run/host/usr", G_FILE_TEST_IS_DIR)
                    && g_file_test ("/run/host/etc", G_FILE_TEST_IS_DIR))
             opt_graphics_provider = g_strdup ("/run/host");
@@ -1690,20 +1691,19 @@ main (int argc,
         {
           /* If we are in an emulator, we also need to populate /run/host
            * in the interpreter mount point */
-          glnx_autofd int interpreter_fd = -1;
           g_autofree gchar *inter_run_host = g_build_filename (PV_RUNTIME_PATH_INTERPRETER_ROOT,
                                                                "/run/host", NULL);
-          g_autofree gchar *etc_src = g_build_filename (interpreter_root,
+          g_autofree gchar *etc_src = g_build_filename (interpreter_root->path,
                                                         "etc", NULL);
           g_autofree gchar *etc_dest = g_build_filename (inter_run_host, "etc", NULL);
-
-          if (!glnx_opendirat (-1, interpreter_root, TRUE, &interpreter_fd, error))
-            goto out;
 
           flatpak_bwrap_add_args (bwrap_filesystem_arguments,
                                   "--ro-bind", etc_src, etc_dest, NULL);
 
-          if (!pv_bwrap_bind_usr (bwrap, interpreter_root, interpreter_fd, inter_run_host, error))
+          if (!pv_bwrap_bind_usr (bwrap,
+                                  interpreter_root->path,
+                                  interpreter_root->fd,
+                                  inter_run_host, error))
             goto out;
         }
 

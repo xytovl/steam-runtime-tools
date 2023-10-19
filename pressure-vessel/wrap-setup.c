@@ -1161,7 +1161,7 @@ pv_wrap_maybe_load_nvidia_modules (GError **error)
  *  applicable.
  */
 void
-pv_wrap_detect_virtualization (gchar **interpreter_root_out,
+pv_wrap_detect_virtualization (SrtSysroot **interpreter_root_out,
                                SrtMachineType *host_machine_out)
 {
   g_autoptr(SrtVirtualizationInfo) virt_info = NULL;
@@ -1182,9 +1182,9 @@ pv_wrap_detect_virtualization (gchar **interpreter_root_out,
       val = srt_virtualization_info_get_interpreter_root (virt_info);
 
       /* We happen to know that the way _srt_check_virtualization() gets
-       * this information guarantees a canonicalized path, so we don't need
-       * to canonicalize it again. */
-      *interpreter_root_out = g_strdup (val);
+       * this information guarantees an object with a canonicalized path,
+       * so we don't need to canonicalize it again. */
+      *interpreter_root_out = _srt_sysroot_new (val, NULL);
     }
 }
 
