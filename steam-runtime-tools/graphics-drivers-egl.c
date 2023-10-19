@@ -851,7 +851,7 @@ srt_egl_icd_write_to_file (SrtEglIcd *self,
 }
 
 static void
-egl_icd_load_json_cb (const char *sysroot,
+egl_icd_load_json_cb (SrtSysroot *sysroot,
                       const char *filename,
                       void *user_data)
 {
@@ -859,7 +859,7 @@ egl_icd_load_json_cb (const char *sysroot,
 }
 
 static void
-egl_external_platform_load_json_cb (const char *sysroot,
+egl_external_platform_load_json_cb (SrtSysroot *sysroot,
                                     const char *filename,
                                     void *user_data)
 {
@@ -897,8 +897,6 @@ get_glvnd_datadir (void)
  * @helpers_path: (nullable): An optional path to find "inspect-library"
  *  helper, PATH is used if %NULL
  * @sysroot: (not nullable): The root directory, usually `/`
- * @sysroot_fd: A file descriptor opened on @sysroot, or negative to
- *  reopen it
  * @envp: (array zero-terminated=1) (not nullable): Behave as though `environ`
  *  was this array
  * @multiarch_tuples: (nullable): If not %NULL, and a Flatpak environment
@@ -918,8 +916,7 @@ get_glvnd_datadir (void)
 GList *
 _srt_load_egl_things (GType which,
                       const char *helpers_path,
-                      const char *sysroot,
-                      int sysroot_fd,
+                      SrtSysroot *sysroot,
                       gchar **envp,
                       const char * const *multiarch_tuples,
                       SrtCheckFlags check_flags)
@@ -929,7 +926,7 @@ _srt_load_egl_things (GType which,
   /* To avoid O(n**2) performance, we build this list in reverse order,
    * then reverse it at the end. */
   GList *ret = NULL;
-  void (*loader_cb) (const char *, const char *, void *);
+  void (*loader_cb) (SrtSysroot *, const char *, void *);
   const char *filenames_var;
   const char *dirs_var;
   const char *suffix;
@@ -939,7 +936,7 @@ _srt_load_egl_things (GType which,
   g_return_val_if_fail (which == SRT_TYPE_EGL_ICD
                         || which == SRT_TYPE_EGL_EXTERNAL_PLATFORM,
                         NULL);
-  g_return_val_if_fail (sysroot != NULL, NULL);
+  g_return_val_if_fail (SRT_IS_SYSROOT (sysroot), NULL);
   g_return_val_if_fail (_srt_check_not_setuid (), NULL);
   g_return_val_if_fail (envp != NULL, NULL);
 
@@ -990,13 +987,14 @@ _srt_load_egl_things (GType which,
 
       value = g_environ_getenv (envp, dirs_var);
 
-      flatpak_info = g_build_filename (sysroot, ".flatpak-info", NULL);
+      /* TODO: Use fd-relative I/O if appropriate */
+      flatpak_info = g_build_filename (sysroot->path, ".flatpak-info", NULL);
 
       if (value != NULL)
         {
           g_auto(GStrv) dirs = g_strsplit (value, G_SEARCHPATH_SEPARATOR_S, -1);
 
-          load_json_dirs (sysroot, sysroot_fd, dirs, NULL, _srt_indirect_strcmp0,
+          load_json_dirs (sysroot, dirs, NULL, _srt_indirect_strcmp0,
                           loader_cb, &ret);
         }
       else if (which == SRT_TYPE_EGL_ICD

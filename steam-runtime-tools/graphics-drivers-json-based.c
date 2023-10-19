@@ -590,11 +590,11 @@ _srt_loadable_flag_duplicates (GType which,
  * @user_data: Passed to @load_json_cb
  */
 void
-load_json_dir (const char *sysroot,
+load_json_dir (SrtSysroot *sysroot,
                const char *dir,
                const char *suffix,
                GCompareFunc sort,
-               void (*load_json_cb) (const char *, const char *, void *),
+               void (*load_json_cb) (SrtSysroot *, const char *, void *),
                void *user_data)
 {
   g_autoptr(GError) error = NULL;
@@ -607,7 +607,7 @@ load_json_dir (const char *sysroot,
   g_autoptr(GPtrArray) members = NULL;
   gsize i;
 
-  g_return_if_fail (sysroot != NULL);
+  g_return_if_fail (SRT_IS_SYSROOT (sysroot));
   g_return_if_fail (load_json_cb != NULL);
 
   if (dir == NULL)
@@ -625,10 +625,11 @@ load_json_dir (const char *sysroot,
       dir = suffixed_dir;
     }
 
-  sysrooted_dir = g_build_filename (sysroot, dir, NULL);
+  /* TODO: Use fd-based I/O if appropriate */
+  sysrooted_dir = g_build_filename (sysroot->path, dir, NULL);
   iter_dir = sysrooted_dir;
 
-  g_debug ("Looking for ICDs in %s (in sysroot %s)...", dir, sysroot);
+  g_debug ("Looking for ICDs in %s (in sysroot %s)...", dir, sysroot->path);
 
   dir_iter = g_dir_open (iter_dir, 0, &error);
 
@@ -665,8 +666,6 @@ load_json_dir (const char *sysroot,
 /*
  * load_json_dir:
  * @sysroot: (not nullable): The root directory, usually `/`
- * @sysroot_fd: A file descriptor opened on @sysroot, or negative to
- *  reopen it
  * @search_paths: Directories to search
  * @suffix: (nullable): A path to append to @dir, such as `"vulkan/icd.d"`
  * @sort: (nullable): If not %NULL, load ICDs sorted by filename in this order
@@ -677,35 +676,21 @@ load_json_dir (const char *sysroot,
  * to prevent loading the same JSONs multiple times.
  */
 void
-load_json_dirs (const char *sysroot,
-                int sysroot_fd,
+load_json_dirs (SrtSysroot *sysroot,
                 GStrv search_paths,
                 const char *suffix,
                 GCompareFunc sort,
-                void (*load_json_cb) (const char *, const char *, void *),
+                void (*load_json_cb) (SrtSysroot *, const char *, void *),
                 void *user_data)
 {
   gchar **iter;
   g_autoptr(GHashTable) searched_set = NULL;
   g_autoptr(GError) error = NULL;
-  glnx_autofd int local_sysroot_fd = -1;
 
-  g_return_if_fail (sysroot != NULL);
+  g_return_if_fail (SRT_IS_SYSROOT (sysroot));
   g_return_if_fail (load_json_cb != NULL);
 
   searched_set = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
-
-  if (sysroot_fd < 0)
-    {
-      if (!glnx_opendirat (-1, sysroot, FALSE, &local_sysroot_fd, &error))
-        {
-          g_warning ("An error occurred trying to open \"%s\": %s", sysroot,
-                     error->message);
-          return;
-        }
-
-      sysroot_fd = local_sysroot_fd;
-    }
 
   for (iter = search_paths;
        iter != NULL && *iter != NULL;
@@ -714,7 +699,7 @@ load_json_dirs (const char *sysroot,
       glnx_autofd int file_fd = -1;
       g_autofree gchar *file_realpath_in_sysroot = NULL;
 
-      file_fd = _srt_resolve_in_sysroot (sysroot_fd,
+      file_fd = _srt_resolve_in_sysroot (sysroot->fd,
                                          *iter, SRT_RESOLVE_FLAGS_NONE,
                                          &file_realpath_in_sysroot, &error);
 
@@ -751,7 +736,7 @@ load_json_dirs (const char *sysroot,
  */
 void
 load_icd_from_json (GType type,
-                    const char *sysroot,
+                    SrtSysroot *sysroot,
                     const char *filename,
                     GList **list)
 {
@@ -776,7 +761,7 @@ load_icd_from_json (GType type,
   g_return_if_fail (type == SRT_TYPE_VULKAN_ICD
                     || type == SRT_TYPE_EGL_ICD
                     || type == SRT_TYPE_EGL_EXTERNAL_PLATFORM);
-  g_return_if_fail (sysroot != NULL);
+  g_return_if_fail (SRT_IS_SYSROOT (sysroot));
   g_return_if_fail (list != NULL);
 
   if (!g_path_is_absolute (filename))
@@ -785,7 +770,8 @@ load_icd_from_json (GType type,
       filename = canon;
     }
 
-  path = g_build_filename (sysroot, filename, NULL);
+  /* TODO: Use fd-based I/O if appropriate */
+  path = g_build_filename (sysroot->path, filename, NULL);
 
   g_debug ("Attempting to load %s from %s", g_type_name (type), path);
 

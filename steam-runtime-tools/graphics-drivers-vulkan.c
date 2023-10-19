@@ -558,7 +558,7 @@ srt_vulkan_icd_new_replace_library_path (SrtVulkanIcd *self,
 }
 
 static void
-vulkan_icd_load_json_cb (const char *sysroot,
+vulkan_icd_load_json_cb (SrtSysroot *sysroot,
                          const char *filename,
                          void *user_data)
 {
@@ -583,7 +583,7 @@ get_vulkan_sysconfdir (void)
  * the suffix used. If they diverge in future, this function will need more
  * parameters. */
 gchar **
-_srt_graphics_get_vulkan_search_paths (const char *sysroot,
+_srt_graphics_get_vulkan_search_paths (SrtSysroot *sysroot,
                                        gchar **envp,
                                        const char * const *multiarch_tuples,
                                        const char *suffix)
@@ -634,7 +634,8 @@ _srt_graphics_get_vulkan_search_paths (const char *sysroot,
   if (g_strcmp0 (value, "/etc") != 0)
     g_ptr_array_add (search_paths, g_build_filename ("/etc", suffix, NULL));
 
-  flatpak_info = g_build_filename (sysroot, ".flatpak-info", NULL);
+  /* TODO: Use fd-relative I/O if appropriate */
+  flatpak_info = g_build_filename (sysroot->path, ".flatpak-info", NULL);
 
   /* freedesktop-sdk patches the Vulkan loader to look here for ICDs,
    * after EXTRASYSCONFDIR but before XDG_DATA_HOME.
@@ -725,8 +726,6 @@ _srt_graphics_get_vulkan_search_paths (const char *sysroot,
  * @helpers_path: (nullable): An optional path to find "inspect-library"
  *  helper, PATH is used if %NULL
  * @sysroot: (not nullable): The root directory, usually `/`
- * @sysroot_fd: A file descriptor opened on @sysroot, or negative to
- *  reopen it
  * @envp: (array zero-terminated=1) (not nullable): Behave as though `environ` was this
  *  array
  * @multiarch_tuples: (nullable): If not %NULL, and a Flatpak environment
@@ -747,8 +746,7 @@ _srt_graphics_get_vulkan_search_paths (const char *sysroot,
  */
 GList *
 _srt_load_vulkan_icds (const char *helpers_path,
-                       const char *sysroot,
-                       int sysroot_fd,
+                       SrtSysroot *sysroot,
                        gchar **envp,
                        const char * const *multiarch_tuples,
                        SrtCheckFlags check_flags)
@@ -761,6 +759,7 @@ _srt_load_vulkan_icds (const char *helpers_path,
 
   g_return_val_if_fail (_srt_check_not_setuid (), NULL);
   g_return_val_if_fail (envp != NULL, NULL);
+  g_return_val_if_fail (SRT_IS_SYSROOT (sysroot), NULL);
 
   /* Reference:
    * https://github.com/KhronosGroup/Vulkan-Loader/blob/v1.3.207/docs/LoaderDriverInterface.md#overriding-the-default-driver-discovery
@@ -803,7 +802,7 @@ _srt_load_vulkan_icds (const char *helpers_path,
         }
 
       g_debug ("Using normal Vulkan driver search path");
-      load_json_dirs (sysroot, sysroot_fd, search_paths, NULL, READDIR_ORDER,
+      load_json_dirs (sysroot, search_paths, NULL, READDIR_ORDER,
                       vulkan_icd_load_json_cb, &ret);
     }
 
@@ -1479,7 +1478,7 @@ vulkan_layer_parse_json (const gchar *path,
  *  layers, least-important first
  */
 static GList *
-load_vulkan_layer_json (const gchar *sysroot,
+load_vulkan_layer_json (SrtSysroot *sysroot,
                         const gchar *path)
 {
   g_autoptr(GError) error = NULL;
@@ -1504,7 +1503,8 @@ load_vulkan_layer_json (const gchar *sysroot,
       path = canon;
     }
 
-  in_sysroot = g_build_filename (sysroot, path, NULL);
+  /* TODO: Use fd-relative I/O if appropriate */
+  in_sysroot = g_build_filename (sysroot->path, path, NULL);
 
   g_debug ("Attempting to load the json layer from %s", in_sysroot);
 
@@ -1627,11 +1627,11 @@ load_vulkan_layer_json (const gchar *sysroot,
 }
 
 static void
-vulkan_layer_load_json (const char *sysroot,
+vulkan_layer_load_json (SrtSysroot *sysroot,
                         const char *filename,
                         GList **list)
 {
-  g_return_if_fail (sysroot != NULL);
+  g_return_if_fail (SRT_IS_SYSROOT (sysroot));
   g_return_if_fail (filename != NULL);
   g_return_if_fail (list != NULL);
 
@@ -1639,7 +1639,7 @@ vulkan_layer_load_json (const char *sysroot,
 }
 
 static void
-vulkan_layer_load_json_cb (const char *sysroot,
+vulkan_layer_load_json_cb (SrtSysroot *sysroot,
                            const char *filename,
                            void *user_data)
 {
@@ -1651,8 +1651,6 @@ vulkan_layer_load_json_cb (const char *sysroot,
  * @helpers_path: (nullable): An optional path to find "inspect-library"
  *  helper, PATH is used if %NULL
  * @sysroot: (not nullable): The root directory, usually `/`
- * @sysroot_fd: A file descriptor opened on @sysroot, or negative to
- *  reopen it
  * @envp: (array zero-terminated=1) (not nullable): Behave as though `environ`
  *  was this array
  * @multiarch_tuples: (nullable): If not %NULL, duplicated
@@ -1670,8 +1668,7 @@ vulkan_layer_load_json_cb (const char *sysroot,
  */
 GList *
 _srt_load_vulkan_layers_extended (const char *helpers_path,
-                                  const char *sysroot,
-                                  int sysroot_fd,
+                                  SrtSysroot *sysroot,
                                   gchar **envp,
                                   const char * const *multiarch_tuples,
                                   gboolean explicit,
@@ -1684,6 +1681,7 @@ _srt_load_vulkan_layers_extended (const char *helpers_path,
 
   g_return_val_if_fail (_srt_check_not_setuid (), NULL);
   g_return_val_if_fail (envp != NULL, NULL);
+  g_return_val_if_fail (SRT_IS_SYSROOT (sysroot), NULL);
 
   if (explicit)
     suffix = _SRT_GRAPHICS_EXPLICIT_VULKAN_LAYER_SUFFIX;
@@ -1700,7 +1698,7 @@ _srt_load_vulkan_layers_extended (const char *helpers_path,
     {
       g_auto(GStrv) dirs = g_strsplit (value, G_SEARCHPATH_SEPARATOR_S, -1);
       g_debug ("Vulkan explicit layer search path overridden to: %s", value);
-      load_json_dirs (sysroot, sysroot_fd, dirs, NULL, _srt_indirect_strcmp0,
+      load_json_dirs (sysroot, dirs, NULL, _srt_indirect_strcmp0,
                       vulkan_layer_load_json_cb, &ret);
     }
   else
@@ -1714,7 +1712,7 @@ _srt_load_vulkan_layers_extended (const char *helpers_path,
         {
           g_auto(GStrv) dirs = g_strsplit (add, G_SEARCHPATH_SEPARATOR_S, -1);
           g_debug ("Vulkan additional explicit layer search path: %s", add);
-          load_json_dirs (sysroot, sysroot_fd, dirs, NULL, _srt_indirect_strcmp0,
+          load_json_dirs (sysroot, dirs, NULL, _srt_indirect_strcmp0,
                           vulkan_layer_load_json_cb, &ret);
         }
 
@@ -1723,7 +1721,7 @@ _srt_load_vulkan_layers_extended (const char *helpers_path,
                                                             suffix);
       g_debug ("Using normal Vulkan layer search path");
       g_debug ("SEARCH PATHS %s", search_paths[0]);
-      load_json_dirs (sysroot, sysroot_fd, search_paths, NULL, _srt_indirect_strcmp0,
+      load_json_dirs (sysroot, search_paths, NULL, _srt_indirect_strcmp0,
                       vulkan_layer_load_json_cb, &ret);
     }
 
@@ -1752,8 +1750,22 @@ _srt_load_vulkan_layers (const char *sysroot,
                          gchar **envp,
                          gboolean explicit)
 {
-  return _srt_load_vulkan_layers_extended (NULL, sysroot, -1, envp, NULL, explicit,
-                                           SRT_CHECK_FLAGS_NONE);
+  g_autoptr(SrtSysroot) sysroot_object = NULL;
+  g_autoptr(GError) local_error = NULL;
+
+  g_return_val_if_fail (sysroot != NULL, NULL);
+  g_return_val_if_fail (envp != NULL, NULL);
+
+  sysroot_object = _srt_sysroot_new (sysroot, &local_error);
+
+  if (sysroot_object == NULL)
+    {
+      g_warning ("%s", local_error->message);
+      return NULL;
+    }
+
+  return _srt_load_vulkan_layers_extended (NULL, sysroot_object, envp, NULL,
+                                           explicit, SRT_CHECK_FLAGS_NONE);
 }
 
 static SrtVulkanLayer *
