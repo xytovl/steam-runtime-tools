@@ -3850,8 +3850,7 @@ ensure_container_info (SrtSystemInfo *self)
   if (self->container_info == NULL)
     {
       if (self->sysroot != NULL && !self->immutable_values)
-        self->container_info = _srt_check_container (self->sysroot->fd,
-                                                     self->sysroot->path);
+        self->container_info = _srt_check_container (self->sysroot);
       else
         self->container_info = _srt_container_info_new_empty ();
     }

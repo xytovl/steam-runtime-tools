@@ -216,8 +216,7 @@ container_type_from_name (const char *name)
 
 /**
  * _srt_check_container:
- * @sysroot_fd: Sysroot file descriptor
- * @sysroot: (not nullable) (type filename): Path to the sysroot
+ * @sysroot: (not nullable): System root, often `/`
  *
  * Gather and return information about the container that is currently in use.
  *
@@ -225,8 +224,7 @@ container_type_from_name (const char *name)
  *  Free with g_object_unref().
  */
 SrtContainerInfo *
-_srt_check_container (int sysroot_fd,
-                      const gchar *sysroot)
+_srt_check_container (SrtSysroot *sysroot)
 {
   g_autofree gchar *contents = NULL;
   g_autofree gchar *run_host_path = NULL;
@@ -235,20 +233,13 @@ _srt_check_container (int sysroot_fd,
   SrtContainerType type = SRT_CONTAINER_TYPE_UNKNOWN;
   glnx_autofd int run_host_fd = -1;
 
-  g_return_val_if_fail (sysroot != NULL, NULL);
+  g_return_val_if_fail (SRT_IS_SYSROOT (sysroot), NULL);
 
-  if (sysroot_fd < 0)
-    {
-      g_debug ("Cannot find container info: previously failed to open "
-               "sysroot %s", sysroot);
-      goto out;
-    }
+  g_debug ("Finding container info in sysroot %s...", sysroot->path);
 
-  g_debug ("Finding container info in sysroot %s...", sysroot);
-
-  run_host_fd = _srt_resolve_in_sysroot (sysroot_fd, "/run/host",
-                                         SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY,
-                                         &run_host_path, NULL);
+  run_host_fd = _srt_sysroot_open (sysroot, "/run/host",
+                                   SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY,
+                                   &run_host_path, NULL);
 
   g_debug ("/run/host resolved to %s", run_host_path ?: "(null)");
 
@@ -256,12 +247,12 @@ _srt_check_container (int sysroot_fd,
    * meaning the resolved path relative to the sysroot is ".".
    * We don't want that to be interpreted as being a container. */
   if (run_host_path != NULL && !g_str_equal (run_host_path, "."))
-    host_directory = g_build_filename (sysroot, run_host_path, NULL);
+    host_directory = g_build_filename (sysroot->path, run_host_path, NULL);
 
-  if (host_directory != NULL &&
-      _srt_file_get_contents_in_sysroot (sysroot_fd,
-                                         "/run/host/container-manager",
-                                         &contents, NULL, NULL))
+  if (host_directory != NULL
+      && _srt_sysroot_load (sysroot, "/run/host/container-manager",
+                            SRT_RESOLVE_FLAGS_NONE,
+                            NULL, &contents, NULL, NULL))
     {
       g_strchomp (contents);
       type = container_type_from_name (contents);
@@ -269,9 +260,9 @@ _srt_check_container (int sysroot_fd,
       goto out;
     }
 
-  if (_srt_file_get_contents_in_sysroot (sysroot_fd,
-                                         "/run/systemd/container",
-                                         &contents, NULL, NULL))
+  if (_srt_sysroot_load (sysroot, "/run/systemd/container",
+                         SRT_RESOLVE_FLAGS_NONE,
+                         NULL, &contents, NULL, NULL))
     {
       g_strchomp (contents);
       type = container_type_from_name (contents);
@@ -279,32 +270,31 @@ _srt_check_container (int sysroot_fd,
       goto out;
     }
 
-  if (_srt_file_test_in_sysroot (sysroot, sysroot_fd, "/.flatpak-info",
-                                 G_FILE_TEST_IS_REGULAR))
+  if (_srt_sysroot_test (sysroot, "/.flatpak-info",
+                         SRT_RESOLVE_FLAGS_MUST_BE_REGULAR, NULL))
     {
       type = SRT_CONTAINER_TYPE_FLATPAK;
       g_debug ("Flatpak based on /.flatpak-info");
       goto out;
     }
 
-  if (_srt_file_test_in_sysroot (sysroot, sysroot_fd, "/run/pressure-vessel",
-                                 G_FILE_TEST_IS_DIR))
+  if (_srt_sysroot_test (sysroot, "/run/pressure-vessel",
+                         SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY, NULL))
     {
       type = SRT_CONTAINER_TYPE_PRESSURE_VESSEL;
       g_debug ("pressure-vessel based on /run/pressure-vessel");
       goto out;
     }
 
-  if (_srt_file_test_in_sysroot (sysroot, sysroot_fd, "/.dockerenv",
-                                 G_FILE_TEST_EXISTS))
+  if (_srt_sysroot_test (sysroot, "/.dockerenv", SRT_RESOLVE_FLAGS_NONE, NULL))
     {
       type = SRT_CONTAINER_TYPE_DOCKER;
       g_debug ("Docker based on /.dockerenv");
       goto out;
     }
 
-  if (_srt_file_test_in_sysroot (sysroot, sysroot_fd, "/run/.containerenv",
-                                 G_FILE_TEST_EXISTS))
+  if (_srt_sysroot_test (sysroot, "/run/.containerenv",
+                         SRT_RESOLVE_FLAGS_NONE, NULL))
     {
       type = SRT_CONTAINER_TYPE_PODMAN;
       g_debug ("Podman based on /run/.containerenv");
@@ -327,8 +317,9 @@ _srt_check_container (int sysroot_fd,
       goto out;
     }
 
-  if (_srt_file_get_contents_in_sysroot (sysroot_fd, "/proc/1/cgroup",
-                                         &contents, NULL, NULL))
+  if (_srt_sysroot_load (sysroot, "/proc/1/cgroup",
+                         SRT_RESOLVE_FLAGS_NONE,
+                         NULL, &contents, NULL, NULL))
     {
       if (strstr (contents, "/docker/") != NULL)
         type = SRT_CONTAINER_TYPE_DOCKER;
@@ -361,9 +352,9 @@ out:
       g_autofree gchar *flatpak_info_content = NULL;
       gsize len;
 
-      if (_srt_file_get_contents_in_sysroot (sysroot_fd, "/.flatpak-info",
-                                             &flatpak_info_content,
-                                             &len, NULL))
+      if (_srt_sysroot_load (sysroot, "/.flatpak-info",
+                             SRT_RESOLVE_FLAGS_NONE,
+                             NULL, &flatpak_info_content, &len, NULL))
         {
           info = g_key_file_new ();
 
