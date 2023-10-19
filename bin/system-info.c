@@ -724,18 +724,15 @@ jsonify_container (JsonBuilder *builder,
           json_builder_set_member_name (builder, "host");
           json_builder_begin_object (builder);
             {
+              SrtOsInfo *os_info = NULL;
+
               json_builder_set_member_name (builder, "path");
               json_builder_add_string_value (builder, host_directory);
 
-              if (host_directory != NULL)
-                {
-                  g_autoptr(SrtSystemInfo) host = srt_system_info_new (NULL);
-                  g_autoptr(SrtOsInfo) os_info = NULL;
+              os_info = srt_container_info_get_container_host_os_info (container_info);
 
-                  srt_system_info_set_sysroot (host, host_directory);
-                  os_info = srt_system_info_check_os (host);
-                  jsonify_os_release (builder, os_info, verbose);
-                }
+              if (os_info != NULL)
+                jsonify_os_release (builder, os_info, verbose);
             }
           json_builder_end_object (builder);
         }

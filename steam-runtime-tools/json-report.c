@@ -70,6 +70,7 @@ _srt_architecture_can_run_from_report (JsonObject *json_obj)
 SrtContainerInfo *
 _srt_container_info_get_from_report (JsonObject *json_obj)
 {
+  g_autoptr(SrtOsInfo) host_os_info = NULL;
   JsonObject *json_sub_obj;
   JsonObject *json_host_obj = NULL;
   const gchar *flatpak_version = NULL;
@@ -96,13 +97,17 @@ _srt_container_info_get_from_report (JsonObject *json_obj)
           json_host_obj = json_object_get_object_member (json_sub_obj, "host");
           host_path = json_object_get_string_member_with_default (json_host_obj, "path",
                                                                   NULL);
+
+          if (json_object_has_member (json_host_obj, "os-release"))
+            host_os_info = _srt_os_info_new_from_report (json_host_obj);
         }
     }
 
 out:
   return _srt_container_info_new (type,
                                   flatpak_version,
-                                  host_path);
+                                  host_path,
+                                  host_os_info);
 }
 
 /**

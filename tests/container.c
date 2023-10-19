@@ -80,27 +80,32 @@ test_object (Fixture *f,
              gconstpointer context)
 {
   g_autoptr(SrtContainerInfo) container = NULL;
+  g_autoptr(SrtOsInfo) host_os_info = NULL;
   SrtContainerType type;
   g_autofree gchar *flatpak_version = NULL;
   g_autofree gchar *host_directory = NULL;
 
   container = _srt_container_info_new (SRT_CONTAINER_TYPE_FLATPAK,
                                        "1.10.2",
-                                       "/run/host");
+                                       "/run/host",
+                                       NULL);
 
   g_assert_cmpint (srt_container_info_get_container_type (container), ==,
                    SRT_CONTAINER_TYPE_FLATPAK);
   g_assert_cmpstr (srt_container_info_get_flatpak_version (container), ==, "1.10.2");
   g_assert_cmpstr (srt_container_info_get_container_host_directory (container), ==,
                    "/run/host");
+  g_assert_null (srt_container_info_get_container_host_os_info (container));
   g_object_get (container,
                 "type", &type,
                 "flatpak-version", &flatpak_version,
                 "host-directory", &host_directory,
+                "host-os-info", &host_os_info,
                 NULL);
   g_assert_cmpint (type, ==, SRT_CONTAINER_TYPE_FLATPAK);
   g_assert_cmpstr (flatpak_version, ==, "1.10.2");
   g_assert_cmpstr (host_directory, ==, "/run/host");
+  g_assert_null (host_os_info);
 }
 
 typedef struct
@@ -110,6 +115,7 @@ typedef struct
   SrtContainerType type;
   const char *host_directory;
   const char *flatpak_version;
+  const char *host_os_id;
 } ContainerTest;
 
 static const ContainerTest container_tests[] =
@@ -135,12 +141,14 @@ static const ContainerTest container_tests[] =
     .type = SRT_CONTAINER_TYPE_FLATPAK,
     .host_directory = "/run/host",
     .flatpak_version = "1.10.2",
+    .host_os_id = "debian",
   },
   {
     .description = "Has /run/host",
     .sysroot = "invalid-os-release",
     .type = SRT_CONTAINER_TYPE_UNKNOWN,
     .host_directory = "/run/host",
+    .host_os_id = NULL,
   },
   {
     .description = "Has no evidence of being a container",
@@ -162,6 +170,7 @@ static const ContainerTest container_tests[] =
     .sysroot = "podman-example",
     .type = SRT_CONTAINER_TYPE_PODMAN,
     .host_directory = "/run/host",
+    .host_os_id = NULL,
   },
 };
 
@@ -195,6 +204,8 @@ test_containers (Fixture *f,
         {
           g_autoptr(SrtContainerInfo) container = NULL;
           g_autofree gchar *host_dir_dup = NULL;
+          g_autoptr(SrtOsInfo) host_os_info_dup = NULL;
+          SrtOsInfo *host_os_info = NULL;
 
           container = srt_system_info_check_container (info);
           g_assert_nonnull (container);
@@ -203,6 +214,22 @@ test_containers (Fixture *f,
                            test->type);
           g_assert_cmpint (srt_container_info_get_container_type (container), ==,
                            test->type);
+
+          host_os_info = srt_container_info_get_container_host_os_info (container);
+          g_object_get (container,
+                        "host-os-info", &host_os_info_dup,
+                        NULL);
+          g_assert_true (host_os_info == host_os_info_dup);
+
+          if (test->host_directory != NULL)
+            {
+              g_assert_nonnull (host_os_info);
+              g_assert_cmpstr (srt_os_info_get_id (host_os_info), ==, test->host_os_id);
+            }
+          else
+            {
+              g_assert_null (host_os_info);
+            }
 
           host_dir_dup = srt_system_info_dup_container_host_directory (info);
           g_assert_cmpstr (host_dir_dup, ==, expected_host);

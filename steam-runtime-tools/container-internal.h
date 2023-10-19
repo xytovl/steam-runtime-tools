@@ -27,6 +27,7 @@
 #pragma once
 
 #include "steam-runtime-tools/container.h"
+#include "steam-runtime-tools/os.h"
 #include "steam-runtime-tools/resolve-in-sysroot-internal.h"
 
 /*
@@ -36,6 +37,8 @@
  *  relevant only if @type is %SRT_CONTAINER_TYPE_FLATPAK
  * @host_directory: (nullable) (type filename): Directory where host files can
  *  be found
+ * @host_os_info: (nullable): Information about the OS of @host_directory,
+ *  if available
  *
  * Inline convenience function to create a new SrtContainerInfo.
  * This is not part of the public API.
@@ -44,25 +47,28 @@
  */
 static inline SrtContainerInfo *_srt_container_info_new (SrtContainerType type,
                                                          const gchar *flatpak_version,
-                                                         const gchar *host_directory);
+                                                         const gchar *host_directory,
+                                                         SrtOsInfo *host_os_info);
 
 #ifndef __GTK_DOC_IGNORE__
 static inline SrtContainerInfo *
 _srt_container_info_new (SrtContainerType type,
                          const gchar *flatpak_version,
-                         const gchar *host_directory)
+                         const gchar *host_directory,
+                         SrtOsInfo *host_os_info)
 {
   return g_object_new (SRT_TYPE_CONTAINER_INFO,
                        "type", type,
                        "flatpak-version", flatpak_version,
                        "host-directory", host_directory,
+                       "host-os-info", host_os_info,
                        NULL);
 }
 
 static inline SrtContainerInfo *
 _srt_container_info_new_empty (void)
 {
-  return _srt_container_info_new (SRT_CONTAINER_TYPE_UNKNOWN, NULL, NULL);
+  return _srt_container_info_new (SRT_CONTAINER_TYPE_UNKNOWN, NULL, NULL, NULL);
 }
 #endif
 
