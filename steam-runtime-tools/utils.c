@@ -842,60 +842,6 @@ _srt_divert_stdout_to_stderr (GError **error)
 }
 
 /*
- * _srt_file_get_contents_in_sysroot:
- * @sysroot_fd: A directory fd opened on the sysroot or `/`
- * @path: Absolute or root-relative path within @sysroot_fd
- * @contents: (out) (not optional): Used to return contents
- * @len: (out) (optional): Used to return length
- * @error: Used to return error on failure
- *
- * Like g_file_get_contents(), but the file is in a sysroot, and we
- * follow symlinks as though @sysroot_fd was the root directory
- * (similar to `fakechroot`).
- *
- * Returns: %TRUE if successful
- */
-gboolean
-_srt_file_get_contents_in_sysroot (int sysroot_fd,
-                                   const char *path,
-                                   gchar **contents,
-                                   gsize *len,
-                                   GError **error)
-{
-  g_autofree gchar *real_path = NULL;
-  g_autofree gchar *fd_path = NULL;
-  g_autofree gchar *ignored = NULL;
-  glnx_autofd int fd = -1;
-
-  g_return_val_if_fail (sysroot_fd >= 0, FALSE);
-  g_return_val_if_fail (path != NULL, FALSE);
-  g_return_val_if_fail (contents != NULL, FALSE);
-  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
-
-  if (contents == NULL)
-    contents = &ignored;
-
-  fd = _srt_resolve_in_sysroot (sysroot_fd,
-                                path,
-                                SRT_RESOLVE_FLAGS_READABLE,
-                                &real_path,
-                                error);
-
-  if (fd < 0)
-    return FALSE;
-
-  fd_path = g_strdup_printf ("/proc/self/fd/%d", fd);
-
-  if (!g_file_get_contents (fd_path, contents, len, error))
-    {
-      g_prefix_error (error, "Unable to read %s: ", real_path);
-      return FALSE;
-    }
-
-  return TRUE;
-}
-
-/*
  * _srt_file_test_in_sysroot:
  * @sysroot: (type filename): A path used as the root
  * @sysroot_fd: A file descriptor opened on @sysroot, or negative to
