@@ -134,6 +134,11 @@ gboolean _srt_sysroot_load (SrtSysroot *sysroot,
                             gsize *len_out,
                             GError **error);
 
+gboolean _srt_sysroot_test (SrtSysroot *sysroot,
+                            const char *path,
+                            SrtResolveFlags flags,
+                            GError **error);
+
 G_GNUC_INTERNAL
 int _srt_resolve_in_sysroot (int sysroot,
                              const char *descendant,

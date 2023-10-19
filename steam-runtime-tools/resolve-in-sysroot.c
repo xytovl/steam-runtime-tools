@@ -649,6 +649,18 @@ _srt_sysroot_open (SrtSysroot *sysroot,
 }
 
 gboolean
+_srt_sysroot_test (SrtSysroot *sysroot,
+                   const char *path,
+                   SrtResolveFlags flags,
+                   GError **error)
+{
+  glnx_autofd int fd = -1;
+
+  fd = _srt_sysroot_open (sysroot, path, flags, NULL, error);
+  return (fd >= 0);
+}
+
+gboolean
 _srt_sysroot_load (SrtSysroot *sysroot,
                    const char *path,
                    SrtResolveFlags flags,
