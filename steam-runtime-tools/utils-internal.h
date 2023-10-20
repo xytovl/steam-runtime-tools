@@ -28,7 +28,6 @@
 
 #include <dirent.h>
 #include <fcntl.h>
-#include <gelf.h>
 #include <signal.h>
 #include <stdio.h>
 #include <sys/prctl.h>
@@ -49,8 +48,6 @@ typedef enum
   SRT_HELPER_FLAGS_TIME_OUT_SOONER = (1 << 2),
   SRT_HELPER_FLAGS_NONE = 0
 } SrtHelperFlags;
-
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(Elf, elf_end);
 
 G_GNUC_INTERNAL gboolean _srt_check_not_setuid (void);
 
@@ -210,12 +207,6 @@ const char *_srt_get_steam_app_id (void);
 gboolean _srt_fd_set_close_on_exec (int fd,
                                     gboolean close_on_exec,
                                     GError **error);
-
-gboolean _srt_open_elf (int dfd,
-                        const gchar *file_path,
-                        int *fd,
-                        Elf **elf,
-                        GError **error);
 
 /*
  * SrtHashTableIter:

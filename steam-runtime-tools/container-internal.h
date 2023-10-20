@@ -57,6 +57,12 @@ _srt_container_info_new (SrtContainerType type,
                        "host-directory", host_directory,
                        NULL);
 }
+
+static inline SrtContainerInfo *
+_srt_container_info_new_empty (void)
+{
+  return _srt_container_info_new (SRT_CONTAINER_TYPE_UNKNOWN, NULL, NULL);
+}
 #endif
 
 /* See flatpak-metadata(5) */

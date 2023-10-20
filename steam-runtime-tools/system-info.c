@@ -544,7 +544,7 @@ forget_xdg_portal (SrtSystemInfo *self)
 }
 
 static void
-srt_system_info_finalize (GObject *object)
+srt_system_info_dispose (GObject *object)
 {
   SrtSystemInfo *self = SRT_SYSTEM_INFO (object);
 
@@ -559,6 +559,16 @@ srt_system_info_finalize (GObject *object)
   forget_runtime (self);
   forget_steam (self);
   forget_xdg_portal (self);
+  g_ptr_array_set_size (self->abis, 0);
+  g_clear_object (&self->virtualization_info);
+
+  G_OBJECT_CLASS (srt_system_info_parent_class)->dispose (object);
+}
+
+static void
+srt_system_info_finalize (GObject *object)
+{
+  SrtSystemInfo *self = SRT_SYSTEM_INFO (object);
 
   g_clear_pointer (&self->abis, g_ptr_array_unref);
   g_clear_pointer (&self->multiarch_tuples, g_array_unref);
@@ -568,7 +578,6 @@ srt_system_info_finalize (GObject *object)
   glnx_close_fd (&self->sysroot_fd);
   g_strfreev (self->env);
   g_clear_pointer (&self->cached_driver_environment, g_strfreev);
-  g_clear_object (&self->virtualization_info);
 
   if (self->cached_hidden_deps)
     g_hash_table_unref (self->cached_hidden_deps);
@@ -585,6 +594,7 @@ srt_system_info_class_init (SrtSystemInfoClass *cls)
 
   object_class->get_property = srt_system_info_get_property;
   object_class->set_property = srt_system_info_set_property;
+  object_class->dispose = srt_system_info_dispose;
   object_class->finalize = srt_system_info_finalize;
 
   properties[PROP_EXPECTATIONS] =
@@ -3796,8 +3806,14 @@ ensure_container_info (SrtSystemInfo *self)
 {
   g_return_if_fail (SRT_IS_SYSTEM_INFO (self));
 
-  if (self->container_info == NULL && !self->immutable_values)
-    self->container_info = _srt_check_container (self->sysroot_fd, self->sysroot);
+  if (self->container_info == NULL)
+    {
+      if (!self->immutable_values)
+        self->container_info = _srt_check_container (self->sysroot_fd,
+                                                     self->sysroot);
+      else
+        self->container_info = _srt_container_info_new_empty ();
+    }
 }
 
 /**
@@ -4182,7 +4198,7 @@ static void
 ensure_runtime_linker (SrtSystemInfo *self,
                        Abi *abi)
 {
-  g_autofree gchar *tmp = NULL;
+  g_autofree gchar *real_path = NULL;
   int fd;
 
   if (abi->runtime_linker_resolved != NULL)
@@ -4213,13 +4229,14 @@ ensure_runtime_linker (SrtSystemInfo *self,
 
   fd = _srt_resolve_in_sysroot (self->sysroot_fd,
                                 abi->known_architecture->interoperable_runtime_linker,
-                                SRT_RESOLVE_FLAGS_READABLE,
-                                &tmp,
+                                (SRT_RESOLVE_FLAGS_READABLE
+                                 | SRT_RESOLVE_FLAGS_RETURN_ABSOLUTE),
+                                &real_path,
                                 &abi->runtime_linker_error);
 
   if (fd >= 0)
     {
-      abi->runtime_linker_resolved = g_strconcat ("/", tmp, NULL);
+      abi->runtime_linker_resolved = g_steal_pointer (&real_path);
       close (fd);
     }
 }

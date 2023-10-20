@@ -84,6 +84,17 @@ fd_array_take (GArray *fds,
  * or nonexistent (in which case a directory will be created, currently
  * with hard-coded 0700 permissions).
  *
+ * If %SRT_RESOLVE_FLAGS_RETURN_ABSOLUTE is in @flags, @real_path_out
+ * will be set to a canonicalized absolute path, which will be `/` if the
+ * returned file descriptor points to @sysroot, otherwise does not
+ * end with a `/`, and in any case does not have any `.` or `..` path
+ * segments.
+ *
+ * Otherwise, it will be set to a canonicalized relative path, which will
+ * be `.` if the returned file descriptor points to @sysroot and otherwise
+ * does not have any `.` path segments, and in any case does not have any
+ * `..` path segments.
+ *
  * Returns: An `O_PATH` file descriptor pointing to @descendant,
  *  or -1 on error
  */
@@ -316,7 +327,9 @@ _srt_resolve_in_sysroot (int sysroot,
     }
 
   /* Avoid returning an empty path */
-  if (current_path->len == 0)
+  if (flags & SRT_RESOLVE_FLAGS_RETURN_ABSOLUTE)
+    g_string_prepend_c (current_path, '/');
+  else if (current_path->len == 0)
     g_string_append_c (current_path, '.');
 
   if ((flags & SRT_RESOLVE_FLAGS_MUST_BE_REGULAR) != 0)
