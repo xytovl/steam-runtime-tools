@@ -26,9 +26,11 @@
 #include <libglnx.h>
 
 #include <steam-runtime-tools/steam-runtime-tools.h>
-#include "steam-runtime-tools/utils-internal.h"
 
 #include <steam-runtime-tools/glib-backports-internal.h>
+
+#include "steam-runtime-tools/system-info-internal.h"
+#include "steam-runtime-tools/utils-internal.h"
 
 #include <glib.h>
 #include <glib/gstdio.h>
@@ -53,6 +55,7 @@
 #warning Unknown architecture, assuming x86
   static const char * const multiarch_tuples[] = { SRT_ABI_I386, SRT_ABI_X86_64 };
 #endif
+#define ANY_VALID_MULTIARCH_TUPLE (multiarch_tuples[0])
 
 static const char *argv0;
 static gchar *fake_home_path;
@@ -172,6 +175,136 @@ test_object (Fixture *f,
   g_assert_false (srt_system_info_can_run (info, SRT_ABI_I386));
   g_assert_false (srt_system_info_can_run (info, SRT_ABI_X86_64));
   g_object_unref (info);
+}
+
+static void
+test_null_sysroot (Fixture *f,
+                   gconstpointer context)
+{
+  g_autoptr(SrtSystemInfo) info = NULL;
+
+  info = srt_system_info_new (NULL);
+  g_assert_nonnull (info);
+  _srt_system_info_set_sysroot (info, NULL);
+
+    {
+      static const char * const expected[] = { "Unable to open sysroot", NULL };
+      g_auto(GStrv) overrides = NULL;
+      g_auto(GStrv) messages = NULL;
+
+      overrides = srt_system_info_list_pressure_vessel_overrides (info, &messages);
+      g_assert_cmpstrv ((const char * const *) messages, expected);
+      g_assert_null (overrides);
+    }
+
+    {
+      g_autofree gchar *s = NULL;
+
+      s = srt_system_info_dup_os_id (info);
+      g_assert_cmpstr (s, ==, NULL);
+      /* other OS attributes are not explicitly tested here */
+    }
+
+    {
+      g_autoptr(SrtObjectList) drivers = NULL;
+
+      drivers = srt_system_info_list_egl_icds (info, NULL);
+      g_assert_null (drivers);
+    }
+
+    {
+      g_autoptr(SrtObjectList) platforms = NULL;
+
+      platforms = srt_system_info_list_egl_external_platforms (info, NULL);
+      g_assert_null (platforms);
+    }
+
+    {
+      g_autoptr(SrtObjectList) drivers = NULL;
+
+      drivers = srt_system_info_list_vulkan_icds (info, NULL);
+      g_assert_null (drivers);
+    }
+
+    {
+      g_autoptr(SrtObjectList) layers = NULL;
+
+      layers = srt_system_info_list_explicit_vulkan_layers (info);
+      g_assert_null (layers);
+    }
+
+    {
+      g_autoptr(SrtObjectList) layers = NULL;
+
+      layers = srt_system_info_list_implicit_vulkan_layers (info);
+      g_assert_null (layers);
+    }
+
+    {
+      g_autoptr(SrtObjectList) drivers = NULL;
+
+      drivers = srt_system_info_list_dri_drivers (info,
+                                                  ANY_VALID_MULTIARCH_TUPLE,
+                                                  SRT_DRIVER_FLAGS_INCLUDE_ALL);
+      g_assert_null (drivers);
+    }
+
+    {
+      g_autoptr(SrtObjectList) drivers = NULL;
+
+      drivers = srt_system_info_list_va_api_drivers (info,
+                                                     ANY_VALID_MULTIARCH_TUPLE,
+                                                     SRT_DRIVER_FLAGS_INCLUDE_ALL);
+      g_assert_null (drivers);
+    }
+
+    {
+      g_autoptr(SrtObjectList) drivers = NULL;
+
+      drivers = srt_system_info_list_vdpau_drivers (info,
+                                                    ANY_VALID_MULTIARCH_TUPLE,
+                                                    SRT_DRIVER_FLAGS_INCLUDE_ALL);
+      g_assert_null (drivers);
+    }
+
+    {
+      g_autoptr(SrtObjectList) drivers = NULL;
+
+      drivers = srt_system_info_list_glx_icds (info,
+                                               ANY_VALID_MULTIARCH_TUPLE,
+                                               SRT_DRIVER_FLAGS_INCLUDE_ALL);
+      g_assert_null (drivers);
+    }
+
+  g_assert_cmpint (srt_system_info_get_container_type (info), ==,
+                   SRT_CONTAINER_TYPE_UNKNOWN);
+
+    {
+      g_autoptr(SrtVirtualizationInfo) virt = NULL;
+
+      virt = srt_system_info_check_virtualization (info);
+      g_assert_cmpint (srt_virtualization_info_get_virtualization_type (virt),
+                       ==, SRT_VIRTUALIZATION_TYPE_UNKNOWN);
+      g_assert_cmpint (srt_virtualization_info_get_host_machine (virt),
+                       ==, SRT_MACHINE_TYPE_UNKNOWN);
+      g_assert_cmpstr (srt_virtualization_info_get_interpreter_root (virt),
+                       ==, NULL);
+    }
+
+    {
+      g_autoptr(GError) error = NULL;
+      gboolean ok;
+
+      /* We have to use a multiarch tuple with a known ld.so here, otherwise
+       * the function will fail even before it checks whether there's a
+       * valid sysroot. */
+      ok = srt_system_info_check_runtime_linker (info, SRT_ABI_I386, NULL,
+                                                 &error);
+      g_assert_error (error, SRT_ARCHITECTURE_ERROR,
+                      SRT_ARCHITECTURE_ERROR_INTERNAL_ERROR);
+      g_assert_false (ok);
+      g_assert_cmpstr (error->message, ==, "Unable to open sysroot");
+    }
 }
 
 static void
@@ -4173,6 +4306,8 @@ main (int argc,
 
   g_test_add ("/system-info/object", Fixture, NULL,
               setup, test_object, teardown);
+  g_test_add ("/system-info/null-sysroot", Fixture, NULL,
+              setup, test_null_sysroot, teardown);
   g_test_add ("/system-info/test_libdl", Fixture, NULL,
               setup, test_libdl, teardown);
   g_test_add ("/system-info/libraries_presence", Fixture, NULL,

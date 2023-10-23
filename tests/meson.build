@@ -50,7 +50,7 @@ tests = [
   {'name': 'library', 'static': true},
   {'name': 'locale'},
   {'name': 'resolve-in-sysroot', 'static': true},
-  {'name': 'system-info'},
+  {'name': 'system-info', 'static': true},
   {'name': 'utils', 'static': true},
   {'name': 'virtualization', 'static': true},
   {'name': 'xdg-portal'},
