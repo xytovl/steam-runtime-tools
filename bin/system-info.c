@@ -45,6 +45,7 @@
 #include <steam-runtime-tools/json-utils-internal.h>
 #include <steam-runtime-tools/log-internal.h>
 #include <steam-runtime-tools/os-internal.h>
+#include <steam-runtime-tools/system-info-internal.h>
 #include <steam-runtime-tools/utils-internal.h>
 
 enum
@@ -1098,6 +1099,28 @@ main (int argc,
 
   builder = json_builder_new ();
   json_builder_begin_object (builder);
+
+  json_builder_set_member_name (builder, "steam-runtime-system-info");
+  json_builder_begin_object (builder);
+    {
+      json_builder_set_member_name (builder, "version");
+      json_builder_add_string_value (builder,
+                                     srt_system_info_get_version (info));
+      json_builder_set_member_name (builder, "path");
+
+      if (_srt_system_info_is_from_report (info))
+        {
+          json_builder_add_string_value (builder,
+                                         srt_system_info_get_saved_tool_path (info));
+        }
+      else
+        {
+          g_autofree gchar *exe = _srt_find_executable (NULL);
+
+          json_builder_add_string_value (builder, exe);
+        }
+    }
+  json_builder_end_object (builder);
 
   json_builder_set_member_name (builder, "can-write-uinput");
   json_builder_add_boolean_value (builder, srt_system_info_can_write_to_uinput (info));

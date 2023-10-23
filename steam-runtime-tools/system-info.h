@@ -99,6 +99,10 @@ SrtSystemInfo *srt_system_info_new_from_json (const char *path,
                                               GError **error);
 
 _SRT_PUBLIC
+const char *srt_system_info_get_version (SrtSystemInfo *self);
+_SRT_PUBLIC
+const char *srt_system_info_get_saved_tool_path (SrtSystemInfo *self);
+_SRT_PUBLIC
 gboolean srt_system_info_can_run (SrtSystemInfo *self,
                                   const char *multiarch_tuple);
 _SRT_PUBLIC
