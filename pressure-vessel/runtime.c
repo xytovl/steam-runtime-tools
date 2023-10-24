@@ -3383,8 +3383,8 @@ bind_runtime_base (PvRuntime *self,
   /* If we are in a Flatpak environment, we need to test if these files are
    * available in the host, and not in the current environment, because we will
    * run bwrap in the host system */
-  if (_srt_file_test_in_sysroot (self->host_root->path, self->host_root->fd,
-                                 "/etc/machine-id", G_FILE_TEST_EXISTS))
+  if (_srt_sysroot_test (self->host_root, "/etc/machine-id",
+                         SRT_RESOLVE_FLAGS_NONE, NULL))
     {
       flatpak_bwrap_add_args (bwrap,
                               "--ro-bind", "/etc/machine-id", "/etc/machine-id",
@@ -3395,9 +3395,8 @@ bind_runtime_base (PvRuntime *self,
   /* We leave this for completeness but in practice we do not expect to have
    * access to the "/var" host directory because Flatpak usually just binds
    * the host's "etc" and "usr". */
-  else if (_srt_file_test_in_sysroot (self->host_root->path, self->host_root->fd,
-                                      "/var/lib/dbus/machine-id",
-                                      G_FILE_TEST_EXISTS))
+  else if (_srt_sysroot_test (self->host_root, "/var/lib/dbus/machine-id",
+                              SRT_RESOLVE_FLAGS_NONE, NULL))
     {
       flatpak_bwrap_add_args (bwrap,
                               "--ro-bind", "/var/lib/dbus/machine-id",
@@ -3411,8 +3410,8 @@ bind_runtime_base (PvRuntime *self,
     {
       const char *item = from_host[i];
 
-      if (_srt_file_test_in_sysroot (self->host_root->path, self->host_root->fd,
-                                     item, G_FILE_TEST_EXISTS))
+      if (_srt_sysroot_test (self->host_root, item,
+                             SRT_RESOLVE_FLAGS_NONE, NULL))
         flatpak_bwrap_add_args (bwrap,
                                 "--ro-bind", item, item,
                                 NULL);
