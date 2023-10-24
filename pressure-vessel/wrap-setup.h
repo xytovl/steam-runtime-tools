@@ -94,7 +94,7 @@ void pv_wrap_append_preload (GPtrArray *argv,
 
 gboolean pv_wrap_maybe_load_nvidia_modules (GError **error);
 
-void pv_wrap_detect_virtualization (gchar **interpreter_root_out,
+void pv_wrap_detect_virtualization (SrtSysroot **interpreter_root_out,
                                     SrtMachineType *host_machine_out);
 
 void pv_share_temp_dir (FlatpakExports *exports,

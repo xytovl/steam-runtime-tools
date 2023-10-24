@@ -104,6 +104,8 @@ _srt_sysroot_get_fd (SrtSysroot *self)
  *  with `O_RDONLY` and `O_NOCTTY`.
  * @SRT_RESOLVE_FLAGS_RETURN_ABSOLUTE: Prefix `/` to @real_path_out,
  *  making it an absolute path.
+ * @SRT_RESOLVE_FLAGS_MUST_BE_EXECUTABLE: The last component of the path
+ *  must be executable.
  * @SRT_RESOLVE_FLAGS_NONE: No special behaviour.
  *
  * Flags affecting how _srt_resolve_in_sysroot() behaves.
@@ -117,6 +119,7 @@ typedef enum
   SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY = (1 << 4),
   SRT_RESOLVE_FLAGS_MUST_BE_REGULAR = (1 << 5),
   SRT_RESOLVE_FLAGS_RETURN_ABSOLUTE = (1 << 6),
+  SRT_RESOLVE_FLAGS_MUST_BE_EXECUTABLE = (1 << 7),
   SRT_RESOLVE_FLAGS_NONE = 0
 } SrtResolveFlags;
 
