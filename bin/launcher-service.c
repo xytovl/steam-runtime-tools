@@ -1622,6 +1622,10 @@ main (int argc,
         goto out;
     }
 
+  /* Must be before pv_launcher_server_connect_to_signals() which partially
+   * undoes this */
+  _srt_unblock_signals ();
+
   server->purpose = opt_purpose;
 
   if (opt_verbose || opt_hint)
