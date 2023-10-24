@@ -151,6 +151,16 @@ srt_loadable_write_to_file (const SrtLoadable *self,
       return FALSE;
     }
 
+  if (self->original_json != NULL)
+    {
+      ret = g_file_set_contents (path, self->original_json, -1, error);
+
+      if (!ret)
+        g_prefix_error (error, "Cannot save %s metadata to file :", member);
+
+      return ret;
+    }
+
   builder = json_builder_new ();
   json_builder_begin_object (builder);
     {
