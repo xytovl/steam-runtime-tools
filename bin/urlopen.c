@@ -211,7 +211,7 @@ main (int argc,
                          || g_ascii_strcasecmp (scheme, "https") == 0))
     {
       g_autofree gchar *steam_url = NULL;
-      steam_url = g_strjoin ("/", "steam://openurl", uri, NULL);
+      steam_url = g_strjoin ("/", "steam://openurl_external", uri, NULL);
 
       g_debug ("Passing the URL '%s' to the Steam pipe", steam_url);
       if (_srt_steam_command_via_pipe ((const gchar **) &steam_url, 1, &pipe_error))
