@@ -3426,10 +3426,9 @@ bind_runtime_base (PvRuntime *self,
           g_autofree char *path_in_provider = NULL;
           glnx_autofd int fd = -1;
 
-          fd = _srt_resolve_in_sysroot (self->provider->in_current_ns->fd, item,
-                                        SRT_RESOLVE_FLAGS_NONE,
-                                        &path_in_provider,
-                                        &local_error);
+          fd = _srt_sysroot_open (self->provider->in_current_ns, item,
+                                  SRT_RESOLVE_FLAGS_NONE,
+                                  &path_in_provider, &local_error);
 
           if (fd >= 0)
             {
