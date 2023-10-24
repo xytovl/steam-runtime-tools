@@ -1,4 +1,8 @@
 {
+  "steam-runtime-system-info" : {
+    "version": "0.20231023.42",
+    "path": "/home/me/.local/share/Steam/ubuntu12_32/steam-runtime/steam-runtime-system-info"
+  },
   "can-write-uinput" : true,
   "steam-installation" : {
     "path" : "/home/me/.local/share/Steam",

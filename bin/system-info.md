@@ -47,6 +47,18 @@ steam-runtime-system-info - examine the Steam runtime environment and diagnose p
 The output is a JSON *object* (mapping, dictionary) with the following
 keys:
 
+**steam-runtime-system-info**
+:   An object describing the version of **steam-runtime-system-info** used,
+    with these keys:
+
+    **version**
+    :   The version number as a string, or **null** if loading a
+        previously-generated JSON report that did not specify a version
+
+    **path**
+    :   The filesystem path to the executable, or **null** if it cannot
+        be determined
+
 **can-write-uinput**
 :   A boolean value indicating whether **/dev/uinput** can be opened for
     writing. If this is **false**, the Steam Controller will not be able

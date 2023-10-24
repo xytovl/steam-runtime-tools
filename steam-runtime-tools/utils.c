@@ -1483,6 +1483,29 @@ _srt_set_compatible_resource_limits (pid_t pid)
 }
 
 /*
+ * _srt_find_executable:
+ * @error: Used to raise an error on failure
+ *
+ * Find the current executable.
+ *
+ * Returns: (transfer full): The path to the executable, or %NULL on failure
+ */
+gchar *
+_srt_find_executable (GError **error)
+{
+  g_autofree gchar *target = NULL;
+
+  g_return_val_if_fail (error == NULL || *error == NULL, NULL);
+
+  target = glnx_readlinkat_malloc (-1, "/proc/self/exe", NULL, error);
+
+  if (target == NULL)
+    return glnx_prefix_error_null (error, "Unable to resolve /proc/self/exe");
+
+  return g_steal_pointer (&target);
+}
+
+/*
  * _srt_find_executable_dir:
  * @error: Used to raise an error on failure
  *
@@ -1494,14 +1517,7 @@ _srt_set_compatible_resource_limits (pid_t pid)
 gchar *
 _srt_find_executable_dir (GError **error)
 {
-  g_autofree gchar *target = NULL;
-
-  g_return_val_if_fail (error == NULL || *error == NULL, NULL);
-
-  target = glnx_readlinkat_malloc (-1, "/proc/self/exe", NULL, error);
-
-  if (target == NULL)
-    return glnx_prefix_error_null (error, "Unable to resolve /proc/self/exe");
+  g_autofree gchar *target = _srt_find_executable (error);
 
   return g_path_get_dirname (target);
 }

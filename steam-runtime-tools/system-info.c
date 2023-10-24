@@ -102,6 +102,12 @@ typedef enum
   TRI_MAYBE = -1
 } Tristate;
 
+typedef struct
+{
+  gchar *version;
+  gchar *path;
+} FromReport;
+
 struct _SrtSystemInfo
 {
   /*< private >*/
@@ -118,8 +124,8 @@ struct _SrtSystemInfo
   /* Multiarch tuples that are used for helper executables in cases where it
    * shouldn't matter. The first element is considered the primary multiarch. */
   GArray *multiarch_tuples;
-  /* If %TRUE, #SrtSystemInfo cannot be changed anymore */
-  gboolean immutable_values;
+  /* If non-%NULL, #SrtSystemInfo cannot be changed */
+  FromReport *from_report;
   GHashTable *cached_hidden_deps;
   SrtContainerInfo *container_info;
   SrtDisplayInfo *display_info;
@@ -292,7 +298,7 @@ ensure_abi_unless_immutable (SrtSystemInfo *self,
         return abi;
     }
 
-  if (self->immutable_values)
+  if (self->from_report != NULL)
     return NULL;
 
   abi = g_slice_new0 (Abi);
@@ -577,6 +583,13 @@ srt_system_info_finalize (GObject *object)
   if (self->cached_hidden_deps)
     g_hash_table_unref (self->cached_hidden_deps);
 
+  if (self->from_report)
+    {
+      g_free (self->from_report->version);
+      g_free (self->from_report->path);
+      g_free (self->from_report);
+    }
+
   G_OBJECT_CLASS (srt_system_info_parent_class)->finalize (object);
 }
 
@@ -633,6 +646,66 @@ srt_system_info_new (const char *expectations)
   return g_object_new (SRT_TYPE_SYSTEM_INFO,
                        "expectations", expectations,
                        NULL);
+}
+
+/*
+ * _srt_system_info_is_from_report:
+ * @self: System information object
+ *
+ * Return whether @self was constructed from a saved JSON report
+ *
+ * Returns: %TRUE if @self was constructed from a saved report,
+ *  or %FALSE if it represents "live" data
+ */
+gboolean
+_srt_system_info_is_from_report (SrtSystemInfo *self)
+{
+  g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), TRUE);
+  return (self->from_report != NULL);
+}
+
+/**
+ * srt_system_info_get_version:
+ * @self: System information object
+ *
+ * Return the version of the steam-runtime-tools library that gathered
+ * this system information.
+ * Normally, this is the same as the libsteam-runtime-tools version number.
+ * If @self was constructed from a saved JSON report, instead return the
+ * version number that was saved in the report, or %NULL if none.
+ *
+ * Returns: (nullable) (transfer none): A version number or %NULL
+ */
+const char *
+srt_system_info_get_version (SrtSystemInfo *self)
+{
+  g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
+
+  if (self->from_report != NULL)
+    return self->from_report->version;
+  else
+    return VERSION;
+}
+
+/**
+ * srt_system_info_get_saved_tool_path:
+ * @self: System information object
+ *
+ * If @self was constructed from a saved JSON report, return the
+ * path to the steam-runtime-system-info or similar tool that produced
+ * the report, or %NULL if unknown. Otherwise, return %NULL.
+ *
+ * Returns: (nullable) (transfer none): A filesystem path or %NULL
+ */
+const char *
+srt_system_info_get_saved_tool_path (SrtSystemInfo *self)
+{
+  g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
+
+  if (self->from_report != NULL)
+    return self->from_report->path;
+  else
+    return NULL;
 }
 
 static gchar ** _srt_system_info_driver_environment_from_report (JsonObject *json_obj);
@@ -969,7 +1042,23 @@ srt_system_info_new_from_json (const char *path,
   info->cpu_features.x86_features = _srt_feature_get_x86_flags_from_report (json_obj,
                                                                             &info->cpu_features.x86_known);
 
-  info->immutable_values = TRUE;
+  info->from_report = g_new0 (FromReport, 1);
+
+  if (json_object_has_member (json_obj, "steam-runtime-system-info"))
+    {
+      const char *s;
+
+      json_sub_obj = json_object_get_object_member (json_obj,
+                                                    "steam-runtime-system-info");
+      s = json_object_get_string_member_with_default (json_sub_obj,
+                                                      "version",
+                                                      NULL);
+      info->from_report->version = g_strdup (s);
+      s = json_object_get_string_member_with_default (json_sub_obj,
+                                                      "path",
+                                                      NULL);
+      info->from_report->path = g_strdup (s);
+    }
 
 out:
   if (parser != NULL)
@@ -1045,7 +1134,7 @@ srt_system_info_can_write_to_uinput (SrtSystemInfo *self)
 {
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), FALSE);
 
-  if (self->can_write_uinput == TRI_MAYBE && !self->immutable_values)
+  if (self->can_write_uinput == TRI_MAYBE && self->from_report == NULL)
     {
       int fd = open ("/dev/uinput", O_WRONLY | O_NONBLOCK);
 
@@ -1090,7 +1179,7 @@ static gboolean
 ensure_expectations (SrtSystemInfo *self)
 {
   g_return_val_if_fail (_srt_check_not_setuid (), FALSE);
-  g_return_val_if_fail (!self->immutable_values, FALSE);
+  g_return_val_if_fail (self->from_report == NULL, FALSE);
 
   if (self->expectations == NULL)
     {
@@ -1130,7 +1219,7 @@ ensure_expectations (SrtSystemInfo *self)
 static void
 ensure_hidden_deps (SrtSystemInfo *self)
 {
-  g_return_if_fail (!self->immutable_values);
+  g_return_if_fail (self->from_report == NULL);
 
   if (self->cached_hidden_deps == NULL)
     {
@@ -1238,7 +1327,7 @@ static void
 ensure_overrides_cached (SrtSystemInfo *self)
 {
   g_return_if_fail (_srt_check_not_setuid ());
-  g_return_if_fail (!self->immutable_values);
+  g_return_if_fail (self->from_report == NULL);
 
   if (!self->overrides.have_data)
     {
@@ -1310,7 +1399,7 @@ srt_system_info_list_pressure_vessel_overrides (SrtSystemInfo *self,
 {
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
 
-  if (!self->immutable_values)
+  if (self->from_report == NULL)
     ensure_overrides_cached (self);
 
   if (messages != NULL)
@@ -1326,7 +1415,7 @@ ensure_pinned_libs_cached (SrtSystemInfo *self)
 
   g_return_if_fail (_srt_check_not_setuid ());
 
-  if (!self->pinned_libs.have_data && !self->immutable_values)
+  if (!self->pinned_libs.have_data && self->from_report == NULL)
     {
       runtime = srt_system_info_dup_runtime_path (self);
 
@@ -1537,7 +1626,7 @@ srt_system_info_check_libraries (SrtSystemInfo *self,
       return abi->cached_combined_issues;
     }
 
-  if (self->immutable_values)
+  if (self->from_report != NULL)
     return SRT_LIBRARY_ISSUES_UNKNOWN;
 
   if (!ensure_expectations (self))
@@ -1689,7 +1778,7 @@ srt_system_info_check_library (SrtSystemInfo *self,
       return srt_library_get_issues (library);
     }
 
-  if (self->immutable_values)
+  if (self->from_report != NULL)
     return SRT_LIBRARY_ISSUES_UNKNOWN;
 
   if (ensure_expectations (self))
@@ -1896,7 +1985,7 @@ srt_system_info_check_graphics (SrtSystemInfo *self,
       return srt_graphics_get_issues (graphics);
     }
 
-  if (self->immutable_values)
+  if (self->from_report != NULL)
     return SRT_GRAPHICS_ISSUES_UNKNOWN;
 
   graphics = NULL;
@@ -2028,7 +2117,7 @@ srt_system_info_set_environ (SrtSystemInfo *self,
                              gchar * const *env)
 {
   g_return_if_fail (SRT_IS_SYSTEM_INFO (self));
-  g_return_if_fail (!self->immutable_values);
+  g_return_if_fail (self->from_report == NULL);
 
   forget_display_info (self);
   forget_graphics_modules (self);
@@ -2109,7 +2198,7 @@ _srt_system_info_set_sysroot (SrtSystemInfo *self,
                               SrtSysroot *sysroot)
 {
   g_return_if_fail (SRT_IS_SYSTEM_INFO (self));
-  g_return_if_fail (!self->immutable_values);
+  g_return_if_fail (self->from_report == NULL);
 
   forget_container_info (self);
   forget_graphics_modules (self);
@@ -2128,7 +2217,7 @@ _srt_system_info_set_sysroot (SrtSystemInfo *self,
 static void
 ensure_steam_cached (SrtSystemInfo *self)
 {
-  if (self->steam_data == NULL && !self->immutable_values)
+  if (self->steam_data == NULL && self->from_report == NULL)
     _srt_steam_check (self->env, &self->steam_data);
 }
 
@@ -2282,7 +2371,7 @@ static void
 ensure_os_cached (SrtSystemInfo *self)
 {
   if (self->os_info == NULL
-      && !self->immutable_values)
+      && self->from_report == NULL)
     {
       if (self->sysroot != NULL)
         {
@@ -2589,7 +2678,7 @@ srt_system_info_set_expected_runtime_version (SrtSystemInfo *self,
 {
   g_return_if_fail (SRT_IS_SYSTEM_INFO (self));
 
-  if (self->immutable_values)
+  if (self->from_report != NULL)
     {
       g_clear_pointer (&self->runtime.expected_version, g_free);
       self->runtime.expected_version = g_strdup (version);
@@ -2627,7 +2716,7 @@ srt_system_info_dup_expected_runtime_version (SrtSystemInfo *self)
 static void
 ensure_runtime_cached (SrtSystemInfo *self)
 {
-  if (self->immutable_values)
+  if (self->from_report != NULL)
     return;
 
   ensure_os_cached (self);
@@ -2734,7 +2823,7 @@ srt_system_info_set_helpers_path (SrtSystemInfo *self,
                                   const gchar *path)
 {
   g_return_if_fail (SRT_IS_SYSTEM_INFO (self));
-  g_return_if_fail (!self->immutable_values);
+  g_return_if_fail (self->from_report == NULL);
 
   forget_graphics_modules (self);
   forget_libraries (self);
@@ -2793,7 +2882,7 @@ srt_system_info_set_primary_multiarch_tuple (SrtSystemInfo *self,
 {
   GQuark primary;
   g_return_if_fail (SRT_IS_SYSTEM_INFO (self));
-  g_return_if_fail (!self->immutable_values);
+  g_return_if_fail (self->from_report == NULL);
 
   forget_drivers (self);
   forget_locales (self);
@@ -2869,7 +2958,7 @@ srt_system_info_set_multiarch_tuples (SrtSystemInfo *self,
                                       const gchar * const *tuples)
 {
   g_return_if_fail (SRT_IS_SYSTEM_INFO (self));
-  g_return_if_fail (!self->immutable_values);
+  g_return_if_fail (self->from_report == NULL);
 
   forget_drivers (self);
   forget_locales (self);
@@ -2944,7 +3033,7 @@ srt_system_info_get_locale_issues (SrtSystemInfo *self)
 {
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), SRT_LOCALE_ISSUES_UNKNOWN);
 
-  if (!self->locales.have_issues && !self->immutable_values)
+  if (!self->locales.have_issues && self->from_report == NULL)
     {
       SrtLocale *locale = NULL;
 
@@ -3034,7 +3123,7 @@ srt_system_info_check_locale (SrtSystemInfo *self,
     {
       maybe = value;
     }
-  else if (self->immutable_values)
+  else if (self->from_report != NULL)
     {
       g_set_error (error, SRT_LOCALE_ERROR, SRT_LOCALE_ERROR_INTERNAL_ERROR,
                    "Information about the requested locale is missing");
@@ -3165,7 +3254,7 @@ srt_system_info_list_egl_icds (SrtSystemInfo *self,
 
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
 
-  if (!self->icds.have_egl && !self->immutable_values && self->sysroot != NULL)
+  if (!self->icds.have_egl && self->from_report == NULL && self->sysroot != NULL)
     {
       g_assert (self->icds.egl == NULL);
       g_auto(GStrv) stored_multiarch_tuples = NULL;
@@ -3233,7 +3322,7 @@ srt_system_info_list_egl_external_platforms (SrtSystemInfo *self,
 
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
 
-  if (!self->egl_ext_platform.have && !self->immutable_values && self->sysroot != NULL)
+  if (!self->egl_ext_platform.have && self->from_report == NULL && self->sysroot != NULL)
     {
       g_assert (self->egl_ext_platform.list == NULL);
       g_auto(GStrv) stored_multiarch_tuples = NULL;
@@ -3305,7 +3394,7 @@ srt_system_info_list_vulkan_icds (SrtSystemInfo *self,
 
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
 
-  if (!self->icds.have_vulkan && !self->immutable_values && self->sysroot != NULL)
+  if (!self->icds.have_vulkan && self->from_report == NULL && self->sysroot != NULL)
     {
       g_assert (self->icds.vulkan == NULL);
       g_auto(GStrv) stored_multiarch_tuples = NULL;
@@ -3365,7 +3454,7 @@ srt_system_info_list_explicit_vulkan_layers (SrtSystemInfo *self)
 
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
 
-  if (!self->layers.have_vulkan_explicit && !self->immutable_values && self->sysroot != NULL)
+  if (!self->layers.have_vulkan_explicit && self->from_report == NULL && self->sysroot != NULL)
     {
       g_auto(GStrv) multiarch_tuples = srt_system_info_dup_multiarch_tuples (self);
       g_assert (self->layers.vulkan_explicit == NULL);
@@ -3420,7 +3509,7 @@ srt_system_info_list_implicit_vulkan_layers (SrtSystemInfo *self)
 
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
 
-  if (!self->layers.have_vulkan_implicit && !self->immutable_values && self->sysroot != NULL)
+  if (!self->layers.have_vulkan_implicit && self->from_report == NULL && self->sysroot != NULL)
     {
       g_auto(GStrv) multiarch_tuples = srt_system_info_dup_multiarch_tuples (self);
       g_assert (self->layers.vulkan_implicit == NULL);
@@ -3487,7 +3576,7 @@ _srt_system_info_list_graphics_modules (SrtSystemInfo *self,
   if (abi == NULL)
     return NULL;
 
-  if (!abi->graphics_modules[which].available && !self->immutable_values && self->sysroot != NULL)
+  if (!abi->graphics_modules[which].available && self->from_report == NULL && self->sysroot != NULL)
     {
       abi->graphics_modules[which].modules = _srt_list_graphics_modules (self->sysroot,
                                                                          self->env,
@@ -3644,7 +3733,7 @@ ensure_driver_environment (SrtSystemInfo *self)
 {
   g_return_if_fail (_srt_check_not_setuid ());
 
-  if (self->cached_driver_environment == NULL && !self->immutable_values)
+  if (self->cached_driver_environment == NULL && self->from_report == NULL)
     {
       GPtrArray *builder;
       GRegex *regex;
@@ -3871,7 +3960,7 @@ ensure_container_info (SrtSystemInfo *self)
 
   if (self->container_info == NULL)
     {
-      if (self->sysroot != NULL && !self->immutable_values)
+      if (self->sysroot != NULL && self->from_report == NULL)
         self->container_info = _srt_check_container (self->sysroot);
       else
         self->container_info = _srt_container_info_new_empty ();
@@ -3959,7 +4048,7 @@ srt_system_info_check_virtualization (SrtSystemInfo *self)
   if (self->virtualization_info == NULL)
     {
       /* If we don't know already, then we never will */
-      if (self->immutable_values || self->sysroot == NULL)
+      if (self->from_report != NULL || self->sysroot == NULL)
         self->virtualization_info = _srt_virtualization_info_new_empty ();
       else
         self->virtualization_info = _srt_check_virtualization (NULL,
@@ -3972,7 +4061,7 @@ srt_system_info_check_virtualization (SrtSystemInfo *self)
 static void
 ensure_desktop_entries (SrtSystemInfo *self)
 {
-  g_return_if_fail (!self->immutable_values);
+  g_return_if_fail (self->from_report == NULL);
 
   if (self->desktop_entry.have_data)
     return;
@@ -4013,7 +4102,7 @@ srt_system_info_list_desktop_entries (SrtSystemInfo *self)
 
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
 
-  if (!self->immutable_values)
+  if (self->from_report == NULL)
     ensure_desktop_entries (self);
 
   for (iter = self->desktop_entry.values; iter != NULL; iter = iter->next)
@@ -4027,7 +4116,7 @@ ensure_display_info (SrtSystemInfo *self)
 {
   g_return_if_fail (SRT_IS_SYSTEM_INFO (self));
 
-  if (self->display_info == NULL && !self->immutable_values)
+  if (self->display_info == NULL && self->from_report == NULL)
     self->display_info = _srt_check_display (self->env,
                                              self->helpers_path,
                                              self->test_flags,
@@ -4056,7 +4145,7 @@ srt_system_info_check_display (SrtSystemInfo *self)
 static void
 ensure_x86_features_cached (SrtSystemInfo *self)
 {
-  g_return_if_fail (!self->immutable_values);
+  g_return_if_fail (self->from_report == NULL);
 
   if (self->cpu_features.x86_known != SRT_X86_FEATURE_NONE)
     return;
@@ -4079,7 +4168,7 @@ srt_system_info_get_x86_features (SrtSystemInfo *self)
 {
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), SRT_X86_FEATURE_NONE);
 
-  if (!self->immutable_values)
+  if (self->from_report == NULL)
     ensure_x86_features_cached (self);
 
   return self->cpu_features.x86_features;
@@ -4099,7 +4188,7 @@ srt_system_info_get_known_x86_features (SrtSystemInfo *self)
 {
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), SRT_X86_FEATURE_NONE);
 
-  if (!self->immutable_values)
+  if (self->from_report == NULL)
     ensure_x86_features_cached (self);
 
   return self->cpu_features.x86_known;
@@ -4194,7 +4283,7 @@ srt_system_info_list_xdg_portal_backends (SrtSystemInfo *self)
 {
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
 
-  if (!self->immutable_values)
+  if (self->from_report == NULL)
     ensure_xdg_portals_cached (self);
 
   return srt_xdg_portal_get_backends (self->xdg_portal_data);
@@ -4223,7 +4312,7 @@ srt_system_info_list_xdg_portal_interfaces (SrtSystemInfo *self)
 {
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
 
-  if (!self->immutable_values)
+  if (self->from_report == NULL)
     ensure_xdg_portals_cached (self);
 
   return srt_xdg_portal_get_interfaces (self->xdg_portal_data);
@@ -4247,7 +4336,7 @@ srt_system_info_get_xdg_portal_issues (SrtSystemInfo *self,
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), SRT_XDG_PORTAL_ISSUES_UNKNOWN);
   g_return_val_if_fail (messages == NULL || *messages == NULL, SRT_XDG_PORTAL_ISSUES_UNKNOWN);
 
-  if (!self->immutable_values)
+  if (self->from_report == NULL)
     ensure_xdg_portals_cached (self);
 
   if (messages != NULL)
@@ -4344,7 +4433,7 @@ srt_system_info_check_runtime_linker (SrtSystemInfo *self,
       return FALSE;
     }
 
-  if (!self->immutable_values)
+  if (self->from_report == NULL)
     ensure_runtime_linker (self, abi);
 
   if (abi->known_architecture == NULL)
@@ -4369,7 +4458,7 @@ srt_system_info_check_runtime_linker (SrtSystemInfo *self,
 
       return FALSE;
     }
-  else if (self->immutable_values)
+  else if (self->from_report != NULL)
     {
       g_set_error (error, SRT_ARCHITECTURE_ERROR,
                    SRT_ARCHITECTURE_ERROR_NO_INFORMATION,
@@ -4445,7 +4534,7 @@ srt_system_info_dup_libdl_lib (SrtSystemInfo *self,
       return NULL;
     }
 
-  if (self->immutable_values)
+  if (self->from_report != NULL)
     return glnx_null_throw (error, "libdl LIB for ABI \"%s\" not included in report",
                             multiarch_tuple);
 
@@ -4517,7 +4606,7 @@ srt_system_info_dup_libdl_platform (SrtSystemInfo *self,
       return NULL;
     }
 
-  if (self->immutable_values)
+  if (self->from_report != NULL)
     return glnx_null_throw (error, "libdl PLATFORM for ABI \"%s\" not included in report",
                             multiarch_tuple);
 

@@ -51,6 +51,8 @@ typedef enum
   SRT_CHECK_FLAGS_NONE = 0
 } SrtCheckFlags;
 
+gboolean _srt_system_info_is_from_report (SrtSystemInfo *self);
+
 G_GNUC_INTERNAL
 void _srt_system_info_set_check_flags (SrtSystemInfo *self,
                                        SrtCheckFlags flags);
