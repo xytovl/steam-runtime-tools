@@ -1251,6 +1251,9 @@ main (int argc,
       goto out;
     }
 
+  /* Must be before forward_signals() which partially undoes this */
+  _srt_unblock_signals ();
+
   if (opt_list)
     {
       launch_exit_status = list_servers (original_stdout, error);

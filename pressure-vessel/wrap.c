@@ -1384,6 +1384,7 @@ main (int argc,
       goto out;
     }
 
+  _srt_unblock_signals ();
   _srt_setenv_disable_gio_modules ();
 
   if (argc < 2 && !opt_test && !opt_only_prepare)

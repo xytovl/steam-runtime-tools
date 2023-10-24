@@ -222,6 +222,8 @@ run (int argc,
   if (original_stdout == NULL)
     return FALSE;
 
+  _srt_unblock_signals ();
+
   if (opt_print0)
     separator = '\0';
 

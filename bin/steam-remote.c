@@ -48,6 +48,8 @@ main (int argc,
                                   SRT_LOG_FLAGS_OPTIONALLY_JOURNAL,
                                   NULL, NULL, NULL);
 
+  _srt_unblock_signals ();
+
   if (argc <= 1)
     {
       /* If we don't have arguments, Steam is expected to send the command

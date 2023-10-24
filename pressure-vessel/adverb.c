@@ -987,17 +987,6 @@ main (int argc,
   AssignFd pair;
   gsize i;
 
-  sigemptyset (&mask);
-  sigaddset (&mask, SIGCHLD);
-
-  /* Must be called before we start any threads */
-  if (pthread_sigmask (SIG_BLOCK, &mask, NULL) != 0)
-    {
-      ret = EX_UNAVAILABLE;
-      glnx_throw_errno_prefix (error, "pthread_sigmask");
-      goto out;
-    }
-
   setlocale (LC_ALL, "");
 
   original_environ = g_get_environ ();
@@ -1072,6 +1061,21 @@ main (int argc,
                                        NULL, NULL, error))
     {
       ret = 1;
+      goto out;
+    }
+
+  _srt_unblock_signals ();
+
+  sigemptyset (&mask);
+  sigaddset (&mask, SIGCHLD);
+
+  /* Must be called before we start any threads, but after
+   * _srt_unblock_signals(), which in turn should be after we set up
+   * logging */
+  if (pthread_sigmask (SIG_BLOCK, &mask, NULL) != 0)
+    {
+      ret = EX_UNAVAILABLE;
+      glnx_throw_errno_prefix (error, "pthread_sigmask");
       goto out;
     }
 

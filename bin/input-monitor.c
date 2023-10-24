@@ -939,6 +939,8 @@ run (int argc,
   if (original_stdout == NULL)
     return FALSE;
 
+  _srt_unblock_signals ();
+
   int_handler = g_unix_signal_add (SIGINT, interrupt_cb, &monitor);
   monitor = srt_input_device_monitor_new (opt_mode | opt_flags);
 

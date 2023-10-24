@@ -167,6 +167,8 @@ main (int argc,
       return 1;
     }
 
+  _srt_unblock_signals ();
+
   if (opt_print_version)
     {
       /* Simply print the version number, similarly to the real xdg-open */
