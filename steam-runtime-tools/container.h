@@ -33,6 +33,7 @@
 #include <glib-object.h>
 
 #include <steam-runtime-tools/macros.h>
+#include <steam-runtime-tools/types.h>
 
 typedef struct _SrtContainerInfo SrtContainerInfo;
 typedef struct _SrtContainerInfoClass SrtContainerInfoClass;
@@ -78,5 +79,7 @@ _SRT_PUBLIC
 SrtContainerType srt_container_info_get_container_type (SrtContainerInfo *self);
 _SRT_PUBLIC
 const gchar *srt_container_info_get_container_host_directory (SrtContainerInfo *self);
+_SRT_PUBLIC
+SrtOsInfo *srt_container_info_get_container_host_os_info (SrtContainerInfo *self);
 _SRT_PUBLIC
 const gchar *srt_container_info_get_flatpak_version (SrtContainerInfo *self);

@@ -179,7 +179,7 @@ struct _SrtSystemInfo
     SrtX86FeatureFlags x86_features;
     SrtX86FeatureFlags x86_known;
   } cpu_features;
-  SrtOsRelease os_release;
+  SrtOsInfo *os_info;
   SrtCheckFlags check_flags;
   SrtTestFlags test_flags;
   Tristate can_write_uinput;
@@ -370,8 +370,6 @@ srt_system_info_init (SrtSystemInfo *self)
   /* Assume that in practice we will usually add two ABIs: amd64 and i386 */
   self->abis = g_ptr_array_new_full (2, abi_free);
 
-  _srt_os_release_init (&self->os_release);
-
   srt_system_info_set_sysroot (self, "/");
   srt_system_info_set_environ (self, NULL);
 }
@@ -468,7 +466,7 @@ forget_runtime (SrtSystemInfo *self)
 static void
 forget_os (SrtSystemInfo *self)
 {
-  _srt_os_release_clear (&self->os_release);
+  g_clear_object (&self->os_info);
   forget_runtime (self);
 }
 
@@ -851,8 +849,7 @@ srt_system_info_new_from_json (const char *path,
                                                                                   &info->pinned_libs.messages_64);
     }
 
-  _srt_os_release_populate_from_report (json_obj, &info->os_release);
-
+  info->os_info = _srt_os_info_new_from_report (json_obj);
   info->container_info = _srt_container_info_get_from_report (json_obj);
   info->display_info = _srt_display_info_get_from_report (json_obj);
   info->virtualization_info = _srt_virtualization_info_get_from_report (json_obj);
@@ -2284,10 +2281,39 @@ srt_system_info_dup_steam_bin32_path (SrtSystemInfo *self)
 static void
 ensure_os_cached (SrtSystemInfo *self)
 {
-  if (!self->os_release.populated
-      && !self->immutable_values
-      && self->sysroot != NULL)
-    _srt_os_release_populate (&self->os_release, self->sysroot);
+  if (self->os_info == NULL
+      && !self->immutable_values)
+    {
+      if (self->sysroot != NULL)
+        {
+          self->os_info = _srt_os_info_new_from_sysroot (self->sysroot);
+        }
+      else
+        {
+          g_autofree gchar *message = NULL;
+
+          message = g_strdup_printf ("Unable to open sysroot");
+          self->os_info = _srt_os_info_new (NULL, message, NULL, NULL);
+        }
+    }
+}
+
+/**
+ * srt_system_info_check_os:
+ * @self: The #SrtSystemInfo object
+ *
+ * Gather and return information about the current operating system.
+ *
+ * Returns: (transfer full): An #SrtOsInfo object.
+ *  Free with g_object_unref().
+ */
+SrtOsInfo *
+srt_system_info_check_os (SrtSystemInfo *self)
+{
+  g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
+
+  ensure_os_cached (self);
+  return g_object_ref (self->os_info);
 }
 
 /**
@@ -2313,7 +2339,7 @@ srt_system_info_dup_os_build_id (SrtSystemInfo *self)
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
 
   ensure_os_cached (self);
-  return g_strdup (self->os_release.build_id);
+  return g_strdup (srt_os_info_get_build_id (self->os_info));
 }
 
 /**
@@ -2337,10 +2363,8 @@ srt_system_info_dup_os_id (SrtSystemInfo *self)
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
 
   ensure_os_cached (self);
-  return g_strdup (self->os_release.id);
+  return g_strdup (srt_os_info_get_id (self->os_info));
 }
-
-static const char WHITESPACE[] = " \t\n\r";
 
 /**
  * srt_system_info_dup_os_id_like:
@@ -2369,27 +2393,25 @@ srt_system_info_dup_os_id_like (SrtSystemInfo *self,
                                 gboolean include_self)
 {
   GPtrArray *builder;
+  const char *id;
+  const char * const *id_like;
+
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
 
   ensure_os_cached (self);
-
   builder = g_ptr_array_new_with_free_func (g_free);
+  id = srt_os_info_get_id (self->os_info);
+  id_like = srt_os_info_get_id_like (self->os_info);
 
-  if (self->os_release.id != NULL && include_self)
-    g_ptr_array_add (builder, g_strdup (self->os_release.id));
+  if (id != NULL && include_self)
+    g_ptr_array_add (builder, g_strdup (id));
 
-  if (self->os_release.id_like != NULL)
+  if (id_like != NULL)
     {
-      GStrv split;
       gsize i;
 
-      split = g_strsplit_set (self->os_release.id_like, WHITESPACE, -1);
-
-      for (i = 0; split != NULL && split[i] != NULL; i++)
-        g_ptr_array_add (builder, g_steal_pointer (&split[i]));
-
-      /* We already transferred ownership of the contents */
-      g_free (split);
+      for (i = 0; id_like[i] != NULL; i++)
+        g_ptr_array_add (builder, g_strdup (id_like[i]));
     }
 
   if (builder->len > 0)
@@ -2424,7 +2446,7 @@ srt_system_info_dup_os_name (SrtSystemInfo *self)
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
 
   ensure_os_cached (self);
-  return g_strdup (self->os_release.name);
+  return g_strdup (srt_os_info_get_name (self->os_info));
 }
 
 /**
@@ -2451,7 +2473,7 @@ srt_system_info_dup_os_pretty_name (SrtSystemInfo *self)
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
 
   ensure_os_cached (self);
-  return g_strdup (self->os_release.pretty_name);
+  return g_strdup (srt_os_info_get_pretty_name (self->os_info));
 }
 
 /**
@@ -2474,7 +2496,7 @@ srt_system_info_dup_os_variant (SrtSystemInfo *self)
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
 
   ensure_os_cached (self);
-  return g_strdup (self->os_release.variant);
+  return g_strdup (srt_os_info_get_variant (self->os_info));
 }
 
 /**
@@ -2497,7 +2519,7 @@ srt_system_info_dup_os_variant_id (SrtSystemInfo *self)
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
 
   ensure_os_cached (self);
-  return g_strdup (self->os_release.variant_id);
+  return g_strdup (srt_os_info_get_variant_id (self->os_info));
 }
 
 /**
@@ -2522,7 +2544,7 @@ srt_system_info_dup_os_version_codename (SrtSystemInfo *self)
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
 
   ensure_os_cached (self);
-  return g_strdup (self->os_release.version_codename);
+  return g_strdup (srt_os_info_get_version_codename (self->os_info));
 }
 
 /**
@@ -2548,7 +2570,7 @@ srt_system_info_dup_os_version_id (SrtSystemInfo *self)
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
 
   ensure_os_cached (self);
-  return g_strdup (self->os_release.version_id);
+  return g_strdup (srt_os_info_get_version_id (self->os_info));
 }
 
 /**
@@ -2613,7 +2635,7 @@ ensure_runtime_cached (SrtSystemInfo *self)
 
   if (!_srt_runtime_is_populated (&self->runtime))
     _srt_runtime_check_execution_environment (&self->runtime, self->env,
-                                              &self->os_release,
+                                              self->os_info,
                                               srt_steam_get_bin32_path (self->steam_data));
 }
 

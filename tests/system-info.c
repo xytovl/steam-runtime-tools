@@ -106,6 +106,118 @@ teardown (Fixture *f,
 }
 
 /*
+ * Check that os-release(5) info in @info is valid and internally consistent,
+ * without making any particular assumption about its contents.
+ */
+static void
+check_os_release (SrtSystemInfo *info)
+{
+  g_autoptr(SrtOsInfo) os_info = srt_system_info_check_os (info);
+  g_autofree gchar *build_id = NULL;
+  g_autofree gchar *id = NULL;
+  g_auto(GStrv) id_like = NULL;
+  g_autofree gchar *name = NULL;
+  g_autofree gchar *pretty_name = NULL;
+  g_autofree gchar *variant = NULL;
+  g_autofree gchar *variant_id = NULL;
+  g_autofree gchar *version_codename = NULL;
+  g_autofree gchar *version_id = NULL;
+  const char *text;
+  gpointer k, v;
+  gsize i;
+
+  g_assert_nonnull (os_info);
+  g_assert_true (SRT_IS_OS_INFO (os_info));
+
+    {
+      g_autoptr(GHashTable) fields = NULL;
+      GHashTableIter iter;
+      const char *path;
+
+      path = srt_os_info_get_source_path (os_info);
+
+      if (path == NULL)
+        path = "<unspecified>";
+
+      g_test_message ("OS info from %s:", path);
+
+      path = srt_os_info_get_source_path_resolved (os_info);
+
+      if (path == NULL)
+        path = "<unspecified>";
+
+      g_test_message ("\tResolved source path: %s", path);
+
+      fields = srt_os_info_dup_fields (os_info);
+      text = srt_os_info_get_messages (os_info);
+
+      g_hash_table_iter_init (&iter, fields);
+
+      while (g_hash_table_iter_next (&iter, &k, &v))
+        g_test_message ("\t%s -> %s", (const char *) k, (const char *) v);
+
+      if (text != NULL)
+        {
+          g_auto(GStrv) messages = NULL;
+
+          g_test_message ("\tDiagnostic messages:");
+          g_assert_cmpstr (text, !=, "");
+          messages = g_strsplit (text, "\n", -1);
+
+          for (i = 0; messages[i] != NULL; i++)
+            g_test_message ("\t\t%s", messages[i]);
+        }
+    }
+
+  build_id = srt_system_info_dup_os_build_id (info);
+  id = srt_system_info_dup_os_id (info);
+  id_like = srt_system_info_dup_os_id_like (info, FALSE);
+  name = srt_system_info_dup_os_name (info);
+  pretty_name = srt_system_info_dup_os_pretty_name (info);
+  variant = srt_system_info_dup_os_variant (info);
+  variant_id = srt_system_info_dup_os_variant_id (info);
+  version_codename = srt_system_info_dup_os_version_codename (info);
+  version_id = srt_system_info_dup_os_version_id (info);
+
+  g_assert_cmpstr (build_id, ==, srt_os_info_get_build_id (os_info));
+  g_assert_cmpstr (id, ==, srt_os_info_get_id (os_info));
+  g_assert_cmpstrv ((const char * const *) id_like,
+                    srt_os_info_get_id_like (os_info));
+  g_assert_cmpstr (name, ==, srt_os_info_get_name (os_info));
+  g_assert_cmpstr (pretty_name, ==, srt_os_info_get_pretty_name (os_info));
+  g_assert_cmpstr (variant, ==, srt_os_info_get_variant (os_info));
+  g_assert_cmpstr (variant_id, ==, srt_os_info_get_variant_id (os_info));
+  g_assert_cmpstr (version_codename, ==,
+                   srt_os_info_get_version_codename (os_info));
+  g_assert_cmpstr (version_id, ==, srt_os_info_get_version_id (os_info));
+
+  for (i = 0; i < 2; i++)
+    {
+      g_autoptr(GHashTable) fields = NULL;
+
+      if (i)
+        fields = srt_os_info_dup_fields (os_info);
+      else
+        g_object_get (os_info,
+                      "fields", &fields,
+                      NULL);
+
+      g_assert_cmpstr (build_id, ==, g_hash_table_lookup (fields, "BUILD_ID"));
+      g_assert_cmpstr (id, ==, g_hash_table_lookup (fields, "ID"));
+      g_assert_cmpstr (name, ==, g_hash_table_lookup (fields, "NAME"));
+      g_assert_cmpstr (pretty_name, ==,
+                       g_hash_table_lookup (fields, "PRETTY_NAME"));
+      g_assert_cmpstr (variant, ==, g_hash_table_lookup (fields, "VARIANT"));
+      g_assert_cmpstr (variant_id, ==,
+                       g_hash_table_lookup (fields, "VARIANT_ID"));
+      g_assert_cmpstr (version_codename, ==,
+                       g_hash_table_lookup (fields, "VERSION_CODENAME"));
+      g_assert_cmpstr (version_id, ==,
+                       g_hash_table_lookup (fields, "VERSION_ID"));
+    }
+}
+
+/*
  * Test basic functionality of the SrtSystemInfo object.
  */
 static void
@@ -153,6 +265,8 @@ test_object (Fixture *f,
       g_assert_false (srt_system_info_can_write_to_uinput (info));
       g_assert_false (srt_system_info_can_write_to_uinput (info));
     }
+
+  check_os_release (info);
 
   g_object_unref (info);
 
@@ -1590,6 +1704,7 @@ os_debian10 (Fixture *f,
 
   info = srt_system_info_new (NULL);
   srt_system_info_set_sysroot (info, sysroot);
+  check_os_release (info);
 
   s = srt_system_info_dup_os_build_id (info);
   g_assert_cmpstr (s, ==, NULL);
@@ -1651,6 +1766,7 @@ os_debian_unstable (Fixture *f,
 
   info = srt_system_info_new (NULL);
   srt_system_info_set_sysroot (info, sysroot);
+  check_os_release (info);
 
   s = srt_system_info_dup_os_build_id (info);
   g_assert_cmpstr (s, ==, NULL);
@@ -1715,6 +1831,7 @@ os_steamrt (Fixture *f,
 
   info = srt_system_info_new (NULL);
   srt_system_info_set_sysroot (info, sysroot);
+  check_os_release (info);
 
   s = srt_system_info_dup_os_build_id (info);
   g_assert_cmpstr (s, ==, "0.20190924.0");
@@ -1797,6 +1914,7 @@ os_steamrt_unofficial (Fixture *f,
   info = srt_system_info_new (NULL);
   srt_system_info_set_sysroot (info, sysroot);
   srt_system_info_set_expected_runtime_version (info, "0.20190711.3");
+  check_os_release (info);
 
   s = srt_system_info_dup_os_build_id (info);
   g_assert_cmpstr (s, ==, "unofficial-0.20190924.0");
@@ -1881,6 +1999,7 @@ os_invalid_os_release (Fixture *f,
   info = srt_system_info_new (NULL);
   srt_system_info_set_sysroot (info, sysroot);
   srt_system_info_set_expected_runtime_version (info, "0.20190711.3");
+  check_os_release (info);
 
   s = srt_system_info_dup_os_build_id (info);
   g_assert_cmpstr (s, ==, NULL);
@@ -1954,6 +2073,7 @@ os_no_os_release (Fixture *f,
 
   info = srt_system_info_new (NULL);
   srt_system_info_set_sysroot (info, sysroot);
+  check_os_release (info);
 
   s = srt_system_info_dup_os_build_id (info);
   g_assert_cmpstr (s, ==, NULL);
@@ -2015,6 +2135,7 @@ overrides (Fixture *f,
 
   info = srt_system_info_new (NULL);
   srt_system_info_set_sysroot (info, sysroot);
+  check_os_release (info);
 
   s = srt_system_info_dup_os_id (info);
   g_assert_cmpstr (s, ==, "steamrt");
@@ -3793,6 +3914,7 @@ json_parsing (Fixture *f,
       assert_equal_strings_arrays (t->os_release.id_like, (const gchar * const *)id_like);
       g_assert_cmpstr (t->os_release.name, ==, name);
       g_assert_cmpstr (t->os_release.pretty_name, ==, pretty_name);
+      check_os_release (info);
 
       container = srt_system_info_check_container (info);
       host_directory = srt_system_info_dup_container_host_directory (info);

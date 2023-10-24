@@ -34,6 +34,7 @@
 #include "steam-runtime-tools/virtualization-internal.h"
 #include "steam-runtime-tools/enums.h"
 #include "steam-runtime-tools/glib-backports-internal.h"
+#include "steam-runtime-tools/os-internal.h"
 #include "steam-runtime-tools/utils.h"
 #include "steam-runtime-tools/utils-internal.h"
 
@@ -49,6 +50,8 @@ struct _SrtVirtualizationInfo
   /*< private >*/
   GObject parent;
   gchar *interpreter_root;
+  SrtOsInfo *host_os_info;
+  gchar *host_path;
   SrtVirtualizationType type;
   SrtMachineType host_machine;
 };
@@ -62,6 +65,8 @@ struct _SrtVirtualizationInfoClass
 enum {
   PROP_0,
   PROP_HOST_MACHINE,
+  PROP_HOST_OS_INFO,
+  PROP_HOST_PATH,
   PROP_INTERPRETER_ROOT,
   PROP_TYPE,
   N_PROPERTIES
@@ -86,6 +91,14 @@ srt_virtualization_info_get_property (GObject *object,
     {
       case PROP_HOST_MACHINE:
         g_value_set_enum (value, self->host_machine);
+        break;
+
+      case PROP_HOST_OS_INFO:
+        g_value_set_object (value, self->host_os_info);
+        break;
+
+      case PROP_HOST_PATH:
+        g_value_set_string (value, self->host_path);
         break;
 
       case PROP_INTERPRETER_ROOT:
@@ -117,6 +130,18 @@ srt_virtualization_info_set_property (GObject *object,
         self->host_machine = g_value_get_enum (value);
         break;
 
+      case PROP_HOST_OS_INFO:
+        /* Construct-only */
+        g_return_if_fail (self->host_os_info == NULL);
+        self->host_os_info = g_value_dup_object (value);
+        break;
+
+      case PROP_HOST_PATH:
+        /* Construct-only */
+        g_return_if_fail (self->host_path == NULL);
+        self->host_path = g_value_dup_string (value);
+        break;
+
       case PROP_INTERPRETER_ROOT:
         /* Construct-only */
         g_return_if_fail (self->interpreter_root == NULL);
@@ -135,11 +160,22 @@ srt_virtualization_info_set_property (GObject *object,
 }
 
 static void
+srt_virtualization_info_dispose (GObject *object)
+{
+  SrtVirtualizationInfo *self = SRT_VIRTUALIZATION_INFO (object);
+
+  g_clear_object (&self->host_os_info);
+
+  G_OBJECT_CLASS (srt_virtualization_info_parent_class)->dispose (object);
+}
+
+static void
 srt_virtualization_info_finalize (GObject *object)
 {
   SrtVirtualizationInfo *self = SRT_VIRTUALIZATION_INFO (object);
 
   g_free (self->interpreter_root);
+  g_free (self->host_path);
 
   G_OBJECT_CLASS (srt_virtualization_info_parent_class)->finalize (object);
 }
@@ -153,6 +189,7 @@ srt_virtualization_info_class_init (SrtVirtualizationInfoClass *cls)
 
   object_class->get_property = srt_virtualization_info_get_property;
   object_class->set_property = srt_virtualization_info_set_property;
+  object_class->dispose = srt_virtualization_info_dispose;
   object_class->finalize = srt_virtualization_info_finalize;
 
   properties[PROP_TYPE] =
@@ -170,6 +207,20 @@ srt_virtualization_info_class_init (SrtVirtualizationInfoClass *cls)
                        SRT_MACHINE_TYPE_UNKNOWN,
                        G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
                        G_PARAM_STATIC_STRINGS);
+
+  properties[PROP_HOST_OS_INFO] =
+    g_param_spec_object ("host-os-info", "Host OS info",
+                         "Information about the OS being used to run the emulator",
+                         SRT_TYPE_OS_INFO,
+                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+                         G_PARAM_STATIC_STRINGS);
+
+  properties[PROP_HOST_PATH] =
+    g_param_spec_string ("host-path", "Host path",
+                         "Path through which un-emulated OS files can be accessed",
+                         NULL,
+                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+                         G_PARAM_STATIC_STRINGS);
 
   properties[PROP_INTERPRETER_ROOT] =
     g_param_spec_string ("interpreter-root", "Interpreter root",
@@ -223,6 +274,8 @@ _srt_check_virtualization (GHashTable *mock_cpuid,
   SrtVirtualizationType type = SRT_VIRTUALIZATION_TYPE_NONE;
   gsize i;
 #if defined(__x86_64__) || defined(__i386__)
+  g_autoptr(SrtOsInfo) host_os_info = NULL;
+  g_autoptr(SrtSysroot) host_root = NULL;
   g_autofree gchar *interpreter_root = NULL;
   guint32 eax = 0;
   guint32 ebx = 0;
@@ -412,13 +465,29 @@ _srt_check_virtualization (GHashTable *mock_cpuid,
           if (g_str_equal (interpreter_root, "/"))
             g_clear_pointer (&interpreter_root, g_free);
         }
+
+      if (interpreter_root != NULL)
+        {
+          g_autoptr(GError) local_error = NULL;
+
+          host_root = _srt_sysroot_new_real_root (&local_error);
+
+          if (host_root != NULL)
+            host_os_info = _srt_os_info_new_from_sysroot (host_root);
+          else
+            g_info ("Unable to open real root directory: %s",
+                    local_error->message);
+        }
     }
 #endif
 
 #if defined(__x86_64__) || defined(__i386__)
-  return _srt_virtualization_info_new (host_machine, interpreter_root, type);
+  return _srt_virtualization_info_new (host_machine, host_os_info,
+                                       host_root != NULL ? host_root->path : NULL,
+                                       interpreter_root, type);
 #else
-  return _srt_virtualization_info_new (SRT_MACHINE_TYPE_UNKNOWN, NULL, type);
+  return _srt_virtualization_info_new (SRT_MACHINE_TYPE_UNKNOWN, NULL, NULL,
+                                       NULL, type);
 #endif
 }
 
@@ -458,6 +527,41 @@ srt_virtualization_info_get_host_machine (SrtVirtualizationInfo *self)
   g_return_val_if_fail (SRT_IS_VIRTUALIZATION_INFO (self),
                         SRT_MACHINE_TYPE_UNKNOWN);
   return self->host_machine;
+}
+
+/**
+ * srt_virtualization_info_get_host_os_info:
+ * @self: A SrtVirtualizationInfo object
+ *
+ * If the program appears to be running in an emulator, try to return
+ * information about the host operating system. Otherwise return %NULL.
+ *
+ * Returns: (transfer none): An object or %NULL
+ */
+SrtOsInfo *
+srt_virtualization_info_get_host_os_info (SrtVirtualizationInfo *self)
+{
+  g_return_val_if_fail (SRT_IS_VIRTUALIZATION_INFO (self),
+                        NULL);
+  return self->host_os_info;
+}
+
+/**
+ * srt_virtualization_info_get_host_path:
+ * @self: A SrtVirtualizationInfo object
+ *
+ * If the program appears to be running in an emulator, try to return a
+ * path through which important files from the host machine can be read.
+ * Otherwise return %NULL.
+ *
+ * Returns: An absolute path or %NULL
+ */
+const char *
+srt_virtualization_info_get_host_path (SrtVirtualizationInfo *self)
+{
+  g_return_val_if_fail (SRT_IS_VIRTUALIZATION_INFO (self),
+                        NULL);
+  return self->host_path;
 }
 
 /**

@@ -39,6 +39,7 @@
 #include <steam-runtime-tools/library.h>
 #include <steam-runtime-tools/locale.h>
 #include <steam-runtime-tools/macros.h>
+#include <steam-runtime-tools/os.h>
 #include <steam-runtime-tools/runtime.h>
 #include <steam-runtime-tools/steam.h>
 #include <steam-runtime-tools/virtualization.h>
@@ -100,6 +101,8 @@ SrtSystemInfo *srt_system_info_new_from_json (const char *path,
 _SRT_PUBLIC
 gboolean srt_system_info_can_run (SrtSystemInfo *self,
                                   const char *multiarch_tuple);
+_SRT_PUBLIC
+SrtOsInfo *srt_system_info_check_os (SrtSystemInfo *self);
 _SRT_PUBLIC
 SrtContainerInfo *srt_system_info_check_container (SrtSystemInfo *self);
 _SRT_PUBLIC

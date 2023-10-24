@@ -25,6 +25,8 @@
 
 #include "steam-runtime-tools/container.h"
 
+#include "steam-runtime-tools/glib-backports-internal.h"
+
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,7 +37,7 @@
 
 #include "steam-runtime-tools/container-internal.h"
 #include "steam-runtime-tools/enums.h"
-#include "steam-runtime-tools/glib-backports-internal.h"
+#include "steam-runtime-tools/os-internal.h"
 #include "steam-runtime-tools/resolve-in-sysroot-internal.h"
 #include "steam-runtime-tools/utils.h"
 #include "steam-runtime-tools/utils-internal.h"
@@ -53,6 +55,7 @@ struct _SrtContainerInfo
   GObject parent;
   gchar *flatpak_version;
   gchar *host_directory;
+  SrtOsInfo *host_os_info;
   SrtContainerType type;
 };
 
@@ -66,6 +69,7 @@ enum {
   PROP_0,
   PROP_FLATPAK_VERSION,
   PROP_HOST_DIRECTORY,
+  PROP_HOST_OS_INFO,
   PROP_TYPE,
   N_PROPERTIES
 };
@@ -93,6 +97,10 @@ srt_container_info_get_property (GObject *object,
 
       case PROP_HOST_DIRECTORY:
         g_value_set_string (value, self->host_directory);
+        break;
+
+      case PROP_HOST_OS_INFO:
+        g_value_set_object (value, self->host_os_info);
         break;
 
       case PROP_TYPE:
@@ -126,6 +134,12 @@ srt_container_info_set_property (GObject *object,
         self->host_directory = g_value_dup_string (value);
         break;
 
+      case PROP_HOST_OS_INFO:
+        /* Construct-only */
+        g_return_if_fail (self->host_os_info == NULL);
+        self->host_os_info = g_value_dup_object (value);
+        break;
+
       case PROP_TYPE:
         /* Construct-only */
         g_return_if_fail (self->type == 0);
@@ -135,6 +149,16 @@ srt_container_info_set_property (GObject *object,
       default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
     }
+}
+
+static void
+srt_container_info_dispose (GObject *object)
+{
+  SrtContainerInfo *self = SRT_CONTAINER_INFO (object);
+
+  g_clear_object (&self->host_os_info);
+
+  G_OBJECT_CLASS (srt_container_info_parent_class)->dispose (object);
 }
 
 static void
@@ -157,6 +181,7 @@ srt_container_info_class_init (SrtContainerInfoClass *cls)
 
   object_class->get_property = srt_container_info_get_property;
   object_class->set_property = srt_container_info_set_property;
+  object_class->dispose = srt_container_info_dispose;
   object_class->finalize = srt_container_info_finalize;
 
   properties[PROP_FLATPAK_VERSION] =
@@ -171,6 +196,13 @@ srt_container_info_class_init (SrtContainerInfoClass *cls)
                          "Absolute path where important files from the host "
                          "system can be found",
                          NULL,
+                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+                         G_PARAM_STATIC_STRINGS);
+
+  properties[PROP_HOST_OS_INFO] =
+    g_param_spec_object ("host-os-info", "Host OS information",
+                         "Information about the OS of the host-directory if available",
+                         SRT_TYPE_OS_INFO,
                          G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
                          G_PARAM_STATIC_STRINGS);
 
@@ -226,9 +258,10 @@ container_type_from_name (const char *name)
 SrtContainerInfo *
 _srt_check_container (SrtSysroot *sysroot)
 {
+  g_autoptr(SrtSysroot) host_root = NULL;
+  g_autoptr(SrtOsInfo) host_os_info = NULL;
   g_autofree gchar *contents = NULL;
   g_autofree gchar *run_host_path = NULL;
-  g_autofree gchar *host_directory = NULL;
   g_autofree gchar *flatpak_version = NULL;
   SrtContainerType type = SRT_CONTAINER_TYPE_UNKNOWN;
   glnx_autofd int run_host_fd = -1;
@@ -247,9 +280,12 @@ _srt_check_container (SrtSysroot *sysroot)
    * meaning the resolved path relative to the sysroot is ".".
    * We don't want that to be interpreted as being a container. */
   if (run_host_path != NULL && !g_str_equal (run_host_path, "."))
-    host_directory = g_build_filename (sysroot->path, run_host_path, NULL);
+    host_root = _srt_sysroot_new_take (g_build_filename (sysroot->path,
+                                                         run_host_path,
+                                                         NULL),
+                                       g_steal_fd (&run_host_fd));
 
-  if (host_directory != NULL
+  if (host_root != NULL
       && _srt_sysroot_load (sysroot, "/run/host/container-manager",
                             SRT_RESOLVE_FLAGS_NONE,
                             NULL, &contents, NULL, NULL))
@@ -313,7 +349,7 @@ _srt_check_container (SrtSysroot *sysroot)
       g_debug ("Snap based on $SNAP, $SNAP_NAME, $SNAP_REVISION");
       /* The way Snap works means that most of the host filesystem is
        * available in the root directory; but we're not allowed to access
-       * it, so it wouldn't be useful to set host_directory to "/". */
+       * it, so it wouldn't be useful to set host_root to "/". */
       goto out;
     }
 
@@ -333,7 +369,7 @@ _srt_check_container (SrtSysroot *sysroot)
       g_clear_pointer (&contents, g_free);
     }
 
-  if (host_directory != NULL)
+  if (host_root != NULL)
     {
       g_debug ("Unknown container technology based on /run/host");
       type = SRT_CONTAINER_TYPE_UNKNOWN;
@@ -369,7 +405,12 @@ out:
         }
     }
 
-  return _srt_container_info_new (type, flatpak_version, host_directory);
+  if (host_root != NULL)
+    host_os_info = _srt_os_info_new_from_sysroot (host_root);
+
+  return _srt_container_info_new (type, flatpak_version,
+                                  host_root != NULL ? host_root->path : NULL,
+                                  host_os_info);
 }
 
 /**
@@ -416,6 +457,23 @@ srt_container_info_get_container_host_directory (SrtContainerInfo *self)
 {
   g_return_val_if_fail (SRT_IS_CONTAINER_INFO (self), NULL);
   return self->host_directory;
+}
+
+/**
+ * srt_container_info_get_container_host_os_info:
+ * @self: A SrtContainerInfo object
+ *
+ * If the program appears to be running in a container, return
+ * information about the host's operating system if possible.
+ *
+ * Returns: (transfer none) (nullable): Information about the host
+ *  operating system, or %NULL if unknown or unavailable.
+ */
+SrtOsInfo *
+srt_container_info_get_container_host_os_info (SrtContainerInfo *self)
+{
+  g_return_val_if_fail (SRT_IS_CONTAINER_INFO (self), NULL);
+  return self->host_os_info;
 }
 
 /**

@@ -34,6 +34,7 @@
 
 #include <steam-runtime-tools/architecture.h>
 #include <steam-runtime-tools/macros.h>
+#include <steam-runtime-tools/types.h>
 
 typedef struct _SrtVirtualizationInfo SrtVirtualizationInfo;
 typedef struct _SrtVirtualizationInfoClass SrtVirtualizationInfoClass;
@@ -98,5 +99,9 @@ _SRT_PUBLIC
 SrtVirtualizationType srt_virtualization_info_get_virtualization_type (SrtVirtualizationInfo *self);
 _SRT_PUBLIC
 SrtMachineType srt_virtualization_info_get_host_machine (SrtVirtualizationInfo *self);
+_SRT_PUBLIC
+SrtOsInfo *srt_virtualization_info_get_host_os_info (SrtVirtualizationInfo *self);
+_SRT_PUBLIC
+const char *srt_virtualization_info_get_host_path (SrtVirtualizationInfo *self);
 _SRT_PUBLIC
 const gchar *srt_virtualization_info_get_interpreter_root (SrtVirtualizationInfo *self);

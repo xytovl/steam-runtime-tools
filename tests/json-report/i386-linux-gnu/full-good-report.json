@@ -39,11 +39,25 @@
     ],
     "name" : "Arch Linux",
     "pretty_name" : "Arch Linux",
-    "build_id" : "rolling"
+    "build_id" : "rolling",
+    "fields" : {
+      "LOGO": "archlinux"
+    },
+    "source_path" : "/usr/lib/os-release",
+    "source_path_resolved" : "/home/me/rootfs/usr/lib/os-release",
+    "messages" : [
+      "Failed to load /etc/os-release: Permission denied"
+    ]
   },
   "virtualization" : {
     "type" : "fex-emu",
     "host-machine" : "aarch64",
+    "host" : {
+        "os-release" : {
+            "name" : "Debian GNU/Linux"
+        },
+        "path" : "/proc/self/root"
+    },
     "interpreter-root" : "/home/me/rootfs"
   },
   "container" : {

@@ -728,7 +728,7 @@ json_parsing (Fixture *f,
       g_autofree gchar *expectation = NULL;
       g_auto(GStrv) envp = NULL;
       g_autoptr(GError) error = NULL;
-      const gchar *argv[] = { "steam-runtime-system-info", NULL };
+      const gchar *argv[] = { "steam-runtime-system-info", "--verbose", NULL };
       gsize len;
 
       g_test_message ("%s: input=%s output=%s", test->description, test->input_name, test->output_name);
