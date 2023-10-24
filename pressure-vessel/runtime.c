@@ -4277,7 +4277,8 @@ pv_runtime_remove_overridden_libraries (PvRuntime *self,
           g_autoptr(GError) local_error = NULL;
 
           libdir_fd = _srt_sysroot_open (self->mutable_sysroot, libdir,
-                                         SRT_RESOLVE_FLAGS_READABLE,
+                                         (SRT_RESOLVE_FLAGS_READABLE |
+                                          SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY),
                                          NULL, &local_error);
 
           if (libdir_fd < 0)
