@@ -3889,10 +3889,9 @@ pv_runtime_take_from_provider (PvRuntime *self,
   if (flags & TAKE_FROM_PROVIDER_FLAGS_IF_REGULAR)
     resolve_flags |= SRT_RESOLVE_FLAGS_MUST_BE_REGULAR;
 
-  source_fd = _srt_resolve_in_sysroot (self->provider->in_current_ns->fd,
-                                       source_in_provider, resolve_flags,
-                                       &realpath_in_provider,
-                                       &resolve_error);
+  source_fd = _srt_sysroot_open (self->provider->in_current_ns,
+                                 source_in_provider, resolve_flags,
+                                 &realpath_in_provider, &resolve_error);
 
   if (flags & TAKE_FROM_PROVIDER_FLAGS_IF_DIR)
     {
@@ -4178,11 +4177,11 @@ pv_runtime_take_any_from_provider (PvRuntime *self,
   g_return_val_if_fail (bwrap != NULL || self->mutable_sysroot != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
-  /* _srt_resolve_in_sysroot() will only return true if it exists, so we
+  /* _srt_sysroot_open() will only return true if it exists, so we
    * won't need to check again */
   flags &= ~TAKE_FROM_PROVIDER_FLAGS_IF_EXISTS;
 
-  /* Delegate responsibility for this to _srt_resolve_in_sysroot() */
+  /* Delegate responsibility for this to _srt_sysroot_open() */
   if (flags & TAKE_FROM_PROVIDER_FLAGS_IF_DIR)
     {
       resolve_flags |= SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY;
@@ -4201,9 +4200,9 @@ pv_runtime_take_any_from_provider (PvRuntime *self,
       glnx_autofd int fd = -1;
       g_autoptr(GError) local_error = NULL;
 
-      fd = _srt_resolve_in_sysroot (self->provider->in_current_ns->fd,
-                                    source_in_provider, resolve_flags,
-                                    NULL, &local_error);
+      fd = _srt_sysroot_open (self->provider->in_current_ns,
+                              source_in_provider, resolve_flags,
+                              NULL, &local_error);
 
       if (fd < 0)
         {
@@ -4614,9 +4613,9 @@ pv_runtime_take_ld_so_from_provider (PvRuntime *self,
 
   g_debug ("Making provider's ld.so visible in container");
 
-  path_fd = _srt_resolve_in_sysroot (self->provider->in_current_ns->fd,
-                                     arch->ld_so, SRT_RESOLVE_FLAGS_READABLE,
-                                     &ld_so_relative_to_provider, error);
+  path_fd = _srt_sysroot_open (self->provider->in_current_ns, arch->ld_so,
+                               SRT_RESOLVE_FLAGS_READABLE,
+                               &ld_so_relative_to_provider, error);
 
   if (path_fd < 0)
     {
@@ -5453,10 +5452,9 @@ pv_runtime_collect_libc_family (PvRuntime *self,
       gconv_dir_in_provider = g_build_filename (gconv_prefix, dir, "gconv", NULL);
       g_debug ("Checking for gconv in %s", gconv_dir_in_provider);
 
-      if (_srt_file_test_in_sysroot (self->provider->in_current_ns->path,
-                                     self->provider->in_current_ns->fd,
-                                     gconv_dir_in_provider,
-                                     G_FILE_TEST_IS_DIR))
+      if (_srt_sysroot_test (self->provider->in_current_ns,
+                             gconv_dir_in_provider,
+                             SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY, NULL))
         {
           g_hash_table_add (gconv_in_provider, g_steal_pointer (&gconv_dir_in_provider));
           found = TRUE;
@@ -5487,10 +5485,9 @@ pv_runtime_collect_libc_family (PvRuntime *self,
           g_debug ("Checking for gconv (after removing hwcaps subdirectories) in %s",
                    gconv_dir_in_provider);
 
-          if (_srt_file_test_in_sysroot (self->provider->in_current_ns->path,
-                                         self->provider->in_current_ns->fd,
-                                         gconv_dir_in_provider,
-                                         G_FILE_TEST_IS_DIR))
+          if (_srt_sysroot_test (self->provider->in_current_ns,
+                                 gconv_dir_in_provider,
+                                 SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY, NULL))
             {
               g_hash_table_add (gconv_in_provider, g_steal_pointer (&gconv_dir_in_provider));
               found = TRUE;
@@ -5583,10 +5580,9 @@ pv_runtime_collect_lib_data (PvRuntime *self,
   dir_in_provider_usr_share = g_build_filename ("usr", "share", dir_basename, NULL);
 
   if ((flags & PV_RUNTIME_DATA_FLAGS_USR_SHARE_FIRST)
-      && _srt_file_test_in_sysroot (self->provider->in_current_ns->path,
-                                    self->provider->in_current_ns->fd,
-                                    dir_in_provider_usr_share,
-                                    G_FILE_TEST_IS_DIR))
+      && _srt_sysroot_test (self->provider->in_current_ns,
+                            dir_in_provider_usr_share,
+                            SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY, NULL))
     {
       g_debug ("Using \"/%s\" based on hard-coded /usr/share",
                dir_in_provider_usr_share);
@@ -5660,10 +5656,9 @@ pv_runtime_collect_lib_data (PvRuntime *self,
 
   g_return_if_fail (dir_in_provider[0] != '/');
 
-  if (_srt_file_test_in_sysroot (self->provider->in_current_ns->path,
-                                 self->provider->in_current_ns->fd,
-                                 dir_in_provider,
-                                 G_FILE_TEST_IS_DIR))
+  if (_srt_sysroot_test (self->provider->in_current_ns,
+                         dir_in_provider,
+                         SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY, NULL))
     {
       g_debug ("Using \"/%s\" based on library path \"/%s\"",
                dir_in_provider, lib_in_provider);
@@ -5674,10 +5669,9 @@ pv_runtime_collect_lib_data (PvRuntime *self,
 
   if (!(flags & PV_RUNTIME_DATA_FLAGS_USR_SHARE_FIRST)
       && strcmp (dir_in_provider, dir_in_provider_usr_share) != 0
-      && _srt_file_test_in_sysroot (self->provider->in_current_ns->path,
-                                    self->provider->in_current_ns->fd,
-                                    dir_in_provider_usr_share,
-                                    G_FILE_TEST_IS_DIR))
+      && _srt_sysroot_test (self->provider->in_current_ns,
+                            dir_in_provider_usr_share,
+                            SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY, NULL))
     {
       g_debug ("Using \"/%s\" based on fallback to /usr/share, because "
                "\"/%s\" based on \"/%s\" is not a directory",
@@ -8049,13 +8043,8 @@ pv_runtime_has_library (PvRuntime *self,
           if (self->provider != NULL
               && _srt_sysroot_is_direct (self->provider->in_current_ns))
             {
-              glnx_autofd int fd = -1;
-
-              fd = _srt_resolve_in_sysroot (self->provider->in_current_ns->fd, path,
-                                            SRT_RESOLVE_FLAGS_NONE,
-                                            NULL, NULL);
-
-              if (fd >= 0)
+              if (_srt_sysroot_test (self->provider->in_current_ns, path,
+                                     SRT_RESOLVE_FLAGS_NONE, NULL))
                 {
                   g_debug ("-> yes, ${provider}/%s", path);
                   return TRUE;
