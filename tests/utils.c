@@ -422,7 +422,7 @@ typedef struct
 typedef struct
 {
   const char *path;
-  GFileTest test;
+  SrtResolveFlags test;
   gboolean expected_result;
 } InSysrootTest;
 
@@ -452,21 +452,27 @@ test_file_in_sysroot (Fixture *f,
 
   static const InSysrootTest tests[] =
   {
-    { "dir1", G_FILE_TEST_IS_DIR, TRUE },
-    { "dir1", G_FILE_TEST_EXISTS, TRUE },
-    { "/dir1", G_FILE_TEST_EXISTS, TRUE },
-    { "dir1/dir2", G_FILE_TEST_IS_DIR, TRUE },
+    { "dir1", SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY, TRUE },
+    { "dir1", SRT_RESOLVE_FLAGS_NONE, TRUE },
+    { "/dir1", SRT_RESOLVE_FLAGS_NONE, TRUE },
+    { "dir1/dir2", SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY, TRUE },
     /* These gets solved in sysroot, following symlinks too */
-    { "dir1/dir2/symlink_to_dir3", G_FILE_TEST_IS_DIR, TRUE },
-    { "dir1/dir2/sym_to_sym_to_file2", G_FILE_TEST_IS_REGULAR, TRUE },
-    { "dir1/abs_symlink_to_run", G_FILE_TEST_IS_DIR, FALSE },
-    { "dir1/missing", G_FILE_TEST_EXISTS, FALSE },
-    { "dir1/file1", G_FILE_TEST_IS_REGULAR, TRUE },
-    { "dir1/file1", (G_FILE_TEST_IS_DIR | G_FILE_TEST_IS_EXECUTABLE), FALSE },
-    { "dir1/exec1", G_FILE_TEST_IS_REGULAR, TRUE },
-    { "dir1/exec1", G_FILE_TEST_IS_EXECUTABLE, TRUE },
+    { "dir1/dir2/symlink_to_dir3", SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY, TRUE },
+    { "dir1/dir2/sym_to_sym_to_file2", SRT_RESOLVE_FLAGS_MUST_BE_REGULAR, TRUE },
+    { "dir1/abs_symlink_to_run", SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY, FALSE },
+    { "dir1/missing", SRT_RESOLVE_FLAGS_NONE, FALSE },
+    { "dir1/file1", SRT_RESOLVE_FLAGS_MUST_BE_REGULAR, TRUE },
+    {
+      "dir1/file1",
+      (SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY
+       | SRT_RESOLVE_FLAGS_MUST_BE_EXECUTABLE),
+      FALSE
+    },
+    { "dir1/exec1", SRT_RESOLVE_FLAGS_MUST_BE_REGULAR, TRUE },
+    { "dir1/exec1", SRT_RESOLVE_FLAGS_MUST_BE_EXECUTABLE, TRUE },
   };
 
+  g_autoptr(SrtSysroot) sysroot = NULL;
   g_autoptr(GError) error = NULL;
   g_auto(GLnxTmpDir) tmpdir = { FALSE };
   gsize i;
@@ -499,13 +505,28 @@ test_file_in_sysroot (Fixture *f,
         g_error ("symlinkat %s: %s", it->name, g_strerror (errno));
     }
 
+  sysroot = _srt_sysroot_new (tmpdir.path, &error);
+  g_assert_no_error (error);
+
   for (i = 0; i < G_N_ELEMENTS (tests); i++)
     {
       const InSysrootTest *it = &tests[i];
+      gboolean ok;
 
-      g_assert_cmpint (_srt_file_test_in_sysroot (tmpdir.path, -1,
-                                                  it->path, it->test),
-                       ==, it->expected_result);
+      ok = _srt_sysroot_test (sysroot, it->path, it->test, &error);
+
+      if (it->expected_result)
+        {
+          g_assert_no_error (error);
+          g_assert_true (ok);
+        }
+      else
+        {
+          g_assert_nonnull (error);
+          g_assert_false (ok);
+        }
+
+      g_clear_error (&error);
     }
 }
 

@@ -264,6 +264,7 @@ _srt_resolve_in_sysroot (int sysroot,
   /* @buffer contains parts of @descendant. We edit it in-place to replace
    * each directory separator we have dealt with by \0. */
   g_autofree gchar *buffer = g_strdup (descendant);
+  g_autofree char *proc_fd_name = NULL;
   /* @remaining points to the remaining path to traverse. For example,
    * if we are trying to resolve a/b/c/d, we have already opened a, and we
    * will open b next, then @buffer contains "a\0b/c" and remaining
@@ -488,12 +489,30 @@ _srt_resolve_in_sysroot (int sysroot,
                                     error))
     return -1;
 
+  if (flags & (SRT_RESOLVE_FLAGS_READABLE
+               | SRT_RESOLVE_FLAGS_MUST_BE_EXECUTABLE))
+    proc_fd_name = g_strdup_printf ("/proc/self/fd/%d",
+                                    g_array_index (fds, int, fds->len - 1));
+
+  if (flags & SRT_RESOLVE_FLAGS_MUST_BE_EXECUTABLE)
+    {
+      /* faccessat doesn't support AT_EMPTY_PATH, so we have to use this
+       * instead. */
+      g_assert (proc_fd_name != NULL);
+
+      if (access (proc_fd_name, X_OK) != 0)
+        {
+          glnx_throw_errno_prefix (error, "\"%s\" is not executable",
+                                   current_path->str);
+          return -1;
+        }
+    }
+
   if (flags & SRT_RESOLVE_FLAGS_READABLE)
     {
-      g_autofree char *proc_fd_name = g_strdup_printf ("/proc/self/fd/%d",
-                                                       g_array_index (fds, int,
-                                                                      fds->len - 1));
       glnx_autofd int fd = -1;
+
+      g_assert (proc_fd_name != NULL);
 
       if (flags & SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY)
         {
@@ -550,6 +569,7 @@ _srt_sysroot_open (SrtSysroot *sysroot,
                                    | SRT_RESOLVE_FLAGS_READABLE
                                    | SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY
                                    | SRT_RESOLVE_FLAGS_MUST_BE_REGULAR
+                                   | SRT_RESOLVE_FLAGS_MUST_BE_EXECUTABLE
                                    | SRT_RESOLVE_FLAGS_RETURN_ABSOLUTE)) == 0,
                         -1);
   g_return_val_if_fail (!_srt_all_bits_set (flags,
@@ -608,6 +628,13 @@ _srt_sysroot_open (SrtSysroot *sysroot,
       if ((flags & SRT_RESOLVE_FLAGS_MUST_BE_REGULAR) != 0
           && !check_fd_is_regular_file (path, fd, error))
         return -1;
+
+      if ((flags & SRT_RESOLVE_FLAGS_MUST_BE_EXECUTABLE) != 0
+          && access (path, X_OK) != 0)
+        {
+          glnx_throw_errno_prefix (error, "\"%s\" is not executable", path);
+          return -1;
+        }
 
       if (resolved != NULL)
         {
