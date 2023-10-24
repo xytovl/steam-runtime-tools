@@ -1,15 +1,33 @@
-steam-runtime-tools (0.20231019.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20231024.0) UNRELEASED; urgency=medium
 
   * system-info:
     - Document JSON format for virtualization
     - Add an option to skip checking libraries
     - Add an option to skip graphics smoke-tests
     - Use the common log handler, so SRT_LOG takes effect
+    - steam-runtime-system-info --verbose now outputs all fields from
+      os-release(5)
   * Library code:
+    - SrtSystemInfo: Avoid using fd-relative I/O for the real root, making
+      several diagnostics more accurate when running under FEX-Emu:
+      * DRI, VA-API and VDPAU modules (steamrt/tasks#347)
+      * os-release(5) (steamrt/tasks#342)
+      * ld.so (steamrt/tasks#348)
+      * /overrides
+    - SrtSystemInfo: Break reference cycles in dispose() if necessary
+    - SrtSystemInfo: Fix assertion failure if failing to get container
+      information
+    - SrtSystemInfo: Keep better track of whether opening a sysroot failed
     - SrtVirtualizationInfo: Add missing getter for host-machine property
+    - SrtVirtualizationInfo: Add os-release(5) from the host system under
+      FEX-Emu
+    - Collect os-release(5) path, canonicalized path, and any diagnostic
+      messages about errors parsing it, not just its contents
     - Improve test coverage
+    - Improve build robustness in scout
+    - Refactoring
 
- -- Simon McVittie <smcv@collabora.com>  Thu, 19 Oct 2023 12:27:46 +0100
+ -- Simon McVittie <smcv@collabora.com>  Tue, 24 Oct 2023 11:03:51 +0100
 
 steam-runtime-tools (0.20231013.0) steamrt; urgency=medium
 
