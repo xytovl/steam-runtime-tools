@@ -29,6 +29,14 @@ steam-runtime-tools (0.20231024.0) UNRELEASED; urgency=medium
 
  -- Simon McVittie <smcv@collabora.com>  Tue, 24 Oct 2023 11:03:51 +0100
 
+steam-runtime-tools (0.20231013.1) steamrt; urgency=medium
+
+  * launcher-service: Unblock and unignore all signals during startup,
+    fixing detection of subprocesses exiting when launched by Steam
+    (steamrt/tasks#354, ValveSoftware/SteamVR-for-Linux#618)
+
+ -- Simon McVittie <smcv@collabora.com>  Tue, 24 Oct 2023 19:47:07 +0100
+
 steam-runtime-tools (0.20231013.0) steamrt; urgency=medium
 
   * pressure-vessel:
