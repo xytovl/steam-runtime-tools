@@ -289,15 +289,13 @@ typedef enum
 G_GNUC_INTERNAL
 GList *_srt_load_egl_things (GType which,
                              const char *helpers_path,
-                             const char *sysroot,
-                             int sysroot_fd,
+                             SrtSysroot *sysroot,
                              gchar **envp,
                              const char * const *multiarch_tuples,
                              SrtCheckFlags check_flags);
 G_GNUC_INTERNAL
 GList *_srt_load_vulkan_icds (const char *helpers_path,
-                              const char *sysroot,
-                              int sysroot_fd,
+                              SrtSysroot *sysroot,
                               gchar **envp,
                               const char * const *multiarch_tuples,
                               SrtCheckFlags check_flags);
@@ -312,8 +310,7 @@ GList *_srt_list_graphics_modules (SrtSysroot *sysroot,
 
 G_GNUC_INTERNAL
 GList *_srt_load_vulkan_layers_extended (const char *helpers_path,
-                                         const char *sysroot,
-                                         int sysroot_fd,
+                                         SrtSysroot *sysroot,
                                          gchar **envp,
                                          const char * const *multiarch_tuples,
                                          gboolean explicit,
@@ -333,7 +330,7 @@ GList *_srt_vdpau_driver_get_from_report (JsonObject *json_obj);
 GList *_srt_glx_icd_get_from_report (JsonObject *json_obj);
 
 G_GNUC_INTERNAL
-gchar ** _srt_graphics_get_vulkan_search_paths (const char *sysroot,
+gchar ** _srt_graphics_get_vulkan_search_paths (SrtSysroot *sysroot,
                                                 gchar **envp,
                                                 const char * const *multiarch_tuples,
                                                 const char *suffix);

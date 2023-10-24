@@ -558,7 +558,7 @@ srt_vulkan_icd_new_replace_library_path (SrtVulkanIcd *self,
 }
 
 static void
-vulkan_icd_load_json_cb (const char *sysroot,
+vulkan_icd_load_json_cb (SrtSysroot *sysroot,
                          const char *filename,
                          void *user_data)
 {
@@ -583,14 +583,13 @@ get_vulkan_sysconfdir (void)
  * the suffix used. If they diverge in future, this function will need more
  * parameters. */
 gchar **
-_srt_graphics_get_vulkan_search_paths (const char *sysroot,
+_srt_graphics_get_vulkan_search_paths (SrtSysroot *sysroot,
                                        gchar **envp,
                                        const char * const *multiarch_tuples,
                                        const char *suffix)
 {
   GPtrArray *search_paths = g_ptr_array_new_with_free_func (g_free);
   g_auto(GStrv) dirs = NULL;
-  g_autofree gchar *flatpak_info = NULL;
   const char *home;
   const gchar *value;
   gsize i;
@@ -634,12 +633,10 @@ _srt_graphics_get_vulkan_search_paths (const char *sysroot,
   if (g_strcmp0 (value, "/etc") != 0)
     g_ptr_array_add (search_paths, g_build_filename ("/etc", suffix, NULL));
 
-  flatpak_info = g_build_filename (sysroot, ".flatpak-info", NULL);
-
   /* freedesktop-sdk patches the Vulkan loader to look here for ICDs,
    * after EXTRASYSCONFDIR but before XDG_DATA_HOME.
    * https://gitlab.com/freedesktop-sdk/freedesktop-sdk/-/blob/master/patches/vulkan/vulkan-libdir-path.patch */
-  if (g_file_test (flatpak_info, G_FILE_TEST_EXISTS))
+  if (_srt_sysroot_test (sysroot, "/.flatpak-info", SRT_RESOLVE_FLAGS_NONE, NULL))
     {
       g_debug ("Flatpak detected: assuming freedesktop-based runtime");
 
@@ -725,8 +722,6 @@ _srt_graphics_get_vulkan_search_paths (const char *sysroot,
  * @helpers_path: (nullable): An optional path to find "inspect-library"
  *  helper, PATH is used if %NULL
  * @sysroot: (not nullable): The root directory, usually `/`
- * @sysroot_fd: A file descriptor opened on @sysroot, or negative to
- *  reopen it
  * @envp: (array zero-terminated=1) (not nullable): Behave as though `environ` was this
  *  array
  * @multiarch_tuples: (nullable): If not %NULL, and a Flatpak environment
@@ -747,8 +742,7 @@ _srt_graphics_get_vulkan_search_paths (const char *sysroot,
  */
 GList *
 _srt_load_vulkan_icds (const char *helpers_path,
-                       const char *sysroot,
-                       int sysroot_fd,
+                       SrtSysroot *sysroot,
                        gchar **envp,
                        const char * const *multiarch_tuples,
                        SrtCheckFlags check_flags)
@@ -761,6 +755,7 @@ _srt_load_vulkan_icds (const char *helpers_path,
 
   g_return_val_if_fail (_srt_check_not_setuid (), NULL);
   g_return_val_if_fail (envp != NULL, NULL);
+  g_return_val_if_fail (SRT_IS_SYSROOT (sysroot), NULL);
 
   /* Reference:
    * https://github.com/KhronosGroup/Vulkan-Loader/blob/v1.3.207/docs/LoaderDriverInterface.md#overriding-the-default-driver-discovery
@@ -803,7 +798,7 @@ _srt_load_vulkan_icds (const char *helpers_path,
         }
 
       g_debug ("Using normal Vulkan driver search path");
-      load_json_dirs (sysroot, sysroot_fd, search_paths, NULL, READDIR_ORDER,
+      load_json_dirs (sysroot, search_paths, NULL, READDIR_ORDER,
                       vulkan_icd_load_json_cb, &ret);
     }
 
@@ -1473,13 +1468,14 @@ vulkan_layer_parse_json (const gchar *path,
 
 /**
  * load_vulkan_layer_json:
+ * @sysroot: (not nullable): Sysroot in which to load the layer
  * @path: (not nullable): Path to a Vulkan layer JSON file
  *
  * Returns: (transfer full) (element-type SrtVulkanLayer): A list of Vulkan
  *  layers, least-important first
  */
 static GList *
-load_vulkan_layer_json (const gchar *sysroot,
+load_vulkan_layer_json (SrtSysroot *sysroot,
                         const gchar *path)
 {
   g_autoptr(GError) error = NULL;
@@ -1490,12 +1486,16 @@ load_vulkan_layer_json (const gchar *sysroot,
   JsonObject *json_layer = NULL;
   JsonArray *json_layers = NULL;
   const gchar *file_format_version = NULL;
-  g_autofree gchar *in_sysroot = NULL;
+  g_autofree gchar *contents = NULL;
   g_autofree gchar *canon = NULL;
+  gsize contents_len = 0;
   guint length;
   gsize i;
   GList *ret_list = NULL;
+  SrtLoadableIssues issues = SRT_LOADABLE_ISSUES_CANNOT_LOAD;
+  g_autoptr(SrtVulkanLayer) layer = NULL;
 
+  g_return_val_if_fail (SRT_IS_SYSROOT (sysroot), NULL);
   g_return_val_if_fail (path != NULL, NULL);
 
   if (!g_path_is_absolute (path))
@@ -1504,19 +1504,37 @@ load_vulkan_layer_json (const gchar *sysroot,
       path = canon;
     }
 
-  in_sysroot = g_build_filename (sysroot, path, NULL);
+  g_debug ("Attempting to load JSON layer from %s%s",
+           sysroot->path, path);
 
-  g_debug ("Attempting to load the json layer from %s", in_sysroot);
+  if (!_srt_sysroot_load (sysroot, path, SRT_RESOLVE_FLAGS_NONE,
+                          NULL, &contents, &contents_len, &error))
+    goto return_error;
+
+  if (G_UNLIKELY (contents_len > G_MAXSSIZE))
+    {
+      g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
+                   "Unreasonably large JSON file \"%s%s\"",
+                   sysroot->path, path);
+      goto return_error;
+    }
+
+  if (G_UNLIKELY (strnlen (contents, contents_len + 1) < contents_len))
+    {
+      /* In practice json-glib does diagnose this as an error, but the
+       * error message is misleading (it claims the file isn't UTF-8). */
+      g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
+                   "JSON file \"%s%s\" contains \\0",
+                   sysroot->path, path);
+      goto return_error;
+    }
 
   parser = json_parser_new ();
 
-  if (!json_parser_load_from_file (parser, in_sysroot, &error))
+  if (!json_parser_load_from_data (parser, contents, contents_len, &error))
     {
       g_debug ("error %s", error->message);
-      return g_list_prepend (ret_list,
-                             srt_vulkan_layer_new_error (path,
-                                                         SRT_LOADABLE_ISSUES_CANNOT_LOAD,
-                                                         error));
+      goto return_error;
     }
 
   node = json_parser_get_root (parser);
@@ -1525,10 +1543,7 @@ load_vulkan_layer_json (const gchar *sysroot,
     {
       g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
                    "Expected to find a JSON object in \"%s\"", path);
-      return g_list_prepend (ret_list,
-                             srt_vulkan_layer_new_error (path,
-                                                         SRT_LOADABLE_ISSUES_CANNOT_LOAD,
-                                                         error));
+      goto return_error;
     }
 
   object = json_node_get_object (node);
@@ -1541,10 +1556,7 @@ load_vulkan_layer_json (const gchar *sysroot,
     {
       g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
                    "file_format_version in \"%s\" is missing or not a string", path);
-      return g_list_prepend (ret_list,
-                             srt_vulkan_layer_new_error (path,
-                                                         SRT_LOADABLE_ISSUES_CANNOT_LOAD,
-                                                         error));
+      goto return_error;
     }
 
   /* At the time of writing the latest layer manifest file version is
@@ -1558,11 +1570,10 @@ load_vulkan_layer_json (const gchar *sysroot,
       g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
                    "Vulkan layer file_format_version \"%s\" in \"%s\" is not supported",
                    file_format_version, path);
-      return g_list_prepend (ret_list,
-                             srt_vulkan_layer_new_error (path,
-                                                         SRT_LOADABLE_ISSUES_UNSUPPORTED,
-                                                         error));
+      issues = SRT_LOADABLE_ISSUES_UNSUPPORTED;
+      goto return_error;
     }
+
   if (json_object_has_member (object, "layers"))
     {
       arr_node = json_object_get_member (object, "layers");
@@ -1573,10 +1584,7 @@ load_vulkan_layer_json (const gchar *sysroot,
         {
           g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
                        "\"layers\" in \"%s\" is not an array as expected", path);
-          return g_list_prepend (ret_list,
-                                 srt_vulkan_layer_new_error (path,
-                                                             SRT_LOADABLE_ISSUES_CANNOT_LOAD,
-                                                             error));
+          goto return_error;
         }
       length = json_array_get_length (json_layers);
       for (i = 0; i < length; i++)
@@ -1587,15 +1595,17 @@ load_vulkan_layer_json (const gchar *sysroot,
               /* Try to continue parsing */
               g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
                            "the layer in \"%s\" is not an object as expected", path);
-              ret_list = g_list_prepend (ret_list,
-                                         srt_vulkan_layer_new_error (path,
-                                                                     SRT_LOADABLE_ISSUES_CANNOT_LOAD,
-                                                                     error));
+              layer = srt_vulkan_layer_new_error (path,
+                                                  SRT_LOADABLE_ISSUES_CANNOT_LOAD,
+                                                  error);
               g_clear_error (&error);
-              continue;
             }
-          ret_list = g_list_prepend (ret_list, vulkan_layer_parse_json (path, file_format_version,
-                                                                        json_layer));
+          else
+            {
+              layer = vulkan_layer_parse_json (path, file_format_version, json_layer);
+            }
+
+          ret_list = g_list_prepend (ret_list, g_steal_pointer (&layer));
         }
     }
   else if (json_object_has_member (object, "layer"))
@@ -1605,33 +1615,34 @@ load_vulkan_layer_json (const gchar *sysroot,
         {
           g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
                        "\"layer\" in \"%s\" is not an object as expected", path);
-          return g_list_prepend (ret_list,
-                                 srt_vulkan_layer_new_error (path,
-                                                             SRT_LOADABLE_ISSUES_CANNOT_LOAD,
-                                                             error));
+          goto return_error;
         }
-      ret_list = g_list_prepend (ret_list, vulkan_layer_parse_json (path, file_format_version,
-                                                                    json_layer));
+
+      layer = vulkan_layer_parse_json (path, file_format_version, json_layer);
+      ret_list = g_list_prepend (ret_list, g_steal_pointer (&layer));
     }
   else
     {
       g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
                    "The layer definitions in \"%s\" is missing both the \"layer\" and \"layers\" fields",
                    path);
-          return g_list_prepend (ret_list,
-                                 srt_vulkan_layer_new_error (path,
-                                                             SRT_LOADABLE_ISSUES_CANNOT_LOAD,
-                                                             error));
+      goto return_error;
     }
+
   return ret_list;
+
+return_error:
+  g_assert (error != NULL);
+  layer = srt_vulkan_layer_new_error (path, issues, error);
+  return g_list_prepend (ret_list, g_steal_pointer (&layer));
 }
 
 static void
-vulkan_layer_load_json (const char *sysroot,
+vulkan_layer_load_json (SrtSysroot *sysroot,
                         const char *filename,
                         GList **list)
 {
-  g_return_if_fail (sysroot != NULL);
+  g_return_if_fail (SRT_IS_SYSROOT (sysroot));
   g_return_if_fail (filename != NULL);
   g_return_if_fail (list != NULL);
 
@@ -1639,7 +1650,7 @@ vulkan_layer_load_json (const char *sysroot,
 }
 
 static void
-vulkan_layer_load_json_cb (const char *sysroot,
+vulkan_layer_load_json_cb (SrtSysroot *sysroot,
                            const char *filename,
                            void *user_data)
 {
@@ -1651,8 +1662,6 @@ vulkan_layer_load_json_cb (const char *sysroot,
  * @helpers_path: (nullable): An optional path to find "inspect-library"
  *  helper, PATH is used if %NULL
  * @sysroot: (not nullable): The root directory, usually `/`
- * @sysroot_fd: A file descriptor opened on @sysroot, or negative to
- *  reopen it
  * @envp: (array zero-terminated=1) (not nullable): Behave as though `environ`
  *  was this array
  * @multiarch_tuples: (nullable): If not %NULL, duplicated
@@ -1670,8 +1679,7 @@ vulkan_layer_load_json_cb (const char *sysroot,
  */
 GList *
 _srt_load_vulkan_layers_extended (const char *helpers_path,
-                                  const char *sysroot,
-                                  int sysroot_fd,
+                                  SrtSysroot *sysroot,
                                   gchar **envp,
                                   const char * const *multiarch_tuples,
                                   gboolean explicit,
@@ -1684,6 +1692,7 @@ _srt_load_vulkan_layers_extended (const char *helpers_path,
 
   g_return_val_if_fail (_srt_check_not_setuid (), NULL);
   g_return_val_if_fail (envp != NULL, NULL);
+  g_return_val_if_fail (SRT_IS_SYSROOT (sysroot), NULL);
 
   if (explicit)
     suffix = _SRT_GRAPHICS_EXPLICIT_VULKAN_LAYER_SUFFIX;
@@ -1700,7 +1709,7 @@ _srt_load_vulkan_layers_extended (const char *helpers_path,
     {
       g_auto(GStrv) dirs = g_strsplit (value, G_SEARCHPATH_SEPARATOR_S, -1);
       g_debug ("Vulkan explicit layer search path overridden to: %s", value);
-      load_json_dirs (sysroot, sysroot_fd, dirs, NULL, _srt_indirect_strcmp0,
+      load_json_dirs (sysroot, dirs, NULL, _srt_indirect_strcmp0,
                       vulkan_layer_load_json_cb, &ret);
     }
   else
@@ -1714,7 +1723,7 @@ _srt_load_vulkan_layers_extended (const char *helpers_path,
         {
           g_auto(GStrv) dirs = g_strsplit (add, G_SEARCHPATH_SEPARATOR_S, -1);
           g_debug ("Vulkan additional explicit layer search path: %s", add);
-          load_json_dirs (sysroot, sysroot_fd, dirs, NULL, _srt_indirect_strcmp0,
+          load_json_dirs (sysroot, dirs, NULL, _srt_indirect_strcmp0,
                           vulkan_layer_load_json_cb, &ret);
         }
 
@@ -1723,7 +1732,7 @@ _srt_load_vulkan_layers_extended (const char *helpers_path,
                                                             suffix);
       g_debug ("Using normal Vulkan layer search path");
       g_debug ("SEARCH PATHS %s", search_paths[0]);
-      load_json_dirs (sysroot, sysroot_fd, search_paths, NULL, _srt_indirect_strcmp0,
+      load_json_dirs (sysroot, search_paths, NULL, _srt_indirect_strcmp0,
                       vulkan_layer_load_json_cb, &ret);
     }
 
@@ -1752,8 +1761,22 @@ _srt_load_vulkan_layers (const char *sysroot,
                          gchar **envp,
                          gboolean explicit)
 {
-  return _srt_load_vulkan_layers_extended (NULL, sysroot, -1, envp, NULL, explicit,
-                                           SRT_CHECK_FLAGS_NONE);
+  g_autoptr(SrtSysroot) sysroot_object = NULL;
+  g_autoptr(GError) local_error = NULL;
+
+  g_return_val_if_fail (sysroot != NULL, NULL);
+  g_return_val_if_fail (envp != NULL, NULL);
+
+  sysroot_object = _srt_sysroot_new (sysroot, &local_error);
+
+  if (sysroot_object == NULL)
+    {
+      g_warning ("%s", local_error->message);
+      return NULL;
+    }
+
+  return _srt_load_vulkan_layers_extended (NULL, sysroot_object, envp, NULL,
+                                           explicit, SRT_CHECK_FLAGS_NONE);
 }
 
 static SrtVulkanLayer *

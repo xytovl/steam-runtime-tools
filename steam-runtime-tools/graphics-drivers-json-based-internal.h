@@ -146,21 +146,20 @@ void _srt_loadable_take_original_json (SrtLoadable *self,
  */
 #define READDIR_ORDER ((GCompareFunc) NULL)
 
-void load_json_dir (const char *sysroot,
+void load_json_dir (SrtSysroot *sysroot,
                     const char *dir,
                     const char *suffix,
                     GCompareFunc sort,
-                    void (*load_json_cb) (const char *, const char *, void *),
+                    void (*load_json_cb) (SrtSysroot *, const char *, void *),
                     void *user_data);
-void load_json_dirs (const char *sysroot,
-                     int sysroot_fd,
+void load_json_dirs (SrtSysroot *sysroot,
                      GStrv search_paths,
                      const char *suffix,
                      GCompareFunc sort,
-                     void (*load_json_cb) (const char *, const char *, void *),
+                     void (*load_json_cb) (SrtSysroot *, const char *, void *),
                      void *user_data);
 void load_icd_from_json (GType type,
-                         const char *sysroot,
+                         SrtSysroot *sysroot,
                          const char *filename,
                          GList **list);
 

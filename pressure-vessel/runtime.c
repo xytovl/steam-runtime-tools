@@ -7795,7 +7795,7 @@ pv_runtime_bind (PvRuntime *self,
           const char *suffix = layer_suffixes[i];
           gsize j;
 
-          search_path = _srt_graphics_get_vulkan_search_paths ("/",
+          search_path = _srt_graphics_get_vulkan_search_paths (self->real_root,
                                                                self->original_environ,
                                                                pv_multiarch_tuples,
                                                                suffix);

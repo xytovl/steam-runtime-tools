@@ -600,24 +600,23 @@ _srt_loadable_flag_duplicates (GType which,
  * @user_data: Passed to @load_json_cb
  */
 void
-load_json_dir (const char *sysroot,
+load_json_dir (SrtSysroot *sysroot,
                const char *dir,
                const char *suffix,
                GCompareFunc sort,
-               void (*load_json_cb) (const char *, const char *, void *),
+               void (*load_json_cb) (SrtSysroot *, const char *, void *),
                void *user_data)
 {
   g_autoptr(GError) error = NULL;
-  g_autoptr(GDir) dir_iter = NULL;
+  g_auto(GLnxDirFdIterator) iter = { .initialized = FALSE };
   g_autofree gchar *canon = NULL;
-  g_autofree gchar *sysrooted_dir = NULL;
   g_autofree gchar *suffixed_dir = NULL;
-  const char *iter_dir;
+  glnx_autofd int dirfd = -1;
   const char *member;
   g_autoptr(GPtrArray) members = NULL;
   gsize i;
 
-  g_return_if_fail (sysroot != NULL);
+  g_return_if_fail (SRT_IS_SYSROOT (sysroot));
   g_return_if_fail (load_json_cb != NULL);
 
   if (dir == NULL)
@@ -635,27 +634,42 @@ load_json_dir (const char *sysroot,
       dir = suffixed_dir;
     }
 
-  sysrooted_dir = g_build_filename (sysroot, dir, NULL);
-  iter_dir = sysrooted_dir;
+  g_debug ("Looking for ICDs in %s (in sysroot %s)...", dir, sysroot->path);
 
-  g_debug ("Looking for ICDs in %s (in sysroot %s)...", dir, sysroot);
+  dirfd = _srt_sysroot_open (sysroot, dir,
+                             (SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY
+                              | SRT_RESOLVE_FLAGS_READABLE),
+                             NULL, &error);
 
-  dir_iter = g_dir_open (iter_dir, 0, &error);
-
-  if (dir_iter == NULL)
+  if (dirfd < 0 ||
+      !glnx_dirfd_iterator_init_take_fd (&dirfd, &iter, &error))
     {
-      g_debug ("Failed to open \"%s\": %s", iter_dir, error->message);
+      g_debug ("Failed to open \"%s%s\": %s",
+               sysroot->path, dir, error->message);
       return;
     }
 
   members = g_ptr_array_new_with_free_func (g_free);
 
-  while ((member = g_dir_read_name (dir_iter)) != NULL)
+  while (TRUE)
     {
-      if (!g_str_has_suffix (member, ".json"))
+      struct dirent *dent = NULL;
+
+      if (!glnx_dirfd_iterator_next_dent (&iter, &dent, NULL, &error))
+        {
+          g_warning ("I/O error reading members of \"%s%s\": %s",
+                     sysroot->path, dir, error->message);
+          g_clear_error (&error);
+          break;
+        }
+
+      if (dent == NULL)
+        break;
+
+      if (!g_str_has_suffix (dent->d_name, ".json"))
         continue;
 
-      g_ptr_array_add (members, g_strdup (member));
+      g_ptr_array_add (members, g_strdup (dent->d_name));
     }
 
   if (sort != READDIR_ORDER)
@@ -675,8 +689,6 @@ load_json_dir (const char *sysroot,
 /*
  * load_json_dir:
  * @sysroot: (not nullable): The root directory, usually `/`
- * @sysroot_fd: A file descriptor opened on @sysroot, or negative to
- *  reopen it
  * @search_paths: Directories to search
  * @suffix: (nullable): A path to append to @dir, such as `"vulkan/icd.d"`
  * @sort: (nullable): If not %NULL, load ICDs sorted by filename in this order
@@ -687,35 +699,21 @@ load_json_dir (const char *sysroot,
  * to prevent loading the same JSONs multiple times.
  */
 void
-load_json_dirs (const char *sysroot,
-                int sysroot_fd,
+load_json_dirs (SrtSysroot *sysroot,
                 GStrv search_paths,
                 const char *suffix,
                 GCompareFunc sort,
-                void (*load_json_cb) (const char *, const char *, void *),
+                void (*load_json_cb) (SrtSysroot *, const char *, void *),
                 void *user_data)
 {
   gchar **iter;
   g_autoptr(GHashTable) searched_set = NULL;
   g_autoptr(GError) error = NULL;
-  glnx_autofd int local_sysroot_fd = -1;
 
-  g_return_if_fail (sysroot != NULL);
+  g_return_if_fail (SRT_IS_SYSROOT (sysroot));
   g_return_if_fail (load_json_cb != NULL);
 
   searched_set = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
-
-  if (sysroot_fd < 0)
-    {
-      if (!glnx_opendirat (-1, sysroot, FALSE, &local_sysroot_fd, &error))
-        {
-          g_warning ("An error occurred trying to open \"%s\": %s", sysroot,
-                     error->message);
-          return;
-        }
-
-      sysroot_fd = local_sysroot_fd;
-    }
 
   for (iter = search_paths;
        iter != NULL && *iter != NULL;
@@ -724,9 +722,9 @@ load_json_dirs (const char *sysroot,
       glnx_autofd int file_fd = -1;
       g_autofree gchar *file_realpath_in_sysroot = NULL;
 
-      file_fd = _srt_resolve_in_sysroot (sysroot_fd,
-                                         *iter, SRT_RESOLVE_FLAGS_NONE,
-                                         &file_realpath_in_sysroot, &error);
+      file_fd = _srt_sysroot_open (sysroot, *iter,
+                                   SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY,
+                                   &file_realpath_in_sysroot, &error);
 
       if (file_realpath_in_sysroot == NULL)
         {
@@ -761,14 +759,13 @@ load_json_dirs (const char *sysroot,
  */
 void
 load_icd_from_json (GType type,
-                    const char *sysroot,
+                    SrtSysroot *sysroot,
                     const char *filename,
                     GList **list)
 {
   g_autoptr(JsonParser) parser = NULL;
   g_autofree gchar *canon = NULL;
   g_autofree gchar *contents = NULL;
-  g_autofree gchar *path = NULL;
   g_autoptr(GError) error = NULL;
   /* These are all borrowed from the parser */
   JsonNode *node;
@@ -786,7 +783,7 @@ load_icd_from_json (GType type,
   g_return_if_fail (type == SRT_TYPE_VULKAN_ICD
                     || type == SRT_TYPE_EGL_ICD
                     || type == SRT_TYPE_EGL_EXTERNAL_PLATFORM);
-  g_return_if_fail (sysroot != NULL);
+  g_return_if_fail (SRT_IS_SYSROOT (sysroot));
   g_return_if_fail (list != NULL);
 
   if (!g_path_is_absolute (filename))
@@ -795,13 +792,12 @@ load_icd_from_json (GType type,
       filename = canon;
     }
 
-  path = g_build_filename (sysroot, filename, NULL);
+  g_debug ("Attempting to load %s from \"%s/%s\"",
+           g_type_name (type), sysroot->path, filename);
 
-  g_debug ("Attempting to load %s from %s", g_type_name (type), path);
-
-  parser = json_parser_new ();
-
-  if (!g_file_get_contents (path, &contents, &len, &error))
+  if (!_srt_sysroot_load (sysroot, filename,
+                          SRT_RESOLVE_FLAGS_NONE,
+                          NULL, &contents, &len, &error))
     {
       issues |= SRT_LOADABLE_ISSUES_CANNOT_LOAD;
       goto out;
@@ -810,7 +806,8 @@ load_icd_from_json (GType type,
   if (G_UNLIKELY (len > G_MAXSSIZE))
     {
       g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
-                   "Unreasonably large JSON file \"%s\"", path);
+                   "Unreasonably large JSON file \"%s%s\"",
+                   sysroot->path, filename);
       issues |= SRT_LOADABLE_ISSUES_CANNOT_LOAD;
       goto out;
     }
@@ -823,10 +820,13 @@ load_icd_from_json (GType type,
        * the content could contain \0 then it would be wrong to store it
        * as a gchar * and not a (content,length) pair. */
       g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
-                   "JSON file \"%s\" contains \\0", path);
+                   "JSON file \"%s%s\" contains \\0",
+                   sysroot->path, filename);
       issues |= SRT_LOADABLE_ISSUES_CANNOT_LOAD;
       goto out;
     }
+
+  parser = json_parser_new ();
 
   if (!json_parser_load_from_data (parser, contents, len, &error))
     {
@@ -839,7 +839,8 @@ load_icd_from_json (GType type,
   if (node == NULL || !JSON_NODE_HOLDS_OBJECT (node))
     {
       g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
-                   "Expected to find a JSON object in \"%s\"", path);
+                   "Expected to find a JSON object in \"%s%s\"",
+                   sysroot->path, filename);
       issues |= SRT_LOADABLE_ISSUES_CANNOT_LOAD;
       goto out;
     }
@@ -851,8 +852,8 @@ load_icd_from_json (GType type,
   if (file_format_version == NULL)
     {
       g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
-                   "file_format_version in \"%s\" is either missing or not a string",
-                   path);
+                   "file_format_version in \"%s%s\" is either missing or not a string",
+                   sysroot->path, filename);
       issues |= SRT_LOADABLE_ISSUES_CANNOT_LOAD;
       goto out;
     }
@@ -873,8 +874,8 @@ load_icd_from_json (GType type,
       if (!g_str_has_prefix (file_format_version, "1.0."))
         {
           g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
-                       "Vulkan file_format_version in \"%s\" is not 1.0.x",
-                       path);
+                       "Vulkan file_format_version in \"%s%s\" is not 1.0.x",
+                       sysroot->path, filename);
           issues |= SRT_LOADABLE_ISSUES_UNSUPPORTED;
           goto out;
         }
@@ -892,8 +893,8 @@ load_icd_from_json (GType type,
       if (!g_str_has_prefix (file_format_version, "1.0."))
         {
           g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
-                       "EGL file_format_version in \"%s\" is not 1.0.x",
-                       path);
+                       "EGL file_format_version in \"%s%s\" is not 1.0.x",
+                       sysroot->path, filename);
           issues |= SRT_LOADABLE_ISSUES_UNSUPPORTED;
           goto out;
         }
@@ -905,7 +906,8 @@ load_icd_from_json (GType type,
       || !JSON_NODE_HOLDS_OBJECT (subnode))
     {
       g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
-                   "No \"ICD\" object in \"%s\"", path);
+                   "No \"ICD\" object in \"%s%s\"",
+                   sysroot->path, filename);
       issues |= SRT_LOADABLE_ISSUES_CANNOT_LOAD;
       goto out;
     }
@@ -919,8 +921,8 @@ load_icd_from_json (GType type,
       if (api_version == NULL)
         {
           g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
-                       "ICD.api_version in \"%s\" is either missing or not a string",
-                       path);
+                       "ICD.api_version in \"%s%s\" is either missing or not a string",
+                       sysroot->path, filename);
           issues |= SRT_LOADABLE_ISSUES_CANNOT_LOAD;
           goto out;
         }
@@ -935,8 +937,8 @@ load_icd_from_json (GType type,
   if (library_path == NULL)
     {
       g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
-                   "ICD.library_path in \"%s\" is either missing or not a string",
-                   path);
+                   "ICD.library_path in \"%s%s\" is either missing or not a string",
+                   sysroot->path, filename);
       issues |= SRT_LOADABLE_ISSUES_CANNOT_LOAD;
       goto out;
     }
