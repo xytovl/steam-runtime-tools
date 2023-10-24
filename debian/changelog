@@ -7,13 +7,19 @@ steam-runtime-tools (0.20231024.0) UNRELEASED; urgency=medium
     - Use the common log handler, so SRT_LOG takes effect
     - steam-runtime-system-info --verbose now outputs all fields from
       os-release(5)
+  * pressure-vessel: Refactoring
+  * urlopen: Use steam://openurl_external to open http, https URLs
+    (steamrt/tasks#80)
   * Library code:
     - SrtSystemInfo: Avoid using fd-relative I/O for the real root, making
       several diagnostics more accurate when running under FEX-Emu:
       * DRI, VA-API and VDPAU modules (steamrt/tasks#347)
+      * Vulkan layers
       * os-release(5) (steamrt/tasks#342)
       * ld.so (steamrt/tasks#348)
       * /overrides
+    - SrtSystemInfo: Make more use of fd-relative I/O when acting on a
+      sysroot, avoiding being misled by absolute symbolic links
     - SrtSystemInfo: Break reference cycles in dispose() if necessary
     - SrtSystemInfo: Fix assertion failure if failing to get container
       information
@@ -27,7 +33,7 @@ steam-runtime-tools (0.20231024.0) UNRELEASED; urgency=medium
     - Improve build robustness in scout
     - Refactoring
 
- -- Simon McVittie <smcv@collabora.com>  Tue, 24 Oct 2023 11:03:51 +0100
+ -- Simon McVittie <smcv@collabora.com>  Tue, 24 Oct 2023 20:32:55 +0100
 
 steam-runtime-tools (0.20231013.1) steamrt; urgency=medium
 
