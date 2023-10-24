@@ -4276,10 +4276,9 @@ pv_runtime_remove_overridden_libraries (PvRuntime *self,
         {
           g_autoptr(GError) local_error = NULL;
 
-          libdir_fd = _srt_resolve_in_sysroot (self->mutable_sysroot->fd,
-                                               libdir,
-                                               SRT_RESOLVE_FLAGS_READABLE,
-                                               NULL, &local_error);
+          libdir_fd = _srt_sysroot_open (self->mutable_sysroot, libdir,
+                                         SRT_RESOLVE_FLAGS_READABLE,
+                                         NULL, &local_error);
 
           if (libdir_fd < 0)
             {
@@ -5131,11 +5130,9 @@ pv_runtime_get_ld_so (PvRuntime *self,
     {
       G_GNUC_UNUSED glnx_autofd int fd = -1;
 
-      fd = _srt_resolve_in_sysroot (self->mutable_sysroot->fd,
-                                    arch->ld_so,
-                                    SRT_RESOLVE_FLAGS_NONE,
-                                    ld_so_in_runtime,
-                                    NULL);
+      fd = _srt_sysroot_open (self->mutable_sysroot, arch->ld_so,
+                              SRT_RESOLVE_FLAGS_NONE,
+                              ld_so_in_runtime, NULL);
 
       /* Ignore fd, and just let it close: we're resolving
        * the path for its side-effect of populating
@@ -7994,13 +7991,8 @@ pv_runtime_has_library (PvRuntime *self,
 
           if (self->mutable_sysroot != NULL)
             {
-              glnx_autofd int fd = -1;
-
-              fd = _srt_resolve_in_sysroot (self->mutable_sysroot->fd, path,
-                                            SRT_RESOLVE_FLAGS_NONE,
-                                            NULL, NULL);
-
-              if (fd >= 0)
+              if (_srt_sysroot_test (self->mutable_sysroot, path,
+                                     SRT_RESOLVE_FLAGS_NONE, NULL))
                 {
                   g_debug ("-> yes, ${mutable_sysroot}/%s", path);
                   return TRUE;
