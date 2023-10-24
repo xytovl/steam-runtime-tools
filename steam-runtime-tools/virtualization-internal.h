@@ -27,6 +27,7 @@
 #pragma once
 
 #include "steam-runtime-tools/virtualization.h"
+#include "steam-runtime-tools/resolve-in-sysroot-internal.h"
 
 /*
  * _srt_virtualization_info_new:
@@ -75,4 +76,4 @@ _srt_virtualization_info_new_empty (void)
 #endif
 
 SrtVirtualizationInfo *_srt_check_virtualization (GHashTable *mock_cpuid,
-                                                  int sysroot_fd);
+                                                  SrtSysroot *sysroot);

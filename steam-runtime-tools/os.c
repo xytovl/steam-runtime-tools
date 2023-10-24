@@ -141,8 +141,7 @@ do_line (SrtOsRelease *self,
 
 G_GNUC_INTERNAL void
 _srt_os_release_populate (SrtOsRelease *self,
-                          const char *sysroot,
-                          int sysroot_fd)
+                          SrtSysroot *sysroot)
 {
   gsize i;
 
@@ -156,8 +155,7 @@ _srt_os_release_populate (SrtOsRelease *self,
   g_return_if_fail (self->variant_id == NULL);
   g_return_if_fail (self->version_codename == NULL);
   g_return_if_fail (self->version_id == NULL);
-  g_return_if_fail (sysroot != NULL);
-  g_return_if_fail (sysroot_fd >= 0);
+  g_return_if_fail (SRT_IS_SYSROOT (sysroot));
 
   for (i = 0; i < G_N_ELEMENTS (os_release_paths); i++)
     {
@@ -170,16 +168,20 @@ _srt_os_release_populate (SrtOsRelease *self,
       gsize j;
 
       if (only_in_run_host
-          && !g_str_has_suffix (sysroot, "/run/host"))
+          && !g_str_has_suffix (sysroot->path, "/run/host"))
         continue;
 
-      if (!_srt_file_get_contents_in_sysroot (sysroot_fd, path,
-                                              &contents, &len,
-                                              &local_error))
+      if (!_srt_sysroot_load (sysroot, path,
+                              SRT_RESOLVE_FLAGS_NONE,
+                              NULL, &contents, &len, &local_error))
         {
           g_debug ("%s", local_error->message);
           continue;
         }
+
+      /* _srt_sysroot_load adds an extra \0 at contents[len],
+       * just like g_file_get_contents() */
+      g_assert (contents[len] == '\0');
 
       beginning_of_line = contents;
 
@@ -189,7 +191,7 @@ _srt_os_release_populate (SrtOsRelease *self,
             {
               contents[j] = '\0';
               do_line (self, path, beginning_of_line);
-              /* g_file_get_contents adds an extra \0 at contents[len],
+              /* _srt_sysroot_load adds an extra \0 at contents[len],
                * so this is safe to do without overrunning the buffer */
               beginning_of_line = contents + j + 1;
             }

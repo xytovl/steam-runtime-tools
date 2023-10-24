@@ -118,16 +118,15 @@ test_cpuid (Fixture *f,
   /* We use the debian10 mock sysroot, which doesn't have a /sys,
    * to ensure that only CPUID gets used. Initially, there is no CPUID
    * information either. */
-  g_autofree gchar *sysroot = g_build_filename (f->sysroots, "debian10", NULL);
-  glnx_autofd int sysroot_fd = -1;
+  g_autofree gchar *sysroot_path = g_build_filename (f->sysroots, "debian10", NULL);
+  g_autoptr(SrtSysroot) sysroot = _srt_sysroot_new (sysroot_path, &error);
 
-  glnx_opendirat (AT_FDCWD, sysroot, TRUE, &sysroot_fd, &error);
   g_assert_no_error (error);
 
     {
       g_autoptr(SrtVirtualizationInfo) virt = NULL;
 
-      virt = _srt_check_virtualization (mock_cpuid, sysroot_fd);
+      virt = _srt_check_virtualization (mock_cpuid, sysroot);
       check_virt_info (virt);
       g_assert_cmpint (srt_virtualization_info_get_virtualization_type (virt), ==,
                        SRT_VIRTUALIZATION_TYPE_NONE);
@@ -144,7 +143,7 @@ test_cpuid (Fixture *f,
       g_hash_table_replace (mock_cpuid,
                             _srt_cpuid_key_new (_SRT_CPUID_LEAF_PROCESSOR_INFO, 0),
                             _srt_cpuid_data_new (0, 0, _SRT_CPUID_FLAG_PROCESSOR_INFO_ECX_HYPERVISOR_PRESENT, 0));
-      virt = _srt_check_virtualization (mock_cpuid, sysroot_fd);
+      virt = _srt_check_virtualization (mock_cpuid, sysroot);
       check_virt_info (virt);
       g_assert_cmpint (srt_virtualization_info_get_virtualization_type (virt), ==,
                        SRT_VIRTUALIZATION_TYPE_UNKNOWN);
@@ -163,7 +162,7 @@ test_cpuid (Fixture *f,
       g_hash_table_replace (mock_cpuid,
                             _srt_cpuid_key_new (_SRT_CPUID_LEAF_HYPERVISOR_ID, 0),
                             _srt_cpuid_data_new_for_signature ("xxxxKVMKVMKVM"));
-      virt = _srt_check_virtualization (mock_cpuid, sysroot_fd);
+      virt = _srt_check_virtualization (mock_cpuid, sysroot);
       check_virt_info (virt);
       g_assert_cmpint (srt_virtualization_info_get_virtualization_type (virt), ==,
                        SRT_VIRTUALIZATION_TYPE_KVM);
@@ -186,7 +185,7 @@ test_cpuid (Fixture *f,
                             _srt_cpuid_key_new (_SRT_CPUID_LEAF_FEX_INFO, 0),
                             _srt_cpuid_data_new (_SRT_CPUID_FEX_HOST_MACHINE_AARCH64,
                                                  0, 0, 0));
-      virt = _srt_check_virtualization (mock_cpuid, sysroot_fd);
+      virt = _srt_check_virtualization (mock_cpuid, sysroot);
       check_virt_info (virt);
       g_assert_cmpint (srt_virtualization_info_get_virtualization_type (virt), ==,
                        SRT_VIRTUALIZATION_TYPE_FEX_EMU);
@@ -214,13 +213,12 @@ test_dmi_id (Fixture *f,
    * as VirtualBox */
     {
       g_autoptr(SrtVirtualizationInfo) virt = NULL;
-      g_autofree gchar *sysroot = g_build_filename (f->sysroots, "fedora", NULL);
-      glnx_autofd int sysroot_fd = -1;
+      g_autofree gchar *sysroot_path = g_build_filename (f->sysroots, "fedora", NULL);
+      g_autoptr(SrtSysroot) sysroot = _srt_sysroot_new (sysroot_path, &error);
 
-      glnx_opendirat (AT_FDCWD, sysroot, TRUE, &sysroot_fd, &error);
       g_assert_no_error (error);
 
-      virt = _srt_check_virtualization (mock_cpuid, sysroot_fd);
+      virt = _srt_check_virtualization (mock_cpuid, sysroot);
       g_assert_nonnull (virt);
       g_assert_cmpint (srt_virtualization_info_get_virtualization_type (virt), ==,
                        SRT_VIRTUALIZATION_TYPE_ORACLE);
@@ -233,13 +231,12 @@ test_dmi_id (Fixture *f,
    * as QEMU */
     {
       g_autoptr(SrtVirtualizationInfo) virt = NULL;
-      g_autofree gchar *sysroot = g_build_filename (f->sysroots, "ubuntu16", NULL);
-      glnx_autofd int sysroot_fd = -1;
+      g_autofree gchar *sysroot_path = g_build_filename (f->sysroots, "ubuntu16", NULL);
+      g_autoptr(SrtSysroot) sysroot = _srt_sysroot_new (sysroot_path, &error);
 
-      glnx_opendirat (AT_FDCWD, sysroot, TRUE, &sysroot_fd, &error);
       g_assert_no_error (error);
 
-      virt = _srt_check_virtualization (mock_cpuid, sysroot_fd);
+      virt = _srt_check_virtualization (mock_cpuid, sysroot);
       g_assert_nonnull (virt);
       g_assert_cmpint (srt_virtualization_info_get_virtualization_type (virt), ==,
                        SRT_VIRTUALIZATION_TYPE_QEMU);
@@ -257,7 +254,7 @@ test_dmi_id (Fixture *f,
       g_hash_table_replace (mock_cpuid,
                             _srt_cpuid_key_new (_SRT_CPUID_LEAF_HYPERVISOR_ID, 0),
                             _srt_cpuid_data_new_for_signature ("xxxxKVMKVMKVM"));
-      virt = _srt_check_virtualization (mock_cpuid, sysroot_fd);
+      virt = _srt_check_virtualization (mock_cpuid, sysroot);
       g_assert_nonnull (virt);
       g_assert_cmpint (srt_virtualization_info_get_virtualization_type (virt), ==,
                        SRT_VIRTUALIZATION_TYPE_KVM);

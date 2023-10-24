@@ -28,6 +28,8 @@
 
 #include "steam-runtime-tools/steam-runtime-tools.h"
 
+#include "steam-runtime-tools/resolve-in-sysroot-internal.h"
+
 /*
  * SrtCheckFlags:
  * @SRT_CHECK_FLAGS_NONE: Behave normally
@@ -52,3 +54,6 @@ typedef enum
 G_GNUC_INTERNAL
 void _srt_system_info_set_check_flags (SrtSystemInfo *self,
                                        SrtCheckFlags flags);
+
+void _srt_system_info_set_sysroot (SrtSystemInfo *self,
+                                   SrtSysroot *sysroot);

@@ -27,6 +27,7 @@
 #pragma once
 
 #include "steam-runtime-tools/container.h"
+#include "steam-runtime-tools/resolve-in-sysroot-internal.h"
 
 /*
  * _srt_container_info_new:
@@ -69,5 +70,4 @@ _srt_container_info_new_empty (void)
 #define FLATPAK_METADATA_GROUP_INSTANCE "Instance"
 #define FLATPAK_METADATA_KEY_FLATPAK_VERSION "flatpak-version"
 
-SrtContainerInfo *_srt_check_container (int sysroot_fd,
-                                        const gchar *sysroot);
+SrtContainerInfo *_srt_check_container (SrtSysroot *sysroot);

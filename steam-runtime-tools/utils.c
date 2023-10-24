@@ -842,60 +842,6 @@ _srt_divert_stdout_to_stderr (GError **error)
 }
 
 /*
- * _srt_file_get_contents_in_sysroot:
- * @sysroot_fd: A directory fd opened on the sysroot or `/`
- * @path: Absolute or root-relative path within @sysroot_fd
- * @contents: (out) (not optional): Used to return contents
- * @len: (out) (optional): Used to return length
- * @error: Used to return error on failure
- *
- * Like g_file_get_contents(), but the file is in a sysroot, and we
- * follow symlinks as though @sysroot_fd was the root directory
- * (similar to `fakechroot`).
- *
- * Returns: %TRUE if successful
- */
-gboolean
-_srt_file_get_contents_in_sysroot (int sysroot_fd,
-                                   const char *path,
-                                   gchar **contents,
-                                   gsize *len,
-                                   GError **error)
-{
-  g_autofree gchar *real_path = NULL;
-  g_autofree gchar *fd_path = NULL;
-  g_autofree gchar *ignored = NULL;
-  glnx_autofd int fd = -1;
-
-  g_return_val_if_fail (sysroot_fd >= 0, FALSE);
-  g_return_val_if_fail (path != NULL, FALSE);
-  g_return_val_if_fail (contents != NULL, FALSE);
-  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
-
-  if (contents == NULL)
-    contents = &ignored;
-
-  fd = _srt_resolve_in_sysroot (sysroot_fd,
-                                path,
-                                SRT_RESOLVE_FLAGS_READABLE,
-                                &real_path,
-                                error);
-
-  if (fd < 0)
-    return FALSE;
-
-  fd_path = g_strdup_printf ("/proc/self/fd/%d", fd);
-
-  if (!g_file_get_contents (fd_path, contents, len, error))
-    {
-      g_prefix_error (error, "Unable to read %s: ", real_path);
-      return FALSE;
-    }
-
-  return TRUE;
-}
-
-/*
  * _srt_file_test_in_sysroot:
  * @sysroot: (type filename): A path used as the root
  * @sysroot_fd: A file descriptor opened on @sysroot, or negative to
@@ -1334,6 +1280,7 @@ _srt_list_directory_content (int working_dir_fd,
  *  reopen it
  * @directory: (not nullable) (type filename): A path below the root directory,
  *  either absolute or relative (to the root)
+ * @directory_fd: If non-negative, assumed to be open on @directory
  * @envp: (array zero-terminated=1) (not nullable): Behave as though `environ`
  *  was this array
  * @messages_out: (optional) (out) (array zero-terminated=1) (transfer full):
@@ -1348,6 +1295,7 @@ gchar **
 _srt_recursive_list_content (const gchar *sysroot,
                              int sysroot_fd,
                              const gchar *directory,
+                             int directory_fd,
                              gchar **envp,
                              gchar ***messages_out)
 {
@@ -1394,25 +1342,30 @@ _srt_recursive_list_content (const gchar *sysroot,
       sysroot_fd = local_sysroot_fd;
     }
 
-  top_fd = _srt_resolve_in_sysroot (sysroot_fd,
-                                    directory,
-                                    (SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY
-                                     | SRT_RESOLVE_FLAGS_READABLE),
-                                    NULL,
-                                    &error);
-
-  if (top_fd < 0)
+  if (directory_fd < 0)
     {
-      glnx_prefix_error (&error, "An error occurred trying to resolve \"%s\" in sysroot",
-                         directory);
-      g_debug ("%s", error->message);
-      g_ptr_array_add (messages, g_strdup_printf ("%s %d: %s",
-                                                  g_quark_to_string (error->domain),
-                                                  error->code, error->message));
-      goto out;
+      top_fd = _srt_resolve_in_sysroot (sysroot_fd,
+                                        directory,
+                                        (SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY
+                                         | SRT_RESOLVE_FLAGS_READABLE),
+                                        NULL,
+                                        &error);
+
+      if (top_fd < 0)
+        {
+          glnx_prefix_error (&error, "An error occurred trying to resolve \"%s\" in sysroot",
+                             directory);
+          g_debug ("%s", error->message);
+          g_ptr_array_add (messages, g_strdup_printf ("%s %d: %s",
+                                                      g_quark_to_string (error->domain),
+                                                      error->code, error->message));
+          goto out;
+        }
+
+      directory_fd = top_fd;
     }
 
-  _srt_list_directory_content (top_fd, directory, NULL, common_replacements, 0,
+  _srt_list_directory_content (directory_fd, directory, NULL, common_replacements, 0,
                                content, messages);
 
   g_ptr_array_sort (content, _srt_indirect_strcmp0);

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2019-2020 Collabora Ltd.
+ * Copyright © 2019-2023 Collabora Ltd.
  *
  * SPDX-License-Identifier: MIT
  *
@@ -41,6 +41,14 @@ typedef struct
   TestsOpenFdSet old_fds;
 } Fixture;
 
+typedef struct
+{
+  enum { MODE_DIRECT, MODE_FDIO } mode;
+} Config;
+
+static const Config direct_config = { MODE_DIRECT };
+static const Config fdio_config = { MODE_FDIO };
+
 static void
 setup (Fixture *f,
        gconstpointer context)
@@ -55,17 +63,24 @@ teardown (Fixture *f,
   tests_check_fd_leaks_leave (f->old_fds);
 }
 
-static gboolean
-fd_same_as_rel_path_nofollow (int fd,
-                              int dfd,
-                              const gchar *path)
+static void
+check_fd_same_as_rel_path_nofollow (int fd,
+                                    int dfd,
+                                    const gchar *path)
 {
   GStatBuf fd_buffer, path_buffer;
 
-  return (fstat (fd, &fd_buffer) == 0
-          && fstatat (dfd, path, &path_buffer, AT_SYMLINK_NOFOLLOW) == 0
-          && fd_buffer.st_dev == path_buffer.st_dev
-          && fd_buffer.st_ino == path_buffer.st_ino);
+  if (fstat (fd, &fd_buffer) < 0)
+    g_error ("fstat: %s", g_strerror (errno));
+
+  if (fstatat (dfd, path, &path_buffer, AT_SYMLINK_NOFOLLOW) < 0)
+    g_error ("fstatat %s: %s", path, g_strerror (errno));
+
+  if (fd_buffer.st_dev != path_buffer.st_dev)
+    g_error ("on different devices");
+
+  if (fd_buffer.st_ino != path_buffer.st_ino)
+    g_error ("on different inodes");
 }
 
 typedef struct
@@ -83,6 +98,7 @@ typedef enum
 typedef enum
 {
   RESOLVE_CALL_FLAGS_IGNORE_PATH = (1 << 0),
+  RESOLVE_CALL_FLAGS_SKIP_IF_DIRECT = (1 << 1),
   RESOLVE_CALL_FLAGS_NONE = 0
 } ResolveCallFlags;
 
@@ -184,7 +200,15 @@ test_resolve_in_sysroot (Fixture *f,
     { { "a/b/c/d/e/f" }, { NULL, G_IO_ERROR_NOT_FOUND } },
     { { "a/b/c/d/e/f/", SRT_RESOLVE_FLAGS_MKDIR_P }, { "a/b/c/d/e/f" } },
     { { "a/b/c/d/e/f", SRT_RESOLVE_FLAGS_MKDIR_P }, { "a/b/c/d/e/f" } },
-    { { "a/b/c/d/e/f/" }, { "a/b/c/d/e/f" } },
+    {
+      { "a/b/c/d/e/f/",
+        SRT_RESOLVE_FLAGS_NONE,
+        /* Assumes previous MKDIR_P test ran, which it won't when using
+         * direct I/O */
+        RESOLVE_CALL_FLAGS_SKIP_IF_DIRECT
+      },
+      { "a/b/c/d/e/f" }
+    },
     { { "a/b/c/d/e/f", SRT_RESOLVE_FLAGS_MKDIR_P }, { "a/b/c/d/e/f" } },
     { { "a3/b3/c3" }, { NULL, G_IO_ERROR_NOT_FOUND } },
     { { "a3/b3/c3", SRT_RESOLVE_FLAGS_MKDIR_P }, { "a3/b3/c3" } },
@@ -206,8 +230,10 @@ test_resolve_in_sysroot (Fixture *f,
       { "a/b/symlink_to_itself" },
     },
     {
-      { "a/b/symlink_to_itself",
-        SRT_RESOLVE_FLAGS_KEEP_FINAL_SYMLINK|SRT_RESOLVE_FLAGS_READABLE },
+      {
+        "a/b/symlink_to_itself",
+        SRT_RESOLVE_FLAGS_KEEP_FINAL_SYMLINK|SRT_RESOLVE_FLAGS_READABLE
+      },
       { NULL, G_IO_ERROR_TOO_MANY_LINKS },
     },
     {
@@ -217,19 +243,52 @@ test_resolve_in_sysroot (Fixture *f,
     { { "run" }, { NULL, G_IO_ERROR_NOT_FOUND } },    /* Wasn't created yet */
     { { "a/b/abs_symlink_to_run", SRT_RESOLVE_FLAGS_MKDIR_P }, { "run" } },
     { { "a/b/abs_symlink_to_run/host" }, { NULL, G_IO_ERROR_NOT_FOUND } },
-    { { "a/b/abs_symlink_to_run/host", SRT_RESOLVE_FLAGS_MKDIR_P }, { "run/host" } },
-    { { "a/b/long_symlink_to_dev" }, { NULL, G_IO_ERROR_NOT_FOUND } },
-    { { "a/b/long_symlink_to_dev/shm" }, { NULL, G_IO_ERROR_NOT_FOUND } },
-    { { "a/b/long_symlink_to_dev/shm", SRT_RESOLVE_FLAGS_MKDIR_P }, { "dev/shm" } },
+    {
+      { "a/b/abs_symlink_to_run/host", SRT_RESOLVE_FLAGS_MKDIR_P },
+      { "run/host" }
+    },
+    {
+      /* This is specifically about path resolution in a sysroot, and is
+       * not really applicable when using the real root, where this will
+       * end up pointing to the real /dev (assuming it exists). */
+      {
+        "a/b/long_symlink_to_dev",
+        SRT_RESOLVE_FLAGS_NONE,
+        RESOLVE_CALL_FLAGS_SKIP_IF_DIRECT
+      },
+      { NULL, G_IO_ERROR_NOT_FOUND }
+    },
+    {
+      /* As above */
+      {
+        "a/b/long_symlink_to_dev/shm",
+        SRT_RESOLVE_FLAGS_NONE,
+        RESOLVE_CALL_FLAGS_SKIP_IF_DIRECT
+      },
+      { NULL, G_IO_ERROR_NOT_FOUND }
+    },
+    {
+      /* As above */
+      {
+        "a/b/long_symlink_to_dev/shm",
+        SRT_RESOLVE_FLAGS_MKDIR_P,
+        RESOLVE_CALL_FLAGS_SKIP_IF_DIRECT
+      },
+      { "dev/shm" }
+    },
     { { "a/b/../b2/c2/../c3", SRT_RESOLVE_FLAGS_MKDIR_P }, { "a/b2/c3" } },
     { { "x" }, { NULL, G_IO_ERROR_NOT_FOUND } },
     { { "x", SRT_RESOLVE_FLAGS_KEEP_FINAL_SYMLINK }, { "x" } },
     /* This is a bit odd: unlike mkdir -p, we create targets for dangling
      * symlinks. It's easier to do this than not, and for pressure-vessel's
-     * use-case it probably even makes more sense than not. */
+     * use-case it probably even makes more sense than not.
+     *
+     * However, when using direct I/O we don't currently have this
+     * behaviour. */
     { { "x/y" }, { NULL, G_IO_ERROR_NOT_FOUND } },
     { { "x/y", SRT_RESOLVE_FLAGS_MKDIR_P }, { "create_me/y" } },
   };
+  const Config *config = context;
   g_autoptr(GError) error = NULL;
   g_auto(GLnxTmpDir) tmpdir = { FALSE };
   gsize i;
@@ -258,8 +317,14 @@ test_resolve_in_sysroot (Fixture *f,
   for (i = 0; i < G_N_ELEMENTS (prepare_symlinks); i++)
     {
       const Symlink *it = &prepare_symlinks[i];
+      g_autofree gchar *target = NULL;
 
-      if (symlinkat (it->target, tmpdir.fd, it->name) != 0)
+      if (it->target[0] == '/' && config->mode == MODE_DIRECT)
+        target = g_build_filename (tmpdir.path, it->target, NULL);
+      else
+        target = g_strdup (it->target);
+
+      if (symlinkat (target, tmpdir.fd, it->name) != 0)
         g_error ("symlinkat %s: %s", it->name, g_strerror (errno));
     }
 
@@ -268,9 +333,40 @@ test_resolve_in_sysroot (Fixture *f,
       const ResolveTest *it = &tests[i];
       glnx_autofd int fd = -1;
       g_autofree gchar *path = NULL;
+      g_autofree gchar *path_prefix = NULL;
+      g_autofree gchar *in_path = NULL;
       gchar **out_path;
       g_autoptr(GString) description = g_string_new ("");
+      g_autoptr(SrtSysroot) sysroot = NULL;
       TestsOpenFdSet old_fds;
+
+      path_prefix = realpath (tmpdir.path, NULL);
+
+      switch (config->mode)
+        {
+          case MODE_FDIO:
+            sysroot = _srt_sysroot_new (path_prefix, &error);
+            g_assert_no_error (error);
+            in_path = g_strdup (it->call.path);
+            g_string_append (description, " (fd I/O)");
+            break;
+
+          case MODE_DIRECT:
+            sysroot = _srt_sysroot_new_direct (&error);
+            g_assert_no_error (error);
+            in_path = g_build_filename (tmpdir.path, it->call.path, NULL);
+            g_string_append (description, " (direct I/O)");
+
+            if ((it->call.test_flags & RESOLVE_CALL_FLAGS_SKIP_IF_DIRECT)
+                || (it->call.flags & (SRT_RESOLVE_FLAGS_MKDIR_P
+                                      | SRT_RESOLVE_FLAGS_REJECT_SYMLINKS)))
+              continue;
+
+            break;
+
+          default:
+            g_assert_not_reached ();
+        }
 
       old_fds = tests_check_fd_leaks_enter ();
 
@@ -296,15 +392,26 @@ test_resolve_in_sysroot (Fixture *f,
         g_string_append (description, " (return absolute path)");
 
       g_test_message ("%" G_GSIZE_FORMAT ": Resolving %s%s",
-                      i, it->call.path, description->str);
+                      i, in_path, description->str);
 
       if (it->call.test_flags & RESOLVE_CALL_FLAGS_IGNORE_PATH)
         out_path = NULL;
       else
         out_path = &path;
 
-      fd = _srt_resolve_in_sysroot (tmpdir.fd, it->call.path,
-                                    it->call.flags, out_path, &error);
+      if (it->call.flags & (SRT_RESOLVE_FLAGS_MKDIR_P
+                            | SRT_RESOLVE_FLAGS_REJECT_SYMLINKS))
+        {
+          /* Not supported in the higher-level interface */
+          g_assert (config->mode == MODE_FDIO);
+          fd = _srt_resolve_in_sysroot (sysroot->fd, in_path, it->call.flags,
+                                        out_path, &error);
+        }
+      else
+        {
+          fd = _srt_sysroot_open (sysroot, in_path, it->call.flags,
+                                  out_path, &error);
+        }
 
       if (it->expect.path != NULL)
         {
@@ -314,7 +421,38 @@ test_resolve_in_sysroot (Fixture *f,
           g_assert_cmpint (fd, >=, 0);
 
           if (out_path != NULL)
-            g_assert_cmpstr (*out_path, ==, it->expect.path);
+            {
+              g_autofree gchar *full_path = NULL;
+              const char *expected_path;
+
+              switch (config->mode)
+                {
+                  case MODE_FDIO:
+                    expected_path = it->expect.path;
+                    break;
+
+                  case MODE_DIRECT:
+                    if (g_str_equal (it->expect.path, ".")
+                        || g_str_equal (it->expect.path, "/"))
+                      full_path = g_strdup (path_prefix);
+                    else
+                      full_path = g_build_filename (path_prefix,
+                                                    it->expect.path,
+                                                    NULL);
+
+                    if (it->call.flags & SRT_RESOLVE_FLAGS_RETURN_ABSOLUTE)
+                      expected_path = full_path;
+                    else
+                      expected_path = full_path + 1;
+
+                    break;
+
+                  default:
+                    g_assert_not_reached ();
+                }
+
+              g_assert_cmpstr (*out_path, ==, expected_path);
+            }
 
           if (it->call.flags & SRT_RESOLVE_FLAGS_RETURN_ABSOLUTE)
             {
@@ -331,8 +469,7 @@ test_resolve_in_sysroot (Fixture *f,
               rel_path = it->expect.path;
             }
 
-          g_assert_true (fd_same_as_rel_path_nofollow (fd, tmpdir.fd,
-                                                       rel_path));
+          check_fd_same_as_rel_path_nofollow (fd, tmpdir.fd, rel_path);
         }
       else
         {
@@ -347,6 +484,7 @@ test_resolve_in_sysroot (Fixture *f,
         }
 
       glnx_close_fd (&fd);
+      g_clear_object (&sysroot);
       tests_check_fd_leaks_leave (old_fds);
     }
 }
@@ -358,7 +496,9 @@ main (int argc,
   _srt_setenv_disable_gio_modules ();
 
   _srt_tests_init (&argc, &argv, NULL);
-  g_test_add ("/resolve-in-sysroot", Fixture, NULL,
+  g_test_add ("/resolve-in-sysroot/fdio", Fixture, &fdio_config,
+              setup, test_resolve_in_sysroot, teardown);
+  g_test_add ("/resolve-in-sysroot/direct", Fixture, &direct_config,
               setup, test_resolve_in_sysroot, teardown);
 
   return g_test_run ();

@@ -208,7 +208,7 @@ static const struct
  * _srt_check_virtualization:
  * @mock_cpuid: (nullable) (element-type SrtCpuidKey SrtCpuidData): mock data
  *  to use instead of the real CPUID instruction
- * @sysroot_fd: Sysroot file descriptor
+ * @sysroot: Sysroot, or %NULL to avoid accessing the filesystem at all
  *
  * Gather and return information about the hypervisor or emulator that
  * this code is running under.
@@ -218,7 +218,7 @@ static const struct
  */
 SrtVirtualizationInfo *
 _srt_check_virtualization (GHashTable *mock_cpuid,
-                           int sysroot_fd)
+                           SrtSysroot *sysroot)
 {
   SrtVirtualizationType type = SRT_VIRTUALIZATION_TYPE_NONE;
   gsize i;
@@ -323,7 +323,7 @@ _srt_check_virtualization (GHashTable *mock_cpuid,
   if ((type == SRT_VIRTUALIZATION_TYPE_UNKNOWN
        || type == SRT_VIRTUALIZATION_TYPE_NONE
        || type == SRT_VIRTUALIZATION_TYPE_KVM)
-      && sysroot_fd >= 0)
+      && sysroot != NULL)
     {
       static const char* const dmi_vendor_locations[] =
       {
@@ -359,9 +359,9 @@ _srt_check_virtualization (GHashTable *mock_cpuid,
           g_autofree gchar *contents = NULL;
           gsize j;
 
-          if (_srt_file_get_contents_in_sysroot (sysroot_fd,
-                                                 dmi_vendor_locations[i],
-                                                 &contents, NULL, NULL))
+          if (_srt_sysroot_load (sysroot, dmi_vendor_locations[i],
+                                 SRT_RESOLVE_FLAGS_NONE,
+                                 NULL, &contents, NULL, NULL))
             {
               for (j = 0; j < G_N_ELEMENTS (dmi_vendor_table); j++)
                 {
