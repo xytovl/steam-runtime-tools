@@ -3782,8 +3782,8 @@ bind_runtime_finish (PvRuntime *self,
    * non-existing targets), in which case we don't want to attempt to create
    * bogus symlinks or bind mounts, as that will cause flatpak run to fail.
    */
-  if (_srt_file_test_in_sysroot (self->host_root->path, self->host_root->fd,
-                                 "/etc/localtime", G_FILE_TEST_EXISTS))
+  if (_srt_sysroot_test (self->host_root, "/etc/localtime",
+                         SRT_RESOLVE_FLAGS_NONE, NULL))
     {
       g_autofree char *target = NULL;
       gboolean is_reachable = FALSE;
