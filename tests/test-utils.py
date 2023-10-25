@@ -18,7 +18,7 @@ from testutils import (
 class TestUtils(BaseTest):
     def setUp(self) -> None:
         super().setUp()
-        self.helper = os.path.join(self.G_TEST_BUILDDIR, 'test-helper')
+        self.helper = os.path.join(self.G_TEST_BUILDDIR, 'helper')
 
     def test_divert_stdout(self) -> None:
         completed = run_subprocess(

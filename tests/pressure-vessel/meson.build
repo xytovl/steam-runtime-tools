@@ -33,7 +33,6 @@ test_env.prepend('PYTHONPATH', meson.current_source_dir() / '..')
 # Helper programs and manual tests
 helpers = [
   'cheap-copy',
-  'helper',
   'mtree-apply',
 ]
 
@@ -65,7 +64,6 @@ tests = [
   'launcher.py',
   'mtree-apply.py',
   'test-locale-gen.sh',
-  'utils.py',
 ]
 
 compiled_tests = [

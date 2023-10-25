@@ -153,6 +153,15 @@ test_depends += executable(
 )
 
 test_depends += executable(
+  'helper',
+  'helper.c',
+  dependencies : [glib, libglnx_dep, libsteamrt_static_dep],
+  include_directories : project_include_dirs,
+  install : get_option('installed_tests'),
+  install_dir : tests_dir,
+)
+
+test_depends += executable(
   'logging-helper',
   'logging-helper.c',
   dependencies : [glib, libglnx_dep, libsteamrt_static_dep],
@@ -483,6 +492,7 @@ install_data(
 test_scripts = [
   {'name': 'check-python.py'},
   {'name': 'check-sh.sh'},
+  {'name': 'test-utils.py'},
 ]
 
 if get_option('libcurl_compat')
