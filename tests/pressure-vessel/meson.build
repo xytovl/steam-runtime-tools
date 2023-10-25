@@ -123,14 +123,14 @@ foreach test_info : compiled_tests
 endforeach
 
 foreach test_name : tests
+  program = files(test_name)
   test_argv = []
   timeout = 30
 
   if test_name.endswith('.py')
-    test_argv += [python.full_path(), '-S']
+    test_argv = ['-S', program] + test_argv
+    program = python
   endif
-
-  test_argv += [files(test_name)]
 
   if test_name in ['test-locale-gen.sh']
     timeout = 90
@@ -140,20 +140,16 @@ foreach test_name : tests
     timeout = 300
   endif
 
-  if dbus_run_session.found()
-    test(
-      test_name, dbus_run_session,
-      args : [
-        '--config-file', no_activation_session_conf,
-        '--',
-      ] + test_argv,
-      depends : test_depends,
-      env : test_env,
-      protocol : 'tap',
-      suite : ['pressure-vessel'],
-      timeout : timeout,
-    )
-  endif
+  test(
+    test_name, program,
+    args : test_argv,
+    depends : test_depends,
+    env : test_env,
+    protocol : 'tap',
+    suite : ['pressure-vessel'],
+    timeout : timeout,
+  )
+
 endforeach
 
 # vim:set sw=2 sts=2 et:
