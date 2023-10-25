@@ -8,12 +8,6 @@ import subprocess
 import sys
 
 
-try:
-    import typing
-    typing      # placate pyflakes
-except ImportError:
-    pass
-
 from testutils import (
     BaseTest,
     run_subprocess,
