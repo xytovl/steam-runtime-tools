@@ -198,6 +198,7 @@ if "$try_setlocale" "en_US.UTF-8" >/dev/null; then
     # shellcheck disable=SC2031
     (
         cd "$tmpdir/cwd"
+        unset LC_ADDRESS
         unset LC_CTYPE
         unset LC_COLLATE
         unset LC_IDENTIFICATION
