@@ -725,10 +725,15 @@ _srt_unblock_signals (void)
           g_warning ("Unable to reset handler for signal %d (%s): %s",
                      sig, g_strsignal (sig), g_strerror (saved_errno));
         }
+      else if (old_action.sa_handler == SIG_IGN)
+        {
+          g_debug ("Reset signal %d (%s) from SIG_IGN to SIG_DFL",
+                   sig, g_strsignal (sig));
+        }
       else if (old_action.sa_handler != SIG_DFL)
         {
-          g_debug ("Reset signal %d (%s) from handler %p to SIG_DFL",
-                   sig, g_strsignal (sig), old_action.sa_handler);
+          g_warning ("Reset signal %d (%s) from handler %p to SIG_DFL",
+                     sig, g_strsignal (sig), old_action.sa_handler);
         }
     }
 }
