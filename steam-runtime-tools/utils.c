@@ -675,6 +675,13 @@ _srt_child_setup_unblock_signals (gpointer ignored)
  * Steam client to their default dispositions.
  *
  * This function is not async-signal-safe.
+ *
+ * This function manipulates process-global state, and should be called
+ * from `main()`, after logging has been initialized, but before creating
+ * a second thread, intentionally blocking or ignoring any signals, or
+ * setting any non-default signal handlers, either directly or via GLib.
+ * In particular, it cannot safely be called after creating a subprocess,
+ * child watch or GDBus connection.
  */
 void
 _srt_unblock_signals (void)
