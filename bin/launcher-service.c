@@ -402,23 +402,12 @@ child_setup_func (gpointer user_data)
 {
   ChildSetupData *data = (ChildSetupData *) user_data;
   FdMapEntry *fd_map = data->fd_map;
-  sigset_t set;
   int i;
 
   flatpak_close_fds_workaround (3);
 
-  /* Unblock all signals */
-  sigemptyset (&set);
-  if (pthread_sigmask (SIG_SETMASK, &set, NULL) != 0)
-    _srt_async_signal_safe_error ("Failed to unblock signals when starting child\n",
-                                  LAUNCH_EX_FAILED);
-
-  /* Reset the handlers for all signals to their defaults. */
-  for (i = 1; i < NSIG; i++)
-    {
-      if (i != SIGSTOP && i != SIGKILL)
-        signal (i, SIG_DFL);
-    }
+  /* Unblock all signals and reset signal disposition to SIG_DFL */
+  _srt_child_setup_unblock_signals (NULL);
 
   for (i = 0; i < data->fd_map_len; i++)
     {

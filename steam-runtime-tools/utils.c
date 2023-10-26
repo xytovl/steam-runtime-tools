@@ -729,6 +729,9 @@ _srt_unblock_signals (void)
         }
       else if (old_action.sa_handler != SIG_DFL)
         {
+          /* This should not happen, because _srt_unblock_signals() should
+           * only be called early enough in process startup that there are
+           * no non-default signal handlers yet */
           g_warning ("Reset signal %d (%s) from handler %p to SIG_DFL",
                      sig, g_strsignal (sig), old_action.sa_handler);
         }

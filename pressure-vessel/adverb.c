@@ -93,8 +93,6 @@ static void
 child_setup_cb (gpointer user_data)
 {
   ChildSetupData *data = user_data;
-  sigset_t set;
-  int i;
   size_t j;
 
   /* The adverb should wait for its child before it exits, but if it
@@ -109,18 +107,8 @@ child_setup_cb (gpointer user_data)
     _srt_async_signal_safe_error ("Failed to set up parent-death signal\n",
                                   LAUNCH_EX_FAILED);
 
-  /* Unblock all signals */
-  sigemptyset (&set);
-  if (pthread_sigmask (SIG_SETMASK, &set, NULL) != 0)
-    _srt_async_signal_safe_error ("Failed to unblock signals when starting child\n",
-                                  LAUNCH_EX_FAILED);
-
-  /* Reset the handlers for all signals to their defaults. */
-  for (i = 1; i < NSIG; i++)
-    {
-      if (i != SIGSTOP && i != SIGKILL)
-        signal (i, SIG_DFL);
-    }
+  /* Unblock all signals and reset signal disposition to SIG_DFL */
+  _srt_child_setup_unblock_signals (NULL);
 
   /* Make the fds we pass through *not* be close-on-exec */
   if (data != NULL)
