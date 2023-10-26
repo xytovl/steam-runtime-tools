@@ -577,7 +577,7 @@ pv_terminate_all_child_processes (GTimeSpan wait_period,
 
   sigemptyset (&mask);
 
-  if (pthread_sigmask (SIG_BLOCK, NULL, &mask) != 0)
+  if ((errno = pthread_sigmask (SIG_BLOCK, NULL, &mask)) != 0)
     return glnx_throw_errno_prefix (error, "pthread_sigmask");
 
   if (!sigismember (&mask, SIGCHLD))

@@ -111,7 +111,7 @@ child_setup_cb (gpointer user_data)
 
   /* Unblock all signals */
   sigemptyset (&set);
-  if (pthread_sigmask (SIG_SETMASK, &set, NULL) == -1)
+  if (pthread_sigmask (SIG_SETMASK, &set, NULL) != 0)
     _srt_async_signal_safe_error ("Failed to unblock signals when starting child\n",
                                   LAUNCH_EX_FAILED);
 
@@ -548,7 +548,7 @@ run_helper_sync (const char *cwd,
   sigaddset (&mask, SIGCHLD);
 
   /* Unblock SIGCHLD in case g_spawn_sync() needs it in some version */
-  if (pthread_sigmask (SIG_UNBLOCK, &mask, &old_mask) != 0)
+  if ((errno = pthread_sigmask (SIG_UNBLOCK, &mask, &old_mask)) != 0)
     return glnx_throw_errno_prefix (error, "pthread_sigmask");
 
   /* We use LEAVE_DESCRIPTORS_OPEN to work around a deadlock in older GLib,
@@ -566,7 +566,7 @@ run_helper_sync (const char *cwd,
                       wait_status,
                       error);
 
-  if (pthread_sigmask (SIG_SETMASK, &old_mask, NULL) != 0 && ret)
+  if ((errno = pthread_sigmask (SIG_SETMASK, &old_mask, NULL)) != 0 && ret)
     return glnx_throw_errno_prefix (error, "pthread_sigmask");
 
   return ret;
@@ -1072,7 +1072,7 @@ main (int argc,
   /* Must be called before we start any threads, but after
    * _srt_unblock_signals(), which in turn should be after we set up
    * logging */
-  if (pthread_sigmask (SIG_BLOCK, &mask, NULL) != 0)
+  if ((errno = pthread_sigmask (SIG_BLOCK, &mask, NULL)) != 0)
     {
       ret = EX_UNAVAILABLE;
       glnx_throw_errno_prefix (error, "pthread_sigmask");

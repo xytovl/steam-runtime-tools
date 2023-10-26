@@ -312,7 +312,7 @@ forward_signals (GError **error)
    *   of blocking them, they would no longer be pending by the time the
    *   main loop wakes up and reads from the signalfd.
    */
-  if (pthread_sigmask (SIG_BLOCK, &mask, NULL) != 0)
+  if ((errno = pthread_sigmask (SIG_BLOCK, &mask, NULL)) != 0)
     {
       glnx_throw_errno_prefix (error, "Unable to block signals");
       return 0;

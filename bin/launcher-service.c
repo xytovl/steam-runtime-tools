@@ -409,7 +409,7 @@ child_setup_func (gpointer user_data)
 
   /* Unblock all signals */
   sigemptyset (&set);
-  if (pthread_sigmask (SIG_SETMASK, &set, NULL) == -1)
+  if (pthread_sigmask (SIG_SETMASK, &set, NULL) != 0)
     _srt_async_signal_safe_error ("Failed to unblock signals when starting child\n",
                                   LAUNCH_EX_FAILED);
 
