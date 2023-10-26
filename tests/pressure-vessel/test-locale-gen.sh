@@ -130,6 +130,7 @@ else
     # shellcheck disable=SC2030
     (
         cd "$tmpdir/cwd"
+        export LC_ADDRESS=af_ZA
         export LC_CTYPE=cy_GB.utf8
         export LC_COLLATE=cs_CZ
         export LC_IDENTIFICATION=it_IT@euro
@@ -157,6 +158,7 @@ else
     fi
 
     for locale in \
+        af_ZA \
         cs_CZ \
         cy_GB.UTF-8 \
         cy_GB.utf8 \
@@ -198,6 +200,7 @@ if "$try_setlocale" "en_US.UTF-8" >/dev/null; then
     # shellcheck disable=SC2031
     (
         cd "$tmpdir/cwd"
+        unset LC_ADDRESS
         unset LC_CTYPE
         unset LC_COLLATE
         unset LC_IDENTIFICATION

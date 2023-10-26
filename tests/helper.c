@@ -33,8 +33,6 @@
 #include "steam-runtime-tools/utils-internal.h"
 #include "libglnx.h"
 
-#include "utils.h"
-
 static void
 try_divert_stdout (void)
 {

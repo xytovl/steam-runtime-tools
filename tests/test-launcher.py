@@ -15,12 +15,6 @@ import time
 import uuid
 
 
-try:
-    import typing
-    typing      # placate pyflakes
-except ImportError:
-    pass
-
 from testutils import (
     BaseTest,
     run_subprocess,

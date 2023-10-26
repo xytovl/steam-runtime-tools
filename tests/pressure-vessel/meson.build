@@ -33,7 +33,6 @@ test_env.prepend('PYTHONPATH', meson.current_source_dir() / '..')
 # Helper programs and manual tests
 helpers = [
   'cheap-copy',
-  'helper',
   'mtree-apply',
 ]
 
@@ -62,10 +61,8 @@ tests = [
   'cheap-copy.py',
   'containers.py',
   'invocation.py',
-  'launcher.py',
   'mtree-apply.py',
   'test-locale-gen.sh',
-  'utils.py',
 ]
 
 compiled_tests = [
@@ -126,16 +123,16 @@ foreach test_info : compiled_tests
 endforeach
 
 foreach test_name : tests
+  program = files(test_name)
   test_argv = []
   timeout = 30
 
   if test_name.endswith('.py')
-    test_argv += [python.full_path(), '-S']
+    test_argv = ['-S', program] + test_argv
+    program = python
   endif
 
-  test_argv += [files(test_name)]
-
-  if test_name in ['test-locale-gen.sh', 'launcher.py']
+  if test_name in ['test-locale-gen.sh']
     timeout = 90
   endif
 
@@ -143,38 +140,16 @@ foreach test_name : tests
     timeout = 300
   endif
 
-  if dbus_run_session.found()
-    test(
-      test_name, dbus_run_session,
-      args : [
-        '--config-file', no_activation_session_conf,
-        '--',
-      ] + test_argv,
-      depends : test_depends,
-      env : test_env,
-      protocol : 'tap',
-      suite : ['pressure-vessel'],
-      timeout : timeout,
-    )
-    # Re-run launcher.py with the default python3 version (if any)
-    # to try the code path involving gi.repository.Gio
-    if test_name == 'launcher.py' and full_python.found()
-      test(
-        'full-python-' + test_name,
-        dbus_run_session,
-        args : [
-          '--',
-          full_python.full_path(),
-          files(test_name),
-        ],
-        depends : test_depends,
-        env : test_env,
-        protocol : 'tap',
-        suite : ['pressure-vessel'],
-        timeout : timeout,
-      )
-    endif
-  endif
+  test(
+    test_name, program,
+    args : test_argv,
+    depends : test_depends,
+    env : test_env,
+    protocol : 'tap',
+    suite : ['pressure-vessel'],
+    timeout : timeout,
+  )
+
 endforeach
 
 # vim:set sw=2 sts=2 et:

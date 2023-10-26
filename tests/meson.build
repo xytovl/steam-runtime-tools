@@ -153,6 +153,15 @@ test_depends += executable(
 )
 
 test_depends += executable(
+  'helper',
+  'helper.c',
+  dependencies : [glib, libglnx_dep, libsteamrt_static_dep],
+  include_directories : project_include_dirs,
+  install : get_option('installed_tests'),
+  install_dir : tests_dir,
+)
+
+test_depends += executable(
   'logging-helper',
   'logging-helper.c',
   dependencies : [glib, libglnx_dep, libsteamrt_static_dep],
@@ -483,7 +492,15 @@ install_data(
 test_scripts = [
   {'name': 'check-python.py'},
   {'name': 'check-sh.sh'},
+  {'name': 'test-utils.py'},
 ]
+
+if get_option('bin')
+  test_scripts += [
+    {'name': 'test-launcher.py', 'dbus': true, 'timeout': 90},
+    {'name': 'test-launcher.py', 'dbus': true, 'full_python': true, 'timeout': 90},
+  ]
+endif
 
 if get_option('libcurl_compat')
   test_scripts += [
@@ -494,28 +511,58 @@ endif
 foreach test_info : test_scripts
   test_name = test_info['name']
   program = files(test_name)
+  program_path = program
   wrapper = ''
   relocatable_wrapper = ''
   test_argv = []
-  timeout = 30
+  timeout = test_info.get('timeout', 30)
+  build_time = test_info.get('build_time', true)
+  installable = test_info.get('installable', true)
+  needs_dbus = test_info.get('dbus', false)
 
-  if test_name.endswith('.py')
+  if test_info.get('full_python', false)
+    test_name = 'full-python-' + test_name
+    test_argv += ['-S', program]
+    program = full_python
+    program_path = program.full_path()
+    installable = false
+  elif test_name.endswith('.py')
     test_argv += ['-S', program]
     program = python
+    program_path = program.full_path()
     wrapper = get_option('prefix') / tests_dir / 'find-python.sh'
     relocatable_wrapper = '${G_TEST_BUILDDIR}/find-python.sh'
   endif
 
-  test(
-    test_name, program,
-    args : test_argv,
-    depends : test_depends,
-    env : test_env,
-    protocol : 'tap',
-    timeout : timeout,
-  )
+  if needs_dbus
+    installable = false
 
-  if get_option('installed_tests')
+    if dbus_run_session.found()
+      test_argv = [
+        '--config-file',
+        no_activation_session_conf,
+        '--',
+        program_path,
+      ] + test_argv
+      program = dbus_run_session
+      program_path = program.full_path()
+    else
+      build_time = false
+    endif
+  endif
+
+  if build_time
+    test(
+      test_name, program,
+      args : test_argv,
+      depends : test_depends,
+      env : test_env,
+      protocol : 'tap',
+      timeout : timeout,
+    )
+  endif
+
+  if get_option('installed_tests') and installable
     install_data(
       test_name,
       install_dir : tests_dir,
