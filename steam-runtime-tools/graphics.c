@@ -1205,7 +1205,14 @@ _srt_check_library_vendor (SrtSubprocessRunner *runner,
         g_return_val_if_reached (SRT_GRAPHICS_LIBRARY_VENDOR_UNKNOWN);
     }
 
-  issues = srt_check_library_presence (soname, multiarch_tuple, NULL, SRT_LIBRARY_SYMBOLS_FORMAT_PLAIN, &library);
+  /* We assume libGL and libEGL have no hidden dependencies: if they did,
+   * games that dlopen them would have a problem. */
+  issues = _srt_check_library_presence (runner, soname, multiarch_tuple,
+                                        NULL,   /* no symbols file */
+                                        NULL,   /* no hidden dependencies */
+                                        SRT_CHECK_FLAGS_NONE,
+                                        SRT_LIBRARY_SYMBOLS_FORMAT_PLAIN,
+                                        &library);
 
   if ((issues & SRT_LIBRARY_ISSUES_CANNOT_LOAD) != 0)
     goto out;
