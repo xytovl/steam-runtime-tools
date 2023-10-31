@@ -48,7 +48,7 @@ _srt_subprocess_runner_constructed (GObject *object)
   SrtSubprocessRunner *self = SRT_SUBPROCESS_RUNNER (object);
 
   if (self->envp == NULL)
-    self->envp = g_get_environ ();
+    self->envp = _srt_filter_gameoverlayrenderer_from_envp (_srt_peek_environ_nonnull ());
 
   G_OBJECT_CLASS (_srt_subprocess_runner_parent_class)->constructed (object);
 }
@@ -87,13 +87,18 @@ _srt_subprocess_runner_set_property (GObject *object,
                                      GParamSpec *pspec)
 {
   SrtSubprocessRunner *self = SRT_SUBPROCESS_RUNNER (object);
+  const char * const *envp;
 
   switch (prop_id)
     {
       case PROP_ENVIRON:
         /* Construct-only */
         g_return_if_fail (self->envp == NULL);
-        self->envp = g_value_dup_boxed (value);
+        envp = g_value_get_boxed (value);
+
+        if (envp != NULL)
+          self->envp = _srt_filter_gameoverlayrenderer_from_envp (envp);
+
         break;
 
       case PROP_HELPERS_PATH:
@@ -318,9 +323,6 @@ _srt_subprocess_runner_spawn_sync (SrtSubprocessRunner *self,
 {
   g_auto(GStrv) my_environ = NULL;
   GSpawnFlags spawn_flags = G_SPAWN_DEFAULT;
-
-  if (!(flags & SRT_HELPER_FLAGS_KEEP_GAMEOVERLAYRENDERER))
-    my_environ = _srt_filter_gameoverlayrenderer_from_envp ((const char * const *) self->envp);
 
   if (flags & SRT_HELPER_FLAGS_LIBGL_VERBOSE)
     {

@@ -250,7 +250,6 @@ _srt_check_display (SrtSubprocessRunner *runner,
   SrtDisplayX11Type x11_type = SRT_DISPLAY_X11_TYPE_UNKNOWN;
   SrtHelperFlags helper_flags = (SRT_HELPER_FLAGS_TIME_OUT
                                  | SRT_HELPER_FLAGS_SEARCH_PATH
-                                 | SRT_HELPER_FLAGS_KEEP_GAMEOVERLAYRENDERER
                                  | SRT_HELPER_FLAGS_STDOUT_SILENCE);
   const char * const *envp;
   static const gchar * const display_env[] =

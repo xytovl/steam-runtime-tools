@@ -39,8 +39,7 @@
 #include <gelf.h>
 #include <libelf.h>
 
-static const SrtHelperFlags helper_flags = (SRT_HELPER_FLAGS_KEEP_GAMEOVERLAYRENDERER
-                                            | SRT_HELPER_FLAGS_SEARCH_PATH);
+static const SrtHelperFlags helper_flags = SRT_HELPER_FLAGS_SEARCH_PATH;
 
 /*
  * Returns: (nullable) (element-type filename) (transfer container): The
