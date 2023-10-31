@@ -978,9 +978,6 @@ _argv_for_graphics_test (SrtSubprocessRunner *runner,
 
   g_assert (window_system != NULL);
 
-  if (_srt_subprocess_runner_get_test_flags (runner) & SRT_TEST_FLAGS_TIME_OUT_SOONER)
-    flags |= SRT_HELPER_FLAGS_TIME_OUT_SOONER;
-
   if (*window_system == SRT_WINDOW_SYSTEM_GLX)
     {
       switch (rendering_interface)
@@ -1124,9 +1121,6 @@ _argv_for_check_gl (SrtSubprocessRunner *runner,
                     GError **error)
 {
   GPtrArray *argv;
-
-  if (_srt_subprocess_runner_get_test_flags (runner) & SRT_TEST_FLAGS_TIME_OUT_SOONER)
-    flags |= SRT_HELPER_FLAGS_TIME_OUT_SOONER;
 
   argv = _srt_subprocess_runner_get_helper (runner, multiarch_tuple,
                                             "check-gl", flags,

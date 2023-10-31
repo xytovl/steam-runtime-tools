@@ -330,9 +330,6 @@ _srt_check_display (SrtSubprocessRunner *runner,
         }
     }
 
-  if (_srt_subprocess_runner_get_test_flags (runner) & SRT_TEST_FLAGS_TIME_OUT_SOONER)
-    helper_flags |= SRT_HELPER_FLAGS_TIME_OUT_SOONER;
-
   argv = _srt_subprocess_runner_get_helper (runner, multiarch_tuple,
                                             "is-x-server-xwayland",
                                             helper_flags, &local_error);

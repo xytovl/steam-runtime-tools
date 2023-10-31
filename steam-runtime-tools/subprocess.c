@@ -238,7 +238,7 @@ _srt_subprocess_runner_get_helper (SrtSubprocessRunner *self,
       g_ptr_array_add (argv, g_strdup ("-s"));
       g_ptr_array_add (argv, g_strdup ("TERM"));
 
-      if (flags & SRT_HELPER_FLAGS_TIME_OUT_SOONER)
+      if (self->test_flags & SRT_TEST_FLAGS_TIME_OUT_SOONER)
         {
           /* Speed up the failing case in automated testing */
           g_ptr_array_add (argv, g_strdup ("-k"));
