@@ -116,7 +116,6 @@ _srt_architecture_can_run (gchar **envp,
                            const char *helpers_path,
                            const char *multiarch)
 {
-  gchar *helper = NULL;
   GPtrArray *argv = NULL;
   int exit_status = -1;
   GError *error = NULL;
@@ -167,7 +166,6 @@ _srt_architecture_can_run (gchar **envp,
   ret = TRUE;
 out:
   g_strfreev (my_environ);
-  g_free (helper);
   g_clear_error (&error);
   g_clear_pointer (&argv, g_ptr_array_unref);
   return ret;
