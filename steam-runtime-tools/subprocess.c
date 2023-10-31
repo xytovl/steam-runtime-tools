@@ -306,3 +306,48 @@ _srt_subprocess_runner_get_helper (SrtSubprocessRunner *self,
   g_ptr_array_add (argv, g_steal_pointer (&prefixed));
   return argv;
 }
+
+gboolean
+_srt_subprocess_runner_spawn_sync (SrtSubprocessRunner *self,
+                                   SrtHelperFlags flags,
+                                   const char * const *argv,
+                                   gchar **stdout_out,
+                                   gchar **stderr_out,
+                                   gint *wait_status_out,
+                                   GError **error)
+{
+  g_auto(GStrv) my_environ = NULL;
+  GSpawnFlags spawn_flags = G_SPAWN_DEFAULT;
+
+  if (!(flags & SRT_HELPER_FLAGS_KEEP_GAMEOVERLAYRENDERER))
+    my_environ = _srt_filter_gameoverlayrenderer_from_envp ((const char * const *) self->envp);
+
+  if (flags & SRT_HELPER_FLAGS_LIBGL_VERBOSE)
+    {
+      if (my_environ == NULL)
+        my_environ = g_strdupv (self->envp);
+
+      my_environ = g_environ_setenv (my_environ, "LIBGL_DEBUG", "verbose", TRUE);
+    }
+
+  /* When prepending timeout(1) to argv, we always need to search PATH */
+  if (flags & (SRT_HELPER_FLAGS_TIME_OUT | SRT_HELPER_FLAGS_SEARCH_PATH))
+    spawn_flags |= G_SPAWN_SEARCH_PATH;
+
+  if (flags & SRT_HELPER_FLAGS_STDOUT_SILENCE)
+    {
+      g_return_val_if_fail (stdout_out == NULL, FALSE);
+      spawn_flags |= G_SPAWN_STDOUT_TO_DEV_NULL;
+    }
+
+  return g_spawn_sync (NULL,        /* working directory */
+                       (gchar **) argv,
+                       my_environ != NULL ? my_environ : self->envp,
+                       spawn_flags,
+                       _srt_child_setup_unblock_signals,
+                       NULL,        /* user data */
+                       stdout_out,
+                       stderr_out,
+                       wait_status_out,
+                       error);
+}

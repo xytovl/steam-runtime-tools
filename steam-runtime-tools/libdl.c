@@ -35,14 +35,13 @@ _srt_libdl_run_helper (SrtSubprocessRunner *runner,
                        const char *helper_name,
                        GError **error)
 {
+  SrtHelperFlags helper_flags = SRT_HELPER_FLAGS_NONE;
   g_autoptr(GPtrArray) argv = NULL;
-  g_auto(GStrv) my_environ = NULL;
   g_autofree gchar *child_stdout = NULL;
   g_autofree gchar *child_stderr = NULL;
   gint wait_status;
   int exit_status;
   gsize len;
-  const char * const *envp;
 
   g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (runner), NULL);
   g_return_val_if_fail (helper_name != NULL, NULL);
@@ -55,29 +54,23 @@ _srt_libdl_run_helper (SrtSubprocessRunner *runner,
 #endif
 
   argv = _srt_subprocess_runner_get_helper (runner, multiarch_tuple,
-                                            helper_name, SRT_HELPER_FLAGS_NONE,
+                                            helper_name, helper_flags,
                                             error);
 
   if (argv == NULL)
     return NULL;
 
-  envp = _srt_subprocess_runner_get_environ (runner);
-  my_environ = _srt_filter_gameoverlayrenderer_from_envp (envp);
-
   g_ptr_array_add (argv, NULL);
 
   g_debug ("Running %s", (const char *) g_ptr_array_index (argv, 0));
 
-  if (!g_spawn_sync (NULL,    /* working directory */
-                     (gchar **) argv->pdata,
-                     my_environ,
-                     G_SPAWN_DEFAULT,
-                     _srt_child_setup_unblock_signals,
-                     NULL,    /* user data */
-                     &child_stdout,
-                     &child_stderr,
-                     &wait_status,
-                     error))
+  if (!_srt_subprocess_runner_spawn_sync (runner,
+                                          helper_flags,
+                                          (const char * const *) argv->pdata,
+                                          &child_stdout,
+                                          &child_stderr,
+                                          &wait_status,
+                                          error))
     return NULL;
 
   if (!WIFEXITED (wait_status))

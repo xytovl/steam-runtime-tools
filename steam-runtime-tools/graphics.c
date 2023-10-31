@@ -966,6 +966,7 @@ _srt_process_check_vulkan_info (JsonNode *node,
  */
 static GPtrArray *
 _argv_for_graphics_test (SrtSubprocessRunner *runner,
+                         SrtHelperFlags flags,
                          const char *multiarch_tuple,
                          SrtWindowSystem *window_system,
                          SrtRenderingInterface rendering_interface,
@@ -974,8 +975,6 @@ _argv_for_graphics_test (SrtSubprocessRunner *runner,
   const char *api;
   GPtrArray *argv = NULL;
   gchar *platformstring = NULL;
-  SrtHelperFlags flags = (SRT_HELPER_FLAGS_TIME_OUT
-                          | SRT_HELPER_FLAGS_SEARCH_PATH);
 
   g_assert (window_system != NULL);
 
@@ -1120,11 +1119,11 @@ out:
 
 static GPtrArray *
 _argv_for_check_gl (SrtSubprocessRunner *runner,
+                    SrtHelperFlags flags,
                     const char *multiarch_tuple,
                     GError **error)
 {
   GPtrArray *argv;
-  SrtHelperFlags flags = SRT_HELPER_FLAGS_TIME_OUT;
 
   if (_srt_subprocess_runner_get_test_flags (runner) & SRT_TEST_FLAGS_TIME_OUT_SOONER)
     flags |= SRT_HELPER_FLAGS_TIME_OUT_SOONER;
@@ -1261,7 +1260,8 @@ out:
 /*
  * Run the given helper and report any issues found
  *
- * @my_environ: (inout) (transfer full): The environment to modify and run the argv in
+ * @runner: The execution environment
+ * @helper_flags: (inout): Flags used to run the helper
  * @output: (inout) (transfer full): The output collected from the helper
  * @child_stderr: (inout) (transfer full): The stderr collected from the helper
  * @argv: (transfer none): The helper and arguments to run
@@ -1276,7 +1276,8 @@ out:
  * @non_zero_waitstatus_issue: Which issue should be set if wait_status is non zero
  */
 static SrtGraphicsIssues
-_srt_run_helper (GStrv *my_environ,
+_srt_run_helper (SrtSubprocessRunner *runner,
+                 SrtHelperFlags *helper_flags,
                  gchar **output,
                  gchar **child_stderr,
                  const GPtrArray *argv,
@@ -1301,7 +1302,7 @@ _srt_run_helper (GStrv *my_environ,
   if (verbose)
     {
       // Issues found, so run again with LIBGL_DEBUG=verbose set in environment
-      *my_environ = g_environ_setenv (*my_environ, "LIBGL_DEBUG", "verbose", TRUE);
+      *helper_flags |= SRT_HELPER_FLAGS_LIBGL_VERBOSE;
     }
 
   // Ignore what came on stderr previously, use this run's error message
@@ -1313,16 +1314,13 @@ _srt_run_helper (GStrv *my_environ,
   *exit_status = -1;
   *terminating_signal = 0;
 
-  if (!g_spawn_sync (NULL,    /* working directory */
-                     (gchar **) argv->pdata,
-                     *my_environ,    /* envp */
-                     G_SPAWN_SEARCH_PATH,       /* flags */
-                     _srt_child_setup_unblock_signals,
-                     NULL,    /* user data */
-                     output, /* stdout */
-                     child_stderr,
-                     wait_status,
-                     &error))
+  if (!_srt_subprocess_runner_spawn_sync (runner,
+                                          *helper_flags,
+                                          (const char * const *) argv->pdata,
+                                          output,
+                                          child_stderr,
+                                          wait_status,
+                                          &error))
     {
       g_debug ("An error occurred calling the helper: %s", error->message);
       *child_stderr = g_strdup (error->message);
@@ -1367,6 +1365,8 @@ _srt_check_graphics (SrtSubprocessRunner *runner,
                      SrtRenderingInterface rendering_interface,
                      SrtGraphics **details_out)
 {
+  SrtHelperFlags helper_flags = (SRT_HELPER_FLAGS_TIME_OUT
+                                 | SRT_HELPER_FLAGS_SEARCH_PATH);
   gchar *output = NULL;
   gchar *child_stderr = NULL;
   gchar *child_stderr2 = NULL;
@@ -1379,12 +1379,10 @@ _srt_check_graphics (SrtSubprocessRunner *runner,
   GError *error = NULL;
   SrtGraphicsIssues issues = SRT_GRAPHICS_ISSUES_NONE;
   SrtGraphicsIssues non_zero_wait_status_issue = SRT_GRAPHICS_ISSUES_CANNOT_LOAD;
-  GStrv my_environ = NULL;
   SrtGraphicsLibraryVendor library_vendor = SRT_GRAPHICS_LIBRARY_VENDOR_UNKNOWN;
   g_auto(GStrv) json_output = NULL;
   g_autoptr(GPtrArray) graphics_device = g_ptr_array_new_with_free_func (g_object_unref);
   gsize i;
-  const char * const *envp;
 
   g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (runner), SRT_GRAPHICS_ISSUES_UNKNOWN);
   g_return_val_if_fail (details_out == NULL || *details_out == NULL, SRT_GRAPHICS_ISSUES_UNKNOWN);
@@ -1393,6 +1391,7 @@ _srt_check_graphics (SrtSubprocessRunner *runner,
   g_return_val_if_fail (_srt_check_not_setuid (), SRT_GRAPHICS_ISSUES_UNKNOWN);
 
   GPtrArray *argv = _argv_for_graphics_test (runner,
+                                             helper_flags,
                                              multiarch_tuple,
                                              &window_system,
                                              rendering_interface,
@@ -1405,9 +1404,6 @@ _srt_check_graphics (SrtSubprocessRunner *runner,
       child_stderr = g_strdup (error->message);
       goto out;
     }
-
-  envp = _srt_subprocess_runner_get_environ (runner);
-  my_environ = _srt_filter_gameoverlayrenderer_from_envp (envp);
 
   library_vendor = _srt_check_library_vendor (runner, multiarch_tuple,
                                               window_system,
@@ -1431,7 +1427,8 @@ _srt_check_graphics (SrtSubprocessRunner *runner,
         g_return_val_if_reached (SRT_GRAPHICS_ISSUES_UNKNOWN);
     }
 
-  issues |= _srt_run_helper (&my_environ,
+  issues |= _srt_run_helper (runner,
+                             &helper_flags,
                              &output,
                              &child_stderr,
                              argv,
@@ -1449,7 +1446,8 @@ _srt_check_graphics (SrtSubprocessRunner *runner,
        * output */
 
       // Issues found, so run again with LIBGL_DEBUG=verbose set in environment
-      issues |= _srt_run_helper (&my_environ,
+      issues |= _srt_run_helper (runner,
+                                 &helper_flags,
                                  &output,
                                  &child_stderr,
                                  argv,
@@ -1476,7 +1474,8 @@ _srt_check_graphics (SrtSubprocessRunner *runner,
             issues |= SRT_GRAPHICS_ISSUES_CANNOT_LOAD;
 
             // Issues found, so run again with LIBGL_DEBUG=verbose set in environment
-            issues |= _srt_run_helper (&my_environ,
+            issues |= _srt_run_helper (runner,
+                                       &helper_flags,
                                        &output,
                                        &child_stderr,
                                        argv,
@@ -1494,7 +1493,8 @@ _srt_check_graphics (SrtSubprocessRunner *runner,
         if (issues != SRT_GRAPHICS_ISSUES_NONE)
           {
             // Issues found, so run again with LIBGL_DEBUG=verbose set in environment
-            issues |= _srt_run_helper (&my_environ,
+            issues |= _srt_run_helper (runner,
+                                       &helper_flags,
                                        &output,
                                        &child_stderr,
                                        argv,
@@ -1513,6 +1513,7 @@ _srt_check_graphics (SrtSubprocessRunner *runner,
             g_clear_pointer (&output, g_free);
 
             argv = _argv_for_check_gl (runner,
+                                       helper_flags,
                                        multiarch_tuple,
                                        &error);
 
@@ -1525,7 +1526,8 @@ _srt_check_graphics (SrtSubprocessRunner *runner,
               }
 
             /* Now run and report exit code/messages if failure */
-            issues |= _srt_run_helper (&my_environ,
+            issues |= _srt_run_helper (runner,
+                                       &helper_flags,
                                        &output,
                                        &child_stderr2,
                                        argv,
@@ -1538,7 +1540,8 @@ _srt_check_graphics (SrtSubprocessRunner *runner,
             if (issues != SRT_GRAPHICS_ISSUES_NONE)
               {
                 // Issues found, so run again with LIBGL_DEBUG=verbose set in environment
-                issues |= _srt_run_helper (&my_environ,
+                issues |= _srt_run_helper (runner,
+                                           &helper_flags,
                                            &output,
                                            &child_stderr2,
                                            argv,
@@ -1697,7 +1700,6 @@ out:
   g_free (child_stderr);
   g_free (child_stderr2);
   g_clear_error (&error);
-  g_strfreev (my_environ);
   return issues;
 }
 

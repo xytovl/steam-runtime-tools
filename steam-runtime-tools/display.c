@@ -249,7 +249,9 @@ _srt_check_display (SrtSubprocessRunner *runner,
   SrtDisplayWaylandIssues wayland_issues = SRT_DISPLAY_WAYLAND_ISSUES_NONE;
   SrtDisplayX11Type x11_type = SRT_DISPLAY_X11_TYPE_UNKNOWN;
   SrtHelperFlags helper_flags = (SRT_HELPER_FLAGS_TIME_OUT
-                                 | SRT_HELPER_FLAGS_SEARCH_PATH);
+                                 | SRT_HELPER_FLAGS_SEARCH_PATH
+                                 | SRT_HELPER_FLAGS_KEEP_GAMEOVERLAYRENDERER
+                                 | SRT_HELPER_FLAGS_STDOUT_SILENCE);
   const char * const *envp;
   static const gchar * const display_env[] =
   {
@@ -346,16 +348,13 @@ _srt_check_display (SrtSubprocessRunner *runner,
   /* NULL terminate the array */
   g_ptr_array_add (argv, NULL);
 
-  if (!g_spawn_sync (NULL,    /* working directory */
-                     (gchar **) argv->pdata,
-                     (gchar **) envp,
-                     G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL,
-                     _srt_child_setup_unblock_signals,
-                     NULL,    /* user data */
-                     NULL,    /* stdout */
-                     &x11_messages,
-                     &wait_status,
-                     &local_error))
+  if (!_srt_subprocess_runner_spawn_sync (runner,
+                                          helper_flags,
+                                          (const char * const *) argv->pdata,
+                                          NULL,   /* stdout */
+                                          &x11_messages,
+                                          &wait_status,
+                                          &local_error))
     {
       g_debug ("An error occurred calling the helper: %s", local_error->message);
       x11_messages = g_strdup (local_error->message);

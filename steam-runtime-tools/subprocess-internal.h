@@ -53,6 +53,9 @@ typedef enum
   SRT_HELPER_FLAGS_SEARCH_PATH = (1 << 0),
   SRT_HELPER_FLAGS_TIME_OUT = (1 << 1),
   SRT_HELPER_FLAGS_TIME_OUT_SOONER = (1 << 2),
+  SRT_HELPER_FLAGS_KEEP_GAMEOVERLAYRENDERER = (1 << 3),
+  SRT_HELPER_FLAGS_LIBGL_VERBOSE = (1 << 4),
+  SRT_HELPER_FLAGS_STDOUT_SILENCE = (1 << 5),
   SRT_HELPER_FLAGS_NONE = 0
 } SrtHelperFlags;
 
@@ -61,3 +64,10 @@ GPtrArray *_srt_subprocess_runner_get_helper (SrtSubprocessRunner *self,
                                               const char *base,
                                               SrtHelperFlags flags,
                                               GError **error);
+gboolean _srt_subprocess_runner_spawn_sync (SrtSubprocessRunner *self,
+                                            SrtHelperFlags flags,
+                                            const char * const *argv,
+                                            gchar **stdout_out,
+                                            gchar **stderr_out,
+                                            gint *wait_status_out,
+                                            GError **error);

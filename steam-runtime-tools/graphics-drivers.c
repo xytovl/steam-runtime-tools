@@ -39,6 +39,9 @@
 #include <gelf.h>
 #include <libelf.h>
 
+static const SrtHelperFlags helper_flags = (SRT_HELPER_FLAGS_KEEP_GAMEOVERLAYRENDERER
+                                            | SRT_HELPER_FLAGS_SEARCH_PATH);
+
 /*
  * Returns: (nullable) (element-type filename) (transfer container): The
  *  initial `argv` for the capsule-capture-libs helper, with g_free() set
@@ -56,7 +59,7 @@ _initial_capsule_capture_libs_argv (SrtSysroot *sysroot,
 
   argv = _srt_subprocess_runner_get_helper (runner, multiarch_tuple,
                                             "capsule-capture-libs",
-                                            SRT_HELPER_FLAGS_SEARCH_PATH,
+                                            helper_flags,
                                             error);
 
   if (argv == NULL)
@@ -246,16 +249,13 @@ _srt_list_modules_from_directory (SrtSubprocessRunner *runner,
   g_return_if_fail (known_table != NULL);
   g_return_if_fail (modules_out != NULL);
 
-  if (!g_spawn_sync (NULL,    /* working directory */
-                     (gchar **) argv->pdata,
-                     (gchar **) _srt_subprocess_runner_get_environ (runner),
-                     G_SPAWN_SEARCH_PATH,       /* flags */
-                     _srt_child_setup_unblock_signals,
-                     NULL,    /* user data */
-                     &output, /* stdout */
-                     &stderr_output,
-                     &exit_status,
-                     &error))
+  if (!_srt_subprocess_runner_spawn_sync (runner,
+                                          helper_flags,
+                                          (const char * const *) argv->pdata,
+                                          &output,
+                                          &stderr_output,
+                                          &exit_status,
+                                          &error))
     {
       g_debug ("An error occurred calling the helper: %s", error->message);
       goto out;
@@ -382,16 +382,13 @@ _srt_list_links_from_directory (SrtSubprocessRunner *runner,
   g_return_val_if_fail (argv != NULL, NULL);
   g_return_val_if_fail (tmp_directory != NULL, NULL);
 
-  if (!g_spawn_sync (NULL,    /* working directory */
-                     (gchar **) argv->pdata,
-                     (gchar **) _srt_subprocess_runner_get_environ (runner),
-                     G_SPAWN_SEARCH_PATH,  /* flags */
-                     _srt_child_setup_unblock_signals,
-                     NULL,  /* user data */
-                     &stdout_text,
-                     &stderr_text,
-                     &exit_status,
-                     &error))
+  if (!_srt_subprocess_runner_spawn_sync (runner,
+                                          helper_flags,
+                                          (const char * const *) argv->pdata,
+                                          &stdout_text,
+                                          &stderr_text,
+                                          &exit_status,
+                                          &error))
     {
       g_debug ("An error occurred calling the helper: %s", error->message);
       return NULL;

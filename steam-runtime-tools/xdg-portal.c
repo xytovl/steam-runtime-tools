@@ -533,16 +533,13 @@ _srt_check_xdg_portals (SrtSubprocessRunner *runner,
   /* NULL terminate the array */
   g_ptr_array_add (argv, NULL);
 
-  if (!g_spawn_sync (NULL,    /* working directory */
-                     (gchar **) argv->pdata,
-                     (gchar **) _srt_subprocess_runner_get_environ (runner),
-                     G_SPAWN_SEARCH_PATH,
-                     _srt_child_setup_unblock_signals,
-                     NULL,    /* user data */
-                     &output, /* stdout */
-                     &stderr_messages,
-                     &wait_status,
-                     &local_error))
+  if (!_srt_subprocess_runner_spawn_sync (runner,
+                                          helper_flags,
+                                          (const char * const *) argv->pdata,
+                                          &output,
+                                          &stderr_messages,
+                                          &wait_status,
+                                          &local_error))
     {
       g_debug ("An error occurred calling the helper: %s", local_error->message);
       issues |= SRT_XDG_PORTAL_ISSUES_UNKNOWN;

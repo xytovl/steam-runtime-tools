@@ -119,16 +119,14 @@ _srt_architecture_can_run (SrtSubprocessRunner *runner,
   int exit_status = -1;
   GError *error = NULL;
   gboolean ret = FALSE;
-  GStrv my_environ = NULL;
-  const char * const *envp;
+  SrtHelperFlags helper_flags = SRT_HELPER_FLAGS_NONE;
 
   g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (runner), FALSE);
   g_return_val_if_fail (multiarch != NULL, FALSE);
   g_return_val_if_fail (_srt_check_not_setuid (), FALSE);
 
-  envp = _srt_subprocess_runner_get_environ (runner);
   argv = _srt_subprocess_runner_get_helper (runner, multiarch, "true",
-                                            SRT_HELPER_FLAGS_NONE, &error);
+                                            helper_flags, &error);
 
   if (argv == NULL)
     {
@@ -141,18 +139,13 @@ _srt_architecture_can_run (SrtSubprocessRunner *runner,
   g_debug ("Testing architecture %s with %s",
            multiarch, (const char *) g_ptr_array_index (argv, 0));
 
-  my_environ = _srt_filter_gameoverlayrenderer_from_envp (envp);
-
-  if (!g_spawn_sync (NULL,       /* working directory */
-                     (gchar **) argv->pdata,
-                     my_environ, /* envp */
-                     0,          /* flags */
-                     _srt_child_setup_unblock_signals,
-                     NULL,       /* user data */
-                     NULL,       /* stdout */
-                     NULL,       /* stderr */
-                     &exit_status,
-                     &error))
+  if (!_srt_subprocess_runner_spawn_sync (runner,
+                                          helper_flags,
+                                          (const char * const *) argv->pdata,
+                                          NULL,   /* stdout */
+                                          NULL,   /* stderr */
+                                          &exit_status,
+                                          &error))
     {
       g_debug ("... %s", error->message);
       goto out;
@@ -167,7 +160,6 @@ _srt_architecture_can_run (SrtSubprocessRunner *runner,
   g_debug ("... it works");
   ret = TRUE;
 out:
-  g_strfreev (my_environ);
   g_clear_error (&error);
   g_clear_pointer (&argv, g_ptr_array_unref);
   return ret;
