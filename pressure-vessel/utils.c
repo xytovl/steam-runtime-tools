@@ -626,7 +626,7 @@ pv_terminate_all_child_processes (GTimeSpan wait_period,
 
   data.sigchld_source = g_unix_fd_source_new (sfd, G_IO_IN);
   g_source_set_callback (data.sigchld_source,
-                         (GSourceFunc) G_CALLBACK (sigchld_cb), &data, NULL);
+                         G_SOURCE_FUNC (sigchld_cb), &data, NULL);
   data.sigchld_source_id = g_source_attach (data.sigchld_source, data.context);
 
   termination_data_refresh (&data);
