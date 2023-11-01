@@ -41,6 +41,12 @@
 #include <steam-runtime-tools/macros.h>
 #include <steam-runtime-tools/glib-backports-internal.h>
 
+#ifdef __has_feature
+#define _srt_compiler_has_feature __has_feature
+#else
+#define _srt_compiler_has_feature(x) (0)
+#endif
+
 typedef enum
 {
   SRT_HELPER_FLAGS_SEARCH_PATH = (1 << 0),
