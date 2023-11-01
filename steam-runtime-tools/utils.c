@@ -631,20 +631,12 @@ _srt_constructor (void)
   g_return_if_fail (_srt_check_not_setuid ());
 }
 
-static const int signals_blocked_by_steam[] =
-  {
-    SIGALRM,
-    SIGCHLD,
-    SIGPIPE,
-    SIGTRAP
-  };
-
 /*
  * _srt_child_setup_unblock_signals:
  * @ignored: Ignored, for compatibility with #GSpawnChildSetupFunc
  *
- * A child-setup function that unblocks all signals, and resets signals
- * known to be altered by the Steam client to their default dispositions.
+ * A child-setup function that unblocks all signals, and resets all signals
+ * to their default dispositions.
  *
  * In particular, this can be used to work around versions of `timeout(1)`
  * that do not do configure `SIGCHLD` to make sure they receive it
@@ -657,24 +649,33 @@ _srt_child_setup_unblock_signals (gpointer ignored)
 {
   struct sigaction action = { .sa_handler = SIG_DFL };
   sigset_t new_set;
-  gsize i;
+  int sig;
 
   /* We ignore errors and don't even g_debug(), to avoid being
    * async-signal-unsafe */
   sigemptyset (&new_set);
   (void) pthread_sigmask (SIG_SETMASK, &new_set, NULL);
 
-  for (i = 0; i < G_N_ELEMENTS (signals_blocked_by_steam); i++)
-    (void) sigaction (signals_blocked_by_steam[i], &action, NULL);
+  for (sig = 1; sig < NSIG; sig++)
+    {
+      if (sig != SIGKILL && sig != SIGSTOP)
+        (void) sigaction (sig, &action, NULL);
+    }
 }
 
 /*
  * _srt_unblock_signals:
  *
- * Unblock all signals, and reset signals known to be altered by the
- * Steam client to their default dispositions.
+ * Unblock all signals, and reset all signals to their default dispositions.
  *
  * This function is not async-signal-safe.
+ *
+ * This function manipulates process-global state, and should be called
+ * from `main()`, after logging has been initialized, but before creating
+ * a second thread, intentionally blocking or ignoring any signals, or
+ * setting any non-default signal handlers, either directly or via GLib.
+ * In particular, it cannot safely be called after creating a subprocess,
+ * child watch or GDBus connection.
  */
 void
 _srt_unblock_signals (void)
@@ -683,7 +684,6 @@ _srt_unblock_signals (void)
   struct sigaction new_action = { .sa_handler = SIG_DFL };
   sigset_t old_set;
   sigset_t new_set;
-  gsize i;
   int sig;
   int saved_errno;
 
@@ -699,7 +699,7 @@ _srt_unblock_signals (void)
     }
   else
     {
-      for (sig = 1; sig < 64; sig++)
+      for (sig = 1; sig < NSIG; sig++)
         {
           /* sigismember returns -1 for non-signals, which we ignore */
           if (sigismember (&new_set, sig) == 1 &&
@@ -708,20 +708,32 @@ _srt_unblock_signals (void)
         }
     }
 
-  for (i = 0; i < G_N_ELEMENTS (signals_blocked_by_steam); i++)
+  for (sig = 1; sig < NSIG; sig++)
     {
-      sig = signals_blocked_by_steam[i];
+      if (sig == SIGKILL || sig == SIGSTOP)
+        continue;
 
       if (sigaction (sig, &new_action, &old_action) != 0)
         {
           saved_errno = errno;
-          g_warning ("Unable to reset handler for signal %d (%s): %s",
-                     sig, g_strsignal (sig), g_strerror (saved_errno));
+
+          /* EINVAL is returned for the signals reserved by glibc */
+          if (saved_errno != EINVAL)
+            g_warning ("Unable to reset handler for signal %d (%s): %s",
+                       sig, g_strsignal (sig), g_strerror (saved_errno));
+        }
+      else if (old_action.sa_handler == SIG_IGN)
+        {
+          g_debug ("Reset signal %d (%s) from SIG_IGN to SIG_DFL",
+                   sig, g_strsignal (sig));
         }
       else if (old_action.sa_handler != SIG_DFL)
         {
-          g_debug ("Reset signal %d (%s) from handler %p to SIG_DFL",
-                   sig, g_strsignal (sig), old_action.sa_handler);
+          /* This should not happen, because _srt_unblock_signals() should
+           * only be called early enough in process startup that there are
+           * no non-default signal handlers yet */
+          g_warning ("Reset signal %d (%s) from handler %p to SIG_DFL",
+                     sig, g_strsignal (sig), old_action.sa_handler);
         }
     }
 }

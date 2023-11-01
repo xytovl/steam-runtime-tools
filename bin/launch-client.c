@@ -312,7 +312,7 @@ forward_signals (GError **error)
    *   of blocking them, they would no longer be pending by the time the
    *   main loop wakes up and reads from the signalfd.
    */
-  if (pthread_sigmask (SIG_BLOCK, &mask, NULL) != 0)
+  if ((errno = pthread_sigmask (SIG_BLOCK, &mask, NULL)) != 0)
     {
       glnx_throw_errno_prefix (error, "Unable to block signals");
       return 0;
@@ -1250,6 +1250,9 @@ main (int argc,
       launch_exit_status = LAUNCH_EX_FAILED;
       goto out;
     }
+
+  /* Must be before forward_signals() which partially undoes this */
+  _srt_unblock_signals ();
 
   if (opt_list)
     {

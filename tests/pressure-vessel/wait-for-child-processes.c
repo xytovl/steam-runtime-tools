@@ -320,7 +320,7 @@ main (int argc,
   sigaddset (&mask, SIGCHLD);
 
   /* Must be called before we start any threads */
-  if (pthread_sigmask (SIG_BLOCK, &mask, NULL) != 0)
+  if ((errno = pthread_sigmask (SIG_BLOCK, &mask, NULL)) != 0)
     g_error ("pthread_sigmask: %s", g_strerror (errno));
 
   prctl (PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0);

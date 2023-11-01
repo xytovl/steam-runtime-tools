@@ -488,6 +488,8 @@ main (int argc,
       goto out;
     }
 
+  _srt_unblock_signals ();
+
   if (!run (opt_runtime_optional, argc, argv, &error))
     {
       if (error->domain == G_OPTION_ERROR)
