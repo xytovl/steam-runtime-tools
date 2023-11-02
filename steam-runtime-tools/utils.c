@@ -713,6 +713,15 @@ _srt_unblock_signals (void)
       if (sig == SIGKILL || sig == SIGSTOP)
         continue;
 
+#if defined(__SANITIZE_ADDRESS__) || _srt_compiler_has_feature(address_sanitizer)
+      /* AddressSanitizer sets handlers for these signals during startup.
+       * Leave those in place, and don't show a warning for them. */
+      if ((sig == SIGBUS || sig == SIGFPE || sig == SIGSEGV)
+          && sigaction (sig, NULL, &old_action) == 0
+          && old_action.sa_handler != SIG_IGN)
+        continue;
+#endif
+
       if (sigaction (sig, &new_action, &old_action) != 0)
         {
           saved_errno = errno;
