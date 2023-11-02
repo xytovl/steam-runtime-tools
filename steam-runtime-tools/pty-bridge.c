@@ -614,7 +614,7 @@ _srt_pty_bridge_try_write_ptmx (SrtPtyBridge *self)
 
           source = g_unix_fd_source_new (self->ptmx_fd, G_IO_OUT);
           g_source_set_callback (source,
-                                 (GSourceFunc) G_CALLBACK (_srt_pty_bridge_ptmx_out_cb),
+                                 G_SOURCE_FUNC (_srt_pty_bridge_ptmx_out_cb),
                                  self, NULL);
           g_source_set_priority (source, G_PRIORITY_DEFAULT);
           g_source_attach (source, self->context);
@@ -810,7 +810,7 @@ _srt_pty_bridge_try_write_output (SrtPtyBridge *self)
           trace ("Scheduling write for when output dest becomes writeable");
           source = g_unix_fd_source_new (self->output_dest.fd, G_IO_OUT);
           g_source_set_callback (source,
-                                 (GSourceFunc) G_CALLBACK (_srt_pty_bridge_output_out_cb),
+                                 G_SOURCE_FUNC (_srt_pty_bridge_output_out_cb),
                                  self, NULL);
           g_source_set_priority (source, G_PRIORITY_DEFAULT);
           g_source_attach (source, self->context);
@@ -916,7 +916,7 @@ _srt_pty_bridge_enable_input (SrtPtyBridge *self)
       trace ("Input buffer not full, scheduling read from input source");
       source = g_unix_fd_source_new (self->input_source.fd, G_IO_IN);
       g_source_set_callback (source,
-                             (GSourceFunc) G_CALLBACK (_srt_pty_bridge_input_in_cb),
+                             G_SOURCE_FUNC (_srt_pty_bridge_input_in_cb),
                              self, NULL);
       g_source_set_priority (source, G_PRIORITY_DEFAULT);
       g_source_attach (source, self->context);
@@ -930,7 +930,7 @@ _srt_pty_bridge_enable_input (SrtPtyBridge *self)
       trace ("Output buffer not full, scheduling read from ptmx");
       source = g_unix_fd_source_new (self->ptmx_fd, G_IO_IN);
       g_source_set_callback (source,
-                             (GSourceFunc) G_CALLBACK (_srt_pty_bridge_ptmx_in_cb),
+                             G_SOURCE_FUNC (_srt_pty_bridge_ptmx_in_cb),
                              self, NULL);
       g_source_set_priority (source, G_PRIORITY_DEFAULT);
       g_source_attach (source, self->context);

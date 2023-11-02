@@ -1066,7 +1066,7 @@ srt_direct_input_device_monitor_start (SrtInputDeviceMonitor *monitor,
 
       self->monitor_source = g_unix_fd_source_new (self->inotify_fd, G_IO_IN);
       g_source_set_callback (self->monitor_source,
-                             (GSourceFunc) G_CALLBACK (srt_direct_input_device_monitor_cb),
+                             G_SOURCE_FUNC (srt_direct_input_device_monitor_cb),
                              self, NULL);
       g_source_set_priority (self->monitor_source, G_PRIORITY_DEFAULT);
       g_source_attach (self->monitor_source, self->monitor_context);

@@ -348,7 +348,7 @@ my_g_unix_fd_add_full (int priority,
   g_return_val_if_fail (func != NULL, 0);
 
   source = my_g_unix_fd_source_new (fd, condition);
-  g_source_set_callback (source, (GSourceFunc) G_CALLBACK (func),
+  g_source_set_callback (source, G_SOURCE_FUNC (func),
                          user_data, destroy);
   g_source_set_priority (source, priority);
   ret = g_source_attach (source, NULL);

@@ -95,6 +95,10 @@ GSource *my_g_unix_fd_source_new (int fd,
 #endif
 
 #if !GLIB_CHECK_VERSION(2, 58, 0)
+#ifndef G_SOURCE_FUNC
+#define G_SOURCE_FUNC(f) ((GSourceFunc) (void (*)(void)) (f))
+#endif
+
 #define g_canonicalize_filename(f, r) my_g_canonicalize_filename (f, r)
 gchar *my_g_canonicalize_filename (const gchar *filename,
                                    const gchar *relative_to);
