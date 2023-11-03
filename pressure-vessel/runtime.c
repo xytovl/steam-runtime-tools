@@ -8158,10 +8158,12 @@ pv_runtime_use_shared_sockets (PvRuntime *self,
 
       if (bwrap != NULL)
         {
-          flatpak_bwrap_add_args_data (bwrap, "asound.conf",
-                                       alsa_config, -1,
-                                       "/etc/asound.conf",
-                                       NULL);
+          if (!pv_runtime_bind_into_container (self, bwrap,
+                                               "asound.conf", alsa_config, -1,
+                                               "/etc/asound.conf",
+                                               PV_RUNTIME_EMULATION_ROOTS_BOTH,
+                                               error))
+            return FALSE;
         }
       else if (self->mutable_sysroot != NULL)
         {
