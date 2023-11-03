@@ -3415,6 +3415,14 @@ bind_runtime_base (PvRuntime *self,
 
   if (self->flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT)
     {
+      static const char * const needed_in_real_root[] =
+      {
+        "/etc/alternatives",
+        "/etc/ld.so.cache",
+        "/etc/ld.so.conf",
+        "/etc/ld.so.conf.d",
+      };
+
       /* If we're in an emulator like FEX-Emu, we need to use the host
        * OS's /usr as our real root directory, and set the runtime up
        * in a different directory. */
@@ -3426,18 +3434,26 @@ bind_runtime_base (PvRuntime *self,
        * and so on. For now, we only support host OSs that use the
        * interoperable path; OS-specific variant paths like the ones in
        * ClearLinux and Exherbo could be added later if required. */
-      flatpak_bwrap_add_args (bwrap,
-                              "--symlink", "/run/interpreter-host/etc/alternatives", "/etc/alternatives",
-                              "--symlink", "/run/interpreter-host/etc/ld.so.cache", "/etc/ld.so.cache",
-                              "--symlink", "/run/interpreter-host/etc/ld.so.conf", "/etc/ld.so.conf",
-                              "--symlink", "/run/interpreter-host/etc/ld.so.conf.d", "/etc/ld.so.conf.d",
-                              NULL);
+      for (i = 0; i < G_N_ELEMENTS (needed_in_real_root); i++)
+        {
+          const char *path = needed_in_real_root[i];
+          g_autofree char *target = g_build_filename ("/run/interpreter-host",
+                                                      path, NULL);
+
+          if (!pv_runtime_make_symlink_in_container (self,
+                                                     bwrap,
+                                                     target,
+                                                     path,
+                                                     PV_RUNTIME_EMULATION_ROOTS_REAL_ONLY,
+                                                     error))
+            g_return_val_if_reached (FALSE);
+        }
 
       if (!pv_bwrap_bind_usr (bwrap,
                               self->runtime_files_on_host,
                               self->runtime_files_fd,
                               PV_RUNTIME_PATH_INTERPRETER_ROOT, error))
-        return FALSE;
+        g_return_val_if_reached (FALSE);
 
       /* Force FEX-Emu to use this root filesystem instead of the one
        * it would "naturally" have used. Parts of it will be symlinks
@@ -3824,18 +3840,11 @@ bind_runtime_ld_so (PvRuntime *self,
        * interpreter root. */
       const gchar *mutable_cache_path = MUTABLE_LDSO_DIR "/ld.so.cache";
       const gchar *mutable_conf_path = MUTABLE_LDSO_DIR "/ld.so.conf";
-      /* The absolute path that will be loaded by processes inside the
-       * container, as seen by bwrap in /oldroot (so in particular it
-       * has the interpreter root prefix if necessary). */
-      const gchar *canonical_cache_in_target;
-      const gchar *canonical_conf_in_target;
-      /* mutable_*_path as seen by bwrap in /newroot */
-      const gchar *mutable_cache_in_target;
-      const gchar *mutable_conf_in_target;
       /* The locations where we will bind-mount the runtime's
-       * ld.so.cache/.conf, as seen by bwrap in /newroot */
-      const gchar *runtime_cache_in_target;
-      const gchar *runtime_conf_in_target;
+       * ld.so.cache/.conf, as seen from inside the container and
+       * (if applicable) the interpreter root. */
+      const gchar *runtime_cache_path = MUTABLE_LDSO_DIR "/runtime-ld.so.cache";
+      const gchar *runtime_conf_path = MUTABLE_LDSO_DIR "/runtime-ld.so.conf";
       /* The location of the runtime's ld.so.cache/.conf, as seen by
        * bwrap in /oldroot */
       g_autofree gchar *ld_so_cache_on_host = NULL;
@@ -3863,13 +3872,6 @@ bind_runtime_ld_so (PvRuntime *self,
        * Otherwise, they're the same as for the non-FEX code path, below. */
       if (self->flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT)
         {
-          canonical_cache_in_target = PV_RUNTIME_PATH_INTERPRETER_ROOT "/etc/ld.so.cache";
-          canonical_conf_in_target = PV_RUNTIME_PATH_INTERPRETER_ROOT "/etc/ld.so.conf";
-          mutable_cache_in_target = PV_RUNTIME_PATH_INTERPRETER_ROOT MUTABLE_LDSO_DIR "/ld.so.cache";
-          mutable_conf_in_target = PV_RUNTIME_PATH_INTERPRETER_ROOT MUTABLE_LDSO_DIR "/ld.so.conf";
-          runtime_cache_in_target = PV_RUNTIME_PATH_INTERPRETER_ROOT MUTABLE_LDSO_DIR "/runtime-ld.so.cache";
-          runtime_conf_in_target = PV_RUNTIME_PATH_INTERPRETER_ROOT MUTABLE_LDSO_DIR "/runtime-ld.so.conf";
-
           /* To make it a little easier to understand what's going on,
            * make MUTABLE_LDSO_DIR a symlink to the MUTABLE_LDSO_DIR inside
            * the rootfs. */
@@ -3883,39 +3885,61 @@ bind_runtime_ld_so (PvRuntime *self,
         }
       else
         {
-          canonical_cache_in_target = "/etc/ld.so.cache";
-          canonical_conf_in_target = "/etc/ld.so.conf";
-          mutable_cache_in_target = MUTABLE_LDSO_DIR "/ld.so.cache";
-          mutable_conf_in_target = MUTABLE_LDSO_DIR "/ld.so.conf";
-          runtime_cache_in_target = MUTABLE_LDSO_DIR "/runtime-ld.so.cache";
-          runtime_conf_in_target = MUTABLE_LDSO_DIR "/runtime-ld.so.conf";
-
           flatpak_bwrap_add_args (bwrap,
                                   "--tmpfs", MUTABLE_LDSO_DIR,
                                   NULL);
         }
 
-      flatpak_bwrap_add_args (bwrap,
-                              /* We put the ld.so.cache somewhere that we can
-                              * overwrite from inside the container by
-                              * replacing the symlink. */
-                              "--symlink",
-                              mutable_cache_path, canonical_cache_in_target,
-                              /* ... and the same for its configuration */
-                              "--symlink",
-                              mutable_conf_path, canonical_conf_in_target,
+      const struct
+      {
+        const char *target;
+        const char *dest;
+        PvRuntimeEmulationRoots roots;
+      } symlinks[] =
+      {
+          /* We put the ld.so.cache somewhere that we can overwrite from
+           * inside the container by replacing the symlink. */
+          { mutable_cache_path, "/etc/ld.so.cache" },
+          /* ... and the same for its configuration */
+          { mutable_conf_path, "/etc/ld.so.conf" },
 
-                              /* Initially it's a symlink to the runtime's
-                              * version and we rely on LD_LIBRARY_PATH
-                              * for our overrides, but -adverb will
-                              * overwrite this symlink. */
-                              "--symlink", "runtime-ld.so.cache", mutable_cache_in_target,
-                              "--symlink", "runtime-ld.so.conf", mutable_conf_in_target,
+          /* Initially it's a symlink to the runtime's version and we rely
+           * on LD_LIBRARY_PATH for our overrides, but -adverb will
+           * overwrite this symlink. */
+          { "runtime-ld.so.cache", mutable_cache_path },
+          { "runtime-ld.so.conf", mutable_conf_path },
+      };
 
-                              /* Put the runtime's version in place too. */
-                              "--ro-bind", ld_so_cache_on_host, runtime_cache_in_target,
-                              "--ro-bind", ld_so_conf_on_host, runtime_conf_in_target,
-                              NULL);
+      const struct
+      {
+        const char *host_path;
+        const char *dest;
+        PvRuntimeEmulationRoots roots;
+      } binds[] =
+      {
+          { ld_so_cache_on_host, runtime_cache_path },
+          { ld_so_conf_on_host, runtime_conf_path },
+      };
+
+      for (i = 0; i < G_N_ELEMENTS (symlinks); i++)
+        {
+          if (!pv_runtime_make_symlink_in_container (self, bwrap,
+                                                     symlinks[i].target,
+                                                     symlinks[i].dest,
+                                                     PV_RUNTIME_EMULATION_ROOTS_INTERPRETER_ONLY,
+                                                     error))
+            return FALSE;
+        }
+
+      for (i = 0; i < G_N_ELEMENTS (binds); i++)
+        {
+          if (!pv_runtime_bind_into_container (self, bwrap,
+                                               binds[i].host_path, NULL, 0,
+                                               binds[i].dest,
+                                               PV_RUNTIME_EMULATION_ROOTS_INTERPRETER_ONLY,
+                                               error))
+            g_return_val_if_reached (FALSE);
+        }
 
       /* glibc from some distributions will want to load the ld.so cache from
        * a distribution-specific path, e.g. Clear Linux uses
