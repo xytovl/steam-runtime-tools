@@ -157,6 +157,7 @@ path_mutable_in_container_namespace (const char *path)
   {
     "run/gfx",
     "run/host",
+    "var/pressure-vessel/gfx",
   };
   static const char * const yes[] =
   {
@@ -256,7 +257,7 @@ path_visible_in_provider_namespace (PvRuntimeFlags flags,
    * /run/parent/etc a symlink to /run/parent/usr/etc.
    *
    * Otherwise, bind_runtime_base() is responsible for mounting the provider's
-   * /etc on /run/gfx/etc. */
+   * /etc on /var/pressure-vessel/gfx/etc or /run/gfx/etc. */
   if (g_str_has_prefix (path, "etc")
       && (path[3] == '\0' || path[3] == '/'))
     return TRUE;
@@ -3168,6 +3169,7 @@ bind_runtime_base (PvRuntime *self,
     "/var/lib/dhcp",
     "/var/lib/sudo",
     "/var/lib/urandom",
+    "/var/pressure-vessel",
     NULL
   };
   static const char * const from_host[] =
@@ -3232,8 +3234,8 @@ bind_runtime_base (PvRuntime *self,
 
       /* Force FEX-Emu to use this root filesystem instead of the one
        * it would "naturally" have used. Parts of it will be symlinks
-       * into /run/gfx, which contains bind-mounts from FEX-Emu's original
-       * rootfs.
+       * into /var/pressure-vessel/gfx, which contains bind-mounts from
+       * FEX-Emu's original rootfs.
        *
        * We cannot do this via pv_environ_setenv(), since that sets the
        * environment in which we execute pv-bwrap, but that needs to be
@@ -5806,8 +5808,8 @@ pv_runtime_collect_lib_symlink_data (PvRuntime *self,
    * pv_runtime_get_capsule_capture_libs()), then the symlink will
    * point to something like /run/host/lib/libfoo.so or
    * /run/gfx/usr/lib64/libbar.so. To find the corresponding path
-   * in the graphics stack provider, we can remove the /run/host
-   * or /run/gfx prefix.
+   * in the graphics stack provider, we can remove the /run/host,
+   * /run/gfx or /var/pressure-vessel/gfx prefix.
    *
    * If capsule-capture-libs found a library elsewhere, for example
    * in $HOME or /opt, then we assume it will be visible at the same
@@ -5857,7 +5859,8 @@ collect_one_mesa_drirc (PvRuntime *self,
         /* We already created a symlink in /overrides pointing to the
          * path in the container namespace, which is the same as the
          * path in the provider namespace, but with an optional prefix
-         * that we already know how to remove (/run/host or /run/gfx). */
+         * that we already know how to remove (/run/host, /run/gfx or
+         * /var/pressure-vessel/gfx). */
         g_return_if_fail (resolved != NULL);
         symlink = g_build_filename (arch->libdir_relative_to_overrides,
                                     glnx_basename (resolved), NULL);

@@ -53,6 +53,7 @@ static const char * const exclude_prefixes[] =
   "/run/host/",
   "/sbin/",
   "/usr/",
+  "/var/pressure-vessel/",
 };
 
 static int

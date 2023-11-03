@@ -1478,7 +1478,17 @@ main (int argc,
       g_assert (exports != NULL);
       g_assert (bwrap_filesystem_arguments != NULL);
 
-      if (g_strcmp0 (opt_graphics_provider, "/") == 0)
+      /* When using an interpreter root, avoid /run/gfx and instead use a
+       * directory in /var. As much as possible we want each top-level
+       * directory to be either in the rootfs or in the real host system,
+       * not some mixture of the two, and the majority of /run needs to
+       * come from the real host system, for sockets and so on; but when
+       * the rootfs contains a symlink, FEX-Emu interprets it as though
+       * chrooted into the rootfs, so we have to mount the graphics
+       * provider inside the rootfs instead of in the real root. */
+      if (interpreter_root != NULL)
+        graphics_provider_mount_point = "/var/pressure-vessel/gfx";
+      else if (g_strcmp0 (opt_graphics_provider, "/") == 0)
         graphics_provider_mount_point = "/run/host";
       else
         graphics_provider_mount_point = "/run/gfx";
