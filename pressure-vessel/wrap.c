@@ -1508,21 +1508,19 @@ main (int argc,
 
       if (interpreter_root != NULL)
         {
-          /* If we are in an emulator, we also need to populate /run/host
-           * in the interpreter mount point */
-          g_autofree gchar *inter_run_host = g_build_filename (PV_RUNTIME_PATH_INTERPRETER_ROOT,
-                                                               "/run/host", NULL);
           g_autofree gchar *etc_src = g_build_filename (interpreter_root->path,
                                                         "etc", NULL);
-          g_autofree gchar *etc_dest = g_build_filename (inter_run_host, "etc", NULL);
 
+          /* Mount the interpreter root on /run/host. We'll use this
+           * to look at paths like /run/host/etc/os-release. */
           flatpak_bwrap_add_args (bwrap_filesystem_arguments,
-                                  "--ro-bind", etc_src, etc_dest, NULL);
+                                  "--ro-bind", etc_src, "/run/host/etc",
+                                  NULL);
 
           if (!pv_bwrap_bind_usr (bwrap,
                                   interpreter_root->path,
                                   interpreter_root->fd,
-                                  inter_run_host, error))
+                                  "/run/host", error))
             goto out;
 
           /* Mount the real root on /run/interpreter-host. We'll use this
