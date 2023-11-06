@@ -2567,6 +2567,9 @@ pv_runtime_provide_container_access (PvRuntime *self,
       g_mkdir (self->container_access, 0700);
 
       self->container_access_adverb = flatpak_bwrap_new (NULL);
+      /* Intentionally not using pv_runtime_bind_into_container for this
+       * temporary adverb command; by the time we get here, we know we
+       * are not using an interpreter root anyway */
       flatpak_bwrap_add_args (self->container_access_adverb,
                               self->bubblewrap,
                               "--ro-bind", "/", "/",
@@ -2586,6 +2589,7 @@ pv_runtime_provide_container_access (PvRuntime *self,
                               "etc", NULL);
       etc_dest = g_build_filename (self->container_access,
                                    "etc", NULL);
+      /* OK to use --ro-bind directly, as above */
       flatpak_bwrap_add_args (self->container_access_adverb,
                               "--ro-bind", etc, etc_dest,
                               NULL);
@@ -3342,6 +3346,8 @@ bind_gfx_provider (PvRuntime *self,
       in_host = g_build_filename (self->provider->path_in_host_ns,
                                   "etc", NULL);
       in_container = g_build_filename (mount_point, "etc", NULL);
+      /* The caller is expected to handle possible use of an interpreter root
+       * via prepend_path, so only act on the real root */
       flatpak_bwrap_add_args (bwrap,
                               "--ro-bind", in_host, in_container,
                               NULL);
@@ -3511,6 +3517,12 @@ bind_runtime_base (PvRuntime *self,
   flatpak_bwrap_add_args (bwrap,
                           "--dir", "/tmp",
                           "--dir", "/var",
+                          /* When using an interpreter root, these are not
+                           * created in $FEX_ROOTFS/{run,tmp}, but that's
+                           * consistent with the situation without
+                           * pressure-vessel: readdir() on /var doesn't
+                           * list run or tmp, but reading /var/run/ or
+                           * /var/tmp/ works anyway. */
                           "--dir", "/var/tmp",
                           "--symlink", "../run", "/var/run",
                           NULL);
@@ -4334,6 +4346,11 @@ pv_runtime_take_from_provider (PvRuntime *self,
        * a new version over the top */
       g_assert (bwrap != NULL);
 
+      /* When setting up an interpreter root, for simplicity we require
+       * the easier mutable sysroot code-path. */
+      g_return_val_if_fail (!(self->flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT),
+                            FALSE);
+
       g_debug ("Trying to replace \"${container}/%s\" with \"%s/%s\" via "
                "bind mount",
                dest_in_container, self->provider->in_current_ns->path,
@@ -4401,6 +4418,8 @@ pv_runtime_take_from_provider (PvRuntime *self,
                                                realpath_in_provider,
                                                NULL);
       abs_dest = g_build_filename ("/", dest_in_container, NULL);
+      /* By the time we get here, we know we are not using an interpreter
+       * root, so it's OK to use --ro-bind directly */
       flatpak_bwrap_add_args (bwrap,
                               "--ro-bind", source_in_current_ns, abs_dest,
                               NULL);
@@ -5438,6 +5457,9 @@ pv_runtime_get_ld_so (PvRuntime *self,
 
       etc = g_build_filename (self->runtime_files_on_host,
                               "etc", NULL);
+      /* Intentionally not using pv_runtime_bind_into_container for this
+       * temporary adverb command; by the time we get here, we know we
+       * are not using an interpreter root anyway */
       flatpak_bwrap_add_args (temp_bwrap,
                               "--ro-bind",
                               etc,
@@ -5460,6 +5482,7 @@ pv_runtime_get_ld_so (PvRuntime *self,
                                            "etc", NULL);
           provider_etc_dest = g_build_filename (self->provider->path_in_container_ns,
                                                 "etc", NULL);
+          /* Using --ro-bind directly, as above */
           flatpak_bwrap_add_args (temp_bwrap,
                                   "--ro-bind",
                                   provider_etc,
@@ -8046,6 +8069,11 @@ pv_runtime_bind (PvRuntime *self,
 
       g_assert (bwrap != NULL);
 
+      /* When setting up an interpreter root, for simplicity we require
+       * the easier mutable sysroot code-path... */
+      g_return_val_if_fail (!(self->flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT),
+                            FALSE);
+      /* ... so it's OK to use --ro-bind directly here */
       flatpak_bwrap_add_args (bwrap,
                               "--ro-bind",
                               pressure_vessel_prefix_in_host_namespace,
