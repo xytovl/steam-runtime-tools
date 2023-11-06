@@ -430,7 +430,6 @@ static gboolean opt_gc_runtimes = TRUE;
 static gboolean opt_generate_locales = TRUE;
 static char *opt_home = NULL;
 static char *opt_graphics_provider = NULL;
-static char *graphics_provider_mount_point = NULL;
 static gboolean opt_launcher = FALSE;
 static gboolean opt_only_prepare = FALSE;
 static gboolean opt_remove_game_overlay = FALSE;
@@ -1155,6 +1154,7 @@ main (int argc,
   glnx_autofd int original_stdout = -1;
   glnx_autofd int original_stderr = -1;
   g_autoptr(GArray) pass_fds_through_adverb = g_array_new (FALSE, FALSE, sizeof (int));
+  const char *graphics_provider_mount_point = NULL;
   const char *steam_app_id;
   g_autoptr(GPtrArray) adverb_preload_argv = NULL;
   int result;
@@ -1666,9 +1666,9 @@ main (int argc,
       g_assert (bwrap_filesystem_arguments != NULL);
 
       if (g_strcmp0 (opt_graphics_provider, "/") == 0)
-        graphics_provider_mount_point = g_strdup ("/run/host");
+        graphics_provider_mount_point = "/run/host";
       else
-        graphics_provider_mount_point = g_strdup ("/run/gfx");
+        graphics_provider_mount_point = "/run/gfx";
 
       /* Protect the controlling terminal from the app/game, unless we are
        * running an interactive shell in which case that would break its
@@ -1721,13 +1721,13 @@ main (int argc,
 
       if (g_strcmp0 (opt_graphics_provider, "/") == 0)
         {
-          graphics_provider_mount_point = g_strdup ("/run/parent");
+          graphics_provider_mount_point = "/run/parent";
         }
       else if (g_strcmp0 (opt_graphics_provider, "/run/host") == 0)
         {
           g_warning ("Using host graphics drivers in a Flatpak subsandbox "
                      "probably won't work");
-          graphics_provider_mount_point = g_strdup ("/run/host");
+          graphics_provider_mount_point = "/run/host";
         }
       else
         {
