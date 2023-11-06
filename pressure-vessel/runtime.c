@@ -7798,6 +7798,7 @@ pv_runtime_bind (PvRuntime *self,
     {
       g_autofree gchar *dest = NULL;
       glnx_autofd int parent_dirfd = -1;
+      const char *symlink_target = "/usr/lib/pressure-vessel/from-host";
 
       parent_dirfd = _srt_resolve_in_sysroot (self->mutable_sysroot->fd,
                                               "/usr/lib/pressure-vessel",
@@ -7816,10 +7817,15 @@ pv_runtime_bind (PvRuntime *self,
                                PV_COPY_FLAGS_CHMOD_MAY_FAIL, error))
         return FALSE;
 
+      /* Because the symlink is in a directory that doesn't exist in the
+       * $FEX_ROOTFS, its target needs to be resolvable without FEX's help. */
+      if (self->flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT)
+        symlink_target = PV_RUNTIME_PATH_INTERPRETER_ROOT "/usr/lib/pressure-vessel/from-host";
+
       if (bwrap != NULL)
         flatpak_bwrap_add_args (bwrap,
                                 "--symlink",
-                                "/usr/lib/pressure-vessel/from-host",
+                                symlink_target,
                                 "/run/pressure-vessel/pv-from-host",
                                 NULL);
 
