@@ -530,21 +530,38 @@ pv_bwrap_append_adjusted_exports (FlatpakBwrap *to,
           g_assert (i + 3 <= from->argv->len);
           const char *from_src = from->argv->pdata[i + 1];
           const char *from_dest = from->argv->pdata[i + 2];
+          gboolean skip_real_root = FALSE;
 
           /* If we're using FEX-Emu or similar, Flatpak code might think it
            * has found a particular file either because it's in the rootfs,
            * or because it's in the real root filesystem.
            * If it exists in FEX rootfs, we add an additional mount entry
            * where the source is from the FEX rootfs and the destination is
-           * prefixed with the pressure-vessel interpreter root location. */
+           * prefixed with the pressure-vessel interpreter root location.
+           *
+           * An exception to this is that if the destination path is one
+           * that we don't want to mount into the interpreter root (usually
+           * /run/host) then we mount it into the real root, and avoid
+           * mounting a version from the real root (if any) at the same
+           * location. */
           if (interpreter_root != NULL
               && _srt_sysroot_test (interpreter_root, from_src,
                                     SRT_RESOLVE_FLAGS_NONE, NULL))
             {
               g_autofree gchar *inter_src = g_build_filename (interpreter_root->path,
                                                               from_src, NULL);
-              g_autofree gchar *inter_dest = g_build_filename (PV_RUNTIME_PATH_INTERPRETER_ROOT,
-                                                               from_dest, NULL);
+              g_autofree gchar *inter_dest = NULL;
+
+              if (pv_runtime_path_belongs_in_interpreter_root (from_dest))
+                {
+                  inter_dest = g_build_filename (PV_RUNTIME_PATH_INTERPRETER_ROOT,
+                                                 from_dest, NULL);
+                }
+              else
+                {
+                  inter_dest = g_strdup (from_dest);
+                  skip_real_root = TRUE;
+                }
 
               g_debug ("Adjusted \"%s\" to \"%s\" and \"%s\" to \"%s\" for the interpreter root",
                        from_src, inter_src, from_dest, inter_dest);
@@ -552,9 +569,10 @@ pv_bwrap_append_adjusted_exports (FlatpakBwrap *to,
               flatpak_bwrap_add_args (to, opt, inter_src, inter_dest, NULL);
             }
 
-          if (interpreter_root == NULL
-              || _srt_sysroot_test (root, from_src,
-                                    SRT_RESOLVE_FLAGS_NONE, NULL))
+          if ((interpreter_root == NULL
+               || _srt_sysroot_test (root, from_src,
+                                     SRT_RESOLVE_FLAGS_NONE, NULL))
+              && !skip_real_root)
             {
               g_autofree gchar *src = NULL;
               /* Paths in the home directory might need adjusting.
