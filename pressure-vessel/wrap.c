@@ -52,37 +52,6 @@
 #include "wrap-interactive.h"
 #include "wrap-setup.h"
 
-/* List of variables that are stripped down from the environment when
- * using the secure-execution mode.
- * List taken from glibc sysdeps/generic/unsecvars.h */
-static const char* unsecure_environment_variables[] = {
-  "GCONV_PATH",
-  "GETCONF_DIR",
-  "GLIBC_TUNABLES",
-  "HOSTALIASES",
-  "LD_AUDIT",
-  "LD_DEBUG",
-  "LD_DEBUG_OUTPUT",
-  "LD_DYNAMIC_WEAK",
-  "LD_HWCAP_MASK",
-  "LD_LIBRARY_PATH",
-  "LD_ORIGIN_PATH",
-  "LD_PRELOAD",
-  "LD_PROFILE",
-  "LD_SHOW_AUXV",
-  "LD_USE_LOAD_BIAS",
-  "LOCALDOMAIN",
-  "LOCPATH",
-  "MALLOC_TRACE",
-  "NIS_PATH",
-  "NLSPATH",
-  "RESOLV_HOST_CONF",
-  "RES_OPTIONS",
-  "TMPDIR",
-  "TZDIR",
-  NULL,
-};
-
 typedef enum
 {
   ENV_MOUNT_FLAGS_COLON_DELIMITED = (1 << 0),
@@ -2054,9 +2023,6 @@ main (int argc,
 
   if (is_flatpak_env)
     {
-      g_autoptr(GList) vars = NULL;
-      const GList *iter;
-
       /* Let these inherit from the sub-sandbox environment */
       pv_environ_inherit_env (container_env, "FLATPAK_ID");
       pv_environ_inherit_env (container_env, "FLATPAK_SANDBOX_DIR");
@@ -2070,38 +2036,10 @@ main (int argc,
        * variables would be wrong, because pv-launch needs to see the
        * current execution environment's DBUS_SESSION_BUS_ADDRESS
        * (if different). For this reason we convert them to `--setenv`. */
-      vars = pv_environ_get_vars (container_env);
-
-      for (iter = vars; iter != NULL; iter = iter->next)
-        {
-          const char *var = iter->data;
-          const char *val = pv_environ_getenv (container_env, var);
-
-          if (flatpak_subsandbox != NULL)
-            {
-              if (val != NULL)
-                flatpak_bwrap_add_arg_printf (flatpak_subsandbox,
-                                              "--env=%s=%s",
-                                              var, val);
-              else
-                flatpak_bwrap_add_args (flatpak_subsandbox,
-                                        "--unset-env", var,
-                                        NULL);
-            }
-          else
-            {
-              g_assert (bwrap != NULL);
-
-              if (val != NULL)
-                flatpak_bwrap_add_args (bwrap,
-                                        "--setenv", var, val,
-                                        NULL);
-              else
-                flatpak_bwrap_add_args (bwrap,
-                                        "--unsetenv", var,
-                                        NULL);
-            }
-        }
+      if (flatpak_subsandbox != NULL)
+        pv_bwrap_container_env_to_subsandbox_argv (flatpak_subsandbox, container_env);
+      else
+        pv_bwrap_container_env_to_bwrap_argv (bwrap, container_env);
     }
 
   final_argv = flatpak_bwrap_new (original_environ);
@@ -2113,32 +2051,9 @@ main (int argc,
    * invoke pv-launch (for which original_environ is appropriate). */
   if (!is_flatpak_env)
     {
-      g_autoptr(GList) vars = NULL;
-      const GList *iter;
-
-      vars = pv_environ_get_vars (container_env);
-
-      for (iter = vars; iter != NULL; iter = iter->next)
-        {
-          const char *var = iter->data;
-          const char *val = pv_environ_getenv (container_env, var);
-
-          if (val != NULL)
-            flatpak_bwrap_set_env (final_argv, var, val, TRUE);
-          else
-            flatpak_bwrap_unset_env (final_argv, var);
-        }
-
-      /* The setuid bwrap will filter out some of the environment variables,
-       * so we still have to go via --setenv for these. */
-      for (i = 0; unsecure_environment_variables[i] != NULL; i++)
-        {
-          const char *var = unsecure_environment_variables[i];
-          const gchar *val = pv_environ_getenv (container_env, var);
-
-          if (val != NULL)
-            flatpak_bwrap_add_args (bwrap, "--setenv", var, val, NULL);
-        }
+      /* Note that these are two different FlatpakBwrap instances! */
+      pv_bwrap_container_env_to_envp (final_argv, container_env);
+      pv_bwrap_filtered_container_env_to_bwrap_argv (bwrap, container_env);
     }
 
   /* Now that we've populated final_argv->envp, it's too late to change
