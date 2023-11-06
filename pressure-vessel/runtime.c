@@ -2140,6 +2140,19 @@ pv_runtime_new (const char *source,
                          NULL);
 }
 
+/*
+ * This is chosen to be:
+ * - somewhere we don't bind-mount from the runtime or host
+ *   (/var/pressure-vessel is specifically excluded)
+ * - on a tmpfs
+ * - in a top-level directory that we carry in the interpreter root, so that
+ *   symlinks in the interpreter root can usefully point to it
+ * - not in /run, so that we don't get mixed up between
+ *   the real root and the interpreter root (we want /run to only
+ *   exist in the real root)
+ */
+#define MUTABLE_LDSO_DIR "/var/pressure-vessel/ldso"
+
 static void
 pv_runtime_adverb_regenerate_ld_so_cache (PvRuntime *self,
                                           FlatpakBwrap *adverb_argv)
@@ -2162,7 +2175,7 @@ pv_runtime_adverb_regenerate_ld_so_cache (PvRuntime *self,
     }
   else
     {
-      regen_dir = g_strdup ("/run/pressure-vessel/ldso");
+      regen_dir = g_strdup (MUTABLE_LDSO_DIR);
     }
 
   flatpak_bwrap_add_args (adverb_argv,
@@ -3599,7 +3612,6 @@ bind_runtime_ld_so (PvRuntime *self,
     {
       g_assert (bwrap != NULL);
 
-#define MUTABLE_LDSO_DIR "/run/pressure-vessel/ldso"
       /* The absolute path to our modifiable ld.so.cache/.conf symlink,
        * as seen from inside the container and (if applicable) the
        * interpreter root. */

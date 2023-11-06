@@ -265,21 +265,21 @@ class TestInsideRuntime(BaseTest):
         if os.getenv('TEST_INSIDE_RUNTIME_IS_COPY'):
             # /etc/ld.so.* are symlinks to the mutable version
             target = os.readlink('/etc/ld.so.cache')
-            self.assertEqual(target, '/run/pressure-vessel/ldso/ld.so.cache')
+            self.assertEqual(target, '/var/pressure-vessel/ldso/ld.so.cache')
             target = os.readlink('/etc/ld.so.conf')
-            self.assertEqual(target, '/run/pressure-vessel/ldso/ld.so.conf')
+            self.assertEqual(target, '/var/pressure-vessel/ldso/ld.so.conf')
 
             # Exherbo compatibility symlinks also exist
             target = os.readlink('/etc/ld-i686-pc-linux-gnu.cache')
-            self.assertEqual(target, '/run/pressure-vessel/ldso/ld.so.cache')
+            self.assertEqual(target, '/var/pressure-vessel/ldso/ld.so.cache')
             target = os.readlink('/etc/ld-x86_64-pc-linux-gnu.cache')
-            self.assertEqual(target, '/run/pressure-vessel/ldso/ld.so.cache')
+            self.assertEqual(target, '/var/pressure-vessel/ldso/ld.so.cache')
             # Clear Linux compatibility symlinks, too
             target = os.readlink('/var/cache/ldconfig/ld.so.cache')
-            self.assertEqual(target, '/run/pressure-vessel/ldso/ld.so.cache')
+            self.assertEqual(target, '/var/pressure-vessel/ldso/ld.so.cache')
 
             with open(
-                '/run/pressure-vessel/ldso/runtime-ld.so.conf'
+                '/var/pressure-vessel/ldso/runtime-ld.so.conf'
             ) as reader:
                 lines_originally = reader.readlines()
 
