@@ -27,6 +27,15 @@
 #include "flatpak-bwrap-private.h"
 #include "flatpak-exports-private.h"
 #include "steam-runtime-tools/glib-backports-internal.h"
+#include "steam-runtime-tools/resolve-in-sysroot-internal.h"
+
+typedef enum
+{
+  PV_BWRAP_FLAGS_SYSTEM = (1 << 0),
+  PV_BWRAP_FLAGS_SETUID = (1 << 1),
+  PV_BWRAP_FLAGS_HAS_PERMS = (1 << 2),
+  PV_BWRAP_FLAGS_NONE = 0
+} PvBwrapFlags;
 
 gboolean pv_bwrap_run_sync (FlatpakBwrap *bwrap,
                             int *exit_status_out,
@@ -56,3 +65,10 @@ pv_bwrap_was_finished (FlatpakBwrap *bwrap)
 FlatpakBwrap *pv_bwrap_copy (FlatpakBwrap *bwrap);
 
 GStrv pv_bwrap_steal_envp (FlatpakBwrap *bwrap);
+
+gboolean pv_bwrap_append_adjusted_exports (FlatpakBwrap *to,
+                                           FlatpakBwrap *from,
+                                           const char *home,
+                                           SrtSysroot *interpreter_root,
+                                           PvBwrapFlags bwrap_flags,
+                                           GError **error);
