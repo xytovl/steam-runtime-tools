@@ -137,3 +137,5 @@ void pv_runtime_log_overrides (PvRuntime *self);
 void pv_runtime_log_container (PvRuntime *self);
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC (PvRuntime, g_object_unref)
+
+gboolean pv_runtime_path_belongs_in_interpreter_root (const char *path);

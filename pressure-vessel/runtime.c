@@ -189,6 +189,45 @@ path_mutable_in_container_namespace (const char *path)
 }
 
 /*
+ * pv_runtime_path_belongs_in_interpreter_root:
+ * @path: An absolute or root-relative path, for example `/etc/os-release`
+ *  or `usr/lib/os-release`
+ *
+ * Return whether the top-level directory containing @path is expected
+ * to exist in the interpreter root for tools like FEX-Emu.
+ *
+ * For simplicity and efficiency, we ignore the compatibility symlinks here,
+ * and assume a merged /usr: we always use an interpreter root in conjunction
+ * with a mutable sysroot, which is always merged-/usr, so this is OK.
+ *
+ * Returns: %TRUE if we want the top-level directory of @path to appear
+ *  in the interpreter root.
+ */
+gboolean
+pv_runtime_path_belongs_in_interpreter_root (const char *path)
+{
+  static const char * const yes[] =
+  {
+    "etc",
+    "overrides",
+    "usr",
+    "var",
+  };
+  gsize i;
+
+  while (path[0] == '/')
+    path++;
+
+  for (i = 0; i < G_N_ELEMENTS (yes); i++)
+    {
+      if (_srt_get_path_after (path, yes[i]) != NULL)
+        return TRUE;
+    }
+
+  return FALSE;
+}
+
+/*
  * Return whether @path is likely to be visible as-is in the container.
  */
 static gboolean
@@ -283,7 +322,7 @@ typedef enum
  * Try to make @path a symlink to @target in the container, by whichever
  * mechanism seems best: either editing the mutable sysroot in-place,
  * or telling bubblewrap to create a symlink in a transient directory
- * like /etc, /run, /var.
+ * like /etc or /var.
  *
  * Returns: %TRUE on success
  */
@@ -302,6 +341,9 @@ pv_runtime_make_symlink_in_container (PvRuntime *self,
   g_return_val_if_fail (target != NULL, FALSE);
   g_return_val_if_fail (path != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+  g_return_val_if_fail ((flags & MAKE_SYMLINK_FLAGS_INTERPRETER_ROOT) == 0
+                        || pv_runtime_path_belongs_in_interpreter_root (path),
+                        FALSE);
 
   if ((flags & MAKE_SYMLINK_FLAGS_INTERPRETER_ROOT)
       && (self->flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT))
