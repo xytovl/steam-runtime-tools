@@ -1506,11 +1506,6 @@ main (int argc,
 
       pv_bwrap_add_api_filesystems (bwrap_filesystem_arguments, sysfs_mode);
 
-      flatpak_bwrap_add_args (bwrap_filesystem_arguments,
-                              "--ro-bind", "/etc", "/run/host/etc", NULL);
-      if (!pv_bwrap_bind_usr (bwrap, "/", root_fd, "/run/host", error))
-        goto out;
-
       if (interpreter_root != NULL)
         {
           /* If we are in an emulator, we also need to populate /run/host
@@ -1528,6 +1523,27 @@ main (int argc,
                                   interpreter_root->path,
                                   interpreter_root->fd,
                                   inter_run_host, error))
+            goto out;
+
+          /* Mount the real root on /run/interpreter-host. We'll use this
+           * to run the interpreter. */
+          flatpak_bwrap_add_args (bwrap_filesystem_arguments,
+                                  "--ro-bind", "/etc", "/run/interpreter-host/etc",
+                                  NULL);
+
+          if (!pv_bwrap_bind_usr (bwrap, "/", root_fd, "/run/interpreter-host",
+                                  error))
+            goto out;
+
+          /* PvRuntime will mount the graphics stack provider on /gfx
+           * and PV_RUNTIME_PATH_INTERPRETER_ROOT/gfx if necessary. */
+        }
+      else
+        {
+          flatpak_bwrap_add_args (bwrap_filesystem_arguments,
+                                  "--ro-bind", "/etc", "/run/host/etc", NULL);
+
+          if (!pv_bwrap_bind_usr (bwrap, "/", root_fd, "/run/host", error))
             goto out;
         }
 

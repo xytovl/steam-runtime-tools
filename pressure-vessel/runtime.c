@@ -156,6 +156,7 @@ path_mutable_in_container_namespace (const char *path)
   static const char * const no[] =
   {
     "run/gfx",
+    "run/interpreter-host",
     "run/host",
     "var/pressure-vessel/gfx",
   };
@@ -3220,10 +3221,10 @@ bind_runtime_base (PvRuntime *self,
        * interoperable path; OS-specific variant paths like the ones in
        * ClearLinux and Exherbo could be added later if required. */
       flatpak_bwrap_add_args (bwrap,
-                              "--symlink", "/run/host/etc/alternatives", "/etc/alternatives",
-                              "--symlink", "/run/host/etc/ld.so.cache", "/etc/ld.so.cache",
-                              "--symlink", "/run/host/etc/ld.so.conf", "/etc/ld.so.conf",
-                              "--symlink", "/run/host/etc/ld.so.conf.d", "/etc/ld.so.conf.d",
+                              "--symlink", "/run/interpreter-host/etc/alternatives", "/etc/alternatives",
+                              "--symlink", "/run/interpreter-host/etc/ld.so.cache", "/etc/ld.so.cache",
+                              "--symlink", "/run/interpreter-host/etc/ld.so.conf", "/etc/ld.so.conf",
+                              "--symlink", "/run/interpreter-host/etc/ld.so.conf.d", "/etc/ld.so.conf.d",
                               NULL);
 
       if (!pv_bwrap_bind_usr (bwrap,
