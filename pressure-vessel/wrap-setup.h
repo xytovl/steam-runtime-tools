@@ -26,19 +26,12 @@
 
 #include "steam-runtime-tools/utils-internal.h"
 
+#include "bwrap.h"
 #include "flatpak-bwrap-private.h"
 #include "flatpak-exports-private.h"
 #include "runtime.h"
 #include "wrap-discord.h"
 #include "wrap-pipewire.h"
-
-typedef enum
-{
-  PV_BWRAP_FLAGS_SYSTEM = (1 << 0),
-  PV_BWRAP_FLAGS_SETUID = (1 << 1),
-  PV_BWRAP_FLAGS_HAS_PERMS = (1 << 2),
-  PV_BWRAP_FLAGS_NONE = 0
-} PvBwrapFlags;
 
 gchar *pv_wrap_check_bwrap (const char *tools_dir,
                             gboolean only_prepare,

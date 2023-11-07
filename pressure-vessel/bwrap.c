@@ -22,6 +22,8 @@
 #include <gio/gio.h>
 
 #include "bwrap.h"
+#include "flatpak-utils-private.h"
+#include "runtime.h"
 #include "utils.h"
 
 #include "steam-runtime-tools/resolve-in-sysroot-internal.h"
@@ -419,4 +421,192 @@ pv_bwrap_steal_envp (FlatpakBwrap *bwrap)
 
   bwrap->envp = g_strdupv (flatpak_bwrap_empty_env);
   return envp;
+}
+
+/*
+ * pv_bwrap_append_adjusted_exports:
+ * @to: The exported files and directories of @from will be adjusted and
+  appended to this FlatpakBwrap
+ * @from: Arguments produced by flatpak_exports_append_bwrap_args(),
+ *  not including an executable name (the 0'th argument must be
+ *  `--bind` or similar)
+ * @home: The home directory
+ * @interpreter_root (nullable): Path to the interpreter root, or %NULL if
+ *  there isn't one
+ * @error: Used to return an error on failure
+ *
+ * Adjust arguments in @from to cope with potentially running in a
+ * container or interpreter and append them to @to.
+ * This function will steal the fds of @from.
+ */
+gboolean
+pv_bwrap_append_adjusted_exports (FlatpakBwrap *to,
+                                  FlatpakBwrap *from,
+                                  const char *home,
+                                  SrtSysroot *interpreter_root,
+                                  PvBwrapFlags bwrap_flags,
+                                  GError **error)
+{
+  g_autofree int *fds = NULL;
+  /* Bypass FEX-Emu transparent rewrite by using
+   * "/proc/self/root" as the root path. */
+  g_autoptr(SrtSysroot) root = NULL;
+  gsize n_fds;
+  gsize i;
+
+  g_return_val_if_fail (to != NULL, FALSE);
+  g_return_val_if_fail (from != NULL, FALSE);
+  g_return_val_if_fail (home != NULL, FALSE);
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+
+  fds = flatpak_bwrap_steal_fds (from, &n_fds);
+  for (i = 0; i < n_fds; i++)
+    flatpak_bwrap_add_fd (to, fds[i]);
+
+  if (interpreter_root != NULL)
+    {
+      root = _srt_sysroot_new_real_root (error);
+
+      if (root == NULL)
+        return FALSE;
+
+      /* Both of these are using fd-relative I/O, not naive path-based I/O */
+      g_assert (!_srt_sysroot_is_direct (interpreter_root));
+      g_assert (!_srt_sysroot_is_direct (root));
+    }
+
+  g_debug ("Exported directories:");
+
+  for (i = 0; i < from->argv->len;)
+    {
+      const char *opt = from->argv->pdata[i];
+
+      g_assert (opt != NULL);
+
+      if (g_str_equal (opt, "--bind-data") ||
+          g_str_equal (opt, "--chmod") ||
+          g_str_equal (opt, "--ro-bind-data") ||
+          g_str_equal (opt, "--file") ||
+          g_str_equal (opt, "--symlink"))
+        {
+          g_assert (i + 3 <= from->argv->len);
+          /* pdata[i + 1] is the target, fd or permissions: unchanged. */
+          /* pdata[i + 2] is a path in the final container: unchanged. */
+          g_debug ("%s %s %s",
+                   opt,
+                   (const char *) from->argv->pdata[i + 1],
+                   (const char *) from->argv->pdata[i + 2]);
+
+          flatpak_bwrap_add_args (to, opt, from->argv->pdata[i + 1],
+                                  from->argv->pdata[i + 2], NULL);
+
+          i += 3;
+        }
+      else if (g_str_equal (opt, "--dev") ||
+               g_str_equal (opt, "--dir") ||
+               g_str_equal (opt, "--mqueue") ||
+               g_str_equal (opt, "--proc") ||
+               g_str_equal (opt, "--remount-ro") ||
+               g_str_equal (opt, "--tmpfs"))
+        {
+          g_assert (i + 2 <= from->argv->len);
+          /* pdata[i + 1] is a path in the final container, or a non-path:
+           * unchanged. */
+          g_debug ("%s %s",
+                   opt,
+                   (const char *) from->argv->pdata[i + 1]);
+
+          flatpak_bwrap_add_args (to, opt, from->argv->pdata[i + 1], NULL);
+
+          i += 2;
+        }
+      else if (g_str_equal (opt, "--bind") ||
+               g_str_equal (opt, "--bind-try") ||
+               g_str_equal (opt, "--dev-bind") ||
+               g_str_equal (opt, "--dev-bind-try") ||
+               g_str_equal (opt, "--ro-bind") ||
+               g_str_equal (opt, "--ro-bind-try"))
+        {
+          g_assert (i + 3 <= from->argv->len);
+          const char *from_src = from->argv->pdata[i + 1];
+          const char *from_dest = from->argv->pdata[i + 2];
+
+          /* If we're using FEX-Emu or similar, Flatpak code might think it
+           * has found a particular file either because it's in the rootfs,
+           * or because it's in the real root filesystem.
+           * If it exists in FEX rootfs, we add an additional mount entry
+           * where the source is from the FEX rootfs and the destination is
+           * prefixed with the pressure-vessel interpreter root location. */
+          if (interpreter_root != NULL
+              && _srt_sysroot_test (interpreter_root, from_src,
+                                    SRT_RESOLVE_FLAGS_NONE, NULL))
+            {
+              g_autofree gchar *inter_src = g_build_filename (interpreter_root->path,
+                                                              from_src, NULL);
+              g_autofree gchar *inter_dest = g_build_filename (PV_RUNTIME_PATH_INTERPRETER_ROOT,
+                                                               from_dest, NULL);
+
+              g_debug ("Adjusted \"%s\" to \"%s\" and \"%s\" to \"%s\" for the interpreter root",
+                       from_src, inter_src, from_dest, inter_dest);
+              g_debug ("%s %s %s", opt, inter_src, inter_dest);
+              flatpak_bwrap_add_args (to, opt, inter_src, inter_dest, NULL);
+            }
+
+          if (interpreter_root == NULL
+              || _srt_sysroot_test (root, from_src,
+                                    SRT_RESOLVE_FLAGS_NONE, NULL))
+            {
+              g_autofree gchar *src = NULL;
+              /* Paths in the home directory might need adjusting.
+               * Paths outside the home directory do not: if they're part of
+               * /run/host, they've been adjusted already by
+               * flatpak_exports_take_host_fd(), and if not, they appear in
+               * the container with the same path as on the host. */
+              if (flatpak_has_path_prefix (from_src, home))
+                {
+                  src = pv_current_namespace_path_to_host_path (from_src);
+
+                  if (!g_str_equal (from_src, src))
+                    g_debug ("Adjusted \"%s\" to \"%s\" to be reachable from host",
+                             from_src, src);
+                }
+              else
+                {
+                  src = g_strdup (from_src);
+                }
+
+              g_debug ("%s %s %s", opt, src, from_dest);
+              flatpak_bwrap_add_args (to, opt, src, from_dest, NULL);
+            }
+
+          i += 3;
+        }
+      else if (g_str_equal (opt, "--perms"))
+        {
+          g_assert (i + 2 <= from->argv->len);
+          const char *perms = from->argv->pdata[i + 1];
+          /* pdata[i + 1] is a non-path: unchanged. */
+          g_debug ("%s %s",
+                   opt,
+                   (const char *) from->argv->pdata[i + 1]);
+
+          /* A system copy of bubblewrap older than 0.5.0
+           * (Debian 11 or older) won't support --perms. Fall back to
+           * creating mount-points with the default permissions if
+           * necessary. */
+          if (bwrap_flags & PV_BWRAP_FLAGS_HAS_PERMS)
+            flatpak_bwrap_add_args (to, opt, perms, NULL);
+          else
+            g_debug ("Ignoring \"--perms %s\" because bwrap is too old",
+                     perms);
+
+          i += 2;
+        }
+      else
+        {
+          g_return_val_if_reached (FALSE);
+        }
+    }
+
+  return TRUE;
 }
