@@ -1,3 +1,9 @@
+steam-runtime-tools (0.20231107.1) steamrt; urgency=medium
+
+  * Fix internal version information
+
+ -- Simon McVittie <smcv@collabora.com>  Tue, 07 Nov 2023 14:03:21 +0000
+
 steam-runtime-tools (0.20231107.0) steamrt; urgency=medium
 
   * All CLI tools: Consistently unblock and unignore signals during startup
