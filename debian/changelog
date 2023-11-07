@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20231101.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20231107.0) steamrt; urgency=medium
 
   * All CLI tools: Consistently unblock and unignore signals during startup
     (steamrt/tasks#354)
@@ -39,7 +39,7 @@ steam-runtime-tools (0.20231101.0) UNRELEASED; urgency=medium
     - Fix test failure with a custom value for LC_ADDRESS
     - Remove unused imports
 
- -- Simon McVittie <smcv@collabora.com>  Thu, 02 Nov 2023 13:00:33 +0000
+ -- Simon McVittie <smcv@collabora.com>  Tue, 07 Nov 2023 12:10:59 +0000
 
 steam-runtime-tools (0.20231013.1) steamrt; urgency=medium
 
