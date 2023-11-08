@@ -8,6 +8,21 @@
 #include "steam-runtime-tools/enums.h"
 #include "steam-runtime-tools/utils-internal.h"
 
+/* Enabling debug logging for this is rather too verbose, so only
+ * enable it when actively debugging this module */
+#if 0
+#define trace(...) g_debug (__VA_ARGS__)
+#else
+#define trace(...) do { } while (0)
+#endif
+
+static void
+gstring_free0 (GString *str)
+{
+  if (str != NULL)
+    g_string_free (str, TRUE);
+}
+
 struct _SrtCompletedSubprocess
 {
   GObject parent;
@@ -216,6 +231,246 @@ gchar *
 _srt_completed_subprocess_steal_stderr (SrtCompletedSubprocess *self)
 {
   return g_steal_pointer (&self->err);
+}
+
+typedef struct
+{
+  /* Thread safety: Not thread safe.
+   * All members must only be accessed from the thread where it was created. */
+  GString *out;
+  GString *err;
+  GError *error;
+  GMainContext *completing_context;
+  SrtHelperFlags flags;
+  SrtSubprocessOutput out_mode;
+  SrtSubprocessOutput err_mode;
+  GPid pid;
+  int wait_status;
+  int stdout_fd;
+  int stderr_fd;
+} SrtSubprocess;
+
+#define SRT_SUBPROCESS_INIT \
+{ .wait_status = -1, .stdout_fd = -1, .stderr_fd = -1 }
+
+static void
+_srt_subprocess_clear (SrtSubprocess *self)
+{
+  glnx_close_fd (&self->stdout_fd);
+  glnx_close_fd (&self->stderr_fd);
+  gstring_free0 (self->out);
+  gstring_free0 (self->err);
+  g_clear_pointer (&self->completing_context, g_main_context_unref);
+}
+
+static void
+_srt_subprocess_free (void *self)
+{
+  _srt_subprocess_clear (self);
+  g_free (self);
+}
+
+G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC (SrtSubprocess, _srt_subprocess_clear)
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (SrtSubprocess, _srt_subprocess_free)
+
+/*
+ * Return %TRUE if @self has completed successfully or might still complete
+ * successfully in future. Return %FALSE with error if it already failed.
+ */
+static gboolean
+_srt_subprocess_check_no_error (SrtSubprocess *self,
+                                GError **error)
+{
+  if (self->error != NULL)
+    {
+      g_set_error_literal (error, self->error->domain, self->error->code,
+                           self->error->message);
+      return FALSE;
+    }
+
+  return TRUE;
+}
+
+/* Read from stdout or stderr into one of the internal buffers */
+static gboolean
+_srt_subprocess_read (SrtSubprocess *self,
+                      const char *label,
+                      GString *string,
+                      int *fd_p)
+{
+  char buf[1024];
+  ssize_t len;
+
+  trace ("Data available on process %d %s", self->pid, label);
+
+  len = read (*fd_p, buf, sizeof (buf));
+
+  if (len < 0)
+    {
+      g_autoptr(GError) error = NULL;
+      int saved_errno = errno;
+
+      if (saved_errno == EAGAIN)
+        return G_SOURCE_CONTINUE;
+
+      error = g_error_new (G_IO_ERROR,
+                           g_io_error_from_errno (saved_errno),
+                           "Error reading from subprocess %d %s: %s",
+                           self->pid, label, g_strerror (saved_errno));
+
+      g_debug ("%s", error->message);
+
+      if (self->error == NULL)
+        self->error = g_steal_pointer (&error);
+
+      glnx_close_fd (fd_p);
+      return G_SOURCE_REMOVE;   /* Destroys the source */
+    }
+  else if (len == 0)
+    {
+      trace ("EOF reading from subprocess %d %s", self->pid, label);
+      glnx_close_fd (fd_p);
+      return G_SOURCE_REMOVE;   /* Destroys the source */
+    }
+  else
+    {
+      trace ("%zd bytes from subprocess %d %s",
+             len, self->pid, label);
+      g_string_append_len (string, buf, len);
+      return G_SOURCE_CONTINUE;
+    }
+}
+
+static gboolean
+_srt_subprocess_read_stdout_cb (int fd,
+                                GIOCondition condition,
+                                void *user_data)
+{
+  SrtSubprocess *self = user_data;
+
+  return _srt_subprocess_read (self, "stdout", self->out, &self->stdout_fd);
+}
+
+static gboolean
+_srt_subprocess_read_stderr_cb (int fd,
+                                GIOCondition condition,
+                                void *user_data)
+{
+  SrtSubprocess *self = user_data;
+
+  return _srt_subprocess_read (self, "stderr", self->err, &self->stderr_fd);
+}
+
+/* Iterate @completing_context until everything has been read from stdout
+ * and/or stderr */
+static void
+_srt_subprocess_read_pipes (SrtSubprocess *self)
+{
+  g_autoptr(GSource) stdout_source = NULL;
+  g_autoptr(GSource) stderr_source = NULL;
+
+  if (self->stdout_fd >= 0)
+    {
+      g_assert (self->out != NULL);
+      stdout_source = g_unix_fd_source_new (self->stdout_fd, G_IO_IN);
+      g_source_set_callback (stdout_source,
+                             G_SOURCE_FUNC (_srt_subprocess_read_stdout_cb),
+                             self, NULL);
+      g_source_set_name (stdout_source, "read child process stdout");
+      g_source_attach (stdout_source, self->completing_context);
+    }
+
+  if (self->stderr_fd >= 0)
+    {
+      g_assert (self->err != NULL);
+      stderr_source = g_unix_fd_source_new (self->stderr_fd, G_IO_IN);
+      g_source_set_callback (stderr_source,
+                             G_SOURCE_FUNC (_srt_subprocess_read_stderr_cb),
+                             self, NULL);
+      g_source_set_name (stderr_source, "read child process stderr");
+      g_source_attach (stderr_source, self->completing_context);
+    }
+
+  /* Each fd is closed and cleared when error or EOF is reached */
+  while (self->stdout_fd >= 0 || self->stderr_fd >= 0)
+    g_main_context_iteration (self->completing_context, TRUE);
+
+  g_assert (stdout_source == NULL || g_source_is_destroyed (stdout_source));
+  g_assert (stderr_source == NULL || g_source_is_destroyed (stderr_source));
+}
+
+static void
+_srt_subprocess_waitpid (SrtSubprocess *self,
+                         int waitpid_flags)
+{
+  pid_t pid;
+
+  g_return_if_fail (self->pid > 0);
+  pid = TEMP_FAILURE_RETRY (waitpid (self->pid,
+                                     &self->wait_status,
+                                     waitpid_flags));
+
+  if (pid < 0)
+    {
+      int saved_errno = errno;
+
+      g_assert (self->error == NULL);
+      self->error = g_error_new (G_IO_ERROR,
+                                 g_io_error_from_errno (saved_errno),
+                                 "Error waiting for subprocess %d: %s",
+                                 self->pid, g_strerror (saved_errno));
+      g_debug ("%s", self->error->message);
+      self->wait_status = -1;
+    }
+
+  if (pid == 0)
+    {
+      if (waitpid_flags & WNOHANG)
+        return;
+
+      /* waitpid() should never return 0 otherwise */
+      g_return_if_reached ();
+    }
+
+  /* The child process no longer exists, so we must not kill it */
+  self->pid = 0;
+}
+
+/* Similar to g_subprocess_communicate() */
+static void
+_srt_subprocess_complete_sync (SrtSubprocess *self)
+{
+  g_return_if_fail (self->completing_context == NULL);
+  self->completing_context = g_main_context_new ();
+
+  g_main_context_push_thread_default (self->completing_context);
+    {
+      _srt_subprocess_read_pipes (self);
+
+      /* This will block, but that's OK: this function is blocking, and
+       * we are not yet handling the timeouts here */
+      _srt_subprocess_waitpid (self, 0);
+    }
+  g_main_context_pop_thread_default (self->completing_context);
+}
+
+static SrtCompletedSubprocess *
+_srt_completed_subprocess_new_from_subprocess (SrtSubprocess *self)
+{
+  g_autoptr(SrtCompletedSubprocess) completed = _srt_completed_subprocess_new ();
+
+  completed->flags = self->flags;
+  completed->out_mode = self->out_mode;
+  completed->err_mode = self->err_mode;
+  completed->wait_status = self->wait_status;
+
+  if (self->out != NULL)
+    completed->out = g_string_free (g_steal_pointer (&self->out), FALSE);
+
+  if (self->err != NULL)
+    completed->err = g_string_free (g_steal_pointer (&self->err), FALSE);
+
+  return g_steal_pointer (&completed);
 }
 
 struct _SrtSubprocessRunner
@@ -522,19 +777,19 @@ _srt_subprocess_runner_get_helper (SrtSubprocessRunner *self,
   return argv;
 }
 
-SrtCompletedSubprocess *
-_srt_subprocess_runner_run_sync (SrtSubprocessRunner *self,
-                                 SrtHelperFlags flags,
-                                 const char * const *argv,
-                                 SrtSubprocessOutput stdout_mode,
-                                 SrtSubprocessOutput stderr_mode,
-                                 GError **error)
+static gboolean
+_srt_subprocess_runner_spawn (SrtSubprocessRunner *self,
+                              SrtHelperFlags flags,
+                              const char * const *argv,
+                              SrtSubprocessOutput stdout_mode,
+                              SrtSubprocessOutput stderr_mode,
+                              SrtSubprocess *subprocess,
+                              GError **error)
 {
-  g_autoptr(SrtCompletedSubprocess) completed = _srt_completed_subprocess_new ();
   g_auto(GStrv) my_environ = NULL;
-  GSpawnFlags spawn_flags = G_SPAWN_DEFAULT;
-  gchar **stdout_out = NULL;
-  gchar **stderr_out = NULL;
+  GSpawnFlags spawn_flags = G_SPAWN_DO_NOT_REAP_CHILD;
+  int *stdout_fdp = NULL;
+  int *stderr_fdp = NULL;
 
   if (flags & SRT_HELPER_FLAGS_LIBGL_VERBOSE)
     {
@@ -544,19 +799,20 @@ _srt_subprocess_runner_run_sync (SrtSubprocessRunner *self,
       my_environ = g_environ_setenv (my_environ, "LIBGL_DEBUG", "verbose", TRUE);
     }
 
-  completed->flags = flags;
-  completed->out_mode = stdout_mode;
-  completed->err_mode = stderr_mode;
-
   /* When prepending timeout(1) to argv, we always need to search PATH */
   if (flags & (SRT_HELPER_FLAGS_TIME_OUT | SRT_HELPER_FLAGS_SEARCH_PATH))
     spawn_flags |= G_SPAWN_SEARCH_PATH;
+
+  subprocess->flags = flags;
+  subprocess->out_mode = stdout_mode;
+  subprocess->err_mode = stderr_mode;
 
   switch (stdout_mode)
     {
       case SRT_SUBPROCESS_OUTPUT_CAPTURE:
       case SRT_SUBPROCESS_OUTPUT_CAPTURE_DEBUG:
-        stdout_out = &completed->out;
+        subprocess->out = g_string_new ("");
+        stdout_fdp = &subprocess->stdout_fd;
         break;
 
       case SRT_SUBPROCESS_OUTPUT_INHERIT:
@@ -574,7 +830,8 @@ _srt_subprocess_runner_run_sync (SrtSubprocessRunner *self,
     {
       case SRT_SUBPROCESS_OUTPUT_CAPTURE:
       case SRT_SUBPROCESS_OUTPUT_CAPTURE_DEBUG:
-        stderr_out = &completed->err;
+        subprocess->err = g_string_new ("");
+        stderr_fdp = &subprocess->stderr_fd;
         break;
 
       case SRT_SUBPROCESS_OUTPUT_INHERIT:
@@ -588,17 +845,38 @@ _srt_subprocess_runner_run_sync (SrtSubprocessRunner *self,
         g_return_val_if_reached (FALSE);
     }
 
-  if (!g_spawn_sync (NULL,        /* working directory */
-                     (gchar **) argv,
-                     my_environ != NULL ? my_environ : self->envp,
-                     spawn_flags,
-                     _srt_child_setup_unblock_signals,
-                     NULL,        /* user data */
-                     stdout_out,
-                     stderr_out,
-                     &completed->wait_status,
-                     error))
+  return g_spawn_async_with_pipes (NULL,        /* working directory */
+                                   (gchar **) argv,
+                                   my_environ != NULL ? my_environ : self->envp,
+                                   spawn_flags,
+                                   _srt_child_setup_unblock_signals,
+                                   NULL,        /* user data */
+                                   &subprocess->pid,
+                                   NULL,
+                                   stdout_fdp,
+                                   stderr_fdp,
+                                   error);
+}
+
+SrtCompletedSubprocess *
+_srt_subprocess_runner_run_sync (SrtSubprocessRunner *self,
+                                 SrtHelperFlags flags,
+                                 const char * const *argv,
+                                 SrtSubprocessOutput stdout_mode,
+                                 SrtSubprocessOutput stderr_mode,
+                                 GError **error)
+{
+  g_auto(SrtSubprocess) subprocess = SRT_SUBPROCESS_INIT;
+
+  if (!_srt_subprocess_runner_spawn (self,
+                                     flags, argv, stdout_mode, stderr_mode,
+                                     &subprocess, error))
     return NULL;
 
-  return g_steal_pointer (&completed);
+  _srt_subprocess_complete_sync (&subprocess);
+
+  if (!_srt_subprocess_check_no_error (&subprocess, error))
+    return NULL;
+
+  return _srt_completed_subprocess_new_from_subprocess (&subprocess);
 }
