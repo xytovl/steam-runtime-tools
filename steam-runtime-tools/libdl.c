@@ -54,9 +54,9 @@ _srt_libdl_run_helper (SrtSubprocessRunner *runner,
     multiarch_tuple = _SRT_MULTIARCH;
 #endif
 
-  argv = _srt_get_helper (_srt_subprocess_runner_get_helpers_path (runner),
-                          multiarch_tuple, helper_name,
-                          SRT_HELPER_FLAGS_NONE, error);
+  argv = _srt_subprocess_runner_get_helper (runner, multiarch_tuple,
+                                            helper_name, SRT_HELPER_FLAGS_NONE,
+                                            error);
 
   if (argv == NULL)
     return NULL;

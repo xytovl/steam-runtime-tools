@@ -53,11 +53,11 @@ _initial_capsule_capture_libs_argv (SrtSysroot *sysroot,
                                     GError **error)
 {
   GPtrArray *argv = NULL;
-  const char *helpers_path;
 
-  helpers_path = _srt_subprocess_runner_get_helpers_path (runner);
-  argv = _srt_get_helper (helpers_path, multiarch_tuple, "capsule-capture-libs",
-                          SRT_HELPER_FLAGS_SEARCH_PATH, error);
+  argv = _srt_subprocess_runner_get_helper (runner, multiarch_tuple,
+                                            "capsule-capture-libs",
+                                            SRT_HELPER_FLAGS_SEARCH_PATH,
+                                            error);
 
   if (argv == NULL)
     return NULL;

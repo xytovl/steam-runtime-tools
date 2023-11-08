@@ -47,3 +47,17 @@ const char * const *_srt_subprocess_runner_get_environ (SrtSubprocessRunner *sel
 const char *_srt_subprocess_runner_getenv (SrtSubprocessRunner *self, const char *var);
 const char *_srt_subprocess_runner_get_helpers_path (SrtSubprocessRunner *self);
 SrtTestFlags _srt_subprocess_runner_get_test_flags (SrtSubprocessRunner *self);
+
+typedef enum
+{
+  SRT_HELPER_FLAGS_SEARCH_PATH = (1 << 0),
+  SRT_HELPER_FLAGS_TIME_OUT = (1 << 1),
+  SRT_HELPER_FLAGS_TIME_OUT_SOONER = (1 << 2),
+  SRT_HELPER_FLAGS_NONE = 0
+} SrtHelperFlags;
+
+GPtrArray *_srt_subprocess_runner_get_helper (SrtSubprocessRunner *self,
+                                              const char *multiarch,
+                                              const char *base,
+                                              SrtHelperFlags flags,
+                                              GError **error);

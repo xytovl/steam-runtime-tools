@@ -1,5 +1,5 @@
 /*
- * Copyright © 2023 Collabora Ltd.
+ * Copyright © 2019-2023 Collabora Ltd.
  * SPDX-License-Identifier: MIT
  */
 
@@ -191,4 +191,118 @@ _srt_subprocess_runner_get_test_flags (SrtSubprocessRunner *self)
 {
   g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (self), SRT_TEST_FLAGS_NONE);
   return self->test_flags;
+}
+
+/*
+ * _srt_subprocess_runner_get_helper:
+ * @runner: The execution environment
+ * @multiarch: (nullable): A multiarch tuple like %SRT_ABI_I386 to prefix
+ *  to the executable name, or %NULL
+ * @base: (not nullable): Base name of the executable
+ * @flags: Flags affecting how we set up the helper
+ * @error: Used to raise an error if %NULL is returned
+ *
+ * Find a helper executable. We return an array of arguments so that the
+ * helper can be wrapped by an "adverb" like `env`, `timeout` or a
+ * specific `ld.so` implementation if required.
+ *
+ * Returns: (nullable) (element-type filename) (transfer container): The
+ *  initial `argv` for the helper, with g_free() set as the free-function, and
+ *  no %NULL terminator. Free with g_ptr_array_unref() or g_ptr_array_free().
+ */
+GPtrArray *
+_srt_subprocess_runner_get_helper (SrtSubprocessRunner *self,
+                                   const char *multiarch,
+                                   const char *base,
+                                   SrtHelperFlags flags,
+                                   GError **error)
+{
+  const char *helpers_path;
+  GPtrArray *argv = NULL;
+  gchar *path;
+  gchar *prefixed;
+
+  g_return_val_if_fail (_srt_check_not_setuid (), NULL);
+  g_return_val_if_fail (base != NULL, NULL);
+  g_return_val_if_fail (error == NULL || *error == NULL, NULL);
+
+  argv = g_ptr_array_new_with_free_func (g_free);
+
+  if (g_getenv ("SNAP_DESKTOP_RUNTIME") != NULL)
+    {
+      g_debug ("Working around https://github.com/canonical/steam-snap/issues/17 by not using timeout(1)");
+    }
+  else if (flags & SRT_HELPER_FLAGS_TIME_OUT)
+    {
+      g_ptr_array_add (argv, g_strdup ("timeout"));
+      g_ptr_array_add (argv, g_strdup ("-s"));
+      g_ptr_array_add (argv, g_strdup ("TERM"));
+
+      if (flags & SRT_HELPER_FLAGS_TIME_OUT_SOONER)
+        {
+          /* Speed up the failing case in automated testing */
+          g_ptr_array_add (argv, g_strdup ("-k"));
+          g_ptr_array_add (argv, g_strdup ("1"));
+          g_ptr_array_add (argv, g_strdup ("1"));
+        }
+      else
+        {
+          /* Kill the helper (if still running) 3 seconds after the TERM
+           * signal */
+          g_ptr_array_add (argv, g_strdup ("-k"));
+          g_ptr_array_add (argv, g_strdup ("3"));
+          /* Send TERM signal after 10 seconds */
+          g_ptr_array_add (argv, g_strdup ("10"));
+        }
+    }
+
+  helpers_path = self->helpers_path;
+
+  if (helpers_path == NULL)
+    helpers_path = g_getenv ("SRT_HELPERS_PATH");
+
+  if (helpers_path == NULL
+      && _srt_find_myself (&helpers_path, error) == NULL)
+    {
+      g_ptr_array_unref (argv);
+      return NULL;
+    }
+
+  /* Prefer a helper from ${SRT_HELPERS_PATH} or
+   * ${libexecdir}/steam-runtime-tools-${_SRT_API_MAJOR}
+   * if it exists */
+  path = g_strdup_printf ("%s/%s%s%s",
+                          helpers_path,
+                          multiarch == NULL ? "" : multiarch,
+                          multiarch == NULL ? "" : "-",
+                          base);
+
+  g_debug ("Looking for %s", path);
+
+  if (g_file_test (path, G_FILE_TEST_IS_EXECUTABLE))
+    {
+      g_ptr_array_add (argv, g_steal_pointer (&path));
+      return argv;
+    }
+
+  if ((flags & SRT_HELPER_FLAGS_SEARCH_PATH) == 0)
+    {
+      g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND,
+                   "%s not found", path);
+      g_free (path);
+      g_ptr_array_unref (argv);
+      return NULL;
+    }
+
+  /* For helpers that are not part of steam-runtime-tools
+   * (historically this included *-wflinfo), we fall back to searching $PATH */
+  g_free (path);
+
+  if (multiarch == NULL)
+    prefixed = g_strdup (base);
+  else
+    prefixed = g_strdup_printf ("%s-%s", multiarch, base);
+
+  g_ptr_array_add (argv, g_steal_pointer (&prefixed));
+  return argv;
 }

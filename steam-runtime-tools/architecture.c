@@ -127,8 +127,9 @@ _srt_architecture_can_run (SrtSubprocessRunner *runner,
   g_return_val_if_fail (_srt_check_not_setuid (), FALSE);
 
   envp = _srt_subprocess_runner_get_environ (runner);
-  argv = _srt_get_helper (_srt_subprocess_runner_get_helpers_path (runner),
-                          multiarch, "true", SRT_HELPER_FLAGS_NONE, &error);
+  argv = _srt_subprocess_runner_get_helper (runner, multiarch, "true",
+                                            SRT_HELPER_FLAGS_NONE, &error);
+
   if (argv == NULL)
     {
       g_debug ("%s", error->message);

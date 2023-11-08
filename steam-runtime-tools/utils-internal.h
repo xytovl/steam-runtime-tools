@@ -47,21 +47,8 @@
 #define _srt_compiler_has_feature(x) (0)
 #endif
 
-typedef enum
-{
-  SRT_HELPER_FLAGS_SEARCH_PATH = (1 << 0),
-  SRT_HELPER_FLAGS_TIME_OUT = (1 << 1),
-  SRT_HELPER_FLAGS_TIME_OUT_SOONER = (1 << 2),
-  SRT_HELPER_FLAGS_NONE = 0
-} SrtHelperFlags;
-
 G_GNUC_INTERNAL gboolean _srt_check_not_setuid (void);
 
-G_GNUC_INTERNAL GPtrArray *_srt_get_helper (const char *helpers_path,
-                                            const char *multiarch,
-                                            const char *base,
-                                            SrtHelperFlags flags,
-                                            GError **error);
 G_GNUC_INTERNAL gchar *_srt_filter_gameoverlayrenderer (const gchar *input);
 G_GNUC_INTERNAL gchar **_srt_filter_gameoverlayrenderer_from_envp (const char * const *envp);
 G_GNUC_INTERNAL const char *_srt_find_myself (const char **helpers_path_out,

@@ -516,9 +516,9 @@ _srt_check_xdg_portals (SrtSubprocessRunner *runner,
   if (_srt_subprocess_runner_get_test_flags (runner) & SRT_TEST_FLAGS_TIME_OUT_SOONER)
     helper_flags |= SRT_HELPER_FLAGS_TIME_OUT_SOONER;
 
-  argv = _srt_get_helper (_srt_subprocess_runner_get_helpers_path (runner),
-                          multiarch_tuple, "check-xdg-portal",
-                          helper_flags, &local_error);
+  argv = _srt_subprocess_runner_get_helper (runner, multiarch_tuple,
+                                            "check-xdg-portal", helper_flags,
+                                            &local_error);
 
   if (argv == NULL)
     {

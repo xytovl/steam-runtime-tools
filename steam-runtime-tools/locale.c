@@ -216,7 +216,6 @@ _srt_check_locale (SrtSubprocessRunner *runner,
   GStrv my_environ = NULL;
   int exit_status;
   const char * const *envp;
-  const char *helpers_path;
 
   g_return_val_if_fail (error == NULL || *error == NULL, NULL);
   g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (runner), NULL);
@@ -228,9 +227,10 @@ _srt_check_locale (SrtSubprocessRunner *runner,
     multiarch_tuple = _SRT_MULTIARCH;
 #endif
 
-  helpers_path = _srt_subprocess_runner_get_helpers_path (runner);
-  argv = _srt_get_helper (helpers_path, multiarch_tuple, "check-locale",
-                          SRT_HELPER_FLAGS_NONE, error);
+  argv = _srt_subprocess_runner_get_helper (runner, multiarch_tuple,
+                                            "check-locale",
+                                            SRT_HELPER_FLAGS_NONE,
+                                            error);
 
   if (argv == NULL)
     goto out;

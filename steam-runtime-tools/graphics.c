@@ -976,11 +976,8 @@ _argv_for_graphics_test (SrtSubprocessRunner *runner,
   gchar *platformstring = NULL;
   SrtHelperFlags flags = (SRT_HELPER_FLAGS_TIME_OUT
                           | SRT_HELPER_FLAGS_SEARCH_PATH);
-  const char *helpers_path;
 
   g_assert (window_system != NULL);
-
-  helpers_path = _srt_subprocess_runner_get_helpers_path (runner);
 
   if (_srt_subprocess_runner_get_test_flags (runner) & SRT_TEST_FLAGS_TIME_OUT_SOONER)
     flags |= SRT_HELPER_FLAGS_TIME_OUT_SOONER;
@@ -1060,8 +1057,9 @@ _argv_for_graphics_test (SrtSubprocessRunner *runner,
     {
       case SRT_RENDERING_INTERFACE_GL:
       case SRT_RENDERING_INTERFACE_GLESV2:
-        argv = _srt_get_helper (helpers_path, multiarch_tuple, "wflinfo", flags,
-                                error);
+        argv = _srt_subprocess_runner_get_helper (runner, multiarch_tuple,
+                                                  "wflinfo", flags,
+                                                  error);
 
         if (argv == NULL)
           goto out;
@@ -1077,8 +1075,9 @@ _argv_for_graphics_test (SrtSubprocessRunner *runner,
         break;
 
       case SRT_RENDERING_INTERFACE_VULKAN:
-        argv = _srt_get_helper (helpers_path, multiarch_tuple, "check-vulkan",
-                                flags, error);
+        argv = _srt_subprocess_runner_get_helper (runner, multiarch_tuple,
+                                                  "check-vulkan", flags,
+                                                  error);
 
         if (argv == NULL)
           goto out;
@@ -1086,8 +1085,9 @@ _argv_for_graphics_test (SrtSubprocessRunner *runner,
         break;
 
       case SRT_RENDERING_INTERFACE_VDPAU:
-        argv = _srt_get_helper (helpers_path, multiarch_tuple, "check-vdpau",
-                                flags, error);
+        argv = _srt_subprocess_runner_get_helper (runner, multiarch_tuple,
+                                                  "check-vdpau", flags,
+                                                  error);
 
         if (argv == NULL)
           goto out;
@@ -1096,8 +1096,9 @@ _argv_for_graphics_test (SrtSubprocessRunner *runner,
         break;
 
       case SRT_RENDERING_INTERFACE_VAAPI:
-        argv = _srt_get_helper (helpers_path, multiarch_tuple, "check-va-api",
-                                flags, error);
+        argv = _srt_subprocess_runner_get_helper (runner, multiarch_tuple,
+                                                  "check-va-api", flags,
+                                                  error);
 
         if (argv == NULL)
           goto out;
@@ -1124,15 +1125,13 @@ _argv_for_check_gl (SrtSubprocessRunner *runner,
 {
   GPtrArray *argv;
   SrtHelperFlags flags = SRT_HELPER_FLAGS_TIME_OUT;
-  const char *helpers_path;
-
-  helpers_path = _srt_subprocess_runner_get_helpers_path (runner);
 
   if (_srt_subprocess_runner_get_test_flags (runner) & SRT_TEST_FLAGS_TIME_OUT_SOONER)
     flags |= SRT_HELPER_FLAGS_TIME_OUT_SOONER;
 
-  argv = _srt_get_helper (helpers_path, multiarch_tuple, "check-gl",
-                          flags, error);
+  argv = _srt_subprocess_runner_get_helper (runner, multiarch_tuple,
+                                            "check-gl", flags,
+                                            error);
 
   if (argv == NULL)
     return NULL;

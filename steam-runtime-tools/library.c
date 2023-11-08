@@ -975,7 +975,6 @@ _srt_check_library_presence (SrtSubprocessRunner *runner,
   g_autoptr(SrtLibrary) details = NULL;
   g_autoptr(SrtLibrary) details_libelf = NULL;
   const gchar *library_absolute_path = NULL;
-  const char *helpers_path;
 
   g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (runner), SRT_LIBRARY_ISSUES_UNKNOWN);
   g_return_val_if_fail (requested_name != NULL, SRT_LIBRARY_ISSUES_UNKNOWN);
@@ -987,9 +986,9 @@ _srt_check_library_presence (SrtSubprocessRunner *runner,
   if (symbols_path == NULL)
     issues |= SRT_LIBRARY_ISSUES_UNKNOWN_EXPECTATIONS;
 
-  helpers_path = _srt_subprocess_runner_get_helpers_path (runner);
-  argv = _srt_get_helper (helpers_path, multiarch, "inspect-library",
-                          flags, &error);
+  argv = _srt_subprocess_runner_get_helper (runner, multiarch,
+                                            "inspect-library", flags,
+                                            &error);
 
   if (argv == NULL)
     {
@@ -1035,10 +1034,9 @@ _srt_check_library_presence (SrtSubprocessRunner *runner,
     }
 
   library_absolute_path = srt_library_get_absolute_path (details);
-
-  argv_libelf = _srt_get_helper (helpers_path, multiarch,
-                                 "inspect-library-libelf",
-                                 flags, &error);
+  argv_libelf = _srt_subprocess_runner_get_helper (runner, multiarch,
+                                                   "inspect-library-libelf", flags,
+                                                   &error);
 
   if (argv_libelf == NULL)
     {
