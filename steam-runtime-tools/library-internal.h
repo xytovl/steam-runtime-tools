@@ -28,6 +28,7 @@
 
 #include "steam-runtime-tools/library.h"
 
+#include "steam-runtime-tools/subprocess-internal.h"
 #include "steam-runtime-tools/system-info-internal.h"
 
 /*
@@ -103,12 +104,11 @@ _srt_library_new (const char *multiarch_tuple,
 #endif
 
 G_GNUC_INTERNAL
-SrtLibraryIssues _srt_check_library_presence (const char *helpers_path,
+SrtLibraryIssues _srt_check_library_presence (SrtSubprocessRunner *runner,
                                               const char *requested_name,
                                               const char *multiarch,
                                               const char *symbols_path,
                                               const char * const *hidden_deps,
                                               SrtCheckFlags check_flags,
-                                              const char * const *envp,
                                               SrtLibrarySymbolsFormat symbols_format,
                                               SrtLibrary **more_details_out);

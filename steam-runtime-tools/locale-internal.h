@@ -26,6 +26,7 @@
 
 #pragma once
 
+#include "steam-runtime-tools/subprocess-internal.h"
 #include "steam-runtime-tools/steam-runtime-tools.h"
 
 #include <json-glib/json-glib.h>
@@ -55,8 +56,7 @@ _srt_locale_new (const char *requested_name,
 }
 
 G_GNUC_INTERNAL
-SrtLocale *_srt_check_locale (const char * const *envp,
-                              const char *helpers_path,
+SrtLocale *_srt_check_locale (SrtSubprocessRunner *runner,
                               const char *multiarch_tuple,
                               const char *requested_name,
                               GError **error);

@@ -116,6 +116,8 @@ libsteamrt_internals = [
     'simple-input-device-internal.h',
     'simple-input-device.c',
     'steam-internal.h',
+    'subprocess-internal.h',
+    'subprocess.c',
     'system-info-internal.h',
     'udev-input-device-internal.h',
     'udev-input-device.c',

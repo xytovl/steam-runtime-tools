@@ -27,13 +27,13 @@
 #include <glib.h>
 #include <glib-object.h>
 
-G_GNUC_INTERNAL gchar *_srt_libdl_detect_platform (const char * const *envp,
-                                                   const char *helpers_path,
+#include "steam-runtime-tools/subprocess-internal.h"
+
+G_GNUC_INTERNAL gchar *_srt_libdl_detect_platform (SrtSubprocessRunner *runner,
                                                    const char *multiarch_tuple,
                                                    GError **error);
 
-G_GNUC_INTERNAL gchar *_srt_libdl_detect_lib (const char * const *envp,
-                                              const char *helpers_path,
+G_GNUC_INTERNAL gchar *_srt_libdl_detect_lib (SrtSubprocessRunner *runner,
                                               const char *multiarch_tuple,
                                               GError **error);
 

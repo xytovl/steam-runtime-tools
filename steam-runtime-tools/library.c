@@ -658,9 +658,10 @@ srt_check_library_presence (const char *requested_name,
                             SrtLibrarySymbolsFormat symbols_format,
                             SrtLibrary **more_details_out)
 {
-  return _srt_check_library_presence (NULL, requested_name, multiarch,
+  g_autoptr(SrtSubprocessRunner) runner = _srt_subprocess_runner_new ();
+
+  return _srt_check_library_presence (runner, requested_name, multiarch,
                                       symbols_path, NULL, SRT_CHECK_FLAGS_NONE,
-                                      _srt_peek_environ_nonnull (),
                                       symbols_format, more_details_out);
 }
 
@@ -953,13 +954,12 @@ _srt_add_inspect_library_arguments (GPtrArray *argv,
 }
 
 SrtLibraryIssues
-_srt_check_library_presence (const char *helpers_path,
+_srt_check_library_presence (SrtSubprocessRunner *runner,
                              const char *requested_name,
                              const char *multiarch,
                              const char *symbols_path,
                              const char * const *hidden_deps,
                              SrtCheckFlags check_flags,
-                             const char * const *envp,
                              SrtLibrarySymbolsFormat symbols_format,
                              SrtLibrary **more_details_out)
 {
@@ -973,17 +973,21 @@ _srt_check_library_presence (const char *helpers_path,
   g_autoptr(SrtLibrary) details = NULL;
   g_autoptr(SrtLibrary) details_libelf = NULL;
   const gchar *library_absolute_path = NULL;
+  const char * const *envp;
+  const char *helpers_path;
 
+  g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (runner), SRT_LIBRARY_ISSUES_UNKNOWN);
   g_return_val_if_fail (requested_name != NULL, SRT_LIBRARY_ISSUES_UNKNOWN);
   g_return_val_if_fail (multiarch != NULL, SRT_LIBRARY_ISSUES_UNKNOWN);
   g_return_val_if_fail (more_details_out == NULL || *more_details_out == NULL,
                         SRT_LIBRARY_ISSUES_UNKNOWN);
-  g_return_val_if_fail (envp != NULL, SRT_LIBRARY_ISSUES_UNKNOWN);
   g_return_val_if_fail (_srt_check_not_setuid (), SRT_LIBRARY_ISSUES_UNKNOWN);
 
   if (symbols_path == NULL)
     issues |= SRT_LIBRARY_ISSUES_UNKNOWN_EXPECTATIONS;
 
+  envp = _srt_subprocess_runner_get_environ (runner);
+  helpers_path = _srt_subprocess_runner_get_helpers_path (runner);
   argv = _srt_get_helper (helpers_path, multiarch, "inspect-library",
                           flags, &error);
 

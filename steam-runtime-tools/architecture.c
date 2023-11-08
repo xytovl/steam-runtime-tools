@@ -112,8 +112,7 @@ _srt_architecture_get_known (void)
 }
 
 gboolean
-_srt_architecture_can_run (const char * const *envp,
-                           const char *helpers_path,
+_srt_architecture_can_run (SrtSubprocessRunner *runner,
                            const char *multiarch)
 {
   GPtrArray *argv = NULL;
@@ -121,13 +120,15 @@ _srt_architecture_can_run (const char * const *envp,
   GError *error = NULL;
   gboolean ret = FALSE;
   GStrv my_environ = NULL;
+  const char * const *envp;
 
-  g_return_val_if_fail (envp != NULL, FALSE);
+  g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (runner), FALSE);
   g_return_val_if_fail (multiarch != NULL, FALSE);
   g_return_val_if_fail (_srt_check_not_setuid (), FALSE);
 
-  argv = _srt_get_helper (helpers_path, multiarch, "true",
-                          SRT_HELPER_FLAGS_NONE, &error);
+  envp = _srt_subprocess_runner_get_environ (runner);
+  argv = _srt_get_helper (_srt_subprocess_runner_get_helpers_path (runner),
+                          multiarch, "true", SRT_HELPER_FLAGS_NONE, &error);
   if (argv == NULL)
     {
       g_debug ("%s", error->message);
@@ -143,7 +144,7 @@ _srt_architecture_can_run (const char * const *envp,
 
   if (!g_spawn_sync (NULL,       /* working directory */
                      (gchar **) argv->pdata,
-                     (gchar **) my_environ,
+                     my_environ, /* envp */
                      0,          /* flags */
                      _srt_child_setup_unblock_signals,
                      NULL,       /* user data */
@@ -197,8 +198,9 @@ out:
 gboolean
 srt_architecture_can_run_i386 (void)
 {
-  return _srt_architecture_can_run (_srt_peek_environ_nonnull (),
-                                    NULL, SRT_ABI_I386);
+  g_autoptr(SrtSubprocessRunner) runner = _srt_subprocess_runner_new ();
+
+  return _srt_architecture_can_run (runner, SRT_ABI_I386);
 }
 
 /**
@@ -216,8 +218,9 @@ srt_architecture_can_run_i386 (void)
 gboolean
 srt_architecture_can_run_x86_64 (void)
 {
-  return _srt_architecture_can_run (_srt_peek_environ_nonnull (),
-                                    NULL, SRT_ABI_X86_64);
+  g_autoptr(SrtSubprocessRunner) runner = _srt_subprocess_runner_new ();
+
+  return _srt_architecture_can_run (runner, SRT_ABI_X86_64);
 }
 
 /**

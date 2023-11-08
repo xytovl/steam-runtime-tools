@@ -965,8 +965,7 @@ _srt_process_check_vulkan_info (JsonNode *node,
  * @window_system: (not optional) (inout):
  */
 static GPtrArray *
-_argv_for_graphics_test (const char *helpers_path,
-                         SrtTestFlags test_flags,
+_argv_for_graphics_test (SrtSubprocessRunner *runner,
                          const char *multiarch_tuple,
                          SrtWindowSystem *window_system,
                          SrtRenderingInterface rendering_interface,
@@ -977,10 +976,13 @@ _argv_for_graphics_test (const char *helpers_path,
   gchar *platformstring = NULL;
   SrtHelperFlags flags = (SRT_HELPER_FLAGS_TIME_OUT
                           | SRT_HELPER_FLAGS_SEARCH_PATH);
+  const char *helpers_path;
 
   g_assert (window_system != NULL);
 
-  if (test_flags & SRT_TEST_FLAGS_TIME_OUT_SOONER)
+  helpers_path = _srt_subprocess_runner_get_helpers_path (runner);
+
+  if (_srt_subprocess_runner_get_test_flags (runner) & SRT_TEST_FLAGS_TIME_OUT_SOONER)
     flags |= SRT_HELPER_FLAGS_TIME_OUT_SOONER;
 
   if (*window_system == SRT_WINDOW_SYSTEM_GLX)
@@ -1116,15 +1118,17 @@ out:
 }
 
 static GPtrArray *
-_argv_for_check_gl (const char *helpers_path,
-                    SrtTestFlags test_flags,
+_argv_for_check_gl (SrtSubprocessRunner *runner,
                     const char *multiarch_tuple,
                     GError **error)
 {
   GPtrArray *argv;
   SrtHelperFlags flags = SRT_HELPER_FLAGS_TIME_OUT;
+  const char *helpers_path;
 
-  if (test_flags & SRT_TEST_FLAGS_TIME_OUT_SOONER)
+  helpers_path = _srt_subprocess_runner_get_helpers_path (runner);
+
+  if (_srt_subprocess_runner_get_test_flags (runner) & SRT_TEST_FLAGS_TIME_OUT_SOONER)
     flags |= SRT_HELPER_FLAGS_TIME_OUT_SOONER;
 
   argv = _srt_get_helper (helpers_path, multiarch_tuple, "check-gl",
@@ -1139,7 +1143,7 @@ _argv_for_check_gl (const char *helpers_path,
 
 /**
  * _srt_check_library_vendor:
- * @envp: (not nullable): The environment
+ * @runner: The execution environment
  * @multiarch_tuple: A multiarch tuple to check e.g. i386-linux-gnu
  * @window_system: The window system to check.
  * @rendering_interface: The graphics renderer to check.
@@ -1164,7 +1168,7 @@ _argv_for_check_gl (const char *helpers_path,
  *  %SRT_RENDERING_INTERFACE_VULKAN or if there was a problem loading the library.
  */
 static SrtGraphicsLibraryVendor
-_srt_check_library_vendor (const char * const *envp,
+_srt_check_library_vendor (SrtSubprocessRunner *runner,
                            const char *multiarch_tuple,
                            SrtWindowSystem window_system,
                            SrtRenderingInterface rendering_interface)
@@ -1177,7 +1181,7 @@ _srt_check_library_vendor (const char * const *envp,
   gboolean have_libstdc_deps = FALSE;
   gboolean have_libxcb_deps = FALSE;
 
-  g_return_val_if_fail (envp != NULL, SRT_GRAPHICS_LIBRARY_VENDOR_UNKNOWN);
+  g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (runner), SRT_GRAPHICS_LIBRARY_VENDOR_UNKNOWN);
 
   /* Vulkan, VDPAU and VA-API are always vendor-neutral, so it doesn't make sense to check it.
    * We simply return SRT_GRAPHICS_LIBRARY_VENDOR_UNKNOWN */
@@ -1339,9 +1343,7 @@ _srt_run_helper (GStrv *my_environ,
 
 /**
  * _srt_check_graphics:
- * @envp: (not nullable): Used instead of `environ`
- * @helpers_path: An optional path to find wflinfo helpers, PATH is used if null.
- * @test_flags: Flags used during automated testing
+ * @runner: Execution environment
  * @multiarch_tuple: A multiarch tuple to check e.g. i386-linux-gnu
  * @winsys: The window system to check.
  * @renderer: The graphics renderer to check.
@@ -1353,9 +1355,7 @@ _srt_run_helper (GStrv *my_environ,
  *  if no problems were found
  */
 G_GNUC_INTERNAL SrtGraphicsIssues
-_srt_check_graphics (const char * const *envp,
-                     const char *helpers_path,
-                     SrtTestFlags test_flags,
+_srt_check_graphics (SrtSubprocessRunner *runner,
                      const char *multiarch_tuple,
                      SrtWindowSystem window_system,
                      SrtRenderingInterface rendering_interface,
@@ -1378,15 +1378,15 @@ _srt_check_graphics (const char * const *envp,
   g_auto(GStrv) json_output = NULL;
   g_autoptr(GPtrArray) graphics_device = g_ptr_array_new_with_free_func (g_object_unref);
   gsize i;
+  const char * const *envp;
 
+  g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (runner), SRT_GRAPHICS_ISSUES_UNKNOWN);
   g_return_val_if_fail (details_out == NULL || *details_out == NULL, SRT_GRAPHICS_ISSUES_UNKNOWN);
   g_return_val_if_fail (((unsigned) window_system) < SRT_N_WINDOW_SYSTEMS, SRT_GRAPHICS_ISSUES_UNKNOWN);
   g_return_val_if_fail (((unsigned) rendering_interface) < SRT_N_RENDERING_INTERFACES, SRT_GRAPHICS_ISSUES_UNKNOWN);
   g_return_val_if_fail (_srt_check_not_setuid (), SRT_GRAPHICS_ISSUES_UNKNOWN);
-  g_return_val_if_fail (envp != NULL, SRT_GRAPHICS_ISSUES_UNKNOWN);
 
-  GPtrArray *argv = _argv_for_graphics_test (helpers_path,
-                                             test_flags,
+  GPtrArray *argv = _argv_for_graphics_test (runner,
                                              multiarch_tuple,
                                              &window_system,
                                              rendering_interface,
@@ -1400,9 +1400,10 @@ _srt_check_graphics (const char * const *envp,
       goto out;
     }
 
+  envp = _srt_subprocess_runner_get_environ (runner);
   my_environ = _srt_filter_gameoverlayrenderer_from_envp (envp);
 
-  library_vendor = _srt_check_library_vendor (envp, multiarch_tuple,
+  library_vendor = _srt_check_library_vendor (runner, multiarch_tuple,
                                               window_system,
                                               rendering_interface);
 
@@ -1505,8 +1506,7 @@ _srt_check_graphics (const char * const *envp,
             g_ptr_array_unref (argv);
             g_clear_pointer (&output, g_free);
 
-            argv = _argv_for_check_gl (helpers_path,
-                                       test_flags,
+            argv = _argv_for_check_gl (runner,
                                        multiarch_tuple,
                                        &error);
 

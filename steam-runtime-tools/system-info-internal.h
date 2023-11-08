@@ -29,6 +29,7 @@
 #include "steam-runtime-tools/steam-runtime-tools.h"
 
 #include "steam-runtime-tools/resolve-in-sysroot-internal.h"
+#include "steam-runtime-tools/subprocess-internal.h"
 
 /*
  * SrtCheckFlags:
@@ -59,3 +60,6 @@ void _srt_system_info_set_check_flags (SrtSystemInfo *self,
 
 void _srt_system_info_set_sysroot (SrtSystemInfo *self,
                                    SrtSysroot *sysroot);
+
+void _srt_system_info_set_subprocess_runner (SrtSystemInfo *self,
+                                             SrtSubprocessRunner *runner);

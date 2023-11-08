@@ -719,11 +719,8 @@ _srt_graphics_get_vulkan_search_paths (SrtSysroot *sysroot,
 
 /*
  * _srt_load_vulkan_icds:
- * @helpers_path: (nullable): An optional path to find "inspect-library"
- *  helper, PATH is used if %NULL
  * @sysroot: (not nullable): The root directory, usually `/`
- * @envp: (array zero-terminated=1) (not nullable): Behave as though `environ` was this
- *  array
+ * @runner: The execution environment
  * @multiarch_tuples: (nullable): If not %NULL, and a Flatpak environment
  *  is detected, assume a freedesktop-sdk-based runtime and look for
  *  GL extensions for these multiarch tuples
@@ -741,12 +738,12 @@ _srt_graphics_get_vulkan_search_paths (SrtSysroot *sysroot,
  *  most-important first
  */
 GList *
-_srt_load_vulkan_icds (const char *helpers_path,
-                       SrtSysroot *sysroot,
-                       const char * const *envp,
+_srt_load_vulkan_icds (SrtSysroot *sysroot,
+                       SrtSubprocessRunner *runner,
                        const char * const *multiarch_tuples,
                        SrtCheckFlags check_flags)
 {
+  const char * const *envp;
   const gchar *value;
   gsize i;
   /* To avoid O(n**2) performance, we build this list in reverse order,
@@ -754,13 +751,14 @@ _srt_load_vulkan_icds (const char *helpers_path,
   GList *ret = NULL;
 
   g_return_val_if_fail (_srt_check_not_setuid (), NULL);
-  g_return_val_if_fail (envp != NULL, NULL);
   g_return_val_if_fail (SRT_IS_SYSROOT (sysroot), NULL);
+  g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (runner), NULL);
 
   /* Reference:
    * https://github.com/KhronosGroup/Vulkan-Loader/blob/v1.3.207/docs/LoaderDriverInterface.md#overriding-the-default-driver-discovery
    * https://github.com/KhronosGroup/Vulkan-Loader/pull/873
    */
+  envp = _srt_subprocess_runner_get_environ (runner);
   value = _srt_environ_getenv (envp, "VK_DRIVER_FILES");
 
   if (value == NULL)
@@ -803,7 +801,7 @@ _srt_load_vulkan_icds (const char *helpers_path,
     }
 
   if (!(check_flags & SRT_CHECK_FLAGS_SKIP_SLOW_CHECKS))
-    _srt_loadable_flag_duplicates (SRT_TYPE_VULKAN_ICD, envp, helpers_path,
+    _srt_loadable_flag_duplicates (SRT_TYPE_VULKAN_ICD, runner,
                                    multiarch_tuples, ret);
 
   return g_list_reverse (ret);
@@ -1659,11 +1657,8 @@ vulkan_layer_load_json_cb (SrtSysroot *sysroot,
 
 /*
  * _srt_load_vulkan_layers_extended:
- * @helpers_path: (nullable): An optional path to find "inspect-library"
- *  helper, PATH is used if %NULL
  * @sysroot: (not nullable): The root directory, usually `/`
- * @envp: (array zero-terminated=1) (not nullable): Behave as though `environ`
- *  was this array
+ * @runner: The execution environment
  * @multiarch_tuples: (nullable): If not %NULL, duplicated
  *  Vulkan layers are searched by their absolute path, obtained using
  *  'inspect-library' in the provided multiarch tuples, instead of just their
@@ -1678,9 +1673,8 @@ vulkan_layer_load_json_cb (SrtSysroot *sysroot,
  *  layers, most-important first
  */
 GList *
-_srt_load_vulkan_layers_extended (const char *helpers_path,
-                                  SrtSysroot *sysroot,
-                                  const char * const *envp,
+_srt_load_vulkan_layers_extended (SrtSysroot *sysroot,
+                                  SrtSubprocessRunner *runner,
                                   const char * const *multiarch_tuples,
                                   gboolean explicit,
                                   SrtCheckFlags check_flags)
@@ -1689,16 +1683,18 @@ _srt_load_vulkan_layers_extended (const char *helpers_path,
   g_auto(GStrv) search_paths = NULL;
   const gchar *value = NULL;
   const gchar *suffix;
+  const char * const *envp;
 
   g_return_val_if_fail (_srt_check_not_setuid (), NULL);
-  g_return_val_if_fail (envp != NULL, NULL);
   g_return_val_if_fail (SRT_IS_SYSROOT (sysroot), NULL);
+  g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (runner), NULL);
 
   if (explicit)
     suffix = _SRT_GRAPHICS_EXPLICIT_VULKAN_LAYER_SUFFIX;
   else
     suffix = _SRT_GRAPHICS_IMPLICIT_VULKAN_LAYER_SUFFIX;
 
+  envp = _srt_subprocess_runner_get_environ (runner);
   value = _srt_environ_getenv (envp, "VK_LAYER_PATH");
 
   /* As in the Vulkan-Loader implementation, implicit layers are not
@@ -1737,7 +1733,7 @@ _srt_load_vulkan_layers_extended (const char *helpers_path,
     }
 
   if (!(check_flags & SRT_CHECK_FLAGS_SKIP_SLOW_CHECKS))
-    _srt_loadable_flag_duplicates (SRT_TYPE_VULKAN_LAYER, envp, helpers_path,
+    _srt_loadable_flag_duplicates (SRT_TYPE_VULKAN_LAYER, runner,
                                    multiarch_tuples, ret);
 
   return g_list_reverse (ret);
@@ -1762,6 +1758,7 @@ _srt_load_vulkan_layers (const char *sysroot,
                          gboolean explicit)
 {
   g_autoptr(SrtSysroot) sysroot_object = NULL;
+  g_autoptr(SrtSubprocessRunner) runner = NULL;
   g_autoptr(GError) local_error = NULL;
 
   g_return_val_if_fail (sysroot != NULL, NULL);
@@ -1775,8 +1772,10 @@ _srt_load_vulkan_layers (const char *sysroot,
       return NULL;
     }
 
-  return _srt_load_vulkan_layers_extended (NULL, sysroot_object,
-                                           _srt_const_strv (envp), NULL,
+  runner = _srt_subprocess_runner_new_full (_srt_const_strv (envp),
+                                            NULL,
+                                            SRT_TEST_FLAGS_NONE);
+  return _srt_load_vulkan_layers_extended (sysroot_object, runner, NULL,
                                            explicit, SRT_CHECK_FLAGS_NONE);
 }
 

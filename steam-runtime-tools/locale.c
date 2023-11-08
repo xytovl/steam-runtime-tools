@@ -190,8 +190,7 @@ srt_locale_class_init (SrtLocaleClass *cls)
 
 /*
  * _srt_check_locale:
- * @envp: Environment variables
- * @helpers_path: Path to find helper executables
+ * @runner: Execution environment
  * @multiarch_tuple: Multiarch tuple of helper executable to use
  * @requested_name: The locale name to check for
  * @error: Used to return an error if %NULL is returned
@@ -204,8 +203,7 @@ srt_locale_class_init (SrtLocaleClass *cls)
  * Returns: (transfer full): A #SrtLocale object, or %NULL
  */
 SrtLocale *
-_srt_check_locale (const char * const *envp,
-                   const char *helpers_path,
+_srt_check_locale (SrtSubprocessRunner *runner,
                    const char *multiarch_tuple,
                    const char *requested_name,
                    GError **error)
@@ -217,9 +215,11 @@ _srt_check_locale (const char * const *envp,
   SrtLocale *ret = NULL;
   GStrv my_environ = NULL;
   int exit_status;
+  const char * const *envp;
+  const char *helpers_path;
 
   g_return_val_if_fail (error == NULL || *error == NULL, NULL);
-  g_return_val_if_fail (envp != NULL, NULL);
+  g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (runner), NULL);
   g_return_val_if_fail (requested_name != NULL, NULL);
   g_return_val_if_fail (_srt_check_not_setuid (), NULL);
 
@@ -228,12 +228,14 @@ _srt_check_locale (const char * const *envp,
     multiarch_tuple = _SRT_MULTIARCH;
 #endif
 
+  helpers_path = _srt_subprocess_runner_get_helpers_path (runner);
   argv = _srt_get_helper (helpers_path, multiarch_tuple, "check-locale",
                           SRT_HELPER_FLAGS_NONE, error);
 
   if (argv == NULL)
     goto out;
 
+  envp = _srt_subprocess_runner_get_environ (runner);
   my_environ = _srt_filter_gameoverlayrenderer_from_envp (envp);
 
   g_ptr_array_add (argv, g_strdup (requested_name));

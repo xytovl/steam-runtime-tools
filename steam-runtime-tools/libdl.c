@@ -30,8 +30,7 @@
 #include "steam-runtime-tools/utils-internal.h"
 
 static gchar *
-_srt_libdl_run_helper (const char * const *envp,
-                       const char *helpers_path,
+_srt_libdl_run_helper (SrtSubprocessRunner *runner,
                        const char *multiarch_tuple,
                        const char *helper_name,
                        GError **error)
@@ -43,8 +42,9 @@ _srt_libdl_run_helper (const char * const *envp,
   gint wait_status;
   int exit_status;
   gsize len;
+  const char * const *envp;
 
-  g_return_val_if_fail (envp != NULL, NULL);
+  g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (runner), NULL);
   g_return_val_if_fail (helper_name != NULL, NULL);
   g_return_val_if_fail (error == NULL || *error == NULL, NULL);
   g_return_val_if_fail (_srt_check_not_setuid (), NULL);
@@ -54,12 +54,14 @@ _srt_libdl_run_helper (const char * const *envp,
     multiarch_tuple = _SRT_MULTIARCH;
 #endif
 
-  argv = _srt_get_helper (helpers_path, multiarch_tuple, helper_name,
+  argv = _srt_get_helper (_srt_subprocess_runner_get_helpers_path (runner),
+                          multiarch_tuple, helper_name,
                           SRT_HELPER_FLAGS_NONE, error);
 
   if (argv == NULL)
     return NULL;
 
+  envp = _srt_subprocess_runner_get_environ (runner);
   my_environ = _srt_filter_gameoverlayrenderer_from_envp (envp);
 
   g_ptr_array_add (argv, NULL);
@@ -104,26 +106,22 @@ _srt_libdl_run_helper (const char * const *envp,
 }
 
 gchar *
-_srt_libdl_detect_platform (const char * const *envp,
-                            const char *helpers_path,
+_srt_libdl_detect_platform (SrtSubprocessRunner *runner,
                             const char *multiarch_tuple,
                             GError **error)
 {
-  return _srt_libdl_run_helper (envp,
-                                helpers_path,
+  return _srt_libdl_run_helper (runner,
                                 multiarch_tuple,
                                 "detect-platform",
                                 error);
 }
 
 gchar *
-_srt_libdl_detect_lib (const char * const *envp,
-                       const char *helpers_path,
+_srt_libdl_detect_lib (SrtSubprocessRunner *runner,
                        const char *multiarch_tuple,
                        GError **error)
 {
-  return _srt_libdl_run_helper (envp,
-                                helpers_path,
+  return _srt_libdl_run_helper (runner,
                                 multiarch_tuple,
                                 "detect-lib",
                                 error);

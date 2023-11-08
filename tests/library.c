@@ -27,6 +27,7 @@
 #include <steam-runtime-tools/glib-backports-internal.h>
 
 #include "steam-runtime-tools/utils-internal.h"
+#include "steam-runtime-tools/subprocess-internal.h"
 #include "steam-runtime-tools/system-info-internal.h"
 #include <steam-runtime-tools/steam-runtime-tools.h>
 
@@ -430,6 +431,7 @@ static void
 test_libraries (Fixture *f,
                 gconstpointer context)
 {
+  g_autoptr(SrtSubprocessRunner) runner = _srt_subprocess_runner_new ();
   const char *multiarch_tuple = NULL;
   g_autofree gchar *tmp_file = NULL;
   int fd;
@@ -471,10 +473,9 @@ test_libraries (Fixture *f,
           g_assert_true (result);
         }
 
-      issues = _srt_check_library_presence (NULL, library_name, multiarch_tuple,
+      issues = _srt_check_library_presence (runner, library_name, multiarch_tuple,
                                             test->expected_symbols == NULL ? NULL : tmp_file,
                                             NULL, SRT_CHECK_FLAGS_SKIP_SLOW_CHECKS,
-                                            _srt_peek_environ_nonnull (),
                                             test->format,
                                             &library);
       g_assert_cmpint (issues, ==, test->issues);

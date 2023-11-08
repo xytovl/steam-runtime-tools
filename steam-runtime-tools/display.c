@@ -227,18 +227,13 @@ srt_display_info_class_init (SrtDisplayInfoClass *cls)
 
 /**
  * _srt_check_display:
- * @envp: (not nullable): Environment variables to use
- * @helpers_path: An optional path to find check-xdg-portal helper, PATH
- *  is used if %NULL.
- * @test_flags: Flags used during automated testing
+ * @runner: The execution environment
  * @multiarch_tuple: (not nullable): Multiarch tuple of helper executable to use
  *
  * Returns: A SrtDisplayInfo object containing the details of the check
  */
 SrtDisplayInfo *
-_srt_check_display (const char * const *envp,
-                    const char *helpers_path,
-                    SrtTestFlags test_flags,
+_srt_check_display (SrtSubprocessRunner *runner,
                     const char *multiarch_tuple)
 {
   GPtrArray *builder;
@@ -255,6 +250,7 @@ _srt_check_display (const char * const *envp,
   SrtDisplayX11Type x11_type = SRT_DISPLAY_X11_TYPE_UNKNOWN;
   SrtHelperFlags helper_flags = (SRT_HELPER_FLAGS_TIME_OUT
                                  | SRT_HELPER_FLAGS_SEARCH_PATH);
+  const char * const *envp;
   static const gchar * const display_env[] =
   {
     "CLUTTER_BACKEND",
@@ -270,7 +266,7 @@ _srt_check_display (const char * const *envp,
     NULL
   };
 
-  g_return_val_if_fail (envp != NULL,
+  g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (runner),
                         _srt_display_info_new (NULL, FALSE,
                                                SRT_DISPLAY_WAYLAND_ISSUES_UNKNOWN,
                                                SRT_DISPLAY_X11_TYPE_UNKNOWN, NULL));
@@ -280,6 +276,7 @@ _srt_check_display (const char * const *envp,
                                                SRT_DISPLAY_X11_TYPE_UNKNOWN, NULL));
 
   builder = g_ptr_array_new_with_free_func (g_free);
+  envp = _srt_subprocess_runner_get_environ (runner);
 
   for (guint i = 0; display_env[i] != NULL; i++)
     {
@@ -331,10 +328,11 @@ _srt_check_display (const char * const *envp,
         }
     }
 
-  if (test_flags & SRT_TEST_FLAGS_TIME_OUT_SOONER)
+  if (_srt_subprocess_runner_get_test_flags (runner) & SRT_TEST_FLAGS_TIME_OUT_SOONER)
     helper_flags |= SRT_HELPER_FLAGS_TIME_OUT_SOONER;
 
-  argv = _srt_get_helper (helpers_path, multiarch_tuple, "is-x-server-xwayland",
+  argv = _srt_get_helper (_srt_subprocess_runner_get_helpers_path (runner),
+                          multiarch_tuple, "is-x-server-xwayland",
                           helper_flags, &local_error);
 
   if (argv == NULL)

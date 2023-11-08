@@ -28,6 +28,7 @@
 
 #include "steam-runtime-tools/glib-backports-internal.h"
 #include "steam-runtime-tools/steam-runtime-tools.h"
+#include "steam-runtime-tools/subprocess-internal.h"
 
 #include <json-glib/json-glib.h>
 
@@ -77,9 +78,7 @@ typedef enum
   SRT_DISPLAY_EXIT_STATUS_ERROR = 3,
 } SrtDisplayExitStatus;
 
-SrtDisplayInfo *_srt_check_display (const char * const *envp,
-                                    const char *helpers_path,
-                                    SrtTestFlags test_flags,
+SrtDisplayInfo *_srt_check_display (SrtSubprocessRunner *runner,
                                     const char *multiarch_tuple);
 
 SrtDisplayInfo *_srt_display_info_get_from_report (JsonObject *json_obj);

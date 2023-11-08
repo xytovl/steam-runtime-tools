@@ -897,8 +897,7 @@ get_glvnd_datadir (void)
  * @helpers_path: (nullable): An optional path to find "inspect-library"
  *  helper, PATH is used if %NULL
  * @sysroot: (not nullable): The root directory, usually `/`
- * @envp: (array zero-terminated=1) (not nullable): Behave as though `environ`
- *  was this array
+ * @runner: The execution environment
  * @multiarch_tuples: (nullable): If not %NULL, and a Flatpak environment
  *  is detected, assume a freedesktop-sdk-based runtime and look for
  *  GL extensions for these multiarch tuples. Also if not %NULL, duplicated
@@ -915,9 +914,8 @@ get_glvnd_datadir (void)
  */
 GList *
 _srt_load_egl_things (GType which,
-                      const char *helpers_path,
                       SrtSysroot *sysroot,
-                      const char * const *envp,
+                      SrtSubprocessRunner *runner,
                       const char * const *multiarch_tuples,
                       SrtCheckFlags check_flags)
 {
@@ -932,13 +930,14 @@ _srt_load_egl_things (GType which,
   const char *suffix;
   const char *sysconfdir;
   const char *datadir;
+  const char * const *envp;
 
   g_return_val_if_fail (which == SRT_TYPE_EGL_ICD
                         || which == SRT_TYPE_EGL_EXTERNAL_PLATFORM,
                         NULL);
   g_return_val_if_fail (SRT_IS_SYSROOT (sysroot), NULL);
+  g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (runner), NULL);
   g_return_val_if_fail (_srt_check_not_setuid (), NULL);
-  g_return_val_if_fail (envp != NULL, NULL);
 
   /* See
    * https://github.com/NVIDIA/libglvnd/blob/HEAD/src/EGL/icd_enumeration.md
@@ -972,6 +971,7 @@ _srt_load_egl_things (GType which,
       g_return_val_if_reached (NULL);
     }
 
+  envp = _srt_subprocess_runner_get_environ (runner);
   value = _srt_environ_getenv (envp, filenames_var);
 
   if (value != NULL)
@@ -1020,8 +1020,7 @@ _srt_load_egl_things (GType which,
     }
 
   if (!(check_flags & SRT_CHECK_FLAGS_SKIP_SLOW_CHECKS))
-    _srt_loadable_flag_duplicates (which, envp, helpers_path,
-                                   multiarch_tuples, ret);
+    _srt_loadable_flag_duplicates (which, runner, multiarch_tuples, ret);
 
   return g_list_reverse (ret);
 }

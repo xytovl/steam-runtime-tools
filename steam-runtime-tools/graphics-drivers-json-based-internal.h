@@ -28,6 +28,7 @@
 
 #include "steam-runtime-tools/steam-runtime-tools.h"
 #include "steam-runtime-tools/graphics-internal.h"
+#include "steam-runtime-tools/subprocess-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
 
 typedef struct
@@ -131,8 +132,7 @@ gboolean srt_loadable_write_to_file (const SrtLoadable *self,
                                      GType which,
                                      GError **error);
 void _srt_loadable_flag_duplicates (GType which,
-                                    const char * const *envp,
-                                    const char *helpers_path,
+                                    SrtSubprocessRunner *runner,
                                     const char * const *multiarch_tuples,
                                     GList *loadable);
 void _srt_loadable_set_library_arch (SrtLoadable *self,

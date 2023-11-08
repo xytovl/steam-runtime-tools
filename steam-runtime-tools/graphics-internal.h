@@ -27,6 +27,7 @@
 #pragma once
 
 #include "steam-runtime-tools/steam-runtime-tools.h"
+#include "steam-runtime-tools/subprocess-internal.h"
 #include "steam-runtime-tools/system-info-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
 
@@ -106,9 +107,7 @@ static inline int _srt_graphics_hash_key(SrtWindowSystem winsys, SrtRenderingInt
 
 #ifndef __GTK_DOC_IGNORE__
 
-G_GNUC_INTERNAL SrtGraphicsIssues _srt_check_graphics (const char * const *envp,
-                                                       const char *helpers_path,
-                                                       SrtTestFlags test_flags,
+G_GNUC_INTERNAL SrtGraphicsIssues _srt_check_graphics (SrtSubprocessRunner *runner,
                                                        const char *multiarch_tuple,
                                                        SrtWindowSystem window_system,
                                                        SrtRenderingInterface rendering_interface,
@@ -288,30 +287,26 @@ typedef enum
 
 G_GNUC_INTERNAL
 GList *_srt_load_egl_things (GType which,
-                             const char *helpers_path,
                              SrtSysroot *sysroot,
-                             const char * const *envp,
+                             SrtSubprocessRunner *runner,
                              const char * const *multiarch_tuples,
                              SrtCheckFlags check_flags);
 G_GNUC_INTERNAL
-GList *_srt_load_vulkan_icds (const char *helpers_path,
-                              SrtSysroot *sysroot,
-                              const char * const *envp,
+GList *_srt_load_vulkan_icds (SrtSysroot *sysroot,
+                              SrtSubprocessRunner *runner,
                               const char * const *multiarch_tuples,
                               SrtCheckFlags check_flags);
 
 G_GNUC_INTERNAL
 GList *_srt_list_graphics_modules (SrtSysroot *sysroot,
-                                   const char * const *envp,
-                                   const char *helpers_path,
+                                   SrtSubprocessRunner *runner,
                                    const char *multiarch_tuple,
                                    SrtCheckFlags check_flags,
                                    SrtGraphicsModule which);
 
 G_GNUC_INTERNAL
-GList *_srt_load_vulkan_layers_extended (const char *helpers_path,
-                                         SrtSysroot *sysroot,
-                                         const char * const *envp,
+GList *_srt_load_vulkan_layers_extended (SrtSysroot *sysroot,
+                                         SrtSubprocessRunner *runner,
                                          const char * const *multiarch_tuples,
                                          gboolean explicit,
                                          SrtCheckFlags check_flags);
