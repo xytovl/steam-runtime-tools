@@ -8067,7 +8067,7 @@ pv_runtime_log_overrides (PvRuntime *self)
 
   g_debug ("Overrides in %s:", self->overrides_in_container);
   listing = _srt_recursive_list_content (self->overrides, -1, ".", -1,
-                                         environ, NULL);
+                                         (gchar **) _srt_peek_environ_nonnull (), NULL);
 
   for (i = 0; listing[i] != NULL; i++)
     g_debug ("\t%s", listing[i]);
@@ -8086,7 +8086,7 @@ pv_runtime_log_container (PvRuntime *self)
 
   g_debug ("All files in container, excluding any extra bind mounts:");
   listing = _srt_recursive_list_content (self->runtime_files, -1, ".", -1,
-                                         environ, NULL);
+                                         (gchar **) _srt_peek_environ_nonnull (), NULL);
 
   for (i = 0; listing[i] != NULL; i++)
     g_debug ("\t%s", listing[i]);
