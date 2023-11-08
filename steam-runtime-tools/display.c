@@ -236,7 +236,7 @@ srt_display_info_class_init (SrtDisplayInfoClass *cls)
  * Returns: A SrtDisplayInfo object containing the details of the check
  */
 SrtDisplayInfo *
-_srt_check_display (gchar **envp,
+_srt_check_display (const char * const *envp,
                     const char *helpers_path,
                     SrtTestFlags test_flags,
                     const char *multiarch_tuple)
@@ -283,7 +283,7 @@ _srt_check_display (gchar **envp,
 
   for (guint i = 0; display_env[i] != NULL; i++)
     {
-      const gchar *value = g_environ_getenv (envp, display_env[i]);
+      const gchar *value = _srt_environ_getenv (envp, display_env[i]);
       if (value != NULL)
         {
           g_autofree gchar *key_value = NULL;
@@ -295,7 +295,7 @@ _srt_check_display (gchar **envp,
   g_ptr_array_add (builder, NULL);
   display_environ = (gchar **) g_ptr_array_free (builder, FALSE);
 
-  name = g_environ_getenv (envp, "WAYLAND_DISPLAY");
+  name = _srt_environ_getenv (envp, "WAYLAND_DISPLAY");
   /* If unset, the default fallback is `wayland-0` */
   if (name == NULL)
     name = "wayland-0";
@@ -311,7 +311,7 @@ _srt_check_display (gchar **envp,
   else
     {
       const gchar *xdg_runtime_dir;
-      xdg_runtime_dir = g_environ_getenv (envp, "XDG_RUNTIME_DIR");
+      xdg_runtime_dir = _srt_environ_getenv (envp, "XDG_RUNTIME_DIR");
 
       if (xdg_runtime_dir == NULL)
         {
@@ -350,7 +350,7 @@ _srt_check_display (gchar **envp,
 
   if (!g_spawn_sync (NULL,    /* working directory */
                      (gchar **) argv->pdata,
-                     envp,
+                     (gchar **) envp,
                      G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL,
                      _srt_child_setup_unblock_signals,
                      NULL,    /* user data */

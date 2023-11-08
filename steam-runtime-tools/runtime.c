@@ -302,7 +302,7 @@ _srt_runtime_check_filesystem (const char *path)
 static SrtRuntimeIssues
 _srt_runtime_check (const char *bin32,
                     const char *expected_version,
-                    const GStrv custom_environ,
+                    const char * const *custom_environ,
                     gchar **version_out,
                     gchar **path_out)
 {
@@ -333,7 +333,7 @@ _srt_runtime_check (const char *bin32,
                         SRT_RUNTIME_ISSUES_UNKNOWN);
   g_return_val_if_fail (_srt_check_not_setuid (), SRT_RUNTIME_ISSUES_UNKNOWN);
 
-  my_environ = g_strdupv (custom_environ);
+  my_environ = _srt_strdupv (custom_environ);
 
   env = g_environ_getenv (my_environ, "STEAM_RUNTIME");
 
@@ -696,7 +696,7 @@ _srt_runtime_check_container (SrtRuntime *self,
  */
 void
 _srt_runtime_check_execution_environment (SrtRuntime *self,
-                                          const GStrv env,
+                                          const char * const *env,
                                           SrtOsInfo *os_info,
                                           const char *bin32)
 {
@@ -707,7 +707,7 @@ _srt_runtime_check_execution_environment (SrtRuntime *self,
   g_return_if_fail (os_info != NULL);
 
   _srt_runtime_clear_outputs (self);
-  runtime = g_environ_getenv (env, "STEAM_RUNTIME");
+  runtime = _srt_environ_getenv (env, "STEAM_RUNTIME");
 
   /* If we are currently running in a LD_LIBRARY_PATH runtime, check that
    * it is as expected */

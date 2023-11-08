@@ -30,7 +30,7 @@
 #include "steam-runtime-tools/utils-internal.h"
 
 static gchar *
-_srt_libdl_run_helper (gchar **envp,
+_srt_libdl_run_helper (const char * const *envp,
                        const char *helpers_path,
                        const char *multiarch_tuple,
                        const char *helper_name,
@@ -104,7 +104,7 @@ _srt_libdl_run_helper (gchar **envp,
 }
 
 gchar *
-_srt_libdl_detect_platform (gchar **envp,
+_srt_libdl_detect_platform (const char * const *envp,
                             const char *helpers_path,
                             const char *multiarch_tuple,
                             GError **error)
@@ -117,7 +117,7 @@ _srt_libdl_detect_platform (gchar **envp,
 }
 
 gchar *
-_srt_libdl_detect_lib (gchar **envp,
+_srt_libdl_detect_lib (const char * const *envp,
                        const char *helpers_path,
                        const char *multiarch_tuple,
                        GError **error)

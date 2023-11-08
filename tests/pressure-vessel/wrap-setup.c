@@ -173,7 +173,7 @@ fixture_create_runtime (Fixture *f,
                             NULL,
                             graphics_provider,
                             NULL,
-                            environ,
+                            _srt_peek_environ_nonnull (),
                             (flags
                              | PV_RUNTIME_FLAGS_VERBOSE
                              | PV_RUNTIME_FLAGS_SINGLE_THREAD),

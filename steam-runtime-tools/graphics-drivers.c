@@ -69,7 +69,7 @@ _initial_capsule_capture_libs_argv (SrtSysroot *sysroot,
 }
 
 static GPtrArray *
-_argv_for_list_vdpau_drivers (gchar **envp,
+_argv_for_list_vdpau_drivers (const char * const *envp,
                               SrtSysroot *sysroot,
                               const char *helpers_path,
                               const char *multiarch_tuple,
@@ -81,7 +81,7 @@ _argv_for_list_vdpau_drivers (gchar **envp,
 
   g_return_val_if_fail (envp != NULL, NULL);
 
-  vdpau_driver = g_environ_getenv (envp, "VDPAU_DRIVER");
+  vdpau_driver = _srt_environ_getenv (envp, "VDPAU_DRIVER");
   argv = _initial_capsule_capture_libs_argv (sysroot, helpers_path, multiarch_tuple,
                                              temp_dir, error);
 
@@ -109,7 +109,7 @@ _argv_for_list_vdpau_drivers (gchar **envp,
 }
 
 static GPtrArray *
-_argv_for_list_loader_libraries (gchar **envp,
+_argv_for_list_loader_libraries (const char * const *envp,
                                  SrtSysroot *sysroot,
                                  const char *helpers_path,
                                  const char *multiarch_tuple,
@@ -222,7 +222,7 @@ _argv_for_list_glx_icds_in_path (SrtSysroot *sysroot,
  * (`libvdpau_r600.so` is before `libvdpau_r300.so`, which is before `libvdpau_nouveau.so`).
  */
 static void
-_srt_list_modules_from_directory (gchar **envp,
+_srt_list_modules_from_directory (const char * const *envp,
                                   GPtrArray *argv,
                                   const gchar *tmp_directory,
                                   GHashTable *known_table,
@@ -251,7 +251,7 @@ _srt_list_modules_from_directory (gchar **envp,
 
   if (!g_spawn_sync (NULL,    /* working directory */
                      (gchar **) argv->pdata,
-                     envp,
+                     (gchar **) envp,
                      G_SPAWN_SEARCH_PATH,       /* flags */
                      _srt_child_setup_unblock_signals,
                      NULL,    /* user data */
@@ -367,7 +367,7 @@ out:
  * with symbolic links to absolute targets. Return their targets.
  */
 static char **
-_srt_list_links_from_directory (gchar **envp,
+_srt_list_links_from_directory (const char * const *envp,
                                 GPtrArray *argv,
                                 const gchar *tmp_directory)
 {
@@ -387,7 +387,7 @@ _srt_list_links_from_directory (gchar **envp,
 
   if (!g_spawn_sync (NULL,    /* working directory */
                      (gchar **) argv->pdata,
-                     envp,
+                     (gchar **) envp,
                      G_SPAWN_SEARCH_PATH,  /* flags */
                      _srt_child_setup_unblock_signals,
                      NULL,  /* user data */
@@ -476,7 +476,7 @@ _srt_list_links_from_directory (gchar **envp,
  */
 static void
 _srt_get_modules_from_path (SrtSysroot *sysroot,
-                            gchar **envp,
+                            const char * const *envp,
                             const char *helpers_path,
                             const char *multiarch_tuple,
                             SrtCheckFlags check_flags,
@@ -737,7 +737,7 @@ out:
  * Returns: the library class.
  */
 static int
-_srt_get_library_class (gchar **envp,
+_srt_get_library_class (const char * const *envp,
                         const gchar *library)
 {
   g_autoptr(Elf) elf = NULL;
@@ -747,7 +747,7 @@ _srt_get_library_class (gchar **envp,
   g_return_val_if_fail (envp != NULL, ELFCLASSNONE);
   g_return_val_if_fail (library != NULL, ELFCLASSNONE);
 
-  if (g_environ_getenv (envp, "SRT_TEST_ELF_CLASS_FROM_PATH") != NULL)
+  if (_srt_environ_getenv (envp, "SRT_TEST_ELF_CLASS_FROM_PATH") != NULL)
     {
       /* In the automated tests we use stub libraries, so we can't infer the
        * class using gelf_getclass(). Instead we use its path for hints. */
@@ -788,7 +788,7 @@ _srt_get_library_class (gchar **envp,
 static void
 _srt_get_modules_from_loader_library (SrtSysroot *sysroot,
                                       const gchar *loader_path,
-                                      gchar **envp,
+                                      const char * const *envp,
                                       const char *helpers_path,
                                       const char *multiarch_tuple,
                                       SrtCheckFlags check_flags,
@@ -881,7 +881,7 @@ _srt_get_modules_from_loader_library (SrtSysroot *sysroot,
  */
 static void
 _srt_list_glx_icds (SrtSysroot *sysroot,
-                    gchar **envp,
+                    const char * const *envp,
                     const char *helpers_path,
                     const char *multiarch_tuple,
                     GList **drivers_out)
@@ -987,7 +987,7 @@ out:
  */
 static void
 _srt_get_modules_full (SrtSysroot *sysroot,
-                       gchar **envp,
+                       const char * const *envp,
                        const char *helpers_path,
                        const char *multiarch_tuple,
                        SrtCheckFlags check_flags,
@@ -1040,8 +1040,8 @@ _srt_get_modules_full (SrtSysroot *sysroot,
         g_return_if_reached ();
     }
 
-  drivers_path = g_environ_getenv (envp, env_override);
-  ld_library_path = g_environ_getenv (envp, "LD_LIBRARY_PATH");
+  drivers_path = _srt_environ_getenv (envp, env_override);
+  ld_library_path = _srt_environ_getenv (envp, "LD_LIBRARY_PATH");
 
   drivers_set = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
 
@@ -1428,7 +1428,7 @@ out:
  */
 GList *
 _srt_list_graphics_modules (SrtSysroot *sysroot,
-                            gchar **envp,
+                            const char * const *envp,
                             const char *helpers_path,
                             const char *multiarch_tuple,
                             SrtCheckFlags check_flags,

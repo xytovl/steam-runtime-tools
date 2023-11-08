@@ -27,12 +27,12 @@
 #include <glib.h>
 #include <glib-object.h>
 
-G_GNUC_INTERNAL gchar *_srt_libdl_detect_platform (gchar **envp,
+G_GNUC_INTERNAL gchar *_srt_libdl_detect_platform (const char * const *envp,
                                                    const char *helpers_path,
                                                    const char *multiarch_tuple,
                                                    GError **error);
 
-G_GNUC_INTERNAL gchar *_srt_libdl_detect_lib (gchar **envp,
+G_GNUC_INTERNAL gchar *_srt_libdl_detect_lib (const char * const *envp,
                                               const char *helpers_path,
                                               const char *multiarch_tuple,
                                               GError **error);

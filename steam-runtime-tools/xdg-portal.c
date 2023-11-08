@@ -486,7 +486,7 @@ srt_xdg_portal_class_init (SrtXdgPortalClass *cls)
  *  if no problems were found
  */
 G_GNUC_INTERNAL SrtXdgPortalIssues
-_srt_check_xdg_portals (gchar **envp,
+_srt_check_xdg_portals (const char * const *envp,
                         const char *helpers_path,
                         SrtTestFlags test_flags,
                         SrtContainerType container_type,
@@ -539,7 +539,7 @@ _srt_check_xdg_portals (gchar **envp,
 
   if (!g_spawn_sync (NULL,    /* working directory */
                      (gchar **) argv->pdata,
-                     envp,
+                     (gchar **) envp,
                      G_SPAWN_SEARCH_PATH,
                      _srt_child_setup_unblock_signals,
                      NULL,    /* user data */

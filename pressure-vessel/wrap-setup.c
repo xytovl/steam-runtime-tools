@@ -284,7 +284,7 @@ pv_wrap_add_gamescope_args (FlatpakBwrap *sharing_bwrap,
  */
 FlatpakBwrap *
 pv_wrap_share_sockets (PvEnviron *container_env,
-                       const GStrv original_environ,
+                       const char * const *original_environ,
                        gboolean using_a_runtime,
                        gboolean is_flatpak_env)
 {
@@ -405,7 +405,7 @@ pv_wrap_share_sockets (PvEnviron *container_env,
  */
 void
 pv_wrap_set_icons_env_vars (PvEnviron *container_env,
-                            const GStrv original_environ)
+                            const char * const *original_environ)
 {
   g_autoptr(GString) new_data_dirs = g_string_new ("");
   g_autoptr(GString) new_xcursor_path = g_string_new ("");
@@ -414,7 +414,7 @@ pv_wrap_set_icons_env_vars (PvEnviron *container_env,
   const gchar *container_xdg_data_home = NULL;
   g_autofree gchar *data_home_icons = NULL;
 
-  original_xcursor_path = g_environ_getenv (original_environ, "XCURSOR_PATH");
+  original_xcursor_path = _srt_environ_getenv (original_environ, "XCURSOR_PATH");
   /* Cursors themes are searched in a few hardcoded paths. However if "XCURSOR_PATH"
    * is set, the user specified paths will override the hardcoded ones.
    * In order to keep the hardcoded paths in place, if "XCURSOR_PATH" is unset, we
@@ -452,7 +452,7 @@ pv_wrap_set_icons_env_vars (PvEnviron *container_env,
 
   initial_xdg_data_dirs = pv_environ_getenv (container_env, "XDG_DATA_DIRS");
   if (initial_xdg_data_dirs == NULL)
-    initial_xdg_data_dirs = g_environ_getenv (original_environ, "XDG_DATA_DIRS");
+    initial_xdg_data_dirs = _srt_environ_getenv (original_environ, "XDG_DATA_DIRS");
 
   /* Reference:
    * https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html */

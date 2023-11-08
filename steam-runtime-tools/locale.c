@@ -204,7 +204,7 @@ srt_locale_class_init (SrtLocaleClass *cls)
  * Returns: (transfer full): A #SrtLocale object, or %NULL
  */
 SrtLocale *
-_srt_check_locale (gchar **envp,
+_srt_check_locale (const char * const *envp,
                    const char *helpers_path,
                    const char *multiarch_tuple,
                    const char *requested_name,

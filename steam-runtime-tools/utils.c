@@ -419,7 +419,7 @@ _srt_get_helper (const char *helpers_path,
 /**
  * _srt_filter_gameoverlayrenderer:
  * @input: The environment variable value that needs to be filtered.
- *  Usually retrieved with g_environ_getenv ()
+ *  Usually retrieved with g_environ_getenv() or _srt_environ_getenv()
  *
  * Filter the @input paths list from every path containing `gameoverlayrenderer.so`
  *
@@ -467,7 +467,7 @@ _srt_filter_gameoverlayrenderer (const gchar *input)
  *  `gameoverlayrenderer.so` filtered out. Free with g_strfreev().
  */
 gchar **
-_srt_filter_gameoverlayrenderer_from_envp (gchar **envp)
+_srt_filter_gameoverlayrenderer_from_envp (const char * const *envp)
 {
   GStrv filtered_environ = NULL;
   const gchar *ld_preload;
@@ -475,7 +475,7 @@ _srt_filter_gameoverlayrenderer_from_envp (gchar **envp)
 
   g_return_val_if_fail (envp != NULL, NULL);
 
-  filtered_environ = g_strdupv (envp);
+  filtered_environ = _srt_strdupv (envp);
   ld_preload = g_environ_getenv (filtered_environ, "LD_PRELOAD");
   if (ld_preload != NULL)
     {
@@ -1216,7 +1216,7 @@ _srt_recursive_list_content (const gchar *sysroot,
                              int sysroot_fd,
                              const gchar *directory,
                              int directory_fd,
-                             gchar **envp,
+                             const char * const *envp,
                              gchar ***messages_out)
 {
   g_autoptr(GPtrArray) content = NULL;
@@ -1231,7 +1231,7 @@ _srt_recursive_list_content (const gchar *sysroot,
   g_return_val_if_fail (envp != NULL, NULL);
   g_return_val_if_fail (messages_out == NULL || *messages_out == NULL, NULL);
 
-  steam_runtime = g_environ_getenv (envp, "STEAM_RUNTIME");
+  steam_runtime = _srt_environ_getenv (envp, "STEAM_RUNTIME");
   /* If STEAM_RUNTIME is just the root directory we don't want to replace
    * every leading '/' with $STEAM_RUNTIME */
   if (g_strcmp0 (steam_runtime, "/") == 0)
@@ -1240,7 +1240,7 @@ _srt_recursive_list_content (const gchar *sysroot,
   const CommonReplacements common_replacements[] =
   {
     { steam_runtime, "$STEAM_RUNTIME" },
-    { g_environ_getenv (envp, "HOME"), "$HOME" },
+    { _srt_environ_getenv (envp, "HOME"), "$HOME" },
     { NULL, NULL },
   };
 

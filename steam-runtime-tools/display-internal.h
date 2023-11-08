@@ -77,7 +77,7 @@ typedef enum
   SRT_DISPLAY_EXIT_STATUS_ERROR = 3,
 } SrtDisplayExitStatus;
 
-SrtDisplayInfo *_srt_check_display (gchar **envp,
+SrtDisplayInfo *_srt_check_display (const char * const *envp,
                                     const char *helpers_path,
                                     SrtTestFlags test_flags,
                                     const char *multiarch_tuple);

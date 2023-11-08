@@ -106,7 +106,7 @@ static inline int _srt_graphics_hash_key(SrtWindowSystem winsys, SrtRenderingInt
 
 #ifndef __GTK_DOC_IGNORE__
 
-G_GNUC_INTERNAL SrtGraphicsIssues _srt_check_graphics (gchar **envp,
+G_GNUC_INTERNAL SrtGraphicsIssues _srt_check_graphics (const char * const *envp,
                                                        const char *helpers_path,
                                                        SrtTestFlags test_flags,
                                                        const char *multiarch_tuple,
@@ -290,19 +290,19 @@ G_GNUC_INTERNAL
 GList *_srt_load_egl_things (GType which,
                              const char *helpers_path,
                              SrtSysroot *sysroot,
-                             gchar **envp,
+                             const char * const *envp,
                              const char * const *multiarch_tuples,
                              SrtCheckFlags check_flags);
 G_GNUC_INTERNAL
 GList *_srt_load_vulkan_icds (const char *helpers_path,
                               SrtSysroot *sysroot,
-                              gchar **envp,
+                              const char * const *envp,
                               const char * const *multiarch_tuples,
                               SrtCheckFlags check_flags);
 
 G_GNUC_INTERNAL
 GList *_srt_list_graphics_modules (SrtSysroot *sysroot,
-                                   gchar **envp,
+                                   const char * const *envp,
                                    const char *helpers_path,
                                    const char *multiarch_tuple,
                                    SrtCheckFlags check_flags,
@@ -311,7 +311,7 @@ GList *_srt_list_graphics_modules (SrtSysroot *sysroot,
 G_GNUC_INTERNAL
 GList *_srt_load_vulkan_layers_extended (const char *helpers_path,
                                          SrtSysroot *sysroot,
-                                         gchar **envp,
+                                         const char * const *envp,
                                          const char * const *multiarch_tuples,
                                          gboolean explicit,
                                          SrtCheckFlags check_flags);
@@ -331,7 +331,7 @@ GList *_srt_glx_icd_get_from_report (JsonObject *json_obj);
 
 G_GNUC_INTERNAL
 gchar ** _srt_graphics_get_vulkan_search_paths (SrtSysroot *sysroot,
-                                                gchar **envp,
+                                                const char * const *envp,
                                                 const char * const *multiarch_tuples,
                                                 const char *suffix);
 

@@ -371,7 +371,7 @@ srt_steam_get_steamscript_version (SrtSteam *self)
  *  if no problems were found
  */
 SrtSteamIssues
-_srt_steam_check (const GStrv my_environ,
+_srt_steam_check (const char * const *my_environ,
                   SrtSteam **more_details_out)
 {
   SrtSteamIssues issues = SRT_STEAM_ISSUES_NONE;
@@ -400,7 +400,7 @@ _srt_steam_check (const GStrv my_environ,
   g_return_val_if_fail (more_details_out == NULL || *more_details_out == NULL,
                         SRT_STEAM_ISSUES_UNKNOWN);
 
-  env = g_strdupv (my_environ);
+  env = _srt_strdupv (my_environ);
 
   home = g_environ_getenv (env, "HOME");
   user_data = g_environ_getenv (env, "XDG_DATA_HOME");

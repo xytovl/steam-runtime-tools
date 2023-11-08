@@ -917,7 +917,7 @@ GList *
 _srt_load_egl_things (GType which,
                       const char *helpers_path,
                       SrtSysroot *sysroot,
-                      gchar **envp,
+                      const char * const *envp,
                       const char * const *multiarch_tuples,
                       SrtCheckFlags check_flags)
 {
@@ -972,7 +972,7 @@ _srt_load_egl_things (GType which,
       g_return_val_if_reached (NULL);
     }
 
-  value = g_environ_getenv (envp, filenames_var);
+  value = _srt_environ_getenv (envp, filenames_var);
 
   if (value != NULL)
     {
@@ -983,7 +983,7 @@ _srt_load_egl_things (GType which,
     }
   else
     {
-      value = g_environ_getenv (envp, dirs_var);
+      value = _srt_environ_getenv (envp, dirs_var);
 
       if (value != NULL)
         {

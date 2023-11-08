@@ -1164,7 +1164,7 @@ _argv_for_check_gl (const char *helpers_path,
  *  %SRT_RENDERING_INTERFACE_VULKAN or if there was a problem loading the library.
  */
 static SrtGraphicsLibraryVendor
-_srt_check_library_vendor (gchar **envp,
+_srt_check_library_vendor (const char * const *envp,
                            const char *multiarch_tuple,
                            SrtWindowSystem window_system,
                            SrtRenderingInterface rendering_interface)
@@ -1353,7 +1353,7 @@ _srt_run_helper (GStrv *my_environ,
  *  if no problems were found
  */
 G_GNUC_INTERNAL SrtGraphicsIssues
-_srt_check_graphics (gchar **envp,
+_srt_check_graphics (const char * const *envp,
                      const char *helpers_path,
                      SrtTestFlags test_flags,
                      const char *multiarch_tuple,

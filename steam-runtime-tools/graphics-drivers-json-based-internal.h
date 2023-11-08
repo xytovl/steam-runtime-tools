@@ -131,7 +131,7 @@ gboolean srt_loadable_write_to_file (const SrtLoadable *self,
                                      GType which,
                                      GError **error);
 void _srt_loadable_flag_duplicates (GType which,
-                                    gchar **envp,
+                                    const char * const *envp,
                                     const char *helpers_path,
                                     const char * const *multiarch_tuples,
                                     GList *loadable);

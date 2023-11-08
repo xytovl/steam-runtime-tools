@@ -660,7 +660,7 @@ srt_check_library_presence (const char *requested_name,
 {
   return _srt_check_library_presence (NULL, requested_name, multiarch,
                                       symbols_path, NULL, SRT_CHECK_FLAGS_NONE,
-                                      (gchar **) _srt_peek_environ_nonnull (),
+                                      _srt_peek_environ_nonnull (),
                                       symbols_format, more_details_out);
 }
 
@@ -672,7 +672,7 @@ srt_check_library_presence (const char *requested_name,
  */
 static SrtLibraryIssues
 _srt_inspect_library (gchar **argv,
-                      gchar **envp,
+                      const char * const *envp,
                       const char *requested_name,
                       const char *multiarch,
                       SrtLibraryIssues issues,
@@ -750,7 +750,7 @@ _srt_inspect_library (gchar **argv,
 
   if (!g_spawn_sync (NULL,       /* working directory */
                      argv,
-                     envp,
+                     (gchar **) envp,
                      G_SPAWN_SEARCH_PATH,  /* flags */
                      _srt_child_setup_unblock_signals,
                      NULL,       /* user data */
@@ -959,7 +959,7 @@ _srt_check_library_presence (const char *helpers_path,
                              const char *symbols_path,
                              const char * const *hidden_deps,
                              SrtCheckFlags check_flags,
-                             gchar **envp,
+                             const char * const *envp,
                              SrtLibrarySymbolsFormat symbols_format,
                              SrtLibrary **more_details_out)
 {
@@ -1020,7 +1020,9 @@ _srt_check_library_presence (const char *helpers_path,
 
   my_environ = _srt_filter_gameoverlayrenderer_from_envp (envp);
 
-  issues = _srt_inspect_library ((gchar **) argv->pdata, my_environ, requested_name,
+  issues = _srt_inspect_library ((gchar **) argv->pdata,
+                                 _srt_const_strv (my_environ),
+                                 requested_name,
                                  multiarch, issues, NULL, &details);
 
   if ((check_flags & SRT_CHECK_FLAGS_SKIP_SLOW_CHECKS)
@@ -1068,7 +1070,8 @@ _srt_check_library_presence (const char *helpers_path,
   /* NULL terminate the array */
   g_ptr_array_add (argv_libelf, NULL);
 
-  issues = _srt_inspect_library ((gchar **) argv_libelf->pdata, my_environ,
+  issues = _srt_inspect_library ((gchar **) argv_libelf->pdata,
+                                 _srt_const_strv (my_environ),
                                  library_absolute_path, multiarch, issues, details,
                                  &details_libelf);
 

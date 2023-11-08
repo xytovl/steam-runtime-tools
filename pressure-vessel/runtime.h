@@ -104,7 +104,7 @@ PvRuntime *pv_runtime_new (const char *source,
                            const char *bubblewrap,
                            PvGraphicsProvider *provider,
                            PvGraphicsProvider *interpreter_host_provider,
-                           const GStrv original_environ,
+                           const char * const *original_environ,
                            PvRuntimeFlags flags,
                            GError **error);
 

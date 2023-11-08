@@ -2116,7 +2116,7 @@ pv_runtime_new (const char *source,
                 const char *bubblewrap,
                 PvGraphicsProvider *provider,
                 PvGraphicsProvider *interpreter_host_provider,
-                const GStrv original_environ,
+                const char * const *original_environ,
                 PvRuntimeFlags flags,
                 GError **error)
 {
@@ -7792,7 +7792,7 @@ pv_runtime_bind (PvRuntime *self,
           gsize j;
 
           search_path = _srt_graphics_get_vulkan_search_paths (self->real_root,
-                                                               self->original_environ,
+                                                               _srt_const_strv (self->original_environ),
                                                                pv_multiarch_tuples,
                                                                suffix);
 
@@ -8067,7 +8067,7 @@ pv_runtime_log_overrides (PvRuntime *self)
 
   g_debug ("Overrides in %s:", self->overrides_in_container);
   listing = _srt_recursive_list_content (self->overrides, -1, ".", -1,
-                                         (gchar **) _srt_peek_environ_nonnull (), NULL);
+                                         _srt_peek_environ_nonnull (), NULL);
 
   for (i = 0; listing[i] != NULL; i++)
     g_debug ("\t%s", listing[i]);
@@ -8086,7 +8086,7 @@ pv_runtime_log_container (PvRuntime *self)
 
   g_debug ("All files in container, excluding any extra bind mounts:");
   listing = _srt_recursive_list_content (self->runtime_files, -1, ".", -1,
-                                         (gchar **) _srt_peek_environ_nonnull (), NULL);
+                                         _srt_peek_environ_nonnull (), NULL);
 
   for (i = 0; listing[i] != NULL; i++)
     g_debug ("\t%s", listing[i]);

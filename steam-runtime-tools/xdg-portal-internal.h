@@ -102,7 +102,7 @@ _srt_xdg_portal_new (const char *messages,
 }
 
 G_GNUC_INTERNAL
-SrtXdgPortalIssues _srt_check_xdg_portals (gchar **envp,
+SrtXdgPortalIssues _srt_check_xdg_portals (const char * const *envp,
                                            const char *helpers_path,
                                            SrtTestFlags test_flags,
                                            SrtContainerType container_type,

@@ -112,7 +112,7 @@ _srt_architecture_get_known (void)
 }
 
 gboolean
-_srt_architecture_can_run (gchar **envp,
+_srt_architecture_can_run (const char * const *envp,
                            const char *helpers_path,
                            const char *multiarch)
 {
@@ -143,7 +143,7 @@ _srt_architecture_can_run (gchar **envp,
 
   if (!g_spawn_sync (NULL,       /* working directory */
                      (gchar **) argv->pdata,
-                     my_environ, /* envp */
+                     (gchar **) my_environ,
                      0,          /* flags */
                      _srt_child_setup_unblock_signals,
                      NULL,       /* user data */
@@ -197,7 +197,7 @@ out:
 gboolean
 srt_architecture_can_run_i386 (void)
 {
-  return _srt_architecture_can_run ((gchar **) _srt_peek_environ_nonnull (),
+  return _srt_architecture_can_run (_srt_peek_environ_nonnull (),
                                     NULL, SRT_ABI_I386);
 }
 
@@ -216,7 +216,7 @@ srt_architecture_can_run_i386 (void)
 gboolean
 srt_architecture_can_run_x86_64 (void)
 {
-  return _srt_architecture_can_run ((gchar **) _srt_peek_environ_nonnull (),
+  return _srt_architecture_can_run (_srt_peek_environ_nonnull (),
                                     NULL, SRT_ABI_X86_64);
 }
 

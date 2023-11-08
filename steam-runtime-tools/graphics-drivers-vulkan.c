@@ -584,7 +584,7 @@ get_vulkan_sysconfdir (void)
  * parameters. */
 gchar **
 _srt_graphics_get_vulkan_search_paths (SrtSysroot *sysroot,
-                                       gchar **envp,
+                                       const char * const *envp,
                                        const char * const *multiarch_tuples,
                                        const char *suffix)
 {
@@ -594,13 +594,13 @@ _srt_graphics_get_vulkan_search_paths (SrtSysroot *sysroot,
   const gchar *value;
   gsize i;
 
-  home = g_environ_getenv (envp, "HOME");
+  home = _srt_environ_getenv (envp, "HOME");
 
   if (home == NULL)
     home = g_get_home_dir ();
 
   /* 1. $XDG_CONFIG_HOME or $HOME/.config (since 1.2.198) */
-  value = g_environ_getenv (envp, "XDG_CONFIG_HOME");
+  value = _srt_environ_getenv (envp, "XDG_CONFIG_HOME");
 
   if (value != NULL)
     g_ptr_array_add (search_paths, g_build_filename (value, suffix, NULL));
@@ -608,7 +608,7 @@ _srt_graphics_get_vulkan_search_paths (SrtSysroot *sysroot,
     g_ptr_array_add (search_paths, g_build_filename (home, ".config", suffix, NULL));
 
   /* 1a. $XDG_CONFIG_DIRS or /etc/xdg */
-  value = g_environ_getenv (envp, "XDG_CONFIG_DIRS");
+  value = _srt_environ_getenv (envp, "XDG_CONFIG_DIRS");
 
   /* Constant and non-configurable fallback, as per
    * https://standards.freedesktop.org/basedir-spec/basedir-spec-latest.html */
@@ -673,7 +673,7 @@ _srt_graphics_get_vulkan_search_paths (SrtSysroot *sysroot,
    * https://github.com/ValveSoftware/steam-for-linux/issues/8337
    * So for now we continue to follow the misinterpretation, to make the
    * Steam Overlay more likely to work in pressure-vessel containers. */
-  value = g_environ_getenv (envp, "XDG_DATA_HOME");
+  value = _srt_environ_getenv (envp, "XDG_DATA_HOME");
 
   if (value != NULL)
     g_ptr_array_add (search_paths, g_build_filename (value, suffix, NULL));
@@ -701,7 +701,7 @@ _srt_graphics_get_vulkan_search_paths (SrtSysroot *sysroot,
     }
 
   /* 5. $XDG_DATA_DIRS or /usr/local/share:/usr/share */
-  value = g_environ_getenv (envp, "XDG_DATA_DIRS");
+  value = _srt_environ_getenv (envp, "XDG_DATA_DIRS");
 
   /* Constant and non-configurable fallback, as per
    * https://standards.freedesktop.org/basedir-spec/basedir-spec-latest.html */
@@ -743,7 +743,7 @@ _srt_graphics_get_vulkan_search_paths (SrtSysroot *sysroot,
 GList *
 _srt_load_vulkan_icds (const char *helpers_path,
                        SrtSysroot *sysroot,
-                       gchar **envp,
+                       const char * const *envp,
                        const char * const *multiarch_tuples,
                        SrtCheckFlags check_flags)
 {
@@ -761,10 +761,10 @@ _srt_load_vulkan_icds (const char *helpers_path,
    * https://github.com/KhronosGroup/Vulkan-Loader/blob/v1.3.207/docs/LoaderDriverInterface.md#overriding-the-default-driver-discovery
    * https://github.com/KhronosGroup/Vulkan-Loader/pull/873
    */
-  value = g_environ_getenv (envp, "VK_DRIVER_FILES");
+  value = _srt_environ_getenv (envp, "VK_DRIVER_FILES");
 
   if (value == NULL)
-    value = g_environ_getenv (envp, "VK_ICD_FILENAMES");
+    value = _srt_environ_getenv (envp, "VK_ICD_FILENAMES");
 
   if (value != NULL)
     {
@@ -782,7 +782,7 @@ _srt_load_vulkan_icds (const char *helpers_path,
       const gchar *add;
       g_auto(GStrv) search_paths = NULL;
 
-      add = g_environ_getenv (envp, "VK_ADD_DRIVER_FILES");
+      add = _srt_environ_getenv (envp, "VK_ADD_DRIVER_FILES");
       search_paths = _srt_graphics_get_vulkan_search_paths (sysroot, envp,
                                                             multiarch_tuples,
                                                             _SRT_GRAPHICS_VULKAN_ICD_SUFFIX);
@@ -1680,7 +1680,7 @@ vulkan_layer_load_json_cb (SrtSysroot *sysroot,
 GList *
 _srt_load_vulkan_layers_extended (const char *helpers_path,
                                   SrtSysroot *sysroot,
-                                  gchar **envp,
+                                  const char * const *envp,
                                   const char * const *multiarch_tuples,
                                   gboolean explicit,
                                   SrtCheckFlags check_flags)
@@ -1699,7 +1699,7 @@ _srt_load_vulkan_layers_extended (const char *helpers_path,
   else
     suffix = _SRT_GRAPHICS_IMPLICIT_VULKAN_LAYER_SUFFIX;
 
-  value = g_environ_getenv (envp, "VK_LAYER_PATH");
+  value = _srt_environ_getenv (envp, "VK_LAYER_PATH");
 
   /* As in the Vulkan-Loader implementation, implicit layers are not
    * overridden by "VK_LAYER_PATH"
@@ -1717,7 +1717,7 @@ _srt_load_vulkan_layers_extended (const char *helpers_path,
       const gchar *add = NULL;
 
       if (explicit)
-        add = g_environ_getenv (envp, "VK_ADD_LAYER_PATH");
+        add = _srt_environ_getenv (envp, "VK_ADD_LAYER_PATH");
 
       if (add != NULL)
         {
@@ -1775,7 +1775,8 @@ _srt_load_vulkan_layers (const char *sysroot,
       return NULL;
     }
 
-  return _srt_load_vulkan_layers_extended (NULL, sysroot_object, envp, NULL,
+  return _srt_load_vulkan_layers_extended (NULL, sysroot_object,
+                                           _srt_const_strv (envp), NULL,
                                            explicit, SRT_CHECK_FLAGS_NONE);
 }
 

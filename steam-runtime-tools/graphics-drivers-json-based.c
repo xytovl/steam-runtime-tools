@@ -393,7 +393,7 @@ srt_loadable_write_to_file (const SrtLoadable *self,
  * resolving also its eventual symbolic links.
  */
 static gchar *
-_get_library_canonical_path (gchar **envp,
+_get_library_canonical_path (const char * const *envp,
                              const char *helpers_path,
                              const char *multiarch,
                              const gchar *library_path)
@@ -472,7 +472,7 @@ _update_duplicated_value (GType which,
  */
 void
 _srt_loadable_flag_duplicates (GType which,
-                               gchar **envp,
+                               const char * const *envp,
                                const char *helpers_path,
                                const char * const *multiarch_tuples,
                                GList *loadable)

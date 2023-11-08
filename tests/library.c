@@ -474,7 +474,7 @@ test_libraries (Fixture *f,
       issues = _srt_check_library_presence (NULL, library_name, multiarch_tuple,
                                             test->expected_symbols == NULL ? NULL : tmp_file,
                                             NULL, SRT_CHECK_FLAGS_SKIP_SLOW_CHECKS,
-                                            (gchar **) _srt_peek_environ_nonnull (),
+                                            _srt_peek_environ_nonnull (),
                                             test->format,
                                             &library);
       g_assert_cmpint (issues, ==, test->issues);
