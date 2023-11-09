@@ -210,6 +210,7 @@ _srt_check_locale (SrtSubprocessRunner *runner,
 {
   GPtrArray *argv = NULL;
   gchar *output = NULL;
+  g_autofree gchar *child_stderr = NULL;
   g_autoptr(JsonNode) node = NULL;
   JsonObject *object = NULL;
   SrtLocale *ret = NULL;
@@ -245,13 +246,16 @@ _srt_check_locale (SrtSubprocessRunner *runner,
                                           helper_flags,
                                           (const char * const *) argv->pdata,
                                           &output,
-                                          NULL,
+                                          &child_stderr,
                                           &exit_status,
                                           error))
     {
       g_debug ("-> g_spawn error");
       goto out;
     }
+
+  if (child_stderr != NULL && child_stderr[0] != '\0')
+    g_debug ("... diagnostic output: %s", child_stderr);
 
   if (!WIFEXITED (exit_status))
     {
