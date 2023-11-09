@@ -120,6 +120,8 @@ _srt_architecture_can_run (SrtSubprocessRunner *runner,
   GError *error = NULL;
   gboolean ret = FALSE;
   SrtHelperFlags helper_flags = SRT_HELPER_FLAGS_NONE;
+  g_autofree gchar *child_stdout = NULL;
+  g_autofree gchar *child_stderr = NULL;
 
   g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (runner), FALSE);
   g_return_val_if_fail (multiarch != NULL, FALSE);
@@ -142,14 +144,20 @@ _srt_architecture_can_run (SrtSubprocessRunner *runner,
   if (!_srt_subprocess_runner_spawn_sync (runner,
                                           helper_flags,
                                           (const char * const *) argv->pdata,
-                                          NULL,   /* stdout */
-                                          NULL,   /* stderr */
+                                          &child_stdout,
+                                          &child_stderr,
                                           &exit_status,
                                           &error))
     {
       g_debug ("... %s", error->message);
       goto out;
     }
+
+  if (child_stdout != NULL && child_stdout[0] != '\0')
+    g_debug ("... output: %s", child_stdout);
+
+  if (child_stderr != NULL && child_stderr[0] != '\0')
+    g_debug ("... diagnostic output: %s", child_stderr);
 
   if (exit_status != 0)
     {
