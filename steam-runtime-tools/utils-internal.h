@@ -56,10 +56,6 @@ G_GNUC_INTERNAL const char *_srt_find_myself (const char **helpers_path_out,
 G_GNUC_INTERNAL gchar * _srt_find_executable (GError **error);
 G_GNUC_INTERNAL gchar *_srt_find_executable_dir (GError **error);
 
-G_GNUC_INTERNAL gboolean _srt_process_timeout_wait_status (int wait_status,
-                                                           int *exit_status,
-                                                           int *terminating_signal);
-
 _SRT_PRIVATE_EXPORT
 const char *srt_enum_value_to_nick (GType enum_type,
                                     int value);

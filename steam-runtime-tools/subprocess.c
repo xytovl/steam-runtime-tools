@@ -8,6 +8,216 @@
 #include "steam-runtime-tools/enums.h"
 #include "steam-runtime-tools/utils-internal.h"
 
+struct _SrtCompletedSubprocess
+{
+  GObject parent;
+  gchar *out;
+  gchar *err;
+  SrtHelperFlags flags;
+  SrtSubprocessOutput out_mode;
+  SrtSubprocessOutput err_mode;
+  int wait_status;
+};
+
+struct _SrtCompletedSubprocessClass
+{
+  GObjectClass parent_class;
+};
+
+G_DEFINE_TYPE (SrtCompletedSubprocess, _srt_completed_subprocess, G_TYPE_OBJECT)
+
+static SrtCompletedSubprocess *
+_srt_completed_subprocess_new (void)
+{
+  return g_object_new (SRT_TYPE_COMPLETED_SUBPROCESS,
+                       NULL);
+}
+
+static void
+_srt_completed_subprocess_init (SrtCompletedSubprocess *self)
+{
+  self->wait_status = -1;
+}
+
+static void
+_srt_completed_subprocess_finalize (GObject *object)
+{
+  SrtCompletedSubprocess *self = SRT_COMPLETED_SUBPROCESS (object);
+
+  g_free (self->out);
+  g_free (self->err);
+
+  G_OBJECT_CLASS (_srt_completed_subprocess_parent_class)->finalize (object);
+}
+
+static void
+_srt_completed_subprocess_class_init (SrtCompletedSubprocessClass *cls)
+{
+  GObjectClass *object_class = G_OBJECT_CLASS (cls);
+
+  object_class->finalize = _srt_completed_subprocess_finalize;
+}
+
+static void
+_srt_completed_subprocess_dump (SrtCompletedSubprocess *self)
+{
+  if ((self->out_mode == SRT_SUBPROCESS_OUTPUT_CAPTURE_DEBUG)
+      && self->out != NULL
+      && self->out[0] != '\0')
+    g_debug ("stdout: %s", self->out);
+
+  if ((self->err_mode == SRT_SUBPROCESS_OUTPUT_CAPTURE_DEBUG)
+      && self->err != NULL
+      && self->err[0] != '\0')
+    g_debug ("stderr: %s", self->err);
+
+  g_debug ("Wait status %d", self->wait_status);
+}
+
+/*
+ * Return %TRUE if @self has completed successfully and had exit status 0.
+ * If it exited with an unsuccessful status, attempt to add whatever it
+ * wrote to stderr to the error message.
+ */
+gboolean
+_srt_completed_subprocess_check (SrtCompletedSubprocess *self,
+                                 GError **error)
+{
+  gboolean ret;
+
+  _srt_completed_subprocess_dump (self);
+  ret = g_spawn_check_wait_status (self->wait_status, error);
+
+  if (error != NULL
+      && *error != NULL
+      && self->err != NULL
+      && self->err[0] != '\0')
+    {
+      g_autoptr(GError) original = g_steal_pointer (error);
+
+      g_set_error (error, original->domain, original->code,
+                   "%s: %s", original->message, self->err);
+    }
+
+  return ret;
+}
+
+/*
+ * _srt_subprocess_report:
+ * @self: the subprocess
+ * @wait_status_out: (out): a wait()-style status, or -1 if not applicable
+ * @exit_status_out: (out): an exit status, or -1 if killed by a signal
+ *  or some other non-exit() result
+ * @terminating_signal_out: (out): the signal that terminated the process,
+ *  or 0 if not terminated by a signal
+ * @timed_out_out: (out): %TRUE if the process reached a timeout
+ *
+ * Return %TRUE if @self has completed successfully, and set
+ * various out parameters to reflect further details.
+ */
+gboolean
+_srt_completed_subprocess_report (SrtCompletedSubprocess *self,
+                                  int *wait_status_out,
+                                  int *exit_status_out,
+                                  int *terminating_signal_out,
+                                  gboolean *timed_out_out)
+{
+  if (wait_status_out != NULL)
+    *wait_status_out = self->wait_status;
+
+  if (exit_status_out != NULL)
+    *exit_status_out = -1;
+
+  if (terminating_signal_out != NULL)
+    *terminating_signal_out = 0;
+
+  if (timed_out_out != NULL)
+    *timed_out_out = FALSE;
+
+  _srt_completed_subprocess_dump (self);
+
+  if (WIFEXITED (self->wait_status))
+    {
+      int exit_status = WEXITSTATUS (self->wait_status);
+
+      if (exit_status_out != NULL)
+        *exit_status_out = exit_status;
+
+      if ((self->flags &
+           (SRT_HELPER_FLAGS_SHELL_EXIT_STATUS | SRT_HELPER_FLAGS_TIME_OUT))
+          && exit_status > 128
+          && exit_status <= 128 + SIGRTMAX)
+        {
+          g_debug ("-> subprocess killed by signal %d", (exit_status - 128));
+
+          if (terminating_signal_out != NULL)
+            *terminating_signal_out = (exit_status - 128);
+        }
+      else if ((self->flags & SRT_HELPER_FLAGS_TIME_OUT) && exit_status == 124)
+        {
+          g_debug ("-> timed out");
+
+          if (timed_out_out != NULL)
+            *timed_out_out = TRUE;
+        }
+      else
+        {
+          g_debug ("-> exit status %d", exit_status);
+        }
+    }
+  else if (WIFSIGNALED (self->wait_status))
+    {
+      g_debug ("-> killed by signal %d", WTERMSIG (self->wait_status));
+
+      if (terminating_signal_out != NULL)
+        *terminating_signal_out = WTERMSIG (self->wait_status);
+    }
+  else
+    {
+      g_critical ("Somehow got a wait_status that was neither exited nor signaled");
+      g_return_val_if_reached (FALSE);
+    }
+
+  return self->wait_status == 0;
+}
+
+/*
+ * Return %TRUE if the process timed out, %FALSE if it completed for
+ * any other reason.
+ */
+gboolean
+_srt_completed_subprocess_timed_out (SrtCompletedSubprocess *self)
+{
+  gboolean ret = FALSE;
+
+  _srt_completed_subprocess_report (self, NULL, NULL, NULL, &ret);
+  return ret;
+}
+
+const char *
+_srt_completed_subprocess_get_stdout (SrtCompletedSubprocess *self)
+{
+  return self->out;
+}
+
+const char *
+_srt_completed_subprocess_get_stderr (SrtCompletedSubprocess *self)
+{
+  return self->err;
+}
+
+gchar *
+_srt_completed_subprocess_steal_stdout (SrtCompletedSubprocess *self)
+{
+  return g_steal_pointer (&self->out);
+}
+
+gchar *
+_srt_completed_subprocess_steal_stderr (SrtCompletedSubprocess *self)
+{
+  return g_steal_pointer (&self->err);
+}
+
 struct _SrtSubprocessRunner
 {
   GObject parent;
@@ -312,17 +522,19 @@ _srt_subprocess_runner_get_helper (SrtSubprocessRunner *self,
   return argv;
 }
 
-gboolean
-_srt_subprocess_runner_spawn_sync (SrtSubprocessRunner *self,
-                                   SrtHelperFlags flags,
-                                   const char * const *argv,
-                                   gchar **stdout_out,
-                                   gchar **stderr_out,
-                                   gint *wait_status_out,
-                                   GError **error)
+SrtCompletedSubprocess *
+_srt_subprocess_runner_run_sync (SrtSubprocessRunner *self,
+                                 SrtHelperFlags flags,
+                                 const char * const *argv,
+                                 SrtSubprocessOutput stdout_mode,
+                                 SrtSubprocessOutput stderr_mode,
+                                 GError **error)
 {
+  g_autoptr(SrtCompletedSubprocess) completed = _srt_completed_subprocess_new ();
   g_auto(GStrv) my_environ = NULL;
   GSpawnFlags spawn_flags = G_SPAWN_DEFAULT;
+  gchar **stdout_out = NULL;
+  gchar **stderr_out = NULL;
 
   if (flags & SRT_HELPER_FLAGS_LIBGL_VERBOSE)
     {
@@ -332,24 +544,61 @@ _srt_subprocess_runner_spawn_sync (SrtSubprocessRunner *self,
       my_environ = g_environ_setenv (my_environ, "LIBGL_DEBUG", "verbose", TRUE);
     }
 
+  completed->flags = flags;
+  completed->out_mode = stdout_mode;
+  completed->err_mode = stderr_mode;
+
   /* When prepending timeout(1) to argv, we always need to search PATH */
   if (flags & (SRT_HELPER_FLAGS_TIME_OUT | SRT_HELPER_FLAGS_SEARCH_PATH))
     spawn_flags |= G_SPAWN_SEARCH_PATH;
 
-  if (flags & SRT_HELPER_FLAGS_STDOUT_SILENCE)
+  switch (stdout_mode)
     {
-      g_return_val_if_fail (stdout_out == NULL, FALSE);
-      spawn_flags |= G_SPAWN_STDOUT_TO_DEV_NULL;
+      case SRT_SUBPROCESS_OUTPUT_CAPTURE:
+      case SRT_SUBPROCESS_OUTPUT_CAPTURE_DEBUG:
+        stdout_out = &completed->out;
+        break;
+
+      case SRT_SUBPROCESS_OUTPUT_INHERIT:
+        break;
+
+      case SRT_SUBPROCESS_OUTPUT_SILENCE:
+        spawn_flags |= G_SPAWN_STDOUT_TO_DEV_NULL;
+        break;
+
+      default:
+        g_return_val_if_reached (FALSE);
     }
 
-  return g_spawn_sync (NULL,        /* working directory */
-                       (gchar **) argv,
-                       my_environ != NULL ? my_environ : self->envp,
-                       spawn_flags,
-                       _srt_child_setup_unblock_signals,
-                       NULL,        /* user data */
-                       stdout_out,
-                       stderr_out,
-                       wait_status_out,
-                       error);
+  switch (stderr_mode)
+    {
+      case SRT_SUBPROCESS_OUTPUT_CAPTURE:
+      case SRT_SUBPROCESS_OUTPUT_CAPTURE_DEBUG:
+        stderr_out = &completed->err;
+        break;
+
+      case SRT_SUBPROCESS_OUTPUT_INHERIT:
+        break;
+
+      case SRT_SUBPROCESS_OUTPUT_SILENCE:
+        spawn_flags |= G_SPAWN_STDERR_TO_DEV_NULL;
+        break;
+
+      default:
+        g_return_val_if_reached (FALSE);
+    }
+
+  if (!g_spawn_sync (NULL,        /* working directory */
+                     (gchar **) argv,
+                     my_environ != NULL ? my_environ : self->envp,
+                     spawn_flags,
+                     _srt_child_setup_unblock_signals,
+                     NULL,        /* user data */
+                     stdout_out,
+                     stderr_out,
+                     &completed->wait_status,
+                     error))
+    return NULL;
+
+  return g_steal_pointer (&completed);
 }

@@ -209,9 +209,10 @@ _srt_check_locale (SrtSubprocessRunner *runner,
                    GError **error)
 {
   GPtrArray *argv = NULL;
-  gchar *output = NULL;
-  g_autofree gchar *child_stderr = NULL;
+  const char *output = NULL;
+  g_autoptr(GError) local_error = NULL;
   g_autoptr(JsonNode) node = NULL;
+  g_autoptr(SrtCompletedSubprocess) completed = NULL;
   JsonObject *object = NULL;
   SrtLocale *ret = NULL;
   int exit_status;
@@ -242,37 +243,33 @@ _srt_check_locale (SrtSubprocessRunner *runner,
            (const char *) g_ptr_array_index (argv, 0),
            (const char *) g_ptr_array_index (argv, 1));
 
-  if (!_srt_subprocess_runner_spawn_sync (runner,
-                                          helper_flags,
-                                          (const char * const *) argv->pdata,
-                                          &output,
-                                          &child_stderr,
-                                          &exit_status,
-                                          error))
+  completed = _srt_subprocess_runner_run_sync (runner,
+                                               helper_flags,
+                                               (const char * const *) argv->pdata,
+                                               SRT_SUBPROCESS_OUTPUT_CAPTURE,
+                                               SRT_SUBPROCESS_OUTPUT_CAPTURE_DEBUG,
+                                               error);
+
+  if (completed == NULL)
     {
       g_debug ("-> g_spawn error");
       goto out;
     }
 
-  if (child_stderr != NULL && child_stderr[0] != '\0')
-    g_debug ("... diagnostic output: %s", child_stderr);
+  output = _srt_completed_subprocess_get_stdout (completed);
 
-  if (!WIFEXITED (exit_status))
+  if (_srt_completed_subprocess_check (completed, &local_error))
     {
-      g_debug ("-> wait status: %d", exit_status);
-      g_set_error (error, SRT_LOCALE_ERROR, SRT_LOCALE_ERROR_INTERNAL_ERROR,
-                   "Unhandled wait status %d (killed by signal?)",
-                   exit_status);
-      goto out;
+      exit_status = 0;
     }
-
-  exit_status = WEXITSTATUS (exit_status);
-  g_debug ("-> exit status: %d", exit_status);
-
-  if (exit_status != 0 && exit_status != 1)
+  else if (local_error->domain == G_SPAWN_EXIT_ERROR && local_error->code == 1)
     {
-      g_set_error (error, SRT_LOCALE_ERROR, SRT_LOCALE_ERROR_INTERNAL_ERROR,
-                   "Unhandled exit status %d", exit_status);
+      exit_status = 1;
+    }
+  else
+    {
+      /* The error will be translated into a SRT_LOCALE_ERROR_INTERNAL_ERROR */
+      g_propagate_error (error, g_steal_pointer (&local_error));
       goto out;
     }
 
@@ -336,7 +333,6 @@ out:
     }
 
   g_clear_pointer (&argv, g_ptr_array_unref);
-  g_free (output);
   return ret;
 }
 

@@ -683,17 +683,17 @@ _srt_inspect_library (SrtSubprocessRunner *runner,
                       SrtLibrary **more_details_out)
 {
   g_autofree gchar *output = NULL;
-  g_autofree gchar *child_stderr = NULL;
+  const char *child_stderr = NULL;
   g_autofree gchar *absolute_path = NULL;
   g_autofree gchar *real_soname = NULL;
   const gchar *originally_requested_name;
-  int wait_status = -1;
   int exit_status = -1;
   int terminating_signal = 0;
   g_autoptr(GHashTable) missing_symbols_set = NULL;
   g_autoptr(GHashTable) misversioned_symbols_set = NULL;
   g_autoptr(GHashTable) missing_versions_set = NULL;
   g_autoptr(GHashTable) dependencies_set = NULL;
+  g_autoptr(SrtCompletedSubprocess) completed = NULL;
   gchar *next_line;
   g_autofree const char **missing_symbols_strv = NULL;
   g_autofree const char **misversioned_symbols_strv = NULL;
@@ -702,6 +702,7 @@ _srt_inspect_library (SrtSubprocessRunner *runner,
   g_autoptr(GError) error = NULL;
   gsize i;
   guint length;
+  gboolean timed_out = FALSE;
 
   /* This function should not be called if a previous helper execution already
    * failed. */
@@ -751,23 +752,31 @@ _srt_inspect_library (SrtSubprocessRunner *runner,
       originally_requested_name = requested_name;
     }
 
-  if (!_srt_subprocess_runner_spawn_sync (runner,
-                                          helper_flags,
-                                          (const char * const *) argv,
-                                          &output,
-                                          &child_stderr,
-                                          &wait_status,
-                                          &error))
+  completed = _srt_subprocess_runner_run_sync (runner,
+                                               helper_flags,
+                                               (const char * const *) argv,
+                                               SRT_SUBPROCESS_OUTPUT_CAPTURE,
+                                               SRT_SUBPROCESS_OUTPUT_CAPTURE,
+                                               &error);
+
+  if (completed == NULL)
     {
       g_debug ("An error occurred calling the helper: %s", error->message);
       issues |= SRT_LIBRARY_ISSUES_CANNOT_LOAD;
+      goto out;
     }
-  else if (wait_status != 0)
+
+  /* Needs to be copied or stolen because we edit it in-place */
+  output = _srt_completed_subprocess_steal_stdout (completed);
+
+  child_stderr = _srt_completed_subprocess_get_stderr (completed);
+
+  if (!_srt_completed_subprocess_report (completed, NULL, &exit_status,
+                                         &terminating_signal, &timed_out))
     {
-      g_debug ("... wait status %d", wait_status);
       issues |= SRT_LIBRARY_ISSUES_CANNOT_LOAD;
 
-      if (_srt_process_timeout_wait_status (wait_status, &exit_status, &terminating_signal))
+      if (timed_out)
         issues |= SRT_LIBRARY_ISSUES_TIMEOUT;
 
       goto out;

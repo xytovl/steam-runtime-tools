@@ -229,10 +229,8 @@ _srt_list_modules_from_directory (SrtSubprocessRunner *runner,
                                   gboolean is_extra,
                                   GList **modules_out)
 {
-  int exit_status = -1;
+  g_autoptr(SrtCompletedSubprocess) completed = NULL;
   GError *error = NULL;
-  gchar *stderr_output = NULL;
-  gchar *output = NULL;
   GDir *dir_iter = NULL;
   GPtrArray *members = NULL;
   const gchar *member;
@@ -248,29 +246,24 @@ _srt_list_modules_from_directory (SrtSubprocessRunner *runner,
   g_return_if_fail (known_table != NULL);
   g_return_if_fail (modules_out != NULL);
 
-  if (!_srt_subprocess_runner_spawn_sync (runner,
-                                          helper_flags,
-                                          (const char * const *) argv->pdata,
-                                          &output,
-                                          &stderr_output,
-                                          &exit_status,
-                                          &error))
+  completed = _srt_subprocess_runner_run_sync (runner,
+                                               helper_flags,
+                                               (const char * const *) argv->pdata,
+                                               SRT_SUBPROCESS_OUTPUT_CAPTURE_DEBUG,
+                                               SRT_SUBPROCESS_OUTPUT_CAPTURE_DEBUG,
+                                               &error);
+
+  if (completed == NULL)
     {
       g_debug ("An error occurred calling the helper: %s", error->message);
       goto out;
     }
 
-  if (exit_status != 0)
+  if (!_srt_completed_subprocess_check (completed, &error))
     {
-      g_debug ("... wait status %d", exit_status);
+      g_debug ("Subprocess failed: %s", error->message);
       goto out;
     }
-
-  if (output != NULL && output[0] != '\0')
-    g_debug ("... output: %s", output);
-
-  if (stderr_output != NULL && stderr_output[0] != '\0')
-    g_debug ("... diagnostic output: %s", stderr_output);
 
   dir_iter = g_dir_open (tmp_directory, 0, &error);
 
@@ -358,8 +351,6 @@ out:
   if (dir_iter != NULL)
     g_dir_close (dir_iter);
   g_clear_pointer (&members, g_ptr_array_unref);
-  g_free (output);
-  g_free (stderr_output);
   g_clear_error (&error);
 }
 
@@ -373,12 +364,10 @@ _srt_list_links_from_directory (SrtSubprocessRunner *runner,
                                 GPtrArray *argv,
                                 const gchar *tmp_directory)
 {
-  int exit_status = -1;
   g_autoptr(GError) error = NULL;
   g_autoptr(GDir) dir_iter = NULL;
   g_autoptr(GPtrArray) members = NULL;
-  g_autofree char *stdout_text = NULL;
-  g_autofree char *stderr_text = NULL;
+  g_autoptr(SrtCompletedSubprocess) completed = NULL;
   const gchar *member;
 
   g_autoptr(GPtrArray) lib_links = g_ptr_array_new_with_free_func (g_free);
@@ -387,27 +376,22 @@ _srt_list_links_from_directory (SrtSubprocessRunner *runner,
   g_return_val_if_fail (argv != NULL, NULL);
   g_return_val_if_fail (tmp_directory != NULL, NULL);
 
-  if (!_srt_subprocess_runner_spawn_sync (runner,
-                                          helper_flags,
-                                          (const char * const *) argv->pdata,
-                                          &stdout_text,
-                                          &stderr_text,
-                                          &exit_status,
-                                          &error))
+  completed = _srt_subprocess_runner_run_sync (runner,
+                                               helper_flags,
+                                               (const char * const *) argv->pdata,
+                                               SRT_SUBPROCESS_OUTPUT_CAPTURE_DEBUG,
+                                               SRT_SUBPROCESS_OUTPUT_CAPTURE_DEBUG,
+                                               &error);
+
+  if (completed == NULL)
     {
       g_debug ("An error occurred calling the helper: %s", error->message);
       return NULL;
     }
 
-  if (stdout_text != NULL && *stdout_text != '\0')
-    g_debug ("stdout: %s", stdout_text);
-
-  if (stderr_text != NULL && *stderr_text != '\0')
-    g_debug ("stderr: %s", stderr_text);
-
-  if (exit_status != 0)
+  if (!_srt_completed_subprocess_check (completed, &error))
     {
-      g_debug ("... wait status %d", exit_status);
+      g_debug ("Subprocess failed: %s", error->message);
       return NULL;
     }
 

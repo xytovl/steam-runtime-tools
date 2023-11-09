@@ -115,13 +115,11 @@ gboolean
 _srt_architecture_can_run (SrtSubprocessRunner *runner,
                            const char *multiarch)
 {
+  g_autoptr(SrtCompletedSubprocess) completed = NULL;
   GPtrArray *argv = NULL;
-  int exit_status = -1;
   GError *error = NULL;
   gboolean ret = FALSE;
   SrtHelperFlags helper_flags = SRT_HELPER_FLAGS_NONE;
-  g_autofree gchar *child_stdout = NULL;
-  g_autofree gchar *child_stderr = NULL;
 
   g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (runner), FALSE);
   g_return_val_if_fail (multiarch != NULL, FALSE);
@@ -141,27 +139,16 @@ _srt_architecture_can_run (SrtSubprocessRunner *runner,
   g_debug ("Testing architecture %s with %s",
            multiarch, (const char *) g_ptr_array_index (argv, 0));
 
-  if (!_srt_subprocess_runner_spawn_sync (runner,
-                                          helper_flags,
-                                          (const char * const *) argv->pdata,
-                                          &child_stdout,
-                                          &child_stderr,
-                                          &exit_status,
-                                          &error))
+  completed = _srt_subprocess_runner_run_sync (runner,
+                                               helper_flags,
+                                               (const char * const *) argv->pdata,
+                                               SRT_SUBPROCESS_OUTPUT_CAPTURE_DEBUG,
+                                               SRT_SUBPROCESS_OUTPUT_CAPTURE_DEBUG,
+                                               &error);
+
+  if (completed == NULL || !_srt_completed_subprocess_check (completed, &error))
     {
       g_debug ("... %s", error->message);
-      goto out;
-    }
-
-  if (child_stdout != NULL && child_stdout[0] != '\0')
-    g_debug ("... output: %s", child_stdout);
-
-  if (child_stderr != NULL && child_stderr[0] != '\0')
-    g_debug ("... diagnostic output: %s", child_stderr);
-
-  if (exit_status != 0)
-    {
-      g_debug ("... wait status %d", exit_status);
       goto out;
     }
 
