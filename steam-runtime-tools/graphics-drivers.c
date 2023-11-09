@@ -266,6 +266,12 @@ _srt_list_modules_from_directory (SrtSubprocessRunner *runner,
       goto out;
     }
 
+  if (output != NULL && output[0] != '\0')
+    g_debug ("... output: %s", output);
+
+  if (stderr_output != NULL && stderr_output[0] != '\0')
+    g_debug ("... diagnostic output: %s", stderr_output);
+
   dir_iter = g_dir_open (tmp_directory, 0, &error);
 
   if (dir_iter == NULL)
