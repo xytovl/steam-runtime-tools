@@ -1182,9 +1182,17 @@ main (int argc,
                                   error))
         {
           g_debug ("Generated ld.so.cache in %s", opt_regenerate_ld_so_cache);
-          g_debug ("Setting LD_LIBRARY_PATH to \"%s\"", opt_set_ld_library_path);
-          flatpak_bwrap_set_env (wrapped_command, "LD_LIBRARY_PATH",
-                                 opt_set_ld_library_path, TRUE);
+
+          if (opt_set_ld_library_path == NULL)
+            {
+              g_debug ("No new value for LD_LIBRARY_PATH available");
+            }
+          else
+            {
+              g_debug ("Setting LD_LIBRARY_PATH to \"%s\"", opt_set_ld_library_path);
+              flatpak_bwrap_set_env (wrapped_command, "LD_LIBRARY_PATH",
+                                     opt_set_ld_library_path, TRUE);
+            }
         }
       else
         {
