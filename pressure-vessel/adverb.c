@@ -684,6 +684,37 @@ regenerate_ld_so_cache (const GPtrArray *ld_so_cache_paths,
     return glnx_prefix_error (error, "Cannot move %s to %s",
                               new_path, replace_path);
 
+  if (opt_verbose)
+    {
+      const char * const read_back_argv[] =
+      {
+        "/sbin/ldconfig",
+        "-p",
+        NULL
+      };
+
+      g_clear_pointer (&child_stdout, g_free);
+      g_clear_pointer (&child_stderr, g_free);
+
+      if (!run_helper_sync (NULL,
+                            read_back_argv,
+                            global_original_environ,
+                            &child_stdout,
+                            &child_stderr,
+                            &wait_status,
+                            error))
+        return glnx_prefix_error (error, "Cannot run /sbin/ldconfig -p");
+
+      if (child_stdout != NULL && child_stdout[0] != '\0')
+        g_debug ("ldconfig -p output:\n%s", child_stdout);
+
+      if (child_stderr != NULL && child_stderr[0] != '\0')
+        g_debug ("ldconfig -p diagnostic output:\n%s", child_stderr);
+
+      if (wait_status != 0)
+        g_debug ("ldconfig -p wait status:\n%d", wait_status);
+    }
+
   return TRUE;
 }
 
