@@ -1,3 +1,11 @@
+steam-runtime-tools (0.20231115.0) UNRELEASED; urgency=medium
+
+  * pressure-vessel:
+    - Log a warning if we can't set up /etc/timezone
+    - Refactoring
+
+ -- Simon McVittie <smcv@collabora.com>  Wed, 15 Nov 2023 14:12:04 +0000
+
 steam-runtime-tools (0.20231107.1) steamrt; urgency=medium
 
   * Fix internal version information
