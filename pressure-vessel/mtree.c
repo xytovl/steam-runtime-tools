@@ -457,6 +457,290 @@ maybe_chmod (const PvMtreeEntry *entry,
                                   permissions, adjusted_mode);
 }
 
+typedef gboolean (*PvMtreeForeachFunc) (PvMtreeEntry *entry,
+                                        PvMtreeApplyFlags flags,
+                                        const char *mtree,
+                                        guint line_number,
+                                        void *user_data,
+                                        GError **error);
+
+static gboolean
+pv_mtree_foreach (const char *mtree,
+                  PvMtreeApplyFlags flags,
+                  PvMtreeForeachFunc callback,
+                  void *user_data,
+                  GError **error)
+{
+  glnx_autofd int mtree_fd = -1;
+  g_autoptr(GInputStream) istream = NULL;
+  g_autoptr(GDataInputStream) reader = NULL;
+  guint line_number = 0;
+
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+  g_return_val_if_fail (mtree != NULL, FALSE);
+  g_return_val_if_fail (callback != NULL, FALSE);
+
+  if (!glnx_openat_rdonly (AT_FDCWD, mtree, TRUE, &mtree_fd, error))
+    return FALSE;
+
+  istream = g_unix_input_stream_new (g_steal_fd (&mtree_fd), TRUE);
+
+  if (flags & PV_MTREE_APPLY_FLAGS_GZIP)
+    {
+      g_autoptr(GInputStream) filter = NULL;
+      g_autoptr(GZlibDecompressor) decompressor = NULL;
+
+      decompressor = g_zlib_decompressor_new (G_ZLIB_COMPRESSOR_FORMAT_GZIP);
+      filter = g_converter_input_stream_new (istream, G_CONVERTER (decompressor));
+      g_clear_object (&istream);
+      istream = g_object_ref (filter);
+    }
+
+  reader = g_data_input_stream_new (istream);
+  g_data_input_stream_set_newline_type (reader, G_DATA_STREAM_NEWLINE_TYPE_LF);
+
+  while (TRUE)
+    {
+      g_autofree gchar *line = NULL;
+      g_autoptr(GError) local_error = NULL;
+      g_auto(PvMtreeEntry) entry = PV_MTREE_ENTRY_BLANK;
+
+      line = g_data_input_stream_read_line (reader, NULL, NULL, &local_error);
+
+      if (line == NULL)
+        {
+          if (local_error != NULL)
+            {
+              g_propagate_prefixed_error (error, g_steal_pointer (&local_error),
+                                          "While reading a line from %s: ",
+                                          mtree);
+              return FALSE;
+            }
+          else
+            {
+              /* End of file, not an error */
+              break;
+            }
+        }
+
+      g_strstrip (line);
+      line_number++;
+
+      trace ("line %u: %s", line_number, line);
+
+      if (!pv_mtree_entry_parse (line, &entry, mtree, line_number, error))
+        return FALSE;
+
+      if (entry.name == NULL || strcmp (entry.name, ".") == 0)
+        continue;
+
+      trace ("mtree entry: %s", entry.name);
+
+      if (!callback (&entry, flags, mtree, line_number, user_data, error))
+        return FALSE;
+    }
+
+  return TRUE;
+}
+
+typedef struct
+{
+  const char *sysroot;
+  int sysroot_fd;
+  const char *source_files;
+  int source_files_fd;
+  GLogLevelFlags chmod_plusx_warning_level;
+  GLogLevelFlags chmod_minusx_warning_level;
+  GLogLevelFlags set_mtime_warning_level;
+} ForeachApplyState;
+
+static gboolean
+pv_mtree_foreach_apply_cb (PvMtreeEntry *entry,
+                           PvMtreeApplyFlags flags,
+                           const char *mtree,
+                           guint line_number,
+                           void *user_data,
+                           GError **error)
+{
+  ForeachApplyState *state = user_data;
+  g_autofree gchar *parent = NULL;
+  const char *base;
+  glnx_autofd int parent_fd = -1;
+  glnx_autofd int fd = -1;
+
+  parent = g_path_get_dirname (entry->name);
+  base = glnx_basename (entry->name);
+
+  trace ("Creating %s in %s", parent, state->sysroot);
+  parent_fd = _srt_resolve_in_sysroot (state->sysroot_fd, parent,
+                                       SRT_RESOLVE_FLAGS_MKDIR_P,
+                                       NULL, error);
+
+  if (parent_fd < 0)
+    return glnx_prefix_error (error,
+                              "Unable to create parent directory for \"%s\" in \"%s\"",
+                              entry->name, state->sysroot);
+
+  switch (entry->kind)
+    {
+      case PV_MTREE_ENTRY_KIND_FILE:
+        if (entry->size == 0)
+          {
+            /* For empty files, we can create it from nothing. */
+            fd = TEMP_FAILURE_RETRY (openat (parent_fd, base,
+                                             (O_RDWR | O_CLOEXEC | O_NOCTTY
+                                              | O_NOFOLLOW | O_CREAT
+                                              | O_TRUNC),
+                                             0644));
+
+            if (fd < 0)
+              return glnx_throw_errno_prefix (error,
+                                              "Unable to open \"%s\" in \"%s\"",
+                                              entry->name, state->sysroot);
+          }
+        else if (state->source_files_fd >= 0)
+          {
+            const char *source = entry->contents;
+
+            if (source == NULL)
+              source = entry->name;
+
+            /* If it already exists, assume it's correct */
+            if (glnx_openat_rdonly (parent_fd, base, FALSE, &fd, NULL))
+              {
+                trace ("\"%s\" already exists in \"%s\"",
+                       entry->name, state->sysroot);
+              }
+            /* If we can create a hard link, that's also fine */
+            else if (TEMP_FAILURE_RETRY (linkat (state->source_files_fd, source,
+                                                 parent_fd, base, 0)) == 0)
+              {
+                trace ("Created hard link \"%s\" in \"%s\"",
+                       entry->name, state->sysroot);
+              }
+            /* Or if we can copy it, that's fine too */
+            else
+              {
+                int link_errno = errno;
+
+                g_debug ("Could not create hard link \"%s\" from \"%s/%s\" into \"%s\": %s",
+                         entry->name, state->source_files, source, state->sysroot,
+                         g_strerror (link_errno));
+
+                if (!glnx_file_copy_at (state->source_files_fd, source, NULL,
+                                        parent_fd, base,
+                                        (GLNX_FILE_COPY_OVERWRITE
+                                         | GLNX_FILE_COPY_NOCHOWN
+                                         | GLNX_FILE_COPY_NOXATTRS),
+                                        NULL, error))
+                  return glnx_prefix_error (error,
+                                            "Could not create copy \"%s\" from \"%s/%s\" into \"%s\"",
+                                            entry->name, state->source_files,
+                                            source, state->sysroot);
+
+                if ((flags & PV_MTREE_APPLY_FLAGS_EXPECT_HARD_LINKS) != 0)
+                  {
+                    g_warning ("Unable to create hard link \"%s/%s\" to "
+                               "\"%s/%s\": %s",
+                               state->sysroot, entry->name, state->source_files, source,
+                               g_strerror (link_errno));
+                    g_warning ("Falling back to copying, but this will "
+                               "take more time and disk space.");
+                    g_warning ("For best results, \"%s\" and \"%s\" "
+                               "should both be on the same "
+                               "fully-featured Linux filesystem.",
+                               state->source_files, state->sysroot);
+                    /* Only warn once per tree copied */
+                    flags &= ~PV_MTREE_APPLY_FLAGS_EXPECT_HARD_LINKS;
+                  }
+              }
+          }
+
+        /* For other regular files we just assert that it already exists
+         * (and is not a symlink). */
+        if (fd < 0
+            && !(entry->entry_flags & PV_MTREE_ENTRY_FLAGS_OPTIONAL)
+            && !glnx_openat_rdonly (parent_fd, base, FALSE, &fd, error))
+          return glnx_prefix_error (error,
+                                    "Unable to open \"%s\" in \"%s\"",
+                                    entry->name, state->sysroot);
+
+        break;
+
+      case PV_MTREE_ENTRY_KIND_DIR:
+        /* Create directories on-demand */
+        if (!glnx_ensure_dir (parent_fd, base, 0755, error))
+          return glnx_prefix_error (error,
+                                    "Unable to create directory \"%s\" in \"%s\"",
+                                    entry->name, state->sysroot);
+
+        /* Assert that it is in fact a directory */
+        if (!glnx_opendirat (parent_fd, base, FALSE, &fd, error))
+          return glnx_prefix_error (error,
+                                    "Unable to open directory \"%s\" in \"%s\"",
+                                    entry->name, state->sysroot);
+
+        break;
+
+      case PV_MTREE_ENTRY_KIND_LINK:
+          {
+            g_autofree char *target = NULL;
+            /* Create symlinks on-demand. To be idempotent, don't delete
+             * an existing symlink. */
+            target = glnx_readlinkat_malloc (parent_fd, base,
+                                             NULL, NULL);
+
+            if (target == NULL && symlinkat (entry->link, parent_fd, base) != 0)
+              return glnx_throw_errno_prefix (error,
+                                              "Unable to create symlink \"%s\" in \"%s\"",
+                                              entry->name, state->sysroot);
+          }
+        break;
+
+      case PV_MTREE_ENTRY_KIND_BLOCK:
+      case PV_MTREE_ENTRY_KIND_CHAR:
+      case PV_MTREE_ENTRY_KIND_FIFO:
+      case PV_MTREE_ENTRY_KIND_SOCKET:
+      case PV_MTREE_ENTRY_KIND_UNKNOWN:
+      default:
+        return glnx_throw (error,
+                           "%s:%u: Special file not supported",
+                           mtree, line_number);
+    }
+
+  if (fd >= 0 &&
+      !maybe_chmod (entry, parent_fd, base, fd, state->sysroot, flags,
+                    &state->chmod_plusx_warning_level,
+                    &state->chmod_minusx_warning_level,
+                    error))
+    return FALSE;
+
+  if (entry->mtime_usec >= 0
+      && fd >= 0
+      && !(entry->entry_flags & PV_MTREE_ENTRY_FLAGS_NO_CHANGE)
+      && entry->kind == PV_MTREE_ENTRY_KIND_FILE)
+    {
+      struct timespec times[2] =
+      {
+        { .tv_sec = 0, .tv_nsec = UTIME_OMIT },   /* atime */
+        {
+          .tv_sec = entry->mtime_usec / G_TIME_SPAN_SECOND,
+          .tv_nsec = (entry->mtime_usec % G_TIME_SPAN_SECOND) * 1000
+        }   /* mtime */
+      };
+
+      if (futimens (fd, times) != 0)
+        {
+          g_log (G_LOG_DOMAIN, state->set_mtime_warning_level,
+                 "Unable to set mtime of \"%s\" in \"%s\": %s",
+                 entry->name, state->sysroot, g_strerror (errno));
+          state->set_mtime_warning_level = G_LOG_LEVEL_INFO;
+        }
+    }
+
+  return TRUE;
+}
+
 /*
  * pv_mtree_apply:
  * @mtree: (type filename): Path to a mtree(5) manifest
@@ -521,18 +805,21 @@ pv_mtree_apply (const char *mtree,
                 PvMtreeApplyFlags flags,
                 GError **error)
 {
-  glnx_autofd int mtree_fd = -1;
-  g_autoptr(GInputStream) istream = NULL;
-  g_autoptr(GDataInputStream) reader = NULL;
   g_autoptr(SrtProfilingTimer) timer = NULL;
   glnx_autofd int source_files_fd = -1;
-  guint line_number = 0;
   /* We only emit a warning for the first file we were unable to chmod +x,
    * and the first file we were unable to chmod -x, per mtree applied;
    * the second and subsequent file in each class are demoted to INFO. */
-  GLogLevelFlags chmod_plusx_warning_level = G_LOG_LEVEL_WARNING;
-  GLogLevelFlags chmod_minusx_warning_level = G_LOG_LEVEL_WARNING;
-  GLogLevelFlags set_mtime_warning_level = G_LOG_LEVEL_WARNING;
+  ForeachApplyState state =
+  {
+    .sysroot = sysroot,
+    .sysroot_fd = sysroot_fd,
+    .source_files = source_files,
+    .source_files_fd = -1,
+    .chmod_plusx_warning_level = G_LOG_LEVEL_WARNING,
+    .chmod_minusx_warning_level = G_LOG_LEVEL_WARNING,
+    .set_mtime_warning_level = G_LOG_LEVEL_WARNING,
+  };
 
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
   g_return_val_if_fail (mtree != NULL, FALSE);
@@ -541,245 +828,19 @@ pv_mtree_apply (const char *mtree,
 
   timer = _srt_profiling_start ("Apply %s to %s", mtree, sysroot);
 
-  if (!glnx_openat_rdonly (AT_FDCWD, mtree, TRUE, &mtree_fd, error))
-    return FALSE;
-
-  istream = g_unix_input_stream_new (g_steal_fd (&mtree_fd), TRUE);
-
-  if (flags & PV_MTREE_APPLY_FLAGS_GZIP)
-    {
-      g_autoptr(GInputStream) filter = NULL;
-      g_autoptr(GZlibDecompressor) decompressor = NULL;
-
-      decompressor = g_zlib_decompressor_new (G_ZLIB_COMPRESSOR_FORMAT_GZIP);
-      filter = g_converter_input_stream_new (istream, G_CONVERTER (decompressor));
-      g_clear_object (&istream);
-      istream = g_object_ref (filter);
-    }
-
-  reader = g_data_input_stream_new (istream);
-  g_data_input_stream_set_newline_type (reader, G_DATA_STREAM_NEWLINE_TYPE_LF);
-
   if (source_files != NULL)
     {
       if (!glnx_opendirat (AT_FDCWD, source_files, FALSE, &source_files_fd,
                            error))
         return FALSE;
+
+      state.source_files_fd = source_files_fd;
     }
 
   g_info ("Applying \"%s\" to \"%s\"...", mtree, sysroot);
 
-  while (TRUE)
-    {
-      g_autofree gchar *line = NULL;
-      g_autofree gchar *parent = NULL;
-      const char *base;
-      g_autoptr(GError) local_error = NULL;
-      g_auto(PvMtreeEntry) entry = PV_MTREE_ENTRY_BLANK;
-      glnx_autofd int parent_fd = -1;
-      glnx_autofd int fd = -1;
-
-      line = g_data_input_stream_read_line (reader, NULL, NULL, &local_error);
-
-      if (line == NULL)
-        {
-          if (local_error != NULL)
-            {
-              g_propagate_prefixed_error (error, g_steal_pointer (&local_error),
-                                          "While reading a line from %s: ",
-                                          mtree);
-              return FALSE;
-            }
-          else
-            {
-              /* End of file, not an error */
-              break;
-            }
-        }
-
-      g_strstrip (line);
-      line_number++;
-
-      trace ("line %u: %s", line_number, line);
-
-      if (!pv_mtree_entry_parse (line, &entry, mtree, line_number, error))
-        return FALSE;
-
-      if (entry.name == NULL || strcmp (entry.name, ".") == 0)
-        continue;
-
-      trace ("mtree entry: %s", entry.name);
-
-      parent = g_path_get_dirname (entry.name);
-      base = glnx_basename (entry.name);
-      trace ("Creating %s in %s", parent, sysroot);
-      parent_fd = _srt_resolve_in_sysroot (sysroot_fd, parent,
-                                           SRT_RESOLVE_FLAGS_MKDIR_P,
-                                           NULL, error);
-
-      if (parent_fd < 0)
-        return glnx_prefix_error (error,
-                                  "Unable to create parent directory for \"%s\" in \"%s\"",
-                                  entry.name, sysroot);
-
-      switch (entry.kind)
-        {
-          case PV_MTREE_ENTRY_KIND_FILE:
-            if (entry.size == 0)
-              {
-                /* For empty files, we can create it from nothing. */
-                fd = TEMP_FAILURE_RETRY (openat (parent_fd, base,
-                                                 (O_RDWR | O_CLOEXEC | O_NOCTTY
-                                                  | O_NOFOLLOW | O_CREAT
-                                                  | O_TRUNC),
-                                                 0644));
-
-                if (fd < 0)
-                  return glnx_throw_errno_prefix (error,
-                                                  "Unable to open \"%s\" in \"%s\"",
-                                                  entry.name, sysroot);
-              }
-            else if (source_files_fd >= 0)
-              {
-                const char *source = entry.contents;
-
-                if (source == NULL)
-                  source = entry.name;
-
-                /* If it already exists, assume it's correct */
-                if (glnx_openat_rdonly (parent_fd, base, FALSE, &fd, NULL))
-                  {
-                    trace ("\"%s\" already exists in \"%s\"",
-                           entry.name, sysroot);
-                  }
-                /* If we can create a hard link, that's also fine */
-                else if (TEMP_FAILURE_RETRY (linkat (source_files_fd, source,
-                                                     parent_fd, base, 0)) == 0)
-                  {
-                    trace ("Created hard link \"%s\" in \"%s\"",
-                           entry.name, sysroot);
-                  }
-                /* Or if we can copy it, that's fine too */
-                else
-                  {
-                    int link_errno = errno;
-
-                    g_debug ("Could not create hard link \"%s\" from \"%s/%s\" into \"%s\": %s",
-                             entry.name, source_files, source, sysroot,
-                             g_strerror (link_errno));
-
-                    if (!glnx_file_copy_at (source_files_fd, source, NULL,
-                                            parent_fd, base,
-                                            (GLNX_FILE_COPY_OVERWRITE
-                                             | GLNX_FILE_COPY_NOCHOWN
-                                             | GLNX_FILE_COPY_NOXATTRS),
-                                            NULL, error))
-                      return glnx_prefix_error (error,
-                                                "Could not create copy \"%s\" from \"%s/%s\" into \"%s\"",
-                                                entry.name, source_files,
-                                                source, sysroot);
-
-                    if ((flags & PV_MTREE_APPLY_FLAGS_EXPECT_HARD_LINKS) != 0)
-                      {
-                        g_warning ("Unable to create hard link \"%s/%s\" to "
-                                   "\"%s/%s\": %s",
-                                   sysroot, entry.name, source_files, source,
-                                   g_strerror (link_errno));
-                        g_warning ("Falling back to copying, but this will "
-                                   "take more time and disk space.");
-                        g_warning ("For best results, \"%s\" and \"%s\" "
-                                   "should both be on the same "
-                                   "fully-featured Linux filesystem.",
-                                   source_files, sysroot);
-                        /* Only warn once per tree copied */
-                        flags &= ~PV_MTREE_APPLY_FLAGS_EXPECT_HARD_LINKS;
-                      }
-                  }
-              }
-
-            /* For other regular files we just assert that it already exists
-             * (and is not a symlink). */
-            if (fd < 0
-                && !(entry.entry_flags & PV_MTREE_ENTRY_FLAGS_OPTIONAL)
-                && !glnx_openat_rdonly (parent_fd, base, FALSE, &fd, error))
-              return glnx_prefix_error (error,
-                                        "Unable to open \"%s\" in \"%s\"",
-                                        entry.name, sysroot);
-
-            break;
-
-          case PV_MTREE_ENTRY_KIND_DIR:
-            /* Create directories on-demand */
-            if (!glnx_ensure_dir (parent_fd, base, 0755, error))
-              return glnx_prefix_error (error,
-                                        "Unable to create directory \"%s\" in \"%s\"",
-                                        entry.name, sysroot);
-
-            /* Assert that it is in fact a directory */
-            if (!glnx_opendirat (parent_fd, base, FALSE, &fd, error))
-              return glnx_prefix_error (error,
-                                        "Unable to open directory \"%s\" in \"%s\"",
-                                        entry.name, sysroot);
-
-            break;
-
-          case PV_MTREE_ENTRY_KIND_LINK:
-              {
-                g_autofree char *target = NULL;
-                /* Create symlinks on-demand. To be idempotent, don't delete
-                 * an existing symlink. */
-                target = glnx_readlinkat_malloc (parent_fd, base,
-                                                 NULL, NULL);
-
-                if (target == NULL && symlinkat (entry.link, parent_fd, base) != 0)
-                  return glnx_throw_errno_prefix (error,
-                                                  "Unable to create symlink \"%s\" in \"%s\"",
-                                                  entry.name, sysroot);
-              }
-            break;
-
-          case PV_MTREE_ENTRY_KIND_BLOCK:
-          case PV_MTREE_ENTRY_KIND_CHAR:
-          case PV_MTREE_ENTRY_KIND_FIFO:
-          case PV_MTREE_ENTRY_KIND_SOCKET:
-          case PV_MTREE_ENTRY_KIND_UNKNOWN:
-          default:
-            return glnx_throw (error,
-                               "%s:%u: Special file not supported",
-                               mtree, line_number);
-        }
-
-      if (fd >= 0 &&
-          !maybe_chmod (&entry, parent_fd, base, fd, sysroot, flags,
-                        &chmod_plusx_warning_level, &chmod_minusx_warning_level,
-                        error))
-        return FALSE;
-
-      if (entry.mtime_usec >= 0
-          && fd >= 0
-          && !(entry.entry_flags & PV_MTREE_ENTRY_FLAGS_NO_CHANGE)
-          && entry.kind == PV_MTREE_ENTRY_KIND_FILE)
-        {
-          struct timespec times[2] =
-          {
-            { .tv_sec = 0, .tv_nsec = UTIME_OMIT },   /* atime */
-            {
-              .tv_sec = entry.mtime_usec / G_TIME_SPAN_SECOND,
-              .tv_nsec = (entry.mtime_usec % G_TIME_SPAN_SECOND) * 1000
-            }   /* mtime */
-          };
-
-          if (futimens (fd, times) != 0)
-            {
-              g_log (G_LOG_DOMAIN, set_mtime_warning_level,
-                     "Unable to set mtime of \"%s\" in \"%s\": %s",
-                     entry.name, sysroot, g_strerror (errno));
-              set_mtime_warning_level = G_LOG_LEVEL_INFO;
-            }
-        }
-    }
-
-  return TRUE;
+  return pv_mtree_foreach (mtree, flags,
+                           pv_mtree_foreach_apply_cb, &state, error);
 }
 
 /*
