@@ -1582,7 +1582,7 @@ class Main:
 
                 if stat.S_ISREG(stat_info.st_mode):
                     fields.append('type=file')
-                    fields.append('mode=%o' % stat_info.st_mode)
+                    fields.append('mode=%o' % (stat_info.st_mode & 0o7777))
 
                     # With sub-second precision, note that some versions
                     # of mtree use the part after the dot as integer
