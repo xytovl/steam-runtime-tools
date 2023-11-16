@@ -498,12 +498,7 @@ test_sigusr (Fixture *f,
                 NULL);
   g_assert_cmpint (issues, ==, SRT_GRAPHICS_ISSUES_CANNOT_LOAD);
   g_assert_cmpstr (tuple, ==, "mock-sigusr");
-  /* Depending on the version of timeout(1), it will have either
-   * exited with status 128 + SIGUSR1, or killed itself with SIGUSR1 */
-  if (exit_status != -1)
-    {
-      g_assert_cmpint (exit_status, ==, 128 + SIGUSR1);
-    }
+  g_assert_cmpint (exit_status, ==, -1);
   g_assert_cmpint (terminating_signal, ==, SIGUSR1);
 }
 
@@ -3149,6 +3144,7 @@ typedef struct
   /* Arbitrary size, increase it if necessary */
   GraphicsDeviceTest devices[4];
   int exit_status;
+  int terminating_signal;
   gboolean vendor_neutral;
 } GraphicsTest;
 
@@ -3208,8 +3204,8 @@ static const GraphicsTest graphics_test[] =
     .issues = (SRT_GRAPHICS_ISSUES_CANNOT_LOAD | SRT_GRAPHICS_ISSUES_TIMEOUT),
     .test_flags = SRT_TEST_FLAGS_TIME_OUT_SOONER,
     .multiarch_tuple = "mock-hanging",
-    // Timeout has exit code 124
-    .exit_status = 124,
+    .exit_status = -1,
+    .terminating_signal = SIGTERM,
   },
 
   {
@@ -3378,7 +3374,7 @@ test_check_graphics (Fixture *f,
       g_assert_cmpstr (srt_graphics_get_version_string (graphics), ==, test->version_string);
       g_assert_cmpstr (srt_graphics_get_messages (graphics), ==, test->messages);
       g_assert_cmpint (srt_graphics_get_exit_status (graphics), ==, test->exit_status);
-      g_assert_cmpint (srt_graphics_get_terminating_signal (graphics), ==, 0);
+      g_assert_cmpint (srt_graphics_get_terminating_signal (graphics), ==, test->terminating_signal);
 
       devices = srt_graphics_get_devices (graphics);
       for (j = 0, iter = devices; iter != NULL; iter = iter->next, j++)
@@ -3443,7 +3439,7 @@ test_check_graphics (Fixture *f,
       g_assert_cmpstr (version, ==, test->version_string);
       g_assert_cmpstr (messages, ==, test->messages);
       g_assert_cmpint (exit_status, ==, test->exit_status);
-      g_assert_cmpint (terminating_signal, ==, 0);
+      g_assert_cmpint (terminating_signal, ==, test->terminating_signal);
     }
 }
 

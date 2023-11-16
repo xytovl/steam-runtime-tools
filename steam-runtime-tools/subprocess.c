@@ -32,6 +32,7 @@ struct _SrtCompletedSubprocess
   SrtSubprocessOutput out_mode;
   SrtSubprocessOutput err_mode;
   int wait_status;
+  unsigned timed_out : 1;
 };
 
 struct _SrtCompletedSubprocessClass
@@ -147,7 +148,7 @@ _srt_completed_subprocess_report (SrtCompletedSubprocess *self,
     *terminating_signal_out = 0;
 
   if (timed_out_out != NULL)
-    *timed_out_out = FALSE;
+    *timed_out_out = self->timed_out;
 
   _srt_completed_subprocess_dump (self);
 
@@ -158,8 +159,7 @@ _srt_completed_subprocess_report (SrtCompletedSubprocess *self,
       if (exit_status_out != NULL)
         *exit_status_out = exit_status;
 
-      if ((self->flags &
-           (SRT_HELPER_FLAGS_SHELL_EXIT_STATUS | SRT_HELPER_FLAGS_TIME_OUT))
+      if ((self->flags & SRT_HELPER_FLAGS_SHELL_EXIT_STATUS)
           && exit_status > 128
           && exit_status <= 128 + SIGRTMAX)
         {
@@ -167,13 +167,6 @@ _srt_completed_subprocess_report (SrtCompletedSubprocess *self,
 
           if (terminating_signal_out != NULL)
             *terminating_signal_out = (exit_status - 128);
-        }
-      else if ((self->flags & SRT_HELPER_FLAGS_TIME_OUT) && exit_status == 124)
-        {
-          g_debug ("-> timed out");
-
-          if (timed_out_out != NULL)
-            *timed_out_out = TRUE;
         }
       else
         {
@@ -241,21 +234,40 @@ typedef struct
   GString *err;
   GError *error;
   GMainContext *completing_context;
+  GSource *sigterm_source;
+  GSource *sigkill_source;
   SrtHelperFlags flags;
   SrtSubprocessOutput out_mode;
   SrtSubprocessOutput err_mode;
   GPid pid;
+  unsigned sigterm_seconds;
+  unsigned sigkill_seconds;
   int wait_status;
   int stdout_fd;
   int stderr_fd;
+  unsigned timed_out : 1;
 } SrtSubprocess;
 
 #define SRT_SUBPROCESS_INIT \
 { .wait_status = -1, .stdout_fd = -1, .stderr_fd = -1 }
 
 static void
+_srt_subprocess_cancel_timeout (SrtSubprocess *self)
+{
+  if (self->sigterm_source != NULL)
+    g_source_destroy (self->sigterm_source);
+
+  if (self->sigkill_source != NULL)
+    g_source_destroy (self->sigkill_source);
+
+  g_clear_pointer (&self->sigterm_source, g_source_unref);
+  g_clear_pointer (&self->sigkill_source, g_source_unref);
+}
+
+static void
 _srt_subprocess_clear (SrtSubprocess *self)
 {
+  _srt_subprocess_cancel_timeout (self);
   glnx_close_fd (&self->stdout_fd);
   glnx_close_fd (&self->stderr_fd);
   gstring_free0 (self->out);
@@ -436,6 +448,88 @@ _srt_subprocess_waitpid (SrtSubprocess *self,
   self->pid = 0;
 }
 
+static gboolean
+_srt_subprocess_sigkill_cb (void *user_data)
+{
+  SrtSubprocess *self = user_data;
+
+  trace ("Process %d SIGKILL timeout reached", self->pid);
+
+  self->timed_out = 1;
+  g_clear_pointer (&self->sigkill_source, g_source_unref);
+
+  if (self->pid > 0)
+    {
+      g_debug ("Process %d timed out, sending SIGKILL", self->pid);
+      kill (self->pid, SIGKILL);
+      kill (self->pid, SIGCONT);
+    }
+
+  return G_SOURCE_REMOVE;
+}
+
+static void
+_srt_subprocess_schedule_sigkill (SrtSubprocess *self)
+{
+  g_return_if_fail (self->pid > 0);
+  trace ("Scheduling SIGKILL after %u seconds", self->sigkill_seconds);
+  self->sigkill_source = g_timeout_source_new_seconds (self->sigkill_seconds);
+  g_source_set_callback (self->sigkill_source, _srt_subprocess_sigkill_cb, self, NULL);
+  g_source_set_name (self->sigkill_source, "send SIGKILL to timed-out child");
+  g_source_attach (self->sigkill_source, self->completing_context);
+}
+
+static gboolean
+_srt_subprocess_sigterm_cb (void *user_data)
+{
+  SrtSubprocess *self = user_data;
+
+  trace ("Process %d SIGTERM timeout reached", self->pid);
+
+  self->timed_out = 1;
+  g_clear_pointer (&self->sigterm_source, g_source_unref);
+
+  if (self->pid > 0)
+    {
+      g_debug ("Process %d timed out, sending SIGTERM", self->pid);
+      kill (self->pid, SIGTERM);
+
+      if (self->sigkill_seconds > 0)
+        _srt_subprocess_schedule_sigkill (self);
+    }
+
+  return G_SOURCE_REMOVE;
+}
+
+static void
+_srt_subprocess_schedule_sigterm (SrtSubprocess *self)
+{
+  g_return_if_fail (self->pid > 0);
+  trace ("Scheduling SIGTERM after %u seconds", self->sigterm_seconds);
+  self->sigterm_source = g_timeout_source_new_seconds (self->sigterm_seconds);
+  g_source_set_callback (self->sigterm_source, _srt_subprocess_sigterm_cb, self, NULL);
+  g_source_set_name (self->sigterm_source, "send SIGTERM to timed-out child");
+  g_source_attach (self->sigterm_source, self->completing_context);
+}
+
+static gboolean
+_srt_subprocess_poll_cb (void *user_data)
+{
+  SrtSubprocess *self = user_data;
+
+  _srt_subprocess_waitpid (self, WNOHANG);
+
+  if (self->pid == 0)
+    {
+      _srt_subprocess_cancel_timeout (self);
+      return G_SOURCE_REMOVE;
+    }
+  else
+    {
+      return G_SOURCE_CONTINUE;
+    }
+}
+
 /* Similar to g_subprocess_communicate() */
 static void
 _srt_subprocess_complete_sync (SrtSubprocess *self)
@@ -445,11 +539,33 @@ _srt_subprocess_complete_sync (SrtSubprocess *self)
 
   g_main_context_push_thread_default (self->completing_context);
     {
+      if (self->sigterm_seconds > 0)
+        _srt_subprocess_schedule_sigterm (self);
+      else if (self->sigkill_seconds > 0)
+        _srt_subprocess_schedule_sigkill (self);
+
       _srt_subprocess_read_pipes (self);
 
-      /* This will block, but that's OK: this function is blocking, and
-       * we are not yet handling the timeouts here */
-      _srt_subprocess_waitpid (self, 0);
+      if (self->flags & SRT_HELPER_FLAGS_TIME_OUT)
+        {
+          g_autoptr(GSource) tick_source = NULL;
+
+          tick_source = g_timeout_source_new (100);
+          g_source_set_callback (tick_source, _srt_subprocess_poll_cb,
+                                 self, NULL);
+          g_source_set_name (tick_source, "poll child process");
+          g_source_attach (tick_source, self->completing_context);
+
+          while (self->pid != 0)
+            g_main_context_iteration (self->completing_context, TRUE);
+
+          g_source_destroy (tick_source);
+        }
+      else
+        {
+          /* There's no timeout, so we can just wait forever */
+          _srt_subprocess_waitpid (self, 0);
+        }
     }
   g_main_context_pop_thread_default (self->completing_context);
 }
@@ -463,6 +579,7 @@ _srt_completed_subprocess_new_from_subprocess (SrtSubprocess *self)
   completed->out_mode = self->out_mode;
   completed->err_mode = self->err_mode;
   completed->wait_status = self->wait_status;
+  completed->timed_out = self->timed_out;
 
   if (self->out != NULL)
     completed->out = g_string_free (g_steal_pointer (&self->out), FALSE);
@@ -482,6 +599,7 @@ struct _SrtSubprocessRunner
    * or the installed helpers */
   gchar *helpers_path;
   SrtTestFlags test_flags;
+  unsigned can_use_waitid : 1;
 };
 
 struct _SrtSubprocessRunnerClass
@@ -697,35 +815,6 @@ _srt_subprocess_runner_get_helper (SrtSubprocessRunner *self,
   g_return_val_if_fail (error == NULL || *error == NULL, NULL);
 
   argv = g_ptr_array_new_with_free_func (g_free);
-
-  if (g_getenv ("SNAP_DESKTOP_RUNTIME") != NULL)
-    {
-      g_debug ("Working around https://github.com/canonical/steam-snap/issues/17 by not using timeout(1)");
-    }
-  else if (flags & SRT_HELPER_FLAGS_TIME_OUT)
-    {
-      g_ptr_array_add (argv, g_strdup ("timeout"));
-      g_ptr_array_add (argv, g_strdup ("-s"));
-      g_ptr_array_add (argv, g_strdup ("TERM"));
-
-      if (self->test_flags & SRT_TEST_FLAGS_TIME_OUT_SOONER)
-        {
-          /* Speed up the failing case in automated testing */
-          g_ptr_array_add (argv, g_strdup ("-k"));
-          g_ptr_array_add (argv, g_strdup ("1"));
-          g_ptr_array_add (argv, g_strdup ("1"));
-        }
-      else
-        {
-          /* Kill the helper (if still running) 3 seconds after the TERM
-           * signal */
-          g_ptr_array_add (argv, g_strdup ("-k"));
-          g_ptr_array_add (argv, g_strdup ("3"));
-          /* Send TERM signal after 10 seconds */
-          g_ptr_array_add (argv, g_strdup ("10"));
-        }
-    }
-
   helpers_path = self->helpers_path;
 
   if (helpers_path == NULL)
@@ -790,6 +879,8 @@ _srt_subprocess_runner_spawn (SrtSubprocessRunner *self,
   GSpawnFlags spawn_flags = G_SPAWN_DO_NOT_REAP_CHILD;
   int *stdout_fdp = NULL;
   int *stderr_fdp = NULL;
+  unsigned sigterm_seconds = 0;
+  unsigned sigkill_seconds = 0;
 
   if (flags & SRT_HELPER_FLAGS_LIBGL_VERBOSE)
     {
@@ -799,13 +890,34 @@ _srt_subprocess_runner_spawn (SrtSubprocessRunner *self,
       my_environ = g_environ_setenv (my_environ, "LIBGL_DEBUG", "verbose", TRUE);
     }
 
-  /* When prepending timeout(1) to argv, we always need to search PATH */
-  if (flags & (SRT_HELPER_FLAGS_TIME_OUT | SRT_HELPER_FLAGS_SEARCH_PATH))
+  if (flags & SRT_HELPER_FLAGS_SEARCH_PATH)
     spawn_flags |= G_SPAWN_SEARCH_PATH;
+
+  if ((flags & SRT_HELPER_FLAGS_TIME_OUT) == 0)
+    {
+      trace ("Unlimited timeout");
+    }
+  else
+    {
+      if (self->test_flags & SRT_TEST_FLAGS_TIME_OUT_SOONER)
+        {
+          /* Speed up the failing case in automated testing */
+          sigterm_seconds = sigkill_seconds = 1;
+        }
+      else
+        {
+          /* Send SIGTERM after 10 seconds. If still running 3 seconds later,
+           * send SIGKILL */
+          sigterm_seconds = 10;
+          sigkill_seconds = 3;
+        }
+    }
 
   subprocess->flags = flags;
   subprocess->out_mode = stdout_mode;
   subprocess->err_mode = stderr_mode;
+  subprocess->sigterm_seconds = sigterm_seconds;
+  subprocess->sigkill_seconds = sigkill_seconds;
 
   switch (stdout_mode)
     {
