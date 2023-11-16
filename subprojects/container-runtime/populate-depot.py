@@ -1610,8 +1610,12 @@ class Main:
                         # nanoseconds, so "1.234" is actually 1 sec + 234 ns,
                         # or what normal people would write as 1.000000234.
                         # To be compatible with both, we always show the time
-                        # with 9 digits after the decimal point.
-                        fields.append(f'time={stat_info.st_mtime:.9f}')
+                        # with 9 digits after the decimal point, unless it's
+                        # exactly an integer.
+                        if stat_info.st_mtime == int(stat_info.st_mtime):
+                            fields.append(f'time={stat_info.st_mtime:.1f}')
+                        else:
+                            fields.append(f'time={stat_info.st_mtime:.9f}')
 
                     fields.append(f'size={stat_info.st_size}')
                     file_id = (stat_info.st_dev, stat_info.st_ino)
