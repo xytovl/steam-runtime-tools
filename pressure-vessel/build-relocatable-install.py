@@ -104,6 +104,7 @@ EXECUTABLES = [
     'pressure-vessel-try-setlocale',
     'pressure-vessel-wrap',
     'pv-bwrap',
+    'pv-verify',
     'steam-runtime-launch-client',
     'steam-runtime-launcher-interface-0',
     'steam-runtime-launcher-service',

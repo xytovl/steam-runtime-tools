@@ -38,6 +38,8 @@
  *  assume that r-x is good enough for directories and executables, and
  *  assume that r-- is good enough for all other files (useful when writing
  *  to NTFS or FAT)
+ * @PV_MTREE_APPLY_FLAGS_MINIMIZED_RUNTIME: When verifying, don't check for
+ *  existence of files that can be created from the manifest
  * @PV_MTREE_APPLY_FLAGS_NONE: None of the above
  *
  * Flags altering how a mtree manifest is applied to a directory tree.
@@ -47,6 +49,7 @@ typedef enum
   PV_MTREE_APPLY_FLAGS_GZIP = (1 << 0),
   PV_MTREE_APPLY_FLAGS_EXPECT_HARD_LINKS = (1 << 1),
   PV_MTREE_APPLY_FLAGS_CHMOD_MAY_FAIL = (1 << 2),
+  PV_MTREE_APPLY_FLAGS_MINIMIZED_RUNTIME = (1 << 3),
   PV_MTREE_APPLY_FLAGS_NONE = 0
 } PvMtreeApplyFlags;
 
@@ -116,3 +119,8 @@ gboolean pv_mtree_apply (const char *mtree,
                          const char *source_files,
                          PvMtreeApplyFlags flags,
                          GError **error);
+gboolean pv_mtree_verify (const char *mtree,
+                          const char *sysroot,
+                          int sysroot_fd,
+                          PvMtreeApplyFlags flags,
+                          GError **error);

@@ -24,9 +24,12 @@
 
 #include "mtree.h"
 
+#include <ftw.h>
+
 #include "steam-runtime-tools/profiling-internal.h"
 #include "steam-runtime-tools/resolve-in-sysroot-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
+#include "flatpak-utils-base-private.h"
 
 #include <gio/gunixinputstream.h>
 
@@ -464,11 +467,20 @@ typedef gboolean (*PvMtreeForeachFunc) (PvMtreeEntry *entry,
                                         void *user_data,
                                         GError **error);
 
+typedef void (*PvMtreeForeachErrorFunc) (PvMtreeEntry *entry,
+                                         PvMtreeApplyFlags flags,
+                                         const char *mtree,
+                                         guint line_number,
+                                         const GError *error,
+                                         void *user_data);
+
 static gboolean
 pv_mtree_foreach (const char *mtree,
                   PvMtreeApplyFlags flags,
                   PvMtreeForeachFunc callback,
                   void *user_data,
+                  PvMtreeForeachErrorFunc on_error_cb,
+                  void *on_error_data,
                   GError **error)
 {
   glnx_autofd int mtree_fd = -1;
@@ -536,8 +548,19 @@ pv_mtree_foreach (const char *mtree,
 
       trace ("mtree entry: %s", entry.name);
 
-      if (!callback (&entry, flags, mtree, line_number, user_data, error))
-        return FALSE;
+      if (!callback (&entry, flags, mtree, line_number, user_data, &local_error))
+        {
+          if (on_error_cb != NULL)
+            {
+              on_error_cb (&entry, flags, mtree, line_number, local_error, on_error_data);
+              g_clear_error (&local_error);
+            }
+          else
+            {
+              g_propagate_error (error, g_steal_pointer (&local_error));
+              return FALSE;
+            }
+        }
     }
 
   return TRUE;
@@ -840,7 +863,483 @@ pv_mtree_apply (const char *mtree,
   g_info ("Applying \"%s\" to \"%s\"...", mtree, sysroot);
 
   return pv_mtree_foreach (mtree, flags,
-                           pv_mtree_foreach_apply_cb, &state, error);
+                           pv_mtree_foreach_apply_cb, &state,
+                           NULL, NULL,
+                           error);
+}
+
+typedef struct
+{
+  GHashTable *names;
+  GPtrArray *runtimes;
+  const char *sysroot;
+  int sysroot_fd;
+  gboolean failed;
+} ForeachVerifyState;
+
+static gboolean
+pv_mtree_foreach_verify_cb (PvMtreeEntry *entry,
+                            PvMtreeApplyFlags flags,
+                            const char *mtree,
+                            guint line_number,
+                            void *user_data,
+                            GError **error)
+{
+  g_autofree gchar *parent = NULL;
+  g_autoptr(GError) local_error = NULL;
+  glnx_autofd int parent_fd = -1;
+  glnx_autofd int fd = -1;
+  ForeachVerifyState *state = user_data;
+  const char *base;
+  const char *name;
+  struct stat stat_buf;
+
+  name = entry->name;
+
+  if ((flags & PV_MTREE_APPLY_FLAGS_MINIMIZED_RUNTIME)
+      && entry->contents != NULL)
+    name = entry->contents;
+
+  if (g_str_has_prefix (name, "./"))
+    name += 2;
+
+  g_hash_table_replace (state->names, g_strdup (name),
+                        GINT_TO_POINTER (entry->entry_flags));
+
+  if (flags & PV_MTREE_APPLY_FLAGS_MINIMIZED_RUNTIME)
+    {
+      switch (entry->kind)
+        {
+          case PV_MTREE_ENTRY_KIND_FILE:
+            /* Empty files are defined entirely by their metadata */
+            if (entry->size == 0)
+              return TRUE;
+
+            break;
+
+          case PV_MTREE_ENTRY_KIND_DIR:
+          case PV_MTREE_ENTRY_KIND_LINK:
+            /* These are defined entirely by their metadata */
+            return TRUE;
+
+          case PV_MTREE_ENTRY_KIND_BLOCK:
+          case PV_MTREE_ENTRY_KIND_CHAR:
+          case PV_MTREE_ENTRY_KIND_FIFO:
+          case PV_MTREE_ENTRY_KIND_SOCKET:
+          case PV_MTREE_ENTRY_KIND_UNKNOWN:
+          default:
+            /* Do nothing: handled in more detail later */
+            break;
+        }
+    }
+
+  parent = g_path_get_dirname (name);
+  base = glnx_basename (name);
+
+  trace ("Verifying %s in %s", parent, state->sysroot);
+  parent_fd = _srt_resolve_in_sysroot (state->sysroot_fd, parent,
+                                       SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY,
+                                       NULL, &local_error);
+
+  if (parent_fd < 0)
+    return glnx_prefix_error (error,
+                              "Unable to open parent directory for \"%s\" in \"%s\"",
+                              name, state->sysroot);
+
+  switch (entry->kind)
+    {
+      case PV_MTREE_ENTRY_KIND_FILE:
+        if (!glnx_openat_rdonly (parent_fd, base, FALSE, &fd, &local_error))
+          {
+            if ((entry->entry_flags & PV_MTREE_ENTRY_FLAGS_OPTIONAL)
+                && g_error_matches (local_error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND))
+              return TRUE;
+
+            g_propagate_prefixed_error (error, g_steal_pointer (&local_error),
+                                        "Unable to open regular file \"%s\" in \"%s\": ",
+                                        name, state->sysroot);
+            return FALSE;
+          }
+        break;
+
+      case PV_MTREE_ENTRY_KIND_DIR:
+        if (!glnx_opendirat (parent_fd, base, FALSE, &fd, &local_error))
+          {
+            if ((entry->entry_flags & PV_MTREE_ENTRY_FLAGS_OPTIONAL)
+                && g_error_matches (local_error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND))
+              return TRUE;
+
+            g_propagate_prefixed_error (error, g_steal_pointer (&local_error),
+                                        "Unable to open directory \"%s\" in \"%s\": ",
+                                        name, state->sysroot);
+            return FALSE;
+          }
+        break;
+
+      case PV_MTREE_ENTRY_KIND_LINK:
+          {
+            g_autofree char *target = NULL;
+
+            target = glnx_readlinkat_malloc (parent_fd, base, NULL, &local_error);
+
+            if (target == NULL)
+              {
+                if ((entry->entry_flags & PV_MTREE_ENTRY_FLAGS_OPTIONAL)
+                    && g_error_matches (local_error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND))
+                  return TRUE;
+
+                g_propagate_prefixed_error (error, g_steal_pointer (&local_error),
+                                            "\"%s\" in \"%s\" is not a symlink to \"%s\": ",
+                                            name, state->sysroot, entry->link);
+                return FALSE;
+              }
+
+            if (!g_str_equal (target, entry->link))
+              {
+                return glnx_throw (error,
+                                   "\"%s\" in \"%s\" points to \"%s\", expected \"%s\"",
+                                   name, state->sysroot, target, entry->link);
+              }
+
+            return TRUE;
+          }
+        break;
+
+      case PV_MTREE_ENTRY_KIND_BLOCK:
+      case PV_MTREE_ENTRY_KIND_CHAR:
+      case PV_MTREE_ENTRY_KIND_FIFO:
+      case PV_MTREE_ENTRY_KIND_SOCKET:
+      case PV_MTREE_ENTRY_KIND_UNKNOWN:
+      default:
+        return glnx_throw (error,
+                           "%s:%u: Special file not supported",
+                           mtree, line_number);
+    }
+
+  if (fd < 0)
+    return TRUE;
+
+  if (fstat (fd, &stat_buf) < 0)
+    return glnx_throw_errno_prefix (error,
+                                    "Unable to get file information for \"%s\" in \"%s\"",
+                                    name, state->sysroot);
+
+  switch (entry->kind)
+    {
+      case PV_MTREE_ENTRY_KIND_FILE:
+        if (!S_ISREG (stat_buf.st_mode))
+          return glnx_throw (error,
+                             "\"%s\" in \"%s\" should be a regular file, not type 0o%o",
+                             name, state->sysroot, stat_buf.st_mode & S_IFMT);
+
+        if (entry->size >= 0 && entry->size != stat_buf.st_size)
+          return glnx_throw (error,
+                             "\"%s\" in \"%s\" should have size %" G_GINT64_FORMAT
+                             ", not %" G_GINT64_FORMAT,
+                             name, state->sysroot, entry->size,
+                             (gint64) stat_buf.st_size);
+
+        if (entry->sha256 != NULL)
+          {
+            g_autoptr(GChecksum) hasher = g_checksum_new (G_CHECKSUM_SHA256);
+            char buf[4096];
+            ssize_t n = 0;
+
+            do
+              {
+                n = TEMP_FAILURE_RETRY (read (fd, buf, sizeof (buf)));
+
+                if (n < 0)
+                  return glnx_throw_errno_prefix (error,
+                                                  "Unable to read \"%s\" in \"%s\"",
+                                                  name, state->sysroot);
+
+                if (n > 0)
+                  g_checksum_update (hasher, (void *) buf, n);
+              }
+            while (n > 0);
+
+            if (!g_str_equal (g_checksum_get_string (hasher), entry->sha256))
+              return glnx_throw (error,
+                                 "\"%s\" in \"%s\" did not have expected contents",
+                                 name, state->sysroot);
+          }
+
+        break;
+
+      case PV_MTREE_ENTRY_KIND_DIR:
+        if (!S_ISDIR (stat_buf.st_mode))
+          return glnx_throw (error,
+                             "\"%s\" in \"%s\" should be a directory, not type 0o%o",
+                             name, state->sysroot, stat_buf.st_mode & S_IFMT);
+        break;
+
+      case PV_MTREE_ENTRY_KIND_LINK:
+      case PV_MTREE_ENTRY_KIND_BLOCK:
+      case PV_MTREE_ENTRY_KIND_CHAR:
+      case PV_MTREE_ENTRY_KIND_FIFO:
+      case PV_MTREE_ENTRY_KIND_SOCKET:
+      case PV_MTREE_ENTRY_KIND_UNKNOWN:
+      default:
+        g_return_val_if_reached (FALSE);
+    }
+
+  /* We do a simplified permissions check, because Steampipe doesn't preserve
+   * permissions anyway */
+  if ((stat_buf.st_mode & 0111) == 0
+      && (entry->kind == PV_MTREE_ENTRY_KIND_DIR
+          || (entry->mode >= 0 && (entry->mode & 0111) != 0)))
+    return glnx_throw (error,
+                       "\"%s\" in \"%s\" should be executable, not mode 0%o",
+                       name, state->sysroot, stat_buf.st_mode & 07777);
+
+  if (!(flags & PV_MTREE_APPLY_FLAGS_MINIMIZED_RUNTIME)
+      && g_str_equal (base, "usr-mtree.txt.gz"))
+    g_ptr_array_add (state->runtimes, g_strdup (parent));
+
+  return TRUE;
+}
+
+static void
+pv_mtree_foreach_verify_error_cb (PvMtreeEntry *entry,
+                                  PvMtreeApplyFlags flags,
+                                  const char *mtree,
+                                  guint line_number,
+                                  const GError *error,
+                                  void *user_data)
+{
+  ForeachVerifyState *state = user_data;
+
+  g_warning ("%s", error->message);
+  state->failed = TRUE;
+}
+
+/* nftw() doesn't have a user_data argument so we need to use a global variable */
+static ForeachVerifyState verify_state =
+{
+  .sysroot = NULL,
+  .sysroot_fd = -1,
+  .names = NULL,
+  .failed = FALSE
+};
+
+static int
+pv_mtree_verify_nftw_cb (const char *fpath,
+                         const struct stat *sb,
+                         int typeflag,
+                         struct FTW *ftwbuf)
+{
+  ForeachVerifyState *state = &verify_state;
+  size_t len;
+  const char *suffix;
+  gpointer value;
+
+  if (!g_str_has_prefix (fpath, state->sysroot))
+    {
+      g_critical ("\"%s\" should have started with \"%s\"",
+                  fpath, state->sysroot);
+      state->failed = TRUE;
+      return FTW_CONTINUE;
+    }
+
+  len = strlen (state->sysroot);
+
+  if (fpath[len] == '\0')
+    return FTW_CONTINUE;
+
+  g_return_val_if_fail (fpath[len] == '/', 1);
+  suffix = &fpath[len + 1];
+
+  while (suffix[0] == '/')
+    suffix++;
+
+  /* If sysroot was /path/to/source and fpath was /path/to/source/foo/bar,
+   * then suffix is now foo/bar. */
+
+  if (g_hash_table_lookup_extended (state->names, suffix, NULL, &value))
+    {
+      PvMtreeEntryFlags entry_flags = GPOINTER_TO_INT (value);
+
+      trace ("Found \"%s\" in real directory hierarchy", suffix);
+
+      if (typeflag == FTW_D
+          && (entry_flags & PV_MTREE_ENTRY_FLAGS_IGNORE_BELOW))
+        {
+          trace ("Ignoring contents of \"%s\" due to ignore flag", suffix);
+          return FTW_SKIP_SUBTREE;
+        }
+    }
+  else
+    {
+      const char *label;
+
+      switch (typeflag)
+        {
+          case FTW_D:
+          case FTW_DP:
+          case FTW_DNR:
+            label = "directory";
+            break;
+
+          case FTW_F:
+            label = "regular file";
+            break;
+
+          case FTW_SL:
+          case FTW_SLN:
+            label = "symbolic link";
+            break;
+
+          case FTW_NS:
+          default:
+            label = "filesystem object";
+            break;
+        }
+
+      g_warning ("%s \"%s\" in \"%s\" not found in manifest",
+                 label, suffix, state->sysroot);
+      state->failed = TRUE;
+
+      if (typeflag == FTW_D)
+        return FTW_SKIP_SUBTREE;
+    }
+
+  return FTW_CONTINUE;
+}
+
+/*
+ * pv_mtree_verify:
+ * @mtree: (type filename): Path to a mtree(5) manifest
+ * @sysroot: (type filename): A directory
+ * @sysroot_fd: A fd opened on @sysroot
+ * @source_files: (optional): A directory from which files will be
+ *  hard-linked or copied when populating @sysroot. The `content`
+ *  or filename in @mtree is taken to be relative to @source_files.
+ * @flags: Flags affecting how this is done
+ *
+ * Check that the container root filesystem @sysroot conforms to @mtree.
+ *
+ * @mtree must contain a subset of BSD mtree(5) syntax,
+ * as for pv_mtree_apply().
+ *
+ * For regular files, we check the type, size and sha256, and if the mode
+ * has any executable bits set, we check that the file is executable.
+ * Other modes and the modification time are not currently checked.
+ * Other checksums are not currently supported.
+ *
+ * For directories, we check the type and that the directory is executable.
+ *
+ * For symbolic links, we check the type and target.
+ *
+ * Other file types are not currently supported.
+ *
+ * The `ignore` and `optional` flags are also supported.
+ *
+ * If a directory contains both `files` and `usr-mtree.txt.gz`,
+ * we verify that `files` contains all of the content necessary to
+ * reconstitute the tree described by `usr-mtree.txt.gz`.
+ *
+ * Returns: %TRUE on success
+ */
+gboolean
+pv_mtree_verify (const char *mtree,
+                 const char *sysroot,
+                 int sysroot_fd,
+                 PvMtreeApplyFlags flags,
+                 GError **error)
+{
+  g_autoptr(SrtProfilingTimer) timer = NULL;
+  g_autoptr(GError) local_error = NULL;
+  g_autoptr(GHashTable) names = NULL;
+  g_autoptr(GPtrArray) runtimes = NULL;
+  g_autofree gchar *canonicalized_sysroot = NULL;
+  int res = -1;
+  gsize i;
+
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+  g_return_val_if_fail (mtree != NULL, FALSE);
+  g_return_val_if_fail (sysroot != NULL, FALSE);
+  g_return_val_if_fail (sysroot_fd >= 0, FALSE);
+  /* Can't run concurrently */
+  g_return_val_if_fail (verify_state.sysroot == NULL, FALSE);
+
+  timer = _srt_profiling_start ("Verify %s against %s", sysroot, mtree);
+  g_info ("Verifying \"%s\" against \"%s\"...", sysroot, mtree);
+
+  names = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
+
+  if (!(flags & PV_MTREE_APPLY_FLAGS_MINIMIZED_RUNTIME))
+    runtimes = g_ptr_array_new_full (1, g_free);
+
+  canonicalized_sysroot = flatpak_canonicalize_filename (sysroot);
+  verify_state.sysroot = canonicalized_sysroot;
+  verify_state.sysroot_fd = sysroot_fd;
+  verify_state.names = names;
+  verify_state.runtimes = runtimes;
+  verify_state.failed = FALSE;
+
+  if (pv_mtree_foreach (mtree, flags,
+                        pv_mtree_foreach_verify_cb, &verify_state,
+                        pv_mtree_foreach_verify_error_cb, &verify_state,
+                        &local_error))
+    {
+      res = nftw (verify_state.sysroot, pv_mtree_verify_nftw_cb, 100,
+                  FTW_PHYS | FTW_ACTIONRETVAL);
+
+      if (verify_state.failed)
+        res = -1;
+    }
+
+  verify_state.sysroot = NULL;
+  verify_state.sysroot_fd = -1;
+  verify_state.names = NULL;
+  verify_state.runtimes = NULL;
+  verify_state.failed = FALSE;
+
+  if (runtimes != NULL)
+    {
+      for (i = 0; i < runtimes->len; i++)
+        {
+          const char *runtime = g_ptr_array_index (runtimes, i);
+          g_autofree gchar *runtime_mtree = NULL;
+          g_autofree gchar *runtime_files_rel = NULL;
+          g_autofree gchar *runtime_files = NULL;
+          glnx_autofd int runtime_fd = -1;
+          g_autoptr(GError) runtime_error = NULL;
+
+          runtime_mtree = g_build_filename (sysroot, runtime, "usr-mtree.txt.gz", NULL);
+          runtime_files_rel = g_build_filename (runtime, "files", NULL);
+          runtime_files = g_build_filename (sysroot, runtime_files_rel, NULL);
+          runtime_fd = _srt_resolve_in_sysroot (sysroot_fd, runtime_files_rel,
+                                                SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY,
+                                                NULL, &runtime_error);
+
+          if (runtime_fd < 0
+              || !pv_mtree_verify (runtime_mtree, runtime_files, runtime_fd,
+                                   flags | PV_MTREE_APPLY_FLAGS_MINIMIZED_RUNTIME,
+                                   &runtime_error))
+            {
+              g_assert (runtime_error != NULL);
+              g_warning ("%s", runtime_error->message);
+              res = -1;
+              continue;
+            }
+        }
+    }
+
+  if (res != 0)
+    {
+      if (local_error != NULL)
+        g_propagate_error (error, g_steal_pointer (&local_error));
+      else
+        g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
+                     "Verifying \"%s\" with \"%s\" failed", sysroot, mtree);
+
+      return FALSE;
+    }
+
+  g_message ("Verified \"%s\" against \"%s\" successfully", sysroot, mtree);
+  return TRUE;
 }
 
 /*
