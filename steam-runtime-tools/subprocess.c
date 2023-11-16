@@ -550,6 +550,14 @@ _srt_subprocess_complete_sync (SrtSubprocess *self)
         {
           g_autoptr(GSource) tick_source = NULL;
 
+          /* Opportunistically check whether the process already exited:
+           * if it has, there's no need to go to the expense of creating a
+           * thread to wait for it. */
+          _srt_subprocess_waitpid (self, WNOHANG);
+
+          if (self->pid == 0)
+            goto out;
+
           tick_source = g_timeout_source_new (100);
           g_source_set_callback (tick_source, _srt_subprocess_poll_cb,
                                  self, NULL);
@@ -567,6 +575,7 @@ _srt_subprocess_complete_sync (SrtSubprocess *self)
           _srt_subprocess_waitpid (self, 0);
         }
     }
+out:
   g_main_context_pop_thread_default (self->completing_context);
 }
 
