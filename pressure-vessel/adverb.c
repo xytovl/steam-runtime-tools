@@ -637,7 +637,7 @@ regenerate_ld_so_cache (const GPtrArray *ld_so_cache_paths,
   g_ptr_array_add (argv, new_path);
   g_ptr_array_add (argv, (char *) "-X");    /* Don't update symlinks */
 
-  if (opt_verbose)
+  if (_srt_util_is_debugging ())
     g_ptr_array_add (argv, (char *) "-v");
 
   g_ptr_array_add (argv, NULL);
@@ -684,7 +684,7 @@ regenerate_ld_so_cache (const GPtrArray *ld_so_cache_paths,
     return glnx_prefix_error (error, "Cannot move %s to %s",
                               new_path, replace_path);
 
-  if (opt_verbose)
+  if (_srt_util_is_debugging ())
     {
       const char * const read_back_argv[] =
       {
@@ -1285,7 +1285,7 @@ main (int argc,
   child_setup_data.pass_fds = (const int *) pass_fds->data;
   child_setup_data.n_pass_fds = pass_fds->len;
 
-  if (opt_verbose)
+  if (_srt_util_is_debugging ())
     {
       g_debug ("Command-line:");
 

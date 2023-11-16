@@ -1617,7 +1617,7 @@ main (int argc,
 
   server->purpose = opt_purpose;
 
-  if (opt_verbose || opt_hint)
+  if (_srt_util_is_debugging () || opt_hint)
     server->flags |= PV_LAUNCHER_SERVER_FLAGS_HINT;
 
   if (opt_stop_on_exit)

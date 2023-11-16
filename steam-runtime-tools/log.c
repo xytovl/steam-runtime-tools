@@ -689,3 +689,9 @@ _srt_util_set_glib_log_handler (const char *prgname,
 
   return TRUE;
 }
+
+gboolean
+_srt_util_is_debugging (void)
+{
+  return !!(log_settings.flags & SRT_LOG_FLAGS_DEBUG);
+}

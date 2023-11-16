@@ -1362,7 +1362,7 @@ main (int argc,
 
   _srt_get_current_dirs (&cwd_p, &cwd_l);
 
-  if (opt_verbose)
+  if (_srt_util_is_debugging ())
     {
       g_auto(GStrv) env = g_strdupv (original_environ);
 
@@ -1602,7 +1602,7 @@ main (int argc,
             goto out;
         }
 
-      if (opt_verbose)
+      if (_srt_util_is_debugging ())
         flags |= PV_RUNTIME_FLAGS_VERBOSE;
 
       if (opt_import_vulkan_layers)
@@ -2164,7 +2164,7 @@ main (int argc,
         return FALSE;
 
 
-      if (opt_verbose)
+      if (_srt_util_is_debugging ())
         {
           g_debug ("%s options before bundling:", bwrap_executable);
 
@@ -2306,7 +2306,7 @@ main (int argc,
 
       flatpak_bwrap_append_args (adverb_argv, adverb_preload_argv);
 
-      if (opt_verbose)
+      if (_srt_util_is_debugging ())
         flatpak_bwrap_add_arg (adverb_argv, "--verbose");
 
       flatpak_bwrap_add_arg (adverb_argv, "--");
@@ -2325,7 +2325,7 @@ main (int argc,
       g_debug ("Adding steam-runtime-launcher-service '%s'...", launcher_service);
       flatpak_bwrap_add_arg (launcher_argv, launcher_service);
 
-      if (opt_verbose)
+      if (_srt_util_is_debugging ())
         flatpak_bwrap_add_arg (launcher_argv, "--verbose");
 
       /* In --launcher mode, arguments after the "--" separator are
@@ -2373,7 +2373,7 @@ main (int argc,
    * to make debugging a bit easier. */
   flatpak_bwrap_sort_envp (final_argv);
 
-  if (opt_verbose)
+  if (_srt_util_is_debugging ())
     {
       if (runtime != NULL && (pv_log_flags & PV_WRAP_LOG_FLAGS_OVERRIDES))
         pv_runtime_log_overrides (runtime);
