@@ -245,7 +245,9 @@ typedef struct
   int wait_status;
   int stdout_fd;
   int stderr_fd;
+  unsigned can_use_waitid : 1;
   unsigned timed_out : 1;
+  unsigned waiting_in_thread : 1;
 } SrtSubprocess;
 
 #define SRT_SUBPROCESS_INIT \
@@ -530,6 +532,81 @@ _srt_subprocess_poll_cb (void *user_data)
     }
 }
 
+typedef struct
+{
+  /* Thread safety: ownership is transferred to the thread pool when
+   * this data structure is enqueued, and transferred back when
+   * _srt_subprocess_child_waitid_cb() is invoked.
+   * Do not access any member from a thread that is not the current owner. */
+  SrtSubprocess *self;
+  GMainContext *send_to_context;
+  GPid pid;
+  int saved_errno;
+} WaitidInThread;
+
+/* Thread safety: Called from the thread that is calling
+ * _srt_subprocess_complete_sync(). */
+static gboolean
+_srt_subprocess_child_waitid_cb (void *user_data)
+{
+  WaitidInThread *state = user_data;
+  SrtSubprocess *self = state->self;
+
+  trace ("Notified that process %d has exited", state->pid);
+  g_return_val_if_fail (self->waiting_in_thread, G_SOURCE_REMOVE);
+
+  _srt_subprocess_cancel_timeout (self);
+  /* Call waitpid(), allowing the process to be reaped */
+  _srt_subprocess_waitpid (self, 0);
+
+  if (self->pid != 0)
+    {
+      g_warning ("Failed to get exit status of process %d: %s",
+                 self->pid, g_strerror (errno));
+      self->wait_status = -1;
+      /* We can't expect that waiting for it again will work any better. */
+      self->pid = 0;
+    }
+
+  trace ("Process %d wait status %d", state->pid, self->wait_status);
+  self->waiting_in_thread = FALSE;
+  return G_SOURCE_REMOVE;
+}
+
+/* Called in a background thread, be careful with thread safety.
+ * @state is owned by this thread until we send it back to the calling thread. */
+static void *
+_srt_subprocess_waitid_in_thread (void *user_data)
+{
+  WaitidInThread *state = user_data;
+  GMainContext *send_to_context = state->send_to_context;
+  siginfo_t info = { .si_pid = 0 };
+
+  g_return_val_if_fail (state->self != NULL, NULL);
+  g_return_val_if_fail (state->send_to_context != NULL, NULL);
+  g_return_val_if_fail (state->pid > 0, NULL);
+
+  if (TEMP_FAILURE_RETRY (waitid (P_PID, state->pid, &info, WEXITED|WNOWAIT)) == 0)
+    {
+      state->saved_errno = 0;
+      trace ("Process %d code %d, status %d: waking up main loop",
+             info.si_pid, info.si_code, info.si_status);
+    }
+  else
+    {
+      state->saved_errno = errno;
+      trace ("Process %d waitid() error, waking up main loop: %s",
+             pid, g_strerror (state->saved_errno));
+    }
+
+  /* Thread safety: this call transfers ownership of @state back to the
+   * calling thread. It must not be used after this point. */
+  g_main_context_invoke (send_to_context,
+                         _srt_subprocess_child_waitid_cb,
+                         g_steal_pointer (&state));
+  return NULL;
+}
+
 /* Similar to g_subprocess_communicate() */
 static void
 _srt_subprocess_complete_sync (SrtSubprocess *self)
@@ -558,16 +635,43 @@ _srt_subprocess_complete_sync (SrtSubprocess *self)
           if (self->pid == 0)
             goto out;
 
-          tick_source = g_timeout_source_new (100);
-          g_source_set_callback (tick_source, _srt_subprocess_poll_cb,
-                                 self, NULL);
-          g_source_set_name (tick_source, "poll child process");
-          g_source_attach (tick_source, self->completing_context);
+          if (self->can_use_waitid)
+            {
+              GThread *thread;
+              WaitidInThread thread_data =
+              {
+                .self = self,
+                .send_to_context = self->completing_context,
+                .pid = self->pid,
+              };
 
-          while (self->pid != 0)
-            g_main_context_iteration (self->completing_context, TRUE);
+              /* Thread safety: @thread_data is owned by the thread pool
+               * until it sends it back to
+               * _srt_subprocess_child_waitid_cb(), which clears
+               * self->waiting_in_thread. */
+              self->waiting_in_thread = TRUE;
+              thread = g_thread_new ("srt-waitid",
+                                     _srt_subprocess_waitid_in_thread,
+                                     &thread_data);
 
-          g_source_destroy (tick_source);
+              while (self->waiting_in_thread)
+                g_main_context_iteration (self->completing_context, TRUE);
+
+              g_thread_join (thread);
+            }
+          else
+            {
+              tick_source = g_timeout_source_new (100);
+              g_source_set_callback (tick_source, _srt_subprocess_poll_cb,
+                                     self, NULL);
+              g_source_set_name (tick_source, "poll child process");
+              g_source_attach (tick_source, self->completing_context);
+
+              while (self->pid != 0)
+                g_main_context_iteration (self->completing_context, TRUE);
+
+              g_source_destroy (tick_source);
+            }
         }
       else
         {
@@ -638,9 +742,22 @@ static void
 _srt_subprocess_runner_constructed (GObject *object)
 {
   SrtSubprocessRunner *self = SRT_SUBPROCESS_RUNNER (object);
+  siginfo_t siginfo = {};
 
   if (self->envp == NULL)
     self->envp = _srt_filter_gameoverlayrenderer_from_envp (_srt_peek_environ_nonnull ());
+
+  /* Check whether we can use waitid() with WNOWAIT.
+   * This process cannot be its own child process, so we expect that
+   * waitid() will fail with ECHILD ("The process specified ... is not a
+   * child of the calling process") if the flags are supported. */
+  errno = 0;
+  waitid (P_PID, getpid (), &siginfo, WEXITED|WNOHANG|WNOWAIT);
+
+  if (errno == ECHILD)
+    self->can_use_waitid = TRUE;
+  else
+    g_warning_once ("WNOWAIT not supported, will fall back to polling");
 
   G_OBJECT_CLASS (_srt_subprocess_runner_parent_class)->constructed (object);
 }
@@ -927,6 +1044,7 @@ _srt_subprocess_runner_spawn (SrtSubprocessRunner *self,
   subprocess->err_mode = stderr_mode;
   subprocess->sigterm_seconds = sigterm_seconds;
   subprocess->sigkill_seconds = sigkill_seconds;
+  subprocess->can_use_waitid = self->can_use_waitid;
 
   switch (stdout_mode)
     {
