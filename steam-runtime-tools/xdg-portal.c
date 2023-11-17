@@ -473,10 +473,7 @@ srt_xdg_portal_class_init (SrtXdgPortalClass *cls)
 
 /**
  * _srt_check_xdg_portals:
- * @envp: (not nullable): Environment variables to use
- * @helpers_path: An optional path to find check-xdg-portal helper, PATH
- *  is used if null.
- * @test_flags: Flags used during automated testing
+ * @runner: The execution environment
  * @multiarch_tuple: Multiarch tuple of helper executable to use
  * @details_out: The SrtXdgPortal object containing the details of the check.
  *
@@ -486,9 +483,7 @@ srt_xdg_portal_class_init (SrtXdgPortalClass *cls)
  *  if no problems were found
  */
 G_GNUC_INTERNAL SrtXdgPortalIssues
-_srt_check_xdg_portals (gchar **envp,
-                        const char *helpers_path,
-                        SrtTestFlags test_flags,
+_srt_check_xdg_portals (SrtSubprocessRunner *runner,
                         SrtContainerType container_type,
                         const char *multiarch_tuple,
                         SrtXdgPortal **details_out)
@@ -513,16 +508,14 @@ _srt_check_xdg_portals (gchar **envp,
   SrtXdgPortalIssues issues = SRT_XDG_PORTAL_ISSUES_NONE;
   gboolean has_implementation = FALSE;
 
-  g_return_val_if_fail (envp != NULL, SRT_XDG_PORTAL_ISSUES_UNKNOWN);
+  g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (runner), SRT_XDG_PORTAL_ISSUES_UNKNOWN);
   g_return_val_if_fail (multiarch_tuple != NULL, SRT_XDG_PORTAL_ISSUES_UNKNOWN);
   g_return_val_if_fail (details_out == NULL || *details_out == NULL,
                         SRT_XDG_PORTAL_ISSUES_UNKNOWN);
 
-  if (test_flags & SRT_TEST_FLAGS_TIME_OUT_SOONER)
-    helper_flags |= SRT_HELPER_FLAGS_TIME_OUT_SOONER;
-
-  argv = _srt_get_helper (helpers_path, multiarch_tuple, "check-xdg-portal",
-                          helper_flags, &local_error);
+  argv = _srt_subprocess_runner_get_helper (runner, multiarch_tuple,
+                                            "check-xdg-portal", helper_flags,
+                                            &local_error);
 
   if (argv == NULL)
     {
@@ -537,16 +530,13 @@ _srt_check_xdg_portals (gchar **envp,
   /* NULL terminate the array */
   g_ptr_array_add (argv, NULL);
 
-  if (!g_spawn_sync (NULL,    /* working directory */
-                     (gchar **) argv->pdata,
-                     envp,
-                     G_SPAWN_SEARCH_PATH,
-                     _srt_child_setup_unblock_signals,
-                     NULL,    /* user data */
-                     &output, /* stdout */
-                     &stderr_messages,
-                     &wait_status,
-                     &local_error))
+  if (!_srt_subprocess_runner_spawn_sync (runner,
+                                          helper_flags,
+                                          (const char * const *) argv->pdata,
+                                          &output,
+                                          &stderr_messages,
+                                          &wait_status,
+                                          &local_error))
     {
       g_debug ("An error occurred calling the helper: %s", local_error->message);
       issues |= SRT_XDG_PORTAL_ISSUES_UNKNOWN;

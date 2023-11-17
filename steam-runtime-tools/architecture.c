@@ -112,22 +112,24 @@ _srt_architecture_get_known (void)
 }
 
 gboolean
-_srt_architecture_can_run (gchar **envp,
-                           const char *helpers_path,
+_srt_architecture_can_run (SrtSubprocessRunner *runner,
                            const char *multiarch)
 {
   GPtrArray *argv = NULL;
   int exit_status = -1;
   GError *error = NULL;
   gboolean ret = FALSE;
-  GStrv my_environ = NULL;
+  SrtHelperFlags helper_flags = SRT_HELPER_FLAGS_NONE;
+  g_autofree gchar *child_stdout = NULL;
+  g_autofree gchar *child_stderr = NULL;
 
-  g_return_val_if_fail (envp != NULL, FALSE);
+  g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (runner), FALSE);
   g_return_val_if_fail (multiarch != NULL, FALSE);
   g_return_val_if_fail (_srt_check_not_setuid (), FALSE);
 
-  argv = _srt_get_helper (helpers_path, multiarch, "true",
-                          SRT_HELPER_FLAGS_NONE, &error);
+  argv = _srt_subprocess_runner_get_helper (runner, multiarch, "true",
+                                            helper_flags, &error);
+
   if (argv == NULL)
     {
       g_debug ("%s", error->message);
@@ -139,22 +141,23 @@ _srt_architecture_can_run (gchar **envp,
   g_debug ("Testing architecture %s with %s",
            multiarch, (const char *) g_ptr_array_index (argv, 0));
 
-  my_environ = _srt_filter_gameoverlayrenderer_from_envp (envp);
-
-  if (!g_spawn_sync (NULL,       /* working directory */
-                     (gchar **) argv->pdata,
-                     my_environ, /* envp */
-                     0,          /* flags */
-                     _srt_child_setup_unblock_signals,
-                     NULL,       /* user data */
-                     NULL,       /* stdout */
-                     NULL,       /* stderr */
-                     &exit_status,
-                     &error))
+  if (!_srt_subprocess_runner_spawn_sync (runner,
+                                          helper_flags,
+                                          (const char * const *) argv->pdata,
+                                          &child_stdout,
+                                          &child_stderr,
+                                          &exit_status,
+                                          &error))
     {
       g_debug ("... %s", error->message);
       goto out;
     }
+
+  if (child_stdout != NULL && child_stdout[0] != '\0')
+    g_debug ("... output: %s", child_stdout);
+
+  if (child_stderr != NULL && child_stderr[0] != '\0')
+    g_debug ("... diagnostic output: %s", child_stderr);
 
   if (exit_status != 0)
     {
@@ -165,7 +168,6 @@ _srt_architecture_can_run (gchar **envp,
   g_debug ("... it works");
   ret = TRUE;
 out:
-  g_strfreev (my_environ);
   g_clear_error (&error);
   g_clear_pointer (&argv, g_ptr_array_unref);
   return ret;
@@ -197,8 +199,9 @@ out:
 gboolean
 srt_architecture_can_run_i386 (void)
 {
-  return _srt_architecture_can_run ((gchar **) _srt_peek_environ_nonnull (),
-                                    NULL, SRT_ABI_I386);
+  g_autoptr(SrtSubprocessRunner) runner = _srt_subprocess_runner_new ();
+
+  return _srt_architecture_can_run (runner, SRT_ABI_I386);
 }
 
 /**
@@ -216,8 +219,9 @@ srt_architecture_can_run_i386 (void)
 gboolean
 srt_architecture_can_run_x86_64 (void)
 {
-  return _srt_architecture_can_run ((gchar **) _srt_peek_environ_nonnull (),
-                                    NULL, SRT_ABI_X86_64);
+  g_autoptr(SrtSubprocessRunner) runner = _srt_subprocess_runner_new ();
+
+  return _srt_architecture_can_run (runner, SRT_ABI_X86_64);
 }
 
 /**

@@ -227,18 +227,13 @@ srt_display_info_class_init (SrtDisplayInfoClass *cls)
 
 /**
  * _srt_check_display:
- * @envp: (not nullable): Environment variables to use
- * @helpers_path: An optional path to find check-xdg-portal helper, PATH
- *  is used if %NULL.
- * @test_flags: Flags used during automated testing
+ * @runner: The execution environment
  * @multiarch_tuple: (not nullable): Multiarch tuple of helper executable to use
  *
  * Returns: A SrtDisplayInfo object containing the details of the check
  */
 SrtDisplayInfo *
-_srt_check_display (gchar **envp,
-                    const char *helpers_path,
-                    SrtTestFlags test_flags,
+_srt_check_display (SrtSubprocessRunner *runner,
                     const char *multiarch_tuple)
 {
   GPtrArray *builder;
@@ -254,7 +249,9 @@ _srt_check_display (gchar **envp,
   SrtDisplayWaylandIssues wayland_issues = SRT_DISPLAY_WAYLAND_ISSUES_NONE;
   SrtDisplayX11Type x11_type = SRT_DISPLAY_X11_TYPE_UNKNOWN;
   SrtHelperFlags helper_flags = (SRT_HELPER_FLAGS_TIME_OUT
-                                 | SRT_HELPER_FLAGS_SEARCH_PATH);
+                                 | SRT_HELPER_FLAGS_SEARCH_PATH
+                                 | SRT_HELPER_FLAGS_STDOUT_SILENCE);
+  const char * const *envp;
   static const gchar * const display_env[] =
   {
     "CLUTTER_BACKEND",
@@ -270,7 +267,7 @@ _srt_check_display (gchar **envp,
     NULL
   };
 
-  g_return_val_if_fail (envp != NULL,
+  g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (runner),
                         _srt_display_info_new (NULL, FALSE,
                                                SRT_DISPLAY_WAYLAND_ISSUES_UNKNOWN,
                                                SRT_DISPLAY_X11_TYPE_UNKNOWN, NULL));
@@ -280,10 +277,11 @@ _srt_check_display (gchar **envp,
                                                SRT_DISPLAY_X11_TYPE_UNKNOWN, NULL));
 
   builder = g_ptr_array_new_with_free_func (g_free);
+  envp = _srt_subprocess_runner_get_environ (runner);
 
   for (guint i = 0; display_env[i] != NULL; i++)
     {
-      const gchar *value = g_environ_getenv (envp, display_env[i]);
+      const gchar *value = _srt_environ_getenv (envp, display_env[i]);
       if (value != NULL)
         {
           g_autofree gchar *key_value = NULL;
@@ -295,7 +293,7 @@ _srt_check_display (gchar **envp,
   g_ptr_array_add (builder, NULL);
   display_environ = (gchar **) g_ptr_array_free (builder, FALSE);
 
-  name = g_environ_getenv (envp, "WAYLAND_DISPLAY");
+  name = _srt_environ_getenv (envp, "WAYLAND_DISPLAY");
   /* If unset, the default fallback is `wayland-0` */
   if (name == NULL)
     name = "wayland-0";
@@ -311,7 +309,7 @@ _srt_check_display (gchar **envp,
   else
     {
       const gchar *xdg_runtime_dir;
-      xdg_runtime_dir = g_environ_getenv (envp, "XDG_RUNTIME_DIR");
+      xdg_runtime_dir = _srt_environ_getenv (envp, "XDG_RUNTIME_DIR");
 
       if (xdg_runtime_dir == NULL)
         {
@@ -331,11 +329,9 @@ _srt_check_display (gchar **envp,
         }
     }
 
-  if (test_flags & SRT_TEST_FLAGS_TIME_OUT_SOONER)
-    helper_flags |= SRT_HELPER_FLAGS_TIME_OUT_SOONER;
-
-  argv = _srt_get_helper (helpers_path, multiarch_tuple, "is-x-server-xwayland",
-                          helper_flags, &local_error);
+  argv = _srt_subprocess_runner_get_helper (runner, multiarch_tuple,
+                                            "is-x-server-xwayland",
+                                            helper_flags, &local_error);
 
   if (argv == NULL)
     {
@@ -348,16 +344,13 @@ _srt_check_display (gchar **envp,
   /* NULL terminate the array */
   g_ptr_array_add (argv, NULL);
 
-  if (!g_spawn_sync (NULL,    /* working directory */
-                     (gchar **) argv->pdata,
-                     envp,
-                     G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL,
-                     _srt_child_setup_unblock_signals,
-                     NULL,    /* user data */
-                     NULL,    /* stdout */
-                     &x11_messages,
-                     &wait_status,
-                     &local_error))
+  if (!_srt_subprocess_runner_spawn_sync (runner,
+                                          helper_flags,
+                                          (const char * const *) argv->pdata,
+                                          NULL,   /* stdout */
+                                          &x11_messages,
+                                          &wait_status,
+                                          &local_error))
     {
       g_debug ("An error occurred calling the helper: %s", local_error->message);
       x11_messages = g_strdup (local_error->message);

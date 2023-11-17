@@ -34,6 +34,7 @@
 #include <glib/gstdio.h>
 
 #include "steam-runtime-tools/display-internal.h"
+#include "steam-runtime-tools/utils-internal.h"
 #include "test-utils.h"
 
 typedef struct
@@ -141,10 +142,10 @@ test_display_environment (Fixture *f,
 
   /* We expect to only have the environment variables relevant to the display */
   g_assert_nonnull (display_env_vars);
-  g_assert_cmpstr (g_environ_getenv ((gchar **) display_env_vars, "DISPLAY"), ==, ":0");
-  g_assert_cmpstr (g_environ_getenv ((gchar **) display_env_vars, "DISPLAY_MINE"), ==, NULL);
-  g_assert_cmpstr (g_environ_getenv ((gchar **) display_env_vars, "WHAT_DISPLAY"), ==, NULL);
-  g_assert_cmpstr (g_environ_getenv ((gchar **) display_env_vars, "GDK_BACKEND"), ==, "x11");
+  g_assert_cmpstr (_srt_environ_getenv (display_env_vars, "DISPLAY"), ==, ":0");
+  g_assert_cmpstr (_srt_environ_getenv (display_env_vars, "DISPLAY_MINE"), ==, NULL);
+  g_assert_cmpstr (_srt_environ_getenv (display_env_vars, "WHAT_DISPLAY"), ==, NULL);
+  g_assert_cmpstr (_srt_environ_getenv (display_env_vars, "GDK_BACKEND"), ==, "x11");
 }
 
 static void

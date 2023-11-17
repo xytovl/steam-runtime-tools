@@ -393,14 +393,13 @@ srt_loadable_write_to_file (const SrtLoadable *self,
  * resolving also its eventual symbolic links.
  */
 static gchar *
-_get_library_canonical_path (gchar **envp,
-                             const char *helpers_path,
+_get_library_canonical_path (SrtSubprocessRunner *runner,
                              const char *multiarch,
                              const gchar *library_path)
 {
   g_autoptr(SrtLibrary) library = NULL;
-  _srt_check_library_presence (helpers_path, library_path, multiarch, NULL,
-                               NULL, SRT_CHECK_FLAGS_SKIP_SLOW_CHECKS, envp,
+  _srt_check_library_presence (runner, library_path, multiarch, NULL,
+                               NULL, SRT_CHECK_FLAGS_SKIP_SLOW_CHECKS,
                                SRT_LIBRARY_SYMBOLS_FORMAT_PLAIN, &library);
 
   /* Use realpath() because the path might still be a symbolic link or it can
@@ -459,8 +458,7 @@ _update_duplicated_value (GType which,
 }
 
 /*
- * @helpers_path: (nullable): An optional path to find "inspect-library"
- *  helper, PATH is used if %NULL
+ * @runner: The execution environment
  * @loadable: (inout) (element-type SrtVulkanLayer):
  *
  * Iterate the provided @loadable list and update their "issues" property
@@ -472,8 +470,7 @@ _update_duplicated_value (GType which,
  */
 void
 _srt_loadable_flag_duplicates (GType which,
-                               gchar **envp,
-                               const char *helpers_path,
+                               SrtSubprocessRunner *runner,
                                const char * const *multiarch_tuples,
                                GList *loadable)
 {
@@ -518,7 +515,7 @@ _srt_loadable_flag_duplicates (GType which,
               for (i = 0; multiarch_tuples[i] != NULL; i++)
                 {
                   g_autofree gchar *canonical_path = NULL;
-                  canonical_path = _get_library_canonical_path (envp, helpers_path,
+                  canonical_path = _get_library_canonical_path (runner,
                                                                 multiarch_tuples[i],
                                                                 resolved_path);
 
@@ -560,7 +557,7 @@ _srt_loadable_flag_duplicates (GType which,
                 {
                   g_autofree gchar *canonical_path = NULL;
                   g_autofree gchar *hash_key = NULL;
-                  canonical_path = _get_library_canonical_path (envp, helpers_path,
+                  canonical_path = _get_library_canonical_path (runner,
                                                                 multiarch_tuples[i],
                                                                 resolved_path);
 

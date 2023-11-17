@@ -2562,7 +2562,7 @@ driver_environment (Fixture *f,
                                     {"__GLX_VENDOR_LIBRARY_NAME", "my_custom_driver"},
                                     {NULL, NULL} };
 
-  envp = g_strdupv ((gchar **) no_environment);
+  envp = _srt_strdupv (no_environment);
 
   for (i = 0; environment[i][0] != NULL; i++)
     envp = g_environ_setenv (envp, environment[i][0], environment[i][1], TRUE);

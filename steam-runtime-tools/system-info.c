@@ -116,11 +116,8 @@ struct _SrtSystemInfo
   gchar *expectations;
   /* Root directory to inspect, usually "/" */
   SrtSysroot *sysroot;
-  /* Environment variables */
-  gchar **env;
-  /* Path to find helper executables, or %NULL to use $SRT_HELPERS_PATH
-   * or the installed helpers */
-  gchar *helpers_path;
+  /* Execution environment for helpers */
+  SrtSubprocessRunner *runner;
   /* Multiarch tuples that are used for helper executables in cases where it
    * shouldn't matter. The first element is considered the primary multiarch. */
   GArray *multiarch_tuples;
@@ -187,7 +184,6 @@ struct _SrtSystemInfo
   } cpu_features;
   SrtOsInfo *os_info;
   SrtCheckFlags check_flags;
-  SrtTestFlags test_flags;
   Tristate can_write_uinput;
   /* cached_driver_environment != NULL indicates we have already checked the
    * driver-selection environment variables */
@@ -377,7 +373,7 @@ srt_system_info_init (SrtSystemInfo *self)
   self->abis = g_ptr_array_new_full (2, abi_free);
 
   srt_system_info_set_sysroot (self, "/");
-  srt_system_info_set_environ (self, NULL);
+  self->runner = _srt_subprocess_runner_new ();
 }
 
 static void
@@ -562,6 +558,7 @@ srt_system_info_dispose (GObject *object)
   forget_steam (self);
   forget_xdg_portal (self);
   g_ptr_array_set_size (self->abis, 0);
+  g_clear_object (&self->runner);
   g_clear_object (&self->virtualization_info);
   g_clear_object (&self->sysroot);
 
@@ -576,8 +573,6 @@ srt_system_info_finalize (GObject *object)
   g_clear_pointer (&self->abis, g_ptr_array_unref);
   g_clear_pointer (&self->multiarch_tuples, g_array_unref);
   g_free (self->expectations);
-  g_free (self->helpers_path);
-  g_strfreev (self->env);
   g_clear_pointer (&self->cached_driver_environment, g_strfreev);
 
   if (self->cached_hidden_deps)
@@ -1109,7 +1104,7 @@ srt_system_info_can_run (SrtSystemInfo *self,
 
   if (abi->can_run == TRI_MAYBE)
     {
-      if (_srt_architecture_can_run (self->env, self->helpers_path, multiarch_tuple))
+      if (_srt_architecture_can_run (self->runner, multiarch_tuple))
         abi->can_run = TRI_YES;
       else
         abi->can_run = TRI_NO;
@@ -1186,7 +1181,7 @@ ensure_expectations (SrtSystemInfo *self)
       const char *runtime;
       gchar *def = NULL;
 
-      runtime = g_environ_getenv (self->env, "STEAM_RUNTIME");
+      runtime = _srt_subprocess_runner_getenv (self->runner, "STEAM_RUNTIME");
 
       if (runtime != NULL && runtime[0] == '/')
         {
@@ -1336,6 +1331,7 @@ ensure_overrides_cached (SrtSystemInfo *self)
           "usr/lib/pressure-vessel/overrides/",
       };
       gsize i;
+      const char * const *envp;
 
       self->overrides.have_data = TRUE;
 
@@ -1346,6 +1342,8 @@ ensure_overrides_cached (SrtSystemInfo *self)
           self->overrides.messages[1] = NULL;
           return;
         }
+
+      envp = _srt_subprocess_runner_get_environ (self->runner);
 
       for (i = 0; i < G_N_ELEMENTS (paths); i++)
         {
@@ -1362,7 +1360,7 @@ ensure_overrides_cached (SrtSystemInfo *self)
                                                                     self->sysroot->fd,
                                                                     paths[i],
                                                                     fd,
-                                                                    self->env,
+                                                                    envp,
                                                                     &self->overrides.messages);
               break;
             }
@@ -1411,12 +1409,13 @@ srt_system_info_list_pressure_vessel_overrides (SrtSystemInfo *self,
 static void
 ensure_pinned_libs_cached (SrtSystemInfo *self)
 {
-  g_autofree gchar *runtime = NULL;
-
   g_return_if_fail (_srt_check_not_setuid ());
 
   if (!self->pinned_libs.have_data && self->from_report == NULL)
     {
+      g_autofree gchar *runtime = NULL;
+      const char * const *envp;
+
       runtime = srt_system_info_dup_runtime_path (self);
 
       self->pinned_libs.have_data = TRUE;
@@ -1424,18 +1423,20 @@ ensure_pinned_libs_cached (SrtSystemInfo *self)
       if (runtime == NULL || g_strcmp0 (runtime, "/") == 0)
         return;
 
+      envp = _srt_subprocess_runner_get_environ (self->runner);
+
       self->pinned_libs.values_32 = _srt_recursive_list_content (runtime,
                                                                  -1,
                                                                  "pinned_libs_32",
                                                                  -1,
-                                                                 self->env,
+                                                                 envp,
                                                                  &self->pinned_libs.messages_32);
 
       self->pinned_libs.values_64 = _srt_recursive_list_content (runtime,
                                                                  -1,
                                                                  "pinned_libs_64",
                                                                  -1,
-                                                                 self->env,
+                                                                 envp,
                                                                  &self->pinned_libs.messages_64);
     }
 }
@@ -1681,13 +1682,12 @@ srt_system_info_check_libraries (SrtSystemInfo *self,
               SrtLibrary *library = NULL;
               char *soname = g_strdup (strsep (&pointer_into_line, " \t"));
               gchar **hidden_deps = g_hash_table_lookup (self->cached_hidden_deps, soname);
-              abi->cached_combined_issues |= _srt_check_library_presence (self->helpers_path,
+              abi->cached_combined_issues |= _srt_check_library_presence (self->runner,
                                                                           soname,
                                                                           multiarch_tuple,
                                                                           symbols_file,
                                                                           (const gchar * const *)hidden_deps,
                                                                           self->check_flags,
-                                                                          self->env,
                                                                           SRT_LIBRARY_SYMBOLS_FORMAT_DEB_SYMBOLS,
                                                                           &library);
               g_hash_table_insert (abi->cached_results, soname, library);
@@ -1827,13 +1827,12 @@ srt_system_info_check_library (SrtSystemInfo *self,
               if (g_strcmp0 (soname_found, requested_name) == 0)
                 {
                   gchar **hidden_deps = g_hash_table_lookup (self->cached_hidden_deps, requested_name);
-                  issues = _srt_check_library_presence (self->helpers_path,
+                  issues = _srt_check_library_presence (self->runner,
                                                         soname_found,
                                                         multiarch_tuple,
                                                         symbols_file,
                                                         (const gchar * const *)hidden_deps,
                                                         self->check_flags,
-                                                        self->env,
                                                         SRT_LIBRARY_SYMBOLS_FORMAT_DEB_SYMBOLS,
                                                         &library);
                   g_hash_table_insert (abi->cached_results, soname_found, library);
@@ -1854,13 +1853,12 @@ srt_system_info_check_library (SrtSystemInfo *self,
 
   /* The SONAME's symbols file is not available.
    * We do instead a simple absence/presence check. */
-  issues = _srt_check_library_presence (self->helpers_path,
+  issues = _srt_check_library_presence (self->runner,
                                         requested_name,
                                         multiarch_tuple,
                                         NULL,
                                         NULL,
                                         self->check_flags,
-                                        self->env,
                                         SRT_LIBRARY_SYMBOLS_FORMAT_DEB_SYMBOLS,
                                         &library);
   g_hash_table_insert (abi->cached_results, g_strdup (requested_name), library);
@@ -1989,9 +1987,7 @@ srt_system_info_check_graphics (SrtSystemInfo *self,
     return SRT_GRAPHICS_ISSUES_UNKNOWN;
 
   graphics = NULL;
-  issues = _srt_check_graphics (self->env,
-                                self->helpers_path,
-                                self->test_flags,
+  issues = _srt_check_graphics (self->runner,
                                 multiarch_tuple,
                                 window_system,
                                 rendering_interface,
@@ -2098,6 +2094,33 @@ GList * srt_system_info_check_all_graphics (SrtSystemInfo *self,
   return list;
 }
 
+/* More efficient than calling set_environ, set_helpers_path and
+ * set_test_flags separately */
+void
+_srt_system_info_set_subprocess_runner (SrtSystemInfo *self,
+                                        SrtSubprocessRunner *runner)
+{
+  g_autoptr(SrtSubprocessRunner) old = NULL;
+
+  g_return_if_fail (SRT_IS_SYSTEM_INFO (self));
+  g_return_if_fail (self->from_report == NULL);
+  g_return_if_fail (SRT_IS_SUBPROCESS_RUNNER (runner));
+
+  forget_display_info (self);
+  forget_drivers (self);
+  forget_graphics_modules (self);
+  forget_graphics_results (self);
+  forget_libraries (self);
+  forget_locales (self);
+  forget_pinned_libs (self);
+  forget_steam (self);
+  forget_xdg_portal (self);
+  g_clear_pointer (&self->cached_driver_environment, g_strfreev);
+
+  old = g_steal_pointer (&self->runner);
+  self->runner = g_object_ref (runner);
+}
+
 /**
  * srt_system_info_set_environ:
  * @self: The #SrtSystemInfo
@@ -2116,26 +2139,15 @@ void
 srt_system_info_set_environ (SrtSystemInfo *self,
                              gchar * const *env)
 {
+  g_autoptr(SrtSubprocessRunner) runner = NULL;
+
   g_return_if_fail (SRT_IS_SYSTEM_INFO (self));
   g_return_if_fail (self->from_report == NULL);
 
-  forget_display_info (self);
-  forget_graphics_modules (self);
-  forget_libraries (self);
-  forget_graphics_results (self);
-  forget_locales (self);
-  forget_pinned_libs (self);
-  forget_xdg_portal (self);
-  g_clear_pointer (&self->cached_driver_environment, g_strfreev);
-  g_strfreev (self->env);
-
-  if (env != NULL)
-    self->env = g_strdupv ((gchar **) env);
-  else
-    self->env = g_strdupv ((gchar **) _srt_peek_environ_nonnull ());
-
-  /* Forget what we know about Steam because it is bounded to the environment. */
-  forget_steam (self);
+  runner = _srt_subprocess_runner_new_full (_srt_const_strv (env),
+                                            _srt_subprocess_runner_get_helpers_path (self->runner),
+                                            _srt_subprocess_runner_get_test_flags (self->runner));
+  _srt_system_info_set_subprocess_runner (self, runner);
 }
 
 /**
@@ -2218,7 +2230,11 @@ static void
 ensure_steam_cached (SrtSystemInfo *self)
 {
   if (self->steam_data == NULL && self->from_report == NULL)
-    _srt_steam_check (self->env, &self->steam_data);
+    {
+      const char * const *envp = _srt_subprocess_runner_get_environ (self->runner);
+
+      _srt_steam_check (envp, &self->steam_data);
+    }
 }
 
 /**
@@ -2723,9 +2739,13 @@ ensure_runtime_cached (SrtSystemInfo *self)
   ensure_steam_cached (self);
 
   if (!_srt_runtime_is_populated (&self->runtime))
-    _srt_runtime_check_execution_environment (&self->runtime, self->env,
-                                              self->os_info,
-                                              srt_steam_get_bin32_path (self->steam_data));
+    {
+      const char * const *envp = _srt_subprocess_runner_get_environ (self->runner);
+
+      _srt_runtime_check_execution_environment (&self->runtime, envp,
+                                                self->os_info,
+                                                srt_steam_get_bin32_path (self->steam_data));
+    }
 }
 
 /**
@@ -2822,16 +2842,15 @@ void
 srt_system_info_set_helpers_path (SrtSystemInfo *self,
                                   const gchar *path)
 {
+  g_autoptr(SrtSubprocessRunner) runner = NULL;
+
   g_return_if_fail (SRT_IS_SYSTEM_INFO (self));
   g_return_if_fail (self->from_report == NULL);
 
-  forget_graphics_modules (self);
-  forget_libraries (self);
-  forget_graphics_results (self);
-  forget_drivers (self);
-  forget_locales (self);
-  free (self->helpers_path);
-  self->helpers_path = g_strdup (path);
+  runner = _srt_subprocess_runner_new_full (_srt_subprocess_runner_get_environ (self->runner),
+                                            path,
+                                            _srt_subprocess_runner_get_test_flags (self->runner));
+  _srt_system_info_set_subprocess_runner (self, runner);
 }
 
 /**
@@ -3134,8 +3153,7 @@ srt_system_info_check_locale (SrtSystemInfo *self,
       GError *local_error = NULL;
       SrtLocale *locale = NULL;
 
-      locale = _srt_check_locale (self->env,
-                                  self->helpers_path,
+      locale = _srt_check_locale (self->runner,
                                   srt_system_info_get_primary_multiarch_tuple (self),
                                   g_quark_to_string (quark),
                                   &local_error);
@@ -3207,8 +3225,14 @@ void
 srt_system_info_set_test_flags (SrtSystemInfo *self,
                                 SrtTestFlags flags)
 {
+  g_autoptr(SrtSubprocessRunner) runner = NULL;
+
   g_return_if_fail (SRT_IS_SYSTEM_INFO (self));
-  self->test_flags = flags;
+
+  runner = _srt_subprocess_runner_new_full (_srt_subprocess_runner_get_environ (self->runner),
+                                            _srt_subprocess_runner_get_helpers_path (self->runner),
+                                            flags);
+  _srt_system_info_set_subprocess_runner (self, runner);
 }
 
 /**
@@ -3266,9 +3290,8 @@ srt_system_info_list_egl_icds (SrtSystemInfo *self,
         }
 
       self->icds.egl = _srt_load_egl_things (SRT_TYPE_EGL_ICD,
-                                             self->helpers_path,
                                              self->sysroot,
-                                             self->env,
+                                             self->runner,
                                              multiarch_tuples,
                                              self->check_flags);
       self->icds.have_egl = TRUE;
@@ -3333,9 +3356,8 @@ srt_system_info_list_egl_external_platforms (SrtSystemInfo *self,
         }
 
       self->egl_ext_platform.list = _srt_load_egl_things (SRT_TYPE_EGL_EXTERNAL_PLATFORM,
-                                                          self->helpers_path,
                                                           self->sysroot,
-                                                          self->env,
+                                                          self->runner,
                                                           multiarch_tuples,
                                                           self->check_flags);
       self->egl_ext_platform.have = TRUE;
@@ -3400,9 +3422,8 @@ srt_system_info_list_vulkan_icds (SrtSystemInfo *self,
       if (multiarch_tuples == NULL)
         stored_multiarch_tuples = srt_system_info_dup_multiarch_tuples (self);
 
-      self->icds.vulkan = _srt_load_vulkan_icds (self->helpers_path,
-                                                 self->sysroot,
-                                                 self->env,
+      self->icds.vulkan = _srt_load_vulkan_icds (self->sysroot,
+                                                 self->runner,
                                                  multiarch_tuples == NULL ?
                                                    (const char * const *) stored_multiarch_tuples :
                                                    multiarch_tuples,
@@ -3455,9 +3476,8 @@ srt_system_info_list_explicit_vulkan_layers (SrtSystemInfo *self)
     {
       g_auto(GStrv) multiarch_tuples = srt_system_info_dup_multiarch_tuples (self);
       g_assert (self->layers.vulkan_explicit == NULL);
-      self->layers.vulkan_explicit = _srt_load_vulkan_layers_extended (self->helpers_path,
-                                                                       self->sysroot,
-                                                                       self->env,
+      self->layers.vulkan_explicit = _srt_load_vulkan_layers_extended (self->sysroot,
+                                                                       self->runner,
                                                                        (const char * const *) multiarch_tuples,
                                                                        TRUE,
                                                                        self->check_flags);
@@ -3509,9 +3529,8 @@ srt_system_info_list_implicit_vulkan_layers (SrtSystemInfo *self)
     {
       g_auto(GStrv) multiarch_tuples = srt_system_info_dup_multiarch_tuples (self);
       g_assert (self->layers.vulkan_implicit == NULL);
-      self->layers.vulkan_implicit = _srt_load_vulkan_layers_extended (self->helpers_path,
-                                                                       self->sysroot,
-                                                                       self->env,
+      self->layers.vulkan_implicit = _srt_load_vulkan_layers_extended (self->sysroot,
+                                                                       self->runner,
                                                                        (const char * const *) multiarch_tuples,
                                                                        FALSE,
                                                                        self->check_flags);
@@ -3574,8 +3593,7 @@ _srt_system_info_list_graphics_modules (SrtSystemInfo *self,
   if (!abi->graphics_modules[which].available && self->from_report == NULL && self->sysroot != NULL)
     {
       abi->graphics_modules[which].modules = _srt_list_graphics_modules (self->sysroot,
-                                                                         self->env,
-                                                                         self->helpers_path,
+                                                                         self->runner,
                                                                          multiarch_tuple,
                                                                          self->check_flags,
                                                                          which);
@@ -3732,7 +3750,7 @@ ensure_driver_environment (SrtSystemInfo *self)
     {
       GPtrArray *builder;
       GRegex *regex;
-      gchar **env_list = self->env;
+      const char * const *env_list;
       /* This is the list of well-known driver-selection environment variables,
        * plus __GLX_FORCE_VENDOR_LIBRARY_%d that will be searched with a regex.
        * It doesn't include the variables already listed in _str_check_display().
@@ -3865,11 +3883,12 @@ ensure_driver_environment (SrtSystemInfo *self)
         NULL
       };
 
+      env_list = _srt_subprocess_runner_get_environ (self->runner);
       builder = g_ptr_array_new_with_free_func (g_free);
 
       for (guint i = 0; drivers_env[i] != NULL; i++)
         {
-          const gchar *value = g_environ_getenv (env_list, drivers_env[i]);
+          const gchar *value = g_environ_getenv ((gchar **) env_list, drivers_env[i]);
           if (value != NULL)
             {
               gchar *key_value = g_strjoin ("=", drivers_env[i], value, NULL);
@@ -4112,9 +4131,7 @@ ensure_display_info (SrtSystemInfo *self)
   g_return_if_fail (SRT_IS_SYSTEM_INFO (self));
 
   if (self->display_info == NULL && self->from_report == NULL)
-    self->display_info = _srt_check_display (self->env,
-                                             self->helpers_path,
-                                             self->test_flags,
+    self->display_info = _srt_check_display (self->runner,
                                              srt_system_info_get_primary_multiarch_tuple (self));
 }
 
@@ -4245,9 +4262,7 @@ ensure_xdg_portals_cached (SrtSystemInfo *self)
   if (self->xdg_portal_data == NULL)
     {
       ensure_container_info (self);
-      _srt_check_xdg_portals (self->env,
-                              self->helpers_path,
-                              self->test_flags,
+      _srt_check_xdg_portals (self->runner,
                               srt_container_info_get_container_type (self->container_info),
                               srt_system_info_get_primary_multiarch_tuple (self),
                               &self->xdg_portal_data);
@@ -4533,8 +4548,7 @@ srt_system_info_dup_libdl_lib (SrtSystemInfo *self,
     return glnx_null_throw (error, "libdl LIB for ABI \"%s\" not included in report",
                             multiarch_tuple);
 
-  abi->libdl_lib = _srt_libdl_detect_lib (self->env,
-                                          self->helpers_path,
+  abi->libdl_lib = _srt_libdl_detect_lib (self->runner,
                                           multiarch_tuple,
                                           &abi->libdl_lib_error);
 
@@ -4605,8 +4619,7 @@ srt_system_info_dup_libdl_platform (SrtSystemInfo *self,
     return glnx_null_throw (error, "libdl PLATFORM for ABI \"%s\" not included in report",
                             multiarch_tuple);
 
-  abi->libdl_platform = _srt_libdl_detect_platform (self->env,
-                                                    self->helpers_path,
+  abi->libdl_platform = _srt_libdl_detect_platform (self->runner,
                                                     multiarch_tuple,
                                                     &abi->libdl_platform_error);
 

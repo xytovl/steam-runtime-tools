@@ -28,6 +28,7 @@
 
 #include "steam-runtime-tools/steam-runtime-tools.h"
 #include "steam-runtime-tools/container-internal.h"
+#include "steam-runtime-tools/subprocess-internal.h"
 
 #include <json-glib/json-glib.h>
 
@@ -102,9 +103,7 @@ _srt_xdg_portal_new (const char *messages,
 }
 
 G_GNUC_INTERNAL
-SrtXdgPortalIssues _srt_check_xdg_portals (gchar **envp,
-                                           const char *helpers_path,
-                                           SrtTestFlags test_flags,
+SrtXdgPortalIssues _srt_check_xdg_portals (SrtSubprocessRunner *runner,
                                            SrtContainerType container_type,
                                            const char *multiarch_tuple,
                                            SrtXdgPortal **details_out);

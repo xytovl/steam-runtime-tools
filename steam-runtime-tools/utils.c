@@ -304,122 +304,10 @@ out:
   return saved_prefix;
 }
 
-/*
- * _srt_get_helper:
- * @helpers_path: (nullable): Directory to search for helper executables,
- *  or %NULL for default behaviour
- * @multiarch: (nullable): A multiarch tuple like %SRT_ABI_I386 to prefix
- *  to the executable name, or %NULL
- * @base: (not nullable): Base name of the executable
- * @flags: Flags affecting how we set up the helper
- * @error: Used to raise an error if %NULL is returned
- *
- * Find a helper executable. We return an array of arguments so that the
- * helper can be wrapped by an "adverb" like `env`, `timeout` or a
- * specific `ld.so` implementation if required.
- *
- * Returns: (nullable) (element-type filename) (transfer container): The
- *  initial `argv` for the helper, with g_free() set as the free-function, and
- *  no %NULL terminator. Free with g_ptr_array_unref() or g_ptr_array_free().
- */
-G_GNUC_INTERNAL GPtrArray *
-_srt_get_helper (const char *helpers_path,
-                 const char *multiarch,
-                 const char *base,
-                 SrtHelperFlags flags,
-                 GError **error)
-{
-  GPtrArray *argv = NULL;
-  gchar *path;
-  gchar *prefixed;
-
-  g_return_val_if_fail (_srt_check_not_setuid (), NULL);
-  g_return_val_if_fail (base != NULL, NULL);
-  g_return_val_if_fail (error == NULL || *error == NULL, NULL);
-
-  argv = g_ptr_array_new_with_free_func (g_free);
-
-  if (g_getenv ("SNAP_DESKTOP_RUNTIME") != NULL)
-    {
-      g_debug ("Working around https://github.com/canonical/steam-snap/issues/17 by not using timeout(1)");
-    }
-  else if (flags & SRT_HELPER_FLAGS_TIME_OUT)
-    {
-      g_ptr_array_add (argv, g_strdup ("timeout"));
-      g_ptr_array_add (argv, g_strdup ("-s"));
-      g_ptr_array_add (argv, g_strdup ("TERM"));
-
-      if (flags & SRT_HELPER_FLAGS_TIME_OUT_SOONER)
-        {
-          /* Speed up the failing case in automated testing */
-          g_ptr_array_add (argv, g_strdup ("-k"));
-          g_ptr_array_add (argv, g_strdup ("1"));
-          g_ptr_array_add (argv, g_strdup ("1"));
-        }
-      else
-        {
-          /* Kill the helper (if still running) 3 seconds after the TERM
-           * signal */
-          g_ptr_array_add (argv, g_strdup ("-k"));
-          g_ptr_array_add (argv, g_strdup ("3"));
-          /* Send TERM signal after 10 seconds */
-          g_ptr_array_add (argv, g_strdup ("10"));
-        }
-    }
-
-  if (helpers_path == NULL)
-    helpers_path = g_getenv ("SRT_HELPERS_PATH");
-
-  if (helpers_path == NULL
-      && _srt_find_myself (&helpers_path, error) == NULL)
-    {
-      g_ptr_array_unref (argv);
-      return NULL;
-    }
-
-  /* Prefer a helper from ${SRT_HELPERS_PATH} or
-   * ${libexecdir}/steam-runtime-tools-${_SRT_API_MAJOR}
-   * if it exists */
-  path = g_strdup_printf ("%s/%s%s%s",
-                          helpers_path,
-                          multiarch == NULL ? "" : multiarch,
-                          multiarch == NULL ? "" : "-",
-                          base);
-
-  g_debug ("Looking for %s", path);
-
-  if (g_file_test (path, G_FILE_TEST_IS_EXECUTABLE))
-    {
-      g_ptr_array_add (argv, g_steal_pointer (&path));
-      return argv;
-    }
-
-  if ((flags & SRT_HELPER_FLAGS_SEARCH_PATH) == 0)
-    {
-      g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND,
-                   "%s not found", path);
-      g_free (path);
-      g_ptr_array_unref (argv);
-      return NULL;
-    }
-
-  /* For helpers that are not part of steam-runtime-tools
-   * (historically this included *-wflinfo), we fall back to searching $PATH */
-  g_free (path);
-
-  if (multiarch == NULL)
-    prefixed = g_strdup (base);
-  else
-    prefixed = g_strdup_printf ("%s-%s", multiarch, base);
-
-  g_ptr_array_add (argv, g_steal_pointer (&prefixed));
-  return argv;
-}
-
 /**
  * _srt_filter_gameoverlayrenderer:
  * @input: The environment variable value that needs to be filtered.
- *  Usually retrieved with g_environ_getenv ()
+ *  Usually retrieved with g_environ_getenv() or _srt_environ_getenv()
  *
  * Filter the @input paths list from every path containing `gameoverlayrenderer.so`
  *
@@ -467,7 +355,7 @@ _srt_filter_gameoverlayrenderer (const gchar *input)
  *  `gameoverlayrenderer.so` filtered out. Free with g_strfreev().
  */
 gchar **
-_srt_filter_gameoverlayrenderer_from_envp (gchar **envp)
+_srt_filter_gameoverlayrenderer_from_envp (const char * const *envp)
 {
   GStrv filtered_environ = NULL;
   const gchar *ld_preload;
@@ -475,7 +363,7 @@ _srt_filter_gameoverlayrenderer_from_envp (gchar **envp)
 
   g_return_val_if_fail (envp != NULL, NULL);
 
-  filtered_environ = g_strdupv (envp);
+  filtered_environ = _srt_strdupv (envp);
   ld_preload = g_environ_getenv (filtered_environ, "LD_PRELOAD");
   if (ld_preload != NULL)
     {
@@ -1216,7 +1104,7 @@ _srt_recursive_list_content (const gchar *sysroot,
                              int sysroot_fd,
                              const gchar *directory,
                              int directory_fd,
-                             gchar **envp,
+                             const char * const *envp,
                              gchar ***messages_out)
 {
   g_autoptr(GPtrArray) content = NULL;
@@ -1231,7 +1119,7 @@ _srt_recursive_list_content (const gchar *sysroot,
   g_return_val_if_fail (envp != NULL, NULL);
   g_return_val_if_fail (messages_out == NULL || *messages_out == NULL, NULL);
 
-  steam_runtime = g_environ_getenv (envp, "STEAM_RUNTIME");
+  steam_runtime = _srt_environ_getenv (envp, "STEAM_RUNTIME");
   /* If STEAM_RUNTIME is just the root directory we don't want to replace
    * every leading '/' with $STEAM_RUNTIME */
   if (g_strcmp0 (steam_runtime, "/") == 0)
@@ -1240,7 +1128,7 @@ _srt_recursive_list_content (const gchar *sysroot,
   const CommonReplacements common_replacements[] =
   {
     { steam_runtime, "$STEAM_RUNTIME" },
-    { g_environ_getenv (envp, "HOME"), "$HOME" },
+    { _srt_environ_getenv (envp, "HOME"), "$HOME" },
     { NULL, NULL },
   };
 

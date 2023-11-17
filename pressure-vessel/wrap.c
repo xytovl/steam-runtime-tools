@@ -1673,7 +1673,7 @@ main (int argc,
                                 bwrap_executable,
                                 graphics_provider,
                                 interpreter_host_provider,
-                                original_environ,
+                                _srt_const_strv (original_environ),
                                 flags,
                                 error);
 
@@ -2030,7 +2030,7 @@ main (int argc,
       g_autoptr(FlatpakBwrap) sharing_bwrap = NULL;
 
       sharing_bwrap = pv_wrap_share_sockets (container_env,
-                                             original_environ,
+                                             _srt_const_strv (original_environ),
                                              (runtime != NULL),
                                              is_flatpak_env);
       g_warn_if_fail (g_strv_length (sharing_bwrap->envp) == 0);
@@ -2042,7 +2042,7 @@ main (int argc,
     }
   else if (flatpak_subsandbox != NULL)
     {
-      pv_wrap_set_icons_env_vars (container_env, original_environ);
+      pv_wrap_set_icons_env_vars (container_env, _srt_const_strv (original_environ));
     }
 
   if (runtime != NULL)

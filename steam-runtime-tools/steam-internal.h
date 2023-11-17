@@ -64,5 +64,5 @@ _srt_steam_new (SrtSteamIssues issues,
 #endif
 
 G_GNUC_INTERNAL
-SrtSteamIssues _srt_steam_check (const GStrv env,
+SrtSteamIssues _srt_steam_check (const char * const *my_environ,
                                  SrtSteam **more_details_out);

@@ -44,6 +44,8 @@
  * g_object_unref() to manage its lifecycle.
  */
 
+static const SrtHelperFlags helper_flags = SRT_HELPER_FLAGS_TIME_OUT;
+
 struct _SrtLibrary
 {
   /*< private >*/
@@ -658,9 +660,10 @@ srt_check_library_presence (const char *requested_name,
                             SrtLibrarySymbolsFormat symbols_format,
                             SrtLibrary **more_details_out)
 {
-  return _srt_check_library_presence (NULL, requested_name, multiarch,
+  g_autoptr(SrtSubprocessRunner) runner = _srt_subprocess_runner_new ();
+
+  return _srt_check_library_presence (runner, requested_name, multiarch,
                                       symbols_path, NULL, SRT_CHECK_FLAGS_NONE,
-                                      (gchar **) _srt_peek_environ_nonnull (),
                                       symbols_format, more_details_out);
 }
 
@@ -671,8 +674,8 @@ srt_check_library_presence (const char *requested_name,
  *  details, joined with @details_in values
  */
 static SrtLibraryIssues
-_srt_inspect_library (gchar **argv,
-                      gchar **envp,
+_srt_inspect_library (SrtSubprocessRunner *runner,
+                      gchar **argv,
                       const char *requested_name,
                       const char *multiarch,
                       SrtLibraryIssues issues,
@@ -748,16 +751,13 @@ _srt_inspect_library (gchar **argv,
       originally_requested_name = requested_name;
     }
 
-  if (!g_spawn_sync (NULL,       /* working directory */
-                     argv,
-                     envp,
-                     G_SPAWN_SEARCH_PATH,  /* flags */
-                     _srt_child_setup_unblock_signals,
-                     NULL,       /* user data */
-                     &output,    /* stdout */
-                     &child_stderr,
-                     &wait_status,
-                     &error))
+  if (!_srt_subprocess_runner_spawn_sync (runner,
+                                          helper_flags,
+                                          (const char * const *) argv,
+                                          &output,
+                                          &child_stderr,
+                                          &wait_status,
+                                          &error))
     {
       g_debug ("An error occurred calling the helper: %s", error->message);
       issues |= SRT_LIBRARY_ISSUES_CANNOT_LOAD;
@@ -953,13 +953,12 @@ _srt_add_inspect_library_arguments (GPtrArray *argv,
 }
 
 SrtLibraryIssues
-_srt_check_library_presence (const char *helpers_path,
+_srt_check_library_presence (SrtSubprocessRunner *runner,
                              const char *requested_name,
                              const char *multiarch,
                              const char *symbols_path,
                              const char * const *hidden_deps,
                              SrtCheckFlags check_flags,
-                             gchar **envp,
                              SrtLibrarySymbolsFormat symbols_format,
                              SrtLibrary **more_details_out)
 {
@@ -967,25 +966,24 @@ _srt_check_library_presence (const char *helpers_path,
   g_autoptr(GPtrArray) argv_libelf = NULL;
   g_autoptr(GError) error = NULL;
   SrtLibraryIssues issues = SRT_LIBRARY_ISSUES_NONE;
-  g_auto(GStrv) my_environ = NULL;
-  SrtHelperFlags flags = SRT_HELPER_FLAGS_TIME_OUT;
   g_autoptr(GString) log_args = NULL;
   g_autoptr(SrtLibrary) details = NULL;
   g_autoptr(SrtLibrary) details_libelf = NULL;
   const gchar *library_absolute_path = NULL;
 
+  g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (runner), SRT_LIBRARY_ISSUES_UNKNOWN);
   g_return_val_if_fail (requested_name != NULL, SRT_LIBRARY_ISSUES_UNKNOWN);
   g_return_val_if_fail (multiarch != NULL, SRT_LIBRARY_ISSUES_UNKNOWN);
   g_return_val_if_fail (more_details_out == NULL || *more_details_out == NULL,
                         SRT_LIBRARY_ISSUES_UNKNOWN);
-  g_return_val_if_fail (envp != NULL, SRT_LIBRARY_ISSUES_UNKNOWN);
   g_return_val_if_fail (_srt_check_not_setuid (), SRT_LIBRARY_ISSUES_UNKNOWN);
 
   if (symbols_path == NULL)
     issues |= SRT_LIBRARY_ISSUES_UNKNOWN_EXPECTATIONS;
 
-  argv = _srt_get_helper (helpers_path, multiarch, "inspect-library",
-                          flags, &error);
+  argv = _srt_subprocess_runner_get_helper (runner, multiarch,
+                                            "inspect-library", helper_flags,
+                                            &error);
 
   if (argv == NULL)
     {
@@ -1018,9 +1016,7 @@ _srt_check_library_presence (const char *helpers_path,
   /* NULL terminate the array */
   g_ptr_array_add (argv, NULL);
 
-  my_environ = _srt_filter_gameoverlayrenderer_from_envp (envp);
-
-  issues = _srt_inspect_library ((gchar **) argv->pdata, my_environ, requested_name,
+  issues = _srt_inspect_library (runner, (gchar **) argv->pdata, requested_name,
                                  multiarch, issues, NULL, &details);
 
   if ((check_flags & SRT_CHECK_FLAGS_SKIP_SLOW_CHECKS)
@@ -1033,10 +1029,10 @@ _srt_check_library_presence (const char *helpers_path,
     }
 
   library_absolute_path = srt_library_get_absolute_path (details);
-
-  argv_libelf = _srt_get_helper (helpers_path, multiarch,
-                                 "inspect-library-libelf",
-                                 flags, &error);
+  argv_libelf = _srt_subprocess_runner_get_helper (runner, multiarch,
+                                                   "inspect-library-libelf",
+                                                   helper_flags,
+                                                   &error);
 
   if (argv_libelf == NULL)
     {
@@ -1068,7 +1064,7 @@ _srt_check_library_presence (const char *helpers_path,
   /* NULL terminate the array */
   g_ptr_array_add (argv_libelf, NULL);
 
-  issues = _srt_inspect_library ((gchar **) argv_libelf->pdata, my_environ,
+  issues = _srt_inspect_library (runner, (gchar **) argv_libelf->pdata,
                                  library_absolute_path, multiarch, issues, details,
                                  &details_libelf);
 

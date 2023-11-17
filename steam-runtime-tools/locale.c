@@ -190,8 +190,7 @@ srt_locale_class_init (SrtLocaleClass *cls)
 
 /*
  * _srt_check_locale:
- * @envp: Environment variables
- * @helpers_path: Path to find helper executables
+ * @runner: Execution environment
  * @multiarch_tuple: Multiarch tuple of helper executable to use
  * @requested_name: The locale name to check for
  * @error: Used to return an error if %NULL is returned
@@ -204,22 +203,22 @@ srt_locale_class_init (SrtLocaleClass *cls)
  * Returns: (transfer full): A #SrtLocale object, or %NULL
  */
 SrtLocale *
-_srt_check_locale (gchar **envp,
-                   const char *helpers_path,
+_srt_check_locale (SrtSubprocessRunner *runner,
                    const char *multiarch_tuple,
                    const char *requested_name,
                    GError **error)
 {
   GPtrArray *argv = NULL;
   gchar *output = NULL;
+  g_autofree gchar *child_stderr = NULL;
   g_autoptr(JsonNode) node = NULL;
   JsonObject *object = NULL;
   SrtLocale *ret = NULL;
-  GStrv my_environ = NULL;
   int exit_status;
+  SrtHelperFlags helper_flags = SRT_HELPER_FLAGS_NONE;
 
   g_return_val_if_fail (error == NULL || *error == NULL, NULL);
-  g_return_val_if_fail (envp != NULL, NULL);
+  g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (runner), NULL);
   g_return_val_if_fail (requested_name != NULL, NULL);
   g_return_val_if_fail (_srt_check_not_setuid (), NULL);
 
@@ -228,13 +227,12 @@ _srt_check_locale (gchar **envp,
     multiarch_tuple = _SRT_MULTIARCH;
 #endif
 
-  argv = _srt_get_helper (helpers_path, multiarch_tuple, "check-locale",
-                          SRT_HELPER_FLAGS_NONE, error);
+  argv = _srt_subprocess_runner_get_helper (runner, multiarch_tuple,
+                                            "check-locale", helper_flags,
+                                            error);
 
   if (argv == NULL)
     goto out;
-
-  my_environ = _srt_filter_gameoverlayrenderer_from_envp (envp);
 
   g_ptr_array_add (argv, g_strdup (requested_name));
 
@@ -244,20 +242,20 @@ _srt_check_locale (gchar **envp,
            (const char *) g_ptr_array_index (argv, 0),
            (const char *) g_ptr_array_index (argv, 1));
 
-  if (!g_spawn_sync (NULL,    /* working directory */
-                     (gchar **) argv->pdata,
-                     my_environ,
-                     G_SPAWN_DEFAULT,
-                     _srt_child_setup_unblock_signals,
-                     NULL,    /* user data */
-                     &output, /* stdout */
-                     NULL,    /* stderr */
-                     &exit_status,
-                     error))
+  if (!_srt_subprocess_runner_spawn_sync (runner,
+                                          helper_flags,
+                                          (const char * const *) argv->pdata,
+                                          &output,
+                                          &child_stderr,
+                                          &exit_status,
+                                          error))
     {
       g_debug ("-> g_spawn error");
       goto out;
     }
+
+  if (child_stderr != NULL && child_stderr[0] != '\0')
+    g_debug ("... diagnostic output: %s", child_stderr);
 
   if (!WIFEXITED (exit_status))
     {
@@ -339,7 +337,6 @@ out:
 
   g_clear_pointer (&argv, g_ptr_array_unref);
   g_free (output);
-  g_strfreev (my_environ);
   return ret;
 }
 

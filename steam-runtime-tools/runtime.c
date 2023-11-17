@@ -290,7 +290,7 @@ _srt_runtime_check_filesystem (const char *path)
  * @bin32: (nullable): The absolute path to `ubuntu12_32`
  * @expected_version: (nullable): The expected version number of the
  *  Steam Runtime
- * @custom_environ: (not nullable): The list of environment variables to use
+ * @envp: (not nullable): The list of environment variables to use
  * @version_out: (optional) (type utf8) (out): The actual version number
  * @path_out: (optional) (type filename) (out): The absolute path of the
  *  Steam Runtime
@@ -302,7 +302,7 @@ _srt_runtime_check_filesystem (const char *path)
 static SrtRuntimeIssues
 _srt_runtime_check (const char *bin32,
                     const char *expected_version,
-                    const GStrv custom_environ,
+                    const char * const *envp,
                     gchar **version_out,
                     gchar **path_out)
 {
@@ -325,7 +325,6 @@ _srt_runtime_check (const char *bin32,
   gchar *version_txt = NULL;
   gsize len = 0;
   GError *error = NULL;
-  GStrv my_environ = NULL;
 
   g_return_val_if_fail (version_out == NULL || *version_out == NULL,
                         SRT_RUNTIME_ISSUES_UNKNOWN);
@@ -333,9 +332,7 @@ _srt_runtime_check (const char *bin32,
                         SRT_RUNTIME_ISSUES_UNKNOWN);
   g_return_val_if_fail (_srt_check_not_setuid (), SRT_RUNTIME_ISSUES_UNKNOWN);
 
-  my_environ = g_strdupv (custom_environ);
-
-  env = g_environ_getenv (my_environ, "STEAM_RUNTIME");
+  env = _srt_environ_getenv (envp, "STEAM_RUNTIME");
 
   if (bin32 != NULL)
     expected_path = g_build_filename (bin32, "steam-runtime", NULL);
@@ -472,12 +469,12 @@ _srt_runtime_check (const char *bin32,
   might_be_stattable (path, "amd64/usr/bin", &amd64_bin);
   might_be_stattable (path, "i386/usr/bin", &i386_bin);
 
-  env = g_environ_getenv (my_environ, "STEAM_RUNTIME_PREFER_HOST_LIBRARIES");
+  env = _srt_environ_getenv (envp, "STEAM_RUNTIME_PREFER_HOST_LIBRARIES");
 
   if (g_strcmp0 (env, "0") == 0)
     issues |= SRT_RUNTIME_ISSUES_NOT_USING_NEWER_HOST_LIBRARIES;
 
-  env = g_environ_getenv (my_environ, "LD_LIBRARY_PATH");
+  env = _srt_environ_getenv (envp, "LD_LIBRARY_PATH");
 
   if (env == NULL)
     {
@@ -566,7 +563,7 @@ _srt_runtime_check (const char *bin32,
       g_strfreev (entries);
     }
 
-  env = g_environ_getenv (my_environ, "PATH");
+  env = _srt_environ_getenv (envp, "PATH");
 
   if (env == NULL)
     {
@@ -629,7 +626,6 @@ out:
   g_free (path);
   g_free (version);
   g_free (version_txt);
-  g_strfreev (my_environ);
   g_clear_error (&error);
   return issues;
 }
@@ -696,7 +692,7 @@ _srt_runtime_check_container (SrtRuntime *self,
  */
 void
 _srt_runtime_check_execution_environment (SrtRuntime *self,
-                                          const GStrv env,
+                                          const char * const *env,
                                           SrtOsInfo *os_info,
                                           const char *bin32)
 {
@@ -707,7 +703,7 @@ _srt_runtime_check_execution_environment (SrtRuntime *self,
   g_return_if_fail (os_info != NULL);
 
   _srt_runtime_clear_outputs (self);
-  runtime = g_environ_getenv (env, "STEAM_RUNTIME");
+  runtime = _srt_environ_getenv (env, "STEAM_RUNTIME");
 
   /* If we are currently running in a LD_LIBRARY_PATH runtime, check that
    * it is as expected */

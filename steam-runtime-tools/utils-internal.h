@@ -47,23 +47,10 @@
 #define _srt_compiler_has_feature(x) (0)
 #endif
 
-typedef enum
-{
-  SRT_HELPER_FLAGS_SEARCH_PATH = (1 << 0),
-  SRT_HELPER_FLAGS_TIME_OUT = (1 << 1),
-  SRT_HELPER_FLAGS_TIME_OUT_SOONER = (1 << 2),
-  SRT_HELPER_FLAGS_NONE = 0
-} SrtHelperFlags;
-
 G_GNUC_INTERNAL gboolean _srt_check_not_setuid (void);
 
-G_GNUC_INTERNAL GPtrArray *_srt_get_helper (const char *helpers_path,
-                                            const char *multiarch,
-                                            const char *base,
-                                            SrtHelperFlags flags,
-                                            GError **error);
 G_GNUC_INTERNAL gchar *_srt_filter_gameoverlayrenderer (const gchar *input);
-G_GNUC_INTERNAL gchar **_srt_filter_gameoverlayrenderer_from_envp (gchar **envp);
+G_GNUC_INTERNAL gchar **_srt_filter_gameoverlayrenderer_from_envp (const char * const *envp);
 G_GNUC_INTERNAL const char *_srt_find_myself (const char **helpers_path_out,
                                               GError **error);
 G_GNUC_INTERNAL gchar * _srt_find_executable (GError **error);
@@ -128,7 +115,7 @@ G_GNUC_INTERNAL gchar **_srt_recursive_list_content (const gchar *sysroot,
                                                      int sysroot_fd,
                                                      const gchar *directory,
                                                      int directory_fd,
-                                                     gchar **envp,
+                                                     const char * const *envp,
                                                      gchar ***messages_out);
 
 G_GNUC_INTERNAL const char *_srt_get_path_after (const char *str,
@@ -527,3 +514,32 @@ _srt_pipe_clear (SrtPipe *self)
 }
 
 G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC (SrtPipe, _srt_pipe_clear)
+
+/*
+ * Cast @strv to `(const char * const *)` without completely losing
+ * type-safety.
+ */
+static inline const char * const *
+_srt_const_strv (char * const *strv)
+{
+  return (const char * const *) strv;
+}
+
+/*
+ * Same as g_strdupv(), but takes a const parameter to avoid casts.
+ */
+static inline GStrv
+_srt_strdupv (const char * const *strv)
+{
+  return g_strdupv ((gchar **) strv);
+}
+
+/*
+ * Same as g_environ_getenv(), but takes a const parameter to avoid casts.
+ */
+static inline const char *
+_srt_environ_getenv (const char * const *envp,
+                     const char *variable)
+{
+  return g_environ_getenv ((gchar **) envp, variable);
+}
