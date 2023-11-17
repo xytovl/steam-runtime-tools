@@ -37,10 +37,8 @@ _srt_libdl_run_helper (SrtSubprocessRunner *runner,
 {
   SrtHelperFlags helper_flags = SRT_HELPER_FLAGS_NONE;
   g_autoptr(GPtrArray) argv = NULL;
+  g_autoptr(SrtCompletedSubprocess) completed = NULL;
   g_autofree gchar *child_stdout = NULL;
-  g_autofree gchar *child_stderr = NULL;
-  gint wait_status;
-  int exit_status;
   gsize len;
 
   g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (runner), NULL);
@@ -64,36 +62,27 @@ _srt_libdl_run_helper (SrtSubprocessRunner *runner,
 
   g_debug ("Running %s", (const char *) g_ptr_array_index (argv, 0));
 
-  if (!_srt_subprocess_runner_spawn_sync (runner,
-                                          helper_flags,
-                                          (const char * const *) argv->pdata,
-                                          &child_stdout,
-                                          &child_stderr,
-                                          &wait_status,
-                                          error))
+  completed = _srt_subprocess_runner_run_sync (runner,
+                                               helper_flags,
+                                               (const char * const *) argv->pdata,
+                                               SRT_SUBPROCESS_OUTPUT_CAPTURE_DEBUG,
+                                               SRT_SUBPROCESS_OUTPUT_CAPTURE_DEBUG,
+                                               error);
+
+  if (completed == NULL)
     return NULL;
 
-  if (!WIFEXITED (wait_status))
-    {
-      g_debug ("-> wait status: %d", wait_status);
-      return glnx_null_throw (error, "Unhandled wait status %d (killed by signal?)",
-                              wait_status);
-    }
+  if (!_srt_completed_subprocess_report (completed, NULL, NULL, NULL, NULL))
+    return glnx_null_throw (error, "%s",
+                            _srt_completed_subprocess_get_stderr (completed));
 
-  exit_status = WEXITSTATUS (wait_status);
-  g_debug ("-> exit status: %d", exit_status);
-  g_debug ("-> stderr: %s", child_stderr);
-
-  if (exit_status != 0)
-    return glnx_null_throw (error, "%s", child_stderr);
+  child_stdout = _srt_completed_subprocess_steal_stdout (completed);
 
   len = strlen (child_stdout);
 
   /* Emulate shell $() */
   if (len > 0 && child_stdout[len - 1] == '\n')
     child_stdout[len - 1] = '\0';
-
-  g_debug ("-> %s", child_stdout);
 
   return g_steal_pointer(&child_stdout);
 }

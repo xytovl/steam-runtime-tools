@@ -11,6 +11,32 @@
 
 #include "steam-runtime-tools/system-info.h"
 
+typedef struct _SrtCompletedSubprocess SrtCompletedSubprocess;
+typedef struct _SrtCompletedSubprocessClass SrtCompletedSubprocessClass;
+
+#define SRT_TYPE_COMPLETED_SUBPROCESS (_srt_completed_subprocess_get_type ())
+#define SRT_COMPLETED_SUBPROCESS(o) (G_TYPE_CHECK_INSTANCE_CAST ((o), SRT_TYPE_COMPLETED_SUBPROCESS, SrtCompletedSubprocess))
+#define SRT_IS_COMPLETED_SUBPROCESS(o) (G_TYPE_CHECK_INSTANCE_TYPE ((o), SRT_TYPE_COMPLETED_SUBPROCESS))
+#define SRT_COMPLETED_SUBPROCESS_GET_CLASS(o) (G_TYPE_INSTANCE_GET_CLASS ((o), SRT_TYPE_COMPLETED_SUBPROCESS, SrtCompletedSubprocessClass))
+#define SRT_COMPLETED_SUBPROCESS_CLASS(c) (G_TYPE_CHECK_CLASS_CAST ((c), SRT_TYPE_COMPLETED_SUBPROCESS, SrtCompletedSubprocessClass))
+#define SRT_IS_COMPLETED_SUBPROCESS_CLASS(c) (G_TYPE_CHECK_CLASS_TYPE ((c), SRT_TYPE_COMPLETED_SUBPROCESS))
+
+GType _srt_completed_subprocess_get_type (void);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (SrtCompletedSubprocess, g_object_unref)
+
+gboolean _srt_completed_subprocess_check (SrtCompletedSubprocess *self,
+                                          GError **error);
+gboolean _srt_completed_subprocess_report (SrtCompletedSubprocess *self,
+                                           int *wait_status_out,
+                                           int *exit_status_out,
+                                           int *terminating_signal_out,
+                                           gboolean *timed_out_out);
+gboolean _srt_completed_subprocess_timed_out (SrtCompletedSubprocess *self);
+const char *_srt_completed_subprocess_get_stdout (SrtCompletedSubprocess *self);
+const char *_srt_completed_subprocess_get_stderr (SrtCompletedSubprocess *self);
+gchar *_srt_completed_subprocess_steal_stdout (SrtCompletedSubprocess *self);
+gchar *_srt_completed_subprocess_steal_stderr (SrtCompletedSubprocess *self);
+
 typedef struct _SrtSubprocessRunner SrtSubprocessRunner;
 typedef struct _SrtSubprocessRunnerClass SrtSubprocessRunnerClass;
 
@@ -52,20 +78,27 @@ typedef enum
 {
   SRT_HELPER_FLAGS_SEARCH_PATH = (1 << 0),
   SRT_HELPER_FLAGS_TIME_OUT = (1 << 1),
-  SRT_HELPER_FLAGS_LIBGL_VERBOSE = (1 << 4),
-  SRT_HELPER_FLAGS_STDOUT_SILENCE = (1 << 5),
+  SRT_HELPER_FLAGS_LIBGL_VERBOSE = (1 << 2),
+  SRT_HELPER_FLAGS_SHELL_EXIT_STATUS = (1 << 3),
   SRT_HELPER_FLAGS_NONE = 0
 } SrtHelperFlags;
+
+typedef enum
+{
+  SRT_SUBPROCESS_OUTPUT_CAPTURE = 0,
+  SRT_SUBPROCESS_OUTPUT_CAPTURE_DEBUG,
+  SRT_SUBPROCESS_OUTPUT_INHERIT,
+  SRT_SUBPROCESS_OUTPUT_SILENCE
+} SrtSubprocessOutput;
 
 GPtrArray *_srt_subprocess_runner_get_helper (SrtSubprocessRunner *self,
                                               const char *multiarch,
                                               const char *base,
                                               SrtHelperFlags flags,
                                               GError **error);
-gboolean _srt_subprocess_runner_spawn_sync (SrtSubprocessRunner *self,
-                                            SrtHelperFlags flags,
-                                            const char * const *argv,
-                                            gchar **stdout_out,
-                                            gchar **stderr_out,
-                                            gint *wait_status_out,
-                                            GError **error);
+SrtCompletedSubprocess *_srt_subprocess_runner_run_sync (SrtSubprocessRunner *self,
+                                                         SrtHelperFlags flags,
+                                                         const char * const *argv,
+                                                         SrtSubprocessOutput stdout_mode,
+                                                         SrtSubprocessOutput stderr_mode,
+                                                         GError **error);

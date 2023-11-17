@@ -1281,6 +1281,9 @@ _srt_run_helper (SrtSubprocessRunner *runner,
                  gboolean verbose,
                  SrtGraphicsIssues non_zero_wait_status_issue)
 {
+  g_autoptr(SrtCompletedSubprocess) completed = NULL;
+  gboolean timed_out = FALSE;
+
   // non_zero_wait_status_issue needs to be something other than NONE, otherwise
   // we get no indication in caller that there was any error
   g_return_val_if_fail (non_zero_wait_status_issue != SRT_GRAPHICS_ISSUES_NONE,
@@ -1308,32 +1311,33 @@ _srt_run_helper (SrtSubprocessRunner *runner,
   *exit_status = -1;
   *terminating_signal = 0;
 
-  if (!_srt_subprocess_runner_spawn_sync (runner,
-                                          *helper_flags,
-                                          (const char * const *) argv->pdata,
-                                          output,
-                                          child_stderr,
-                                          wait_status,
-                                          &error))
+  completed = _srt_subprocess_runner_run_sync (runner,
+                                               *helper_flags,
+                                               (const char * const *) argv->pdata,
+                                               SRT_SUBPROCESS_OUTPUT_CAPTURE,
+                                               SRT_SUBPROCESS_OUTPUT_CAPTURE,
+                                               &error);
+
+  if (completed == NULL)
     {
       g_debug ("An error occurred calling the helper: %s", error->message);
       *child_stderr = g_strdup (error->message);
       g_clear_error (&error);
       issues |= non_zero_wait_status_issue;
+      return issues;
     }
-  else if (*wait_status != 0)
+
+  *output = _srt_completed_subprocess_steal_stdout (completed);
+  *child_stderr = _srt_completed_subprocess_steal_stderr (completed);
+
+  if (!_srt_completed_subprocess_report (completed,
+                                         wait_status, exit_status,
+                                         terminating_signal, &timed_out))
     {
-      g_debug ("... wait status %d", *wait_status);
       issues |= non_zero_wait_status_issue;
 
-      if (_srt_process_timeout_wait_status (*wait_status, exit_status, terminating_signal))
-        {
-          issues |= SRT_GRAPHICS_ISSUES_TIMEOUT;
-        }
-    }
-  else
-    {
-      *exit_status = 0;
+      if (timed_out)
+        issues |= SRT_GRAPHICS_ISSUES_TIMEOUT;
     }
 
   return issues;

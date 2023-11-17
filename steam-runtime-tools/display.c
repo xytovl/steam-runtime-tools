@@ -240,17 +240,16 @@ _srt_check_display (SrtSubprocessRunner *runner,
   g_auto(GStrv) display_environ = NULL;
   g_autoptr(GPtrArray) argv = NULL;
   g_autoptr(GError) local_error = NULL;
-  g_autofree gchar *x11_messages = NULL;
+  g_autoptr(SrtCompletedSubprocess) completed = NULL;
+  const char *x11_messages = NULL;
   const gchar *name;
-  int wait_status = -1;
   int exit_status = -1;
-  int terminating_signal = 0;
+  gboolean timed_out = FALSE;
   gboolean wayland_session = FALSE;
   SrtDisplayWaylandIssues wayland_issues = SRT_DISPLAY_WAYLAND_ISSUES_NONE;
   SrtDisplayX11Type x11_type = SRT_DISPLAY_X11_TYPE_UNKNOWN;
   SrtHelperFlags helper_flags = (SRT_HELPER_FLAGS_TIME_OUT
-                                 | SRT_HELPER_FLAGS_SEARCH_PATH
-                                 | SRT_HELPER_FLAGS_STDOUT_SILENCE);
+                                 | SRT_HELPER_FLAGS_SEARCH_PATH);
   const char * const *envp;
   static const gchar * const display_env[] =
   {
@@ -337,40 +336,37 @@ _srt_check_display (SrtSubprocessRunner *runner,
     {
       g_debug ("An error occurred trying to check if the X server was XWayland: %s",
                local_error->message);
-      x11_messages = g_strdup (local_error->message);
+      x11_messages = local_error->message;
       goto out;
     }
 
   /* NULL terminate the array */
   g_ptr_array_add (argv, NULL);
 
-  if (!_srt_subprocess_runner_spawn_sync (runner,
-                                          helper_flags,
-                                          (const char * const *) argv->pdata,
-                                          NULL,   /* stdout */
-                                          &x11_messages,
-                                          &wait_status,
-                                          &local_error))
+  completed = _srt_subprocess_runner_run_sync (runner,
+                                               helper_flags,
+                                               (const char * const *) argv->pdata,
+                                               SRT_SUBPROCESS_OUTPUT_SILENCE,
+                                               SRT_SUBPROCESS_OUTPUT_CAPTURE,
+                                               &local_error);
+
+  if (completed == NULL)
     {
       g_debug ("An error occurred calling the helper: %s", local_error->message);
-      x11_messages = g_strdup (local_error->message);
+      x11_messages = local_error->message;
       goto out;
     }
 
+  x11_messages = _srt_completed_subprocess_get_stderr (completed);
+
   /* Normalize the empty string (expected to be common) to NULL */
   if (x11_messages != NULL && x11_messages[0] == '\0')
-    g_clear_pointer (&x11_messages, g_free);
+    x11_messages = NULL;
 
-  if (wait_status != 0)
-    {
-      g_debug ("... wait status %d", wait_status);
-      if (_srt_process_timeout_wait_status (wait_status, &exit_status, &terminating_signal))
-        goto out;
-    }
-  else
-    {
-      exit_status = 0;
-    }
+  _srt_completed_subprocess_report (completed, NULL, &exit_status, NULL, &timed_out);
+
+  if (timed_out)
+    goto out;
 
   if (exit_status == SRT_DISPLAY_EXIT_STATUS_IS_XWAYLAND)
     x11_type = SRT_DISPLAY_X11_TYPE_XWAYLAND;

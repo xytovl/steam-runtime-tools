@@ -492,11 +492,8 @@ _srt_check_xdg_portals (SrtSubprocessRunner *runner,
   SrtHelperFlags helper_flags = (SRT_HELPER_FLAGS_TIME_OUT
                                  | SRT_HELPER_FLAGS_SEARCH_PATH);
   g_autoptr(GPtrArray) argv = NULL;
-  g_autofree gchar *output = NULL;
-  g_autofree gchar *stderr_messages = NULL;
-  int wait_status = -1;
-  int exit_status = -1;
-  int terminating_signal = 0;
+  const char *output = NULL;
+  const char *stderr_messages = NULL;
   JsonObject *object = NULL;
   JsonObject *interfaces_object = NULL;
   JsonObject *backends_object = NULL;
@@ -505,6 +502,7 @@ _srt_check_xdg_portals (SrtSubprocessRunner *runner,
   g_autoptr(GList) backends_members = NULL;
   g_autoptr(GPtrArray) backends = g_ptr_array_new_full (2, g_object_unref);
   g_autoptr(GPtrArray) interfaces = g_ptr_array_new_full (2, g_object_unref);
+  g_autoptr(SrtCompletedSubprocess) completed = NULL;
   SrtXdgPortalIssues issues = SRT_XDG_PORTAL_ISSUES_NONE;
   gboolean has_implementation = FALSE;
 
@@ -530,13 +528,14 @@ _srt_check_xdg_portals (SrtSubprocessRunner *runner,
   /* NULL terminate the array */
   g_ptr_array_add (argv, NULL);
 
-  if (!_srt_subprocess_runner_spawn_sync (runner,
-                                          helper_flags,
-                                          (const char * const *) argv->pdata,
-                                          &output,
-                                          &stderr_messages,
-                                          &wait_status,
-                                          &local_error))
+  completed = _srt_subprocess_runner_run_sync (runner,
+                                               helper_flags,
+                                               (const char * const *) argv->pdata,
+                                               SRT_SUBPROCESS_OUTPUT_CAPTURE,
+                                               SRT_SUBPROCESS_OUTPUT_CAPTURE,
+                                               &local_error);
+
+  if (completed == NULL)
     {
       g_debug ("An error occurred calling the helper: %s", local_error->message);
       issues |= SRT_XDG_PORTAL_ISSUES_UNKNOWN;
@@ -545,28 +544,20 @@ _srt_check_xdg_portals (SrtSubprocessRunner *runner,
       return issues;
     }
 
+  output = _srt_completed_subprocess_get_stdout (completed);
+  stderr_messages = _srt_completed_subprocess_get_stderr (completed);
+
   /* Normalize the empty string (expected to be common) to NULL */
   if (stderr_messages != NULL && stderr_messages[0] == '\0')
-    g_clear_pointer (&stderr_messages, g_free);
+    stderr_messages = NULL;
 
-  if (wait_status != 0)
+  if (_srt_completed_subprocess_timed_out (completed))
     {
-      g_debug ("... wait status %d", wait_status);
-      if (_srt_process_timeout_wait_status (wait_status, &exit_status, &terminating_signal))
-        {
-          issues |= SRT_XDG_PORTAL_ISSUES_TIMEOUT;
-          if (details_out != NULL)
-            *details_out = _srt_xdg_portal_new (NULL, issues, NULL, NULL);
-          return issues;
-        }
+      issues |= SRT_XDG_PORTAL_ISSUES_TIMEOUT;
+      if (details_out != NULL)
+        *details_out = _srt_xdg_portal_new (NULL, issues, NULL, NULL);
+      return issues;
     }
-  else
-    {
-      exit_status = 0;
-    }
-
-  if (exit_status == 1)
-    g_debug ("The helper exited with 1, either a required xdg portal is missing or an error occurred");
 
   if (output == NULL || output[0] == '\0')
     {
