@@ -61,3 +61,4 @@ gboolean _srt_util_set_glib_log_handler (const char *prgname,
 gboolean _srt_util_restore_saved_fd (int saved_fd,
                                      int target_fd,
                                      GError **error);
+gboolean _srt_util_is_debugging (void);

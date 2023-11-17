@@ -637,7 +637,7 @@ regenerate_ld_so_cache (const GPtrArray *ld_so_cache_paths,
   g_ptr_array_add (argv, new_path);
   g_ptr_array_add (argv, (char *) "-X");    /* Don't update symlinks */
 
-  if (opt_verbose)
+  if (_srt_util_is_debugging ())
     g_ptr_array_add (argv, (char *) "-v");
 
   g_ptr_array_add (argv, NULL);
@@ -683,6 +683,37 @@ regenerate_ld_so_cache (const GPtrArray *ld_so_cache_paths,
   if (!glnx_renameat (AT_FDCWD, new_path, AT_FDCWD, replace_path, error))
     return glnx_prefix_error (error, "Cannot move %s to %s",
                               new_path, replace_path);
+
+  if (_srt_util_is_debugging ())
+    {
+      const char * const read_back_argv[] =
+      {
+        "/sbin/ldconfig",
+        "-p",
+        NULL
+      };
+
+      g_clear_pointer (&child_stdout, g_free);
+      g_clear_pointer (&child_stderr, g_free);
+
+      if (!run_helper_sync (NULL,
+                            read_back_argv,
+                            global_original_environ,
+                            &child_stdout,
+                            &child_stderr,
+                            &wait_status,
+                            error))
+        return glnx_prefix_error (error, "Cannot run /sbin/ldconfig -p");
+
+      if (child_stdout != NULL && child_stdout[0] != '\0')
+        g_debug ("ldconfig -p output:\n%s", child_stdout);
+
+      if (child_stderr != NULL && child_stderr[0] != '\0')
+        g_debug ("ldconfig -p diagnostic output:\n%s", child_stderr);
+
+      if (wait_status != 0)
+        g_debug ("ldconfig -p wait status:\n%d", wait_status);
+    }
 
   return TRUE;
 }
@@ -1182,9 +1213,17 @@ main (int argc,
                                   error))
         {
           g_debug ("Generated ld.so.cache in %s", opt_regenerate_ld_so_cache);
-          g_debug ("Setting LD_LIBARY_PATH to \"%s\"", opt_set_ld_library_path);
-          flatpak_bwrap_set_env (wrapped_command, "LD_LIBRARY_PATH",
-                                 opt_set_ld_library_path, TRUE);
+
+          if (opt_set_ld_library_path == NULL)
+            {
+              g_debug ("No new value for LD_LIBRARY_PATH available");
+            }
+          else
+            {
+              g_debug ("Setting LD_LIBRARY_PATH to \"%s\"", opt_set_ld_library_path);
+              flatpak_bwrap_set_env (wrapped_command, "LD_LIBRARY_PATH",
+                                     opt_set_ld_library_path, TRUE);
+            }
         }
       else
         {
@@ -1201,7 +1240,7 @@ main (int argc,
     }
   else if (opt_set_ld_library_path != NULL)
     {
-      g_debug ("Setting LD_LIBARY_PATH to \"%s\"", opt_set_ld_library_path);
+      g_debug ("Setting LD_LIBRARY_PATH to \"%s\"", opt_set_ld_library_path);
       flatpak_bwrap_set_env (wrapped_command, "LD_LIBRARY_PATH",
                              opt_set_ld_library_path, TRUE);
     }
@@ -1246,7 +1285,7 @@ main (int argc,
   child_setup_data.pass_fds = (const int *) pass_fds->data;
   child_setup_data.n_pass_fds = pass_fds->len;
 
-  if (opt_verbose)
+  if (_srt_util_is_debugging ())
     {
       g_debug ("Command-line:");
 
