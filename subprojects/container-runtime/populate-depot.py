@@ -57,6 +57,7 @@ from typing import (
     Optional,
     Sequence,
     Set,
+    TextIO,
     Tuple,
 )
 
@@ -773,6 +774,8 @@ class Main:
             self.do_layered_runtime()
         else:
             self.do_container_runtime()
+
+        self.write_top_level_mtree()
 
     def do_layered_runtime(self) -> None:
         if self.runtime.name != 'scout':
@@ -1546,25 +1549,38 @@ class Main:
 
         return True
 
-    def write_lookaside(self, runtime: str) -> None:
-        with tempfile.TemporaryDirectory(prefix='slr-mtree-') as temp:
-            lc_names = {}                   # type: Dict[str, str]
-            differ_only_by_case = set()     # type: Set[str]
-            not_windows_friendly = set()    # type: Set[str]
-            sha256 = {}                     # type: Dict[Tuple[int, int], str]
-            paths = {}                      # type: Dict[Tuple[int, int], str]
+    def write_mtree(
+        self,
+        top: Path,
+        writer: TextIO,
+        *,
+        preserve_mode: bool = True,
+        preserve_time: bool = True,
+        skip_runtime_files: bool = False
+    ) -> Dict[str, str]:
+        lc_names = {}                   # type: Dict[str, str]
+        differ_only_by_case = set()     # type: Set[str]
+        not_windows_friendly = set()    # type: Set[str]
+        sha256 = {}                     # type: Dict[Tuple[int, int], str]
+        paths = {}                      # type: Dict[Tuple[int, int], str]
 
-            writer = gzip.open(os.path.join(temp, 'usr-mtree.txt.gz'), 'wt')
+        writer.write('#mtree\n')
+        writer.write('. type=dir\n')
 
-            writer.write('#mtree\n')
-            writer.write('. type=dir\n')
+        for dirpath, dirnames, filenames in os.walk(top):
+            for base in sorted(dirnames + filenames):
+                member = Path(dirpath) / base
+                name = str(member.relative_to(top))
 
-            for member in Path(runtime).rglob("*"):
-                relative_path = member.relative_to(runtime)
-
-                try:
-                    name = str(relative_path.relative_to('files'))
-                except ValueError:
+                if (
+                    skip_runtime_files
+                    and base == 'files'
+                    and base in dirnames
+                    and (member.parent / 'usr-mtree.txt.gz').exists()
+                ):
+                    escaped = self.octal_escape(name)
+                    writer.write(f'./{escaped} type=dir ignore\n')
+                    dirnames.remove(base)
                     continue
 
                 if not self.filename_is_windows_friendly(name):
@@ -1582,15 +1598,24 @@ class Main:
 
                 if stat.S_ISREG(stat_info.st_mode):
                     fields.append('type=file')
-                    fields.append('mode=%o' % stat_info.st_mode)
 
-                    # With sub-second precision, note that some versions
-                    # of mtree use the part after the dot as integer
-                    # nanoseconds, so "1.234" is actually 1 sec + 234 ns,
-                    # or what normal people would write as 1.000000234.
-                    # To be compatible with both, we always show the time
-                    # with 9 digits after the decimal point.
-                    fields.append(f'time={stat_info.st_mtime:.9f}')
+                    if preserve_mode:
+                        fields.append('mode=%o' % (stat_info.st_mode & 0o777))
+                    elif stat_info.st_mode & 0o111:
+                        fields.append('mode=755')
+
+                    if preserve_time:
+                        # With sub-second precision, note that some versions
+                        # of mtree use the part after the dot as integer
+                        # nanoseconds, so "1.234" is actually 1 sec + 234 ns,
+                        # or what normal people would write as 1.000000234.
+                        # To be compatible with both, we always show the time
+                        # with 9 digits after the decimal point, unless it's
+                        # exactly an integer.
+                        if stat_info.st_mtime == int(stat_info.st_mtime):
+                            fields.append(f'time={stat_info.st_mtime:.1f}')
+                        else:
+                            fields.append(f'time={stat_info.st_mtime:.9f}')
 
                     fields.append(f'size={stat_info.st_size}')
                     file_id = (stat_info.st_dev, stat_info.st_ino)
@@ -1618,7 +1643,7 @@ class Main:
                                 ),
                             )
                         else:
-                            paths[file_id] = str(relative_path)
+                            paths[file_id] = str(name)
 
                 elif stat.S_ISLNK(stat_info.st_mode):
                     fields.append('type=link')
@@ -1636,9 +1661,6 @@ class Main:
 
                 writer.write(' '.join(fields) + '\n')
 
-            if '.ref' not in lc_names:
-                writer.write('./.ref type=file size=0 mode=644\n')
-
             if differ_only_by_case:
                 writer.write('\n')
                 writer.write('# Files whose names differ only by case:\n')
@@ -1653,10 +1675,40 @@ class Main:
                 for name in sorted(not_windows_friendly):
                     writer.write('# {}\n'.format(self.octal_escape(name)))
 
+        return lc_names
+
+    def write_lookaside(self, runtime: str) -> None:
+        with tempfile.TemporaryDirectory(prefix='slr-mtree-') as temp:
+            writer = gzip.open(os.path.join(temp, 'usr-mtree.txt.gz'), 'wt')
+
+            lc_names = self.write_mtree(Path(runtime) / 'files', writer)
+
+            if '.ref' not in lc_names:
+                writer.write('./.ref type=file size=0 mode=644\n')
+
             # We need to close the gzip before copying it, otherwise we
             # will end up with a corrupted file
             writer.close()
             shutil.copy2(writer.name, runtime)
+
+    def write_top_level_mtree(self) -> None:
+        with tempfile.TemporaryDirectory(prefix='slr-mtree-') as temp:
+            writer = gzip.open(os.path.join(temp, 'mtree.txt.gz'), 'wt')
+
+            lc_names = self.write_mtree(
+                Path(self.depot),
+                writer,
+                preserve_mode=False,
+                preserve_time=False,
+                skip_runtime_files=True,
+            )
+
+            if 'var' not in lc_names:
+                writer.write('./var type=dir ignore optional\n')
+
+            writer.write('./mtree.txt.gz type=file\n')
+            writer.close()
+            shutil.copy2(writer.name, self.depot)
 
     def minimize_runtime(self, root: str) -> None:
         '''

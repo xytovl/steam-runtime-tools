@@ -217,6 +217,24 @@ pv_bin += executable(
 )
 
 pv_bin += executable(
+  'pv-verify',
+  sources : [
+    'verify.c',
+  ],
+  c_args : pv_c_args,
+  dependencies : [
+    gio_unix,
+    libglnx_dep,
+    pressure_vessel_utils_dep,
+  ],
+  include_directories : pv_include_dirs,
+  install : true,
+  install_dir : pv_bindir,
+  build_rpath : pv_rpath,
+  install_rpath : pv_rpath,
+)
+
+pv_bin += executable(
   'pressure-vessel-try-setlocale',
   sources : [
     'try-setlocale.c',
@@ -231,10 +249,19 @@ if build_man_pages
   foreach tool : [
     'adverb',
     'locale-gen',
+    'pv-verify',
     'try-setlocale',
     'unruntime',
     'wrap',
   ]
+    if tool.startswith('pv-')
+      input = tool.substring(3) + '.1.md'
+      output = tool + '.1'
+    else
+      input = tool + '.1.md'
+      output = 'pressure-vessel-' + tool + '.1'
+    endif
+
     custom_target(
       tool + '.1',
       build_by_default : true,
@@ -246,8 +273,8 @@ if build_man_pages
         '-t', 'man',
         '@INPUT@',
       ],
-      input : tool + '.1.md',
-      output : 'pressure-vessel-' + tool + '.1',
+      input : input,
+      output : output,
       install : true,
       install_dir : join_paths(
         get_option('prefix'),

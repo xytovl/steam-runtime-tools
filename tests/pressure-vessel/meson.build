@@ -63,6 +63,7 @@ tests = [
   'invocation.py',
   'mtree-apply.py',
   'test-locale-gen.sh',
+  'verify.py',
 ]
 
 compiled_tests = [
