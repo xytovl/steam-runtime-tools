@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20231117.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20231121.0) UNRELEASED; urgency=medium
 
   * pressure-vessel:
     - Log a warning if we can't set up /etc/timezone
@@ -7,12 +7,27 @@ steam-runtime-tools (0.20231117.0) UNRELEASED; urgency=medium
     - Make SRT_LOG=debug activate extra output.
       Previously, only --verbose or PRESSURE_VESSEL_VERBOSE would have
       activated this.
+    - pv-verify: New tool to verify a directory against a mtree(5) manifest
     - Refactoring
+  * Steam Linux Runtime depots:
+    - In usr-mtree.txt.gz, only put permissions in mode=, not all of st_mode,
+      matching bsdtar(1) and mtree(8)
+    - In usr-mtree.txt.gz, truncate fractional seconds to ".0" if zero
+    - Add a top-level mtree manifest for the depot as a whole.
+      In SLR 2.0 (soldier) and 3.0 (sniper), after pressure-vessel has been
+      updated to a suitable version, it will be possible to verify the
+      depot against its manifest by running a command like:
+        /path/to/SteamLinuxRuntime_soldier/pressure-vessel/bin/pv-verify
+      In SLR 1.0 (scout) the equivalent is:
+        /path/to/SteamLinuxRuntime_soldier/pressure-vessel/bin/pv-verify \
+            path/to/SteamLinuxRuntime
   * Library code:
     - Refactor helper subprocess launching
     - Make execution environment for helper subprocesses more consistent
+  * tests:
+    - When using valgrind, don't show reachable objects by default
 
- -- Simon McVittie <smcv@collabora.com>  Fri, 17 Nov 2023 18:29:21 +0000
+ -- Simon McVittie <smcv@collabora.com>  Tue, 21 Nov 2023 17:47:34 +0000
 
 steam-runtime-tools (0.20231107.1) steamrt; urgency=medium
 
