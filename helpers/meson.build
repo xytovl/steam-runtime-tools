@@ -146,6 +146,7 @@ srt_helpers += executable(
   include_directories : project_include_dirs,
   install : true,
   install_dir : pkglibexecdir,
+  override_options : no_leak_sanitizer,
   # Use the adjacent libwaffle
   build_rpath : pkglibexec_rpath,
   install_rpath : pkglibexec_rpath,
