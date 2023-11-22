@@ -69,7 +69,8 @@ _srt_sysroot_class_init (SrtSysrootClass *cls)
  * @fd: A file descriptor opened on @path
  *
  * Return a sysroot object, taking ownership of @path and @fd.
- * This function cannot fail.
+ * This function cannot fail unless given invalid arguments
+ * (which is treated as a programming error).
  *
  * Returns: (transfer full): The new object
  */
@@ -78,6 +79,9 @@ _srt_sysroot_new_take (gchar *path,
                        int fd)
 {
   g_autoptr(SrtSysroot) self = g_object_new (SRT_TYPE_SYSROOT, NULL);
+
+  g_return_val_if_fail (path != NULL, NULL);
+  g_return_val_if_fail (fd >= 0, NULL);
 
   self->path = path;
   self->fd = fd;
@@ -99,6 +103,9 @@ _srt_sysroot_new (const char *path,
 {
   glnx_autofd int fd = -1;
 
+  g_return_val_if_fail (path != NULL, NULL);
+  g_return_val_if_fail (error == NULL || *error == NULL, NULL);
+
   if (!glnx_opendirat (-1, path, TRUE, &fd, error))
     return NULL;
 
@@ -119,7 +126,11 @@ _srt_sysroot_new (const char *path,
 SrtSysroot *
 _srt_sysroot_new_direct (GError **error)
 {
-  g_autoptr(SrtSysroot) self = _srt_sysroot_new ("/", error);
+  g_autoptr(SrtSysroot) self = NULL;
+
+  g_return_val_if_fail (error == NULL || *error == NULL, NULL);
+
+  self = _srt_sysroot_new ("/", error);
 
   if (self == NULL)
     return NULL;
@@ -558,6 +569,8 @@ _srt_sysroot_open (SrtSysroot *sysroot,
 {
   glnx_autofd int fd = -1;
 
+  g_return_val_if_fail (SRT_IS_SYSROOT (sysroot), -1);
+  g_return_val_if_fail (path != NULL, -1);
   /*
    * Only a subset of flags are supported here:
    *
@@ -576,6 +589,8 @@ _srt_sysroot_open (SrtSysroot *sysroot,
                                              SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY
                                              | SRT_RESOLVE_FLAGS_MUST_BE_REGULAR),
                         -1);
+  g_return_val_if_fail (resolved == NULL || *resolved == NULL, -1);
+  g_return_val_if_fail (error == NULL || *error == NULL, -1);
 
   if (_srt_sysroot_is_direct (sysroot))
     {
@@ -697,6 +712,9 @@ _srt_sysroot_load (SrtSysroot *sysroot,
                    GError **error)
 {
   glnx_autofd int fd = -1;
+
+  g_return_val_if_fail (contents_out == NULL || *contents_out == NULL, FALSE);
+  /* other parameter preconditions are checked by _srt_sysroot_open */
 
   if (contents_out != NULL || len_out != NULL)
     flags |= SRT_RESOLVE_FLAGS_READABLE;
