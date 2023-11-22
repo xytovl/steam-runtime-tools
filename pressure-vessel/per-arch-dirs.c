@@ -25,6 +25,171 @@
 #include "steam-runtime-tools/system-info.h"
 #include "steam-runtime-tools/utils-internal.h"
 
+static gchar *
+get_libdl_lib_or_mock (SrtSystemInfo *system_info,
+                       gsize abi,
+                       GError **error)
+{
+  if (g_getenv ("PRESSURE_VESSEL_TEST_STANDARDIZE_PLATFORM") != NULL)
+    {
+      /* For unit tests, pretend it's an unsupported multilib setup,
+       * so we fall through to ${PLATFORM} */
+      return glnx_null_throw (error, "Pretending multilib is unsupported for unit test");
+    }
+  else
+    {
+      return srt_system_info_dup_libdl_lib (system_info,
+                                            pv_multiarch_details[abi].tuple,
+                                            error);
+    }
+}
+
+static gchar *
+get_libdl_platform_or_mock (SrtSystemInfo *system_info,
+                            gsize abi,
+                            GError **error)
+{
+  if (g_getenv ("PRESSURE_VESSEL_TEST_STANDARDIZE_PLATFORM") != NULL)
+    {
+      /* In unit tests it isn't straightforward to find the real
+       * ${PLATFORM}, so we use a predictable mock implementation:
+       * for x86 we use whichever platform happens to be listed first
+       * and for all the other cases we simply use "mock". */
+#if defined(__i386__) || defined(__x86_64__)
+      return g_strdup (pv_multiarch_details[abi].platforms[0]);
+#else
+      return g_strdup("mock");
+#endif
+    }
+  else
+    {
+      return srt_system_info_dup_libdl_platform (system_info,
+                                                 pv_multiarch_details[abi].tuple,
+                                                 error);
+    }
+}
+
+/*
+ * PvPerArchDirsScheme:
+ * @PV_PER_ARCH_DIRS_SCHEME_MULTIARCH: Debian-style multiarch.
+ *  `${LIB}` expands to `lib/x86_64-linux-gnu` or similar.
+ * @PV_PER_ARCH_DIRS_SCHEME_UBUNTU_1204: An early implementation of multiarch.
+ *  `${LIB}` expands to `x86_64-linux-gnu` or similar.
+ * @PV_PER_ARCH_DIRS_SCHEME_FHS: FHS library directories, as used in Red Hat.
+ *  `${LIB}` expands to `lib` on i386 and `lib64` on x86_64.
+ * @PV_PER_ARCH_DIRS_SCHEME_ARCH: Arch Linux's variant of FHS library
+ *  directories. `${LIB}` expands to `lib32` on i386 and `lib` on x86_64.
+ * @PV_PER_ARCH_DIRS_SCHEME_PLATFORM: `${PLATFORM}` expands to a
+ *  known/supported platform alias.
+ * @PV_PER_ARCH_DIRS_SCHEME_NONE: None of the above.
+ */
+typedef enum
+{
+  PV_PER_ARCH_DIRS_SCHEME_NONE = 0,
+  PV_PER_ARCH_DIRS_SCHEME_MULTIARCH,
+  PV_PER_ARCH_DIRS_SCHEME_UBUNTU_1204,
+  PV_PER_ARCH_DIRS_SCHEME_FHS,
+  PV_PER_ARCH_DIRS_SCHEME_ARCH,
+  PV_PER_ARCH_DIRS_SCHEME_PLATFORM,
+} PvPerArchDirsScheme;
+
+#if defined(__i386__) || defined(__x86_64__)
+  static const char * const multiarch_libs[] = { "lib/x86_64-linux-gnu", "lib/i386-linux-gnu" };
+  static const char * const fhs_libs[] = { "lib64", "lib" };
+  static const char * const arch_libs[] = { "lib", "lib32" };
+#elif defined(__aarch64__)
+  static const char * const multiarch_libs[] = { "lib/aarch64-linux-gnu" };
+  static const char * const fhs_libs[] = { "lib" };
+  static const char * const arch_libs[] = { "lib" };
+#elif defined(_SRT_MULTIARCH)
+  static const char * const multiarch_libs[] = { "lib/" _SRT_MULTIARCH };
+  static const char * const fhs_libs[] = { "lib" };
+  static const char * const arch_libs[] = { "lib" };
+#else
+#error Architecture not supported by pressure-vessel
+#endif
+
+G_STATIC_ASSERT (G_N_ELEMENTS (multiarch_libs) == PV_N_SUPPORTED_ARCHITECTURES);
+G_STATIC_ASSERT (G_N_ELEMENTS (fhs_libs) == PV_N_SUPPORTED_ARCHITECTURES);
+G_STATIC_ASSERT (G_N_ELEMENTS (arch_libs) == PV_N_SUPPORTED_ARCHITECTURES);
+
+static gboolean
+pv_per_arch_dirs_supports_scheme (SrtSystemInfo *system_info,
+                                  PvPerArchDirsScheme scheme)
+{
+  gsize abi;
+
+  for (abi = 0; abi < PV_N_SUPPORTED_ARCHITECTURES; abi++)
+    {
+      g_autofree gchar *libdl_string = NULL;
+      const char *multiarch_tuple = pv_multiarch_details[abi].tuple;
+
+      switch (scheme)
+        {
+          case PV_PER_ARCH_DIRS_SCHEME_MULTIARCH:
+          case PV_PER_ARCH_DIRS_SCHEME_UBUNTU_1204:
+          case PV_PER_ARCH_DIRS_SCHEME_FHS:
+          case PV_PER_ARCH_DIRS_SCHEME_ARCH:
+            libdl_string = get_libdl_lib_or_mock (system_info, abi, NULL);
+            break;
+
+          case PV_PER_ARCH_DIRS_SCHEME_PLATFORM:
+            libdl_string = get_libdl_platform_or_mock (system_info, abi, NULL);
+            break;
+
+          case PV_PER_ARCH_DIRS_SCHEME_NONE:
+          default:
+            g_return_val_if_reached (FALSE);
+        }
+
+      switch (scheme)
+        {
+          case PV_PER_ARCH_DIRS_SCHEME_MULTIARCH:
+            g_return_val_if_fail (g_str_has_prefix (multiarch_libs[abi], "lib/"), FALSE);
+            g_return_val_if_fail (g_str_equal (multiarch_libs[abi] + 4, multiarch_tuple), FALSE);
+
+            if (libdl_string == NULL
+                || !g_str_equal (libdl_string, multiarch_libs[abi]))
+              return FALSE;
+
+            break;
+
+          case PV_PER_ARCH_DIRS_SCHEME_UBUNTU_1204:
+            if (libdl_string == NULL
+                || !g_str_equal (libdl_string, multiarch_tuple))
+              return FALSE;
+
+            break;
+
+          case PV_PER_ARCH_DIRS_SCHEME_FHS:
+            if (libdl_string == NULL
+                || !g_str_equal (libdl_string, fhs_libs[abi]))
+              return FALSE;
+
+            break;
+
+          case PV_PER_ARCH_DIRS_SCHEME_ARCH:
+            if (libdl_string == NULL
+                || !g_str_equal (libdl_string, arch_libs[abi]))
+              return FALSE;
+
+            break;
+
+          case PV_PER_ARCH_DIRS_SCHEME_PLATFORM:
+            if (libdl_string == NULL)
+              return FALSE;
+
+            break;
+
+          case PV_PER_ARCH_DIRS_SCHEME_NONE:
+          default:
+            g_return_val_if_reached (FALSE);
+        }
+    }
+
+  return TRUE;
+}
+
 void
 pv_per_arch_dirs_free (PvPerArchDirs *self)
 {
@@ -56,42 +221,57 @@ pv_per_arch_dirs_new (GError **error)
     return glnx_prefix_error_null (error,
                                    "Cannot create temporary directory for platform specific libraries");
 
-  self->libdl_token_path = g_build_filename (self->root_path,
-                                             "${PLATFORM}", NULL);
-
-  for (abi = 0; abi < PV_N_SUPPORTED_ARCHITECTURES; abi++)
+  if (pv_per_arch_dirs_supports_scheme (info, PV_PER_ARCH_DIRS_SCHEME_MULTIARCH))
     {
-      g_autofree gchar *libdl_platform = NULL;
-      g_autofree gchar *abi_path = NULL;
+      self->libdl_token_path = g_build_filename (self->root_path, "${LIB}", NULL);
 
-      if (g_getenv ("PRESSURE_VESSEL_TEST_STANDARDIZE_PLATFORM") != NULL)
+      for (abi = 0; abi < PV_N_SUPPORTED_ARCHITECTURES; abi++)
+        self->abi_paths[abi] = g_build_filename (self->root_path, multiarch_libs[abi], NULL);
+    }
+  else if (pv_per_arch_dirs_supports_scheme (info, PV_PER_ARCH_DIRS_SCHEME_UBUNTU_1204))
+    {
+      self->libdl_token_path = g_build_filename (self->root_path, "lib/${LIB}", NULL);
+
+      for (abi = 0; abi < PV_N_SUPPORTED_ARCHITECTURES; abi++)
+        self->abi_paths[abi] = g_build_filename (self->root_path, multiarch_libs[abi], NULL);
+    }
+  else if (pv_per_arch_dirs_supports_scheme (info, PV_PER_ARCH_DIRS_SCHEME_FHS))
+    {
+      self->libdl_token_path = g_build_filename (self->root_path, "${LIB}", NULL);
+
+      for (abi = 0; abi < PV_N_SUPPORTED_ARCHITECTURES; abi++)
+        self->abi_paths[abi] = g_build_filename (self->root_path, fhs_libs[abi], NULL);
+    }
+  else if (pv_per_arch_dirs_supports_scheme (info, PV_PER_ARCH_DIRS_SCHEME_ARCH))
+    {
+      self->libdl_token_path = g_build_filename (self->root_path, "${LIB}", NULL);
+
+      for (abi = 0; abi < PV_N_SUPPORTED_ARCHITECTURES; abi++)
+        self->abi_paths[abi] = g_build_filename (self->root_path, arch_libs[abi], NULL);
+    }
+  else
+    {
+      self->libdl_token_path = g_build_filename (self->root_path,
+                                                 "${PLATFORM}", NULL);
+
+      for (abi = 0; abi < PV_N_SUPPORTED_ARCHITECTURES; abi++)
         {
-          /* In unit tests it isn't straightforward to find the real
-           * ${PLATFORM}, so we use a predictable mock implementation:
-           * for x86 we use whichever platform happens to be listed first
-           * and for all the other cases we simply use "mock". */
-#if defined(__i386__) || defined(__x86_64__)
-          libdl_platform = g_strdup (pv_multiarch_details[abi].platforms[0]);
-#else
-          libdl_platform = g_strdup("mock");
-#endif
-        }
-      else
-        {
-          libdl_platform = srt_system_info_dup_libdl_platform (info,
-                                                               pv_multiarch_details[abi].tuple,
-                                                               error);
+          g_autofree gchar *libdl_platform = get_libdl_platform_or_mock (info, abi, error);
+
           if (!libdl_platform)
             return glnx_prefix_error_null (error,
                                            "Unknown expansion of the dl string token $PLATFORM");
+
+          self->abi_paths[abi] = g_build_filename (self->root_path, libdl_platform, NULL);
         }
+    }
 
-      abi_path = g_build_filename (self->root_path, libdl_platform, NULL);
+  for (abi = 0; abi < PV_N_SUPPORTED_ARCHITECTURES; abi++)
+    {
+      const char *abi_path = self->abi_paths[abi];
 
-      if (g_mkdir (abi_path, 0700) != 0)
+      if (g_mkdir_with_parents (abi_path, 0700) != 0)
         return glnx_null_throw_errno_prefix (error, "Unable to create \"%s\"", abi_path);
-
-      self->abi_paths[abi] = g_steal_pointer (&abi_path);
     }
 
   return g_steal_pointer (&self);
