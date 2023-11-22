@@ -276,3 +276,38 @@ pv_per_arch_dirs_new (GError **error)
 
   return g_steal_pointer (&self);
 }
+
+gboolean
+pv_adverb_set_up_overrides (FlatpakBwrap *wrapped_command,
+                            PvPerArchDirs *lib_temp_dirs,
+                            const char *overrides,
+                            GError **error)
+{
+  g_autofree gchar *value = NULL;
+  gsize abi;
+
+  g_return_val_if_fail (wrapped_command != NULL, FALSE);
+
+  if (lib_temp_dirs == NULL)
+    return glnx_throw (error, "Unable to set up VDPAU driver search path");
+
+  for (abi = 0; abi < PV_N_SUPPORTED_ARCHITECTURES; abi++)
+    {
+      const char *multiarch_tuple = pv_multiarch_details[abi].tuple;
+      gchar *abi_path = g_build_filename (lib_temp_dirs->abi_paths[abi], "vdpau", NULL);
+      gchar *target = g_build_filename (overrides, multiarch_tuple, "vdpau", NULL);
+
+      if (!g_file_test (target, G_FILE_TEST_IS_DIR))
+        continue;
+
+      g_debug ("Creating \"%s\" -> \"%s\"", abi_path, target);
+
+      if (symlink (target, abi_path) != 0)
+        return glnx_throw_errno_prefix (error, "Cannot create symlink \"%s\"", abi_path);
+    }
+
+  value = g_build_filename (lib_temp_dirs->libdl_token_path, "vdpau", NULL);
+  g_debug ("Setting VDPAU_DRIVER_PATH=\"%s\"", value);
+  flatpak_bwrap_set_env (wrapped_command, "VDPAU_DRIVER_PATH", value, TRUE);
+  return TRUE;
+}
