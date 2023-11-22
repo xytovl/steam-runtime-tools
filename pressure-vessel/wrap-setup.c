@@ -1184,7 +1184,10 @@ pv_wrap_detect_virtualization (SrtSysroot **interpreter_root_out,
       /* We happen to know that the way _srt_check_virtualization() gets
        * this information guarantees an object with a canonicalized path,
        * so we don't need to canonicalize it again. */
-      *interpreter_root_out = _srt_sysroot_new (val, NULL);
+      if (val != NULL)
+        *interpreter_root_out = _srt_sysroot_new (val, NULL);
+      else
+        *interpreter_root_out = NULL;
     }
 }
 
