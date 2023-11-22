@@ -161,6 +161,11 @@ class TestContainers(BaseTest):
         logger.info('Copying %r to %r', src, dest)
         shutil.copy2(src, dest)
 
+    @staticmethod
+    def copytree(src, dest):
+        logger.info('Copying %r to %r', src, dest)
+        shutil.copytree(src, dest, symlinks=True)
+
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
@@ -322,6 +327,29 @@ class TestContainers(BaseTest):
                             ),
                             tool_path,
                         )
+
+                dest_path = os.path.join(
+                    cls.pv_dir,
+                    'libexec',
+                    'steam-runtime-tools-0',
+                    multiarch,
+                )
+                in_containers_dir = os.path.join(
+                    cls.containers_dir,
+                    'pressure-vessel',
+                    'libexec',
+                    'steam-runtime-tools-0',
+                    multiarch,
+                )
+
+                if os.path.exists(in_containers_dir):
+                    # Asssume it's a close enough version that we can
+                    # use it with the newer pressure-vessel-wrap.
+                    logger.info(
+                        'Copying pre-existing %s library stubs from %s',
+                        multiarch, in_containers_dir,
+                    )
+                    cls.copytree(in_containers_dir, dest_path)
         else:
             cls.pv_dir = os.path.join(cls.containers_dir, 'pressure-vessel')
 
