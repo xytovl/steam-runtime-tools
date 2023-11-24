@@ -57,7 +57,6 @@ main (int argc,
   g_autoptr(FILE) original_stdout = NULL;
   g_autoptr(JsonBuilder) builder = NULL;
   g_autoptr(GDBusConnection) connection = NULL;
-  g_autoptr(GVariant) variant_version = NULL;
   g_autoptr(GError) local_error = NULL;
   g_autoptr(GOptionContext) option_context = NULL;
   guint32 version;
@@ -126,7 +125,9 @@ main (int argc,
   for (i = 0; portal_interface_name[i] != NULL; i++)
     {
       g_autoptr(GDBusProxy) portal_proxy = NULL;
+      g_autoptr(GVariant) variant_version = NULL;
       g_autofree gchar *name_owner = NULL;
+
       portal_proxy = g_dbus_proxy_new_sync (connection,
                                             G_DBUS_PROXY_FLAGS_DO_NOT_CONNECT_SIGNALS,
                                             NULL,

@@ -1,4 +1,4 @@
-// Modified from waffle, last update: 1.7.0
+// Modified from waffle, last update: 1.8.0
 // Changes are marked with SRT.../SRT
 // SPDX-License-Identifier: BSD-2-Clause
 //
@@ -36,7 +36,9 @@
 ///     2. Create an OpenGL context.
 ///     3. Print information about the context.
 
+// SRT: We ship an older version in the Steam Runtime
 #define WAFFLE_API_VERSION 0x0106
+// /SRT
 
 #include <assert.h>
 #include <ctype.h>
@@ -76,7 +78,7 @@ static const char *usage_message =
     "\n"
     "Options:\n"
     "    -V, --version <version>\n"
-    "        For example --api=gl --version=3.2 would request OpenGL 3.2.\n"
+    "        For example --api gl --version 3.2 would request OpenGL 3.2.\n"
     "\n"
     "    --profile <profile>\n"
     "        One of: core, compat or none\n"
@@ -97,10 +99,10 @@ static const char *usage_message =
     "        Print wflinfo usage information.\n"
     "\n"
     "Examples:\n"
-    "    wflinfo --platform=glx --api=gl\n"
-    "    wflinfo --platform=x11_egl --api=gl --version=3.2 --profile=core\n"
-    "    wflinfo --platform=wayland --api=gles3\n"
-    "    wflinfo --platform=gbm --api=gl --version=3.2 --verbose\n"
+    "    wflinfo --platform glx --api gl\n"
+    "    wflinfo --platform x11_egl --api gl --version 3.2 --profile core\n"
+    "    wflinfo --platform wayland --api gles3\n"
+    "    wflinfo --platform gbm --api gl --version 3.2 --verbose\n"
     "    wflinfo -p gbm -a gl -V 3.2 -v\n"
     ;
 
@@ -143,14 +145,15 @@ strneq(const char *a, const char *b, size_t n)
 #define NORETURN
 #endif
 
-// SRT: https://gitlab.freedesktop.org/mesa/waffle/-/merge_requests/100
-// (Unmarked uses of PRINTFLIKE, below, are also changes)
-#if defined(__GNUC__)
-#define PRINTFLIKE(f, a) __attribute__((__format__(__printf__, f, a)))
+// SRT: https://gitlab.freedesktop.org/mesa/waffle/-/merge_requests/146
+#if defined(__clang__)
+#define PRINTFLIKE(f, a) __attribute__((format(printf, f, a)))
+#elif defined(__GNUC__)
+// /SRT
+#define PRINTFLIKE(f, a) __attribute__((format(gnu_printf, f, a)))
 #else
 #define PRINTFLIKE(f, a)
 #endif
-// /SRT
 
 static void NORETURN
 error_oom(void)
@@ -180,7 +183,10 @@ write_usage_and_exit(FILE *f, int exit_code)
     exit(exit_code);
 }
 
-static void NORETURN PRINTFLIKE(1, 2) usage_error_printf(const char *fmt, ...)
+// clang-format off
+static void NORETURN PRINTFLIKE(1, 2)
+usage_error_printf(const char *fmt, ...)
+// clang-format on
 {
     fprintf(stderr, "Wflinfo usage error: ");
 
@@ -196,7 +202,6 @@ static void NORETURN PRINTFLIKE(1, 2) usage_error_printf(const char *fmt, ...)
     exit(EXIT_FAILURE);
 }
 
-// SRT: https://gitlab.freedesktop.org/mesa/waffle/-/merge_requests/100
 static void NORETURN
 error_waffle(void)
 {
@@ -214,7 +219,6 @@ error_get_gl_symbol(const char *name)
 {
     error_printf("Wflinfo", "failed to get function pointer for %s", name);
 }
-// /SRT
 
 typedef float GLclampf;
 typedef unsigned int GLbitfield;
@@ -566,11 +570,9 @@ print_extensions(bool use_stringi)
     printf("\n");
 }
 
-// SRT: https://gitlab.freedesktop.org/mesa/waffle/-/merge_requests/102
 static const struct {
     GLint flag;
     const char *str;
-// /SRT
 } context_flags[] = {
     { GL_CONTEXT_FLAG_FORWARD_COMPATIBLE_BIT, "FORWARD_COMPATIBLE" },
     { GL_CONTEXT_FLAG_DEBUG_BIT, "DEBUG" },
@@ -590,14 +592,12 @@ print_context_flags(void)
         return;
     }
 
-// SRT: https://gitlab.freedesktop.org/mesa/waffle/-/merge_requests/101
     if (gl_context_flags == 0) {
         printf(" 0x0\n");
         return;
     }
-// /SRT
 
-    for (int i = 0; i < ARRAY_SIZE(context_flags); i++) {
+    for (unsigned i = 0; i < ARRAY_SIZE(context_flags); i++) {
         if ((context_flags[i].flag & gl_context_flags) != 0) {
             printf(" %s", context_flags[i].str);
             gl_context_flags = gl_context_flags & ~context_flags[i].flag;
@@ -624,7 +624,7 @@ json_print_extensions(bool use_stringi)
         if (glGetError() != GL_NO_ERROR) {
             printf("        \"WFLINFO_GL_ERROR\"");
         } else {
-            for (int i = 0; i < count; i++) {
+            for (GLint i = 0; i < count; i++) {
                 ext = (const char *) glGetStringi(GL_EXTENSIONS, i);
                 if (glGetError() != GL_NO_ERROR)
                     ext = "WFLINFO_GL_ERROR";

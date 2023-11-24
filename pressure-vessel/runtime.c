@@ -105,12 +105,12 @@ struct _PvRuntime
   int overrides_fd;
   int runtime_files_fd;
   int variable_dir_fd;
-  gboolean any_libc_from_provider;
-  gboolean all_libc_from_provider;
-  gboolean runtime_is_just_usr;
-  gboolean is_steamrt;
-  gboolean is_scout;
-  gboolean is_flatpak_env;
+  unsigned any_libc_from_provider : 1;
+  unsigned all_libc_from_provider : 1;
+  unsigned runtime_is_just_usr : 1;
+  unsigned is_steamrt : 1;
+  unsigned is_scout : 1;
+  unsigned is_flatpak_env : 1;
 };
 
 struct _PvRuntimeClass

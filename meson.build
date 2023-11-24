@@ -197,6 +197,15 @@ silence_wflinfo_warnings = c_compiler.get_supported_arguments([
   '-Wno-switch-default',
 ])
 
+# wflinfo with libwaffle 1.8.0 appears to have a leak from
+# wegl_display_init(), which we don't particularly care about for a
+# short-lived process
+if ['undefined', 'address,undefined'].contains(get_option('b_sanitize'))
+  no_leak_sanitizer = ['b_sanitize=undefined']
+else
+  no_leak_sanitizer = ['b_sanitize=none']
+endif
+
 add_project_link_arguments(
   c_compiler.get_supported_link_arguments(
     '-Wl,-z,origin',
