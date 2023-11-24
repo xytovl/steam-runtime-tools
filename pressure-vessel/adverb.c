@@ -59,6 +59,7 @@ static gboolean opt_batch = FALSE;
 static gboolean opt_create = FALSE;
 static gboolean opt_exit_with_parent = FALSE;
 static gboolean opt_generate_locales = FALSE;
+static gchar *opt_overrides = NULL;
 static gchar *opt_regenerate_ld_so_cache = NULL;
 static gchar *opt_set_ld_library_path = NULL;
 static PvShell opt_shell = PV_SHELL_NONE;
@@ -927,6 +928,11 @@ static GOptionEntry options[] =
     "earlier on the command-line. May be repeated.",
     "PATH" },
 
+  { "overrides-path", '\0',
+    G_OPTION_FLAG_NONE, G_OPTION_ARG_FILENAME, &opt_overrides,
+    "Libraries and drivers set up by pressure-vessel are in PATH.",
+    "PATH" },
+
   { "pass-fd", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_CALLBACK, opt_pass_fd_cb,
     "Let the launched process inherit the given fd.",
@@ -1198,6 +1204,16 @@ main (int argc,
       g_clear_error (error);
     }
 
+  if (opt_overrides != NULL
+      && !pv_adverb_set_up_overrides (wrapped_command,
+                                      lib_temp_dirs,
+                                      opt_overrides,
+                                      error))
+    {
+      g_warning ("%s", local_error->message);
+      g_clear_error (error);
+    }
+
   if (opt_preload_modules != NULL
       && !pv_adverb_set_up_preload_modules (wrapped_command,
                                             lib_temp_dirs,
@@ -1414,6 +1430,7 @@ out:
   global_ld_so_conf_entries = NULL;
   global_locks = NULL;
   global_pass_fds = NULL;
+  g_clear_pointer (&opt_overrides, g_free);
   g_clear_pointer (&opt_regenerate_ld_so_cache, g_free);
 
   if (locales_temp_dir != NULL)

@@ -22,6 +22,7 @@
 #include "steam-runtime-tools/glib-backports-internal.h"
 #include "libglnx.h"
 
+#include "flatpak-bwrap-private.h"
 #include "supported-architectures.h"
 
 /*
@@ -42,3 +43,8 @@ PvPerArchDirs *pv_per_arch_dirs_new (GError **error);
 void pv_per_arch_dirs_free (PvPerArchDirs *self);
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC (PvPerArchDirs, pv_per_arch_dirs_free)
+
+gboolean pv_adverb_set_up_overrides (FlatpakBwrap *wrapped_command,
+                                     PvPerArchDirs *lib_temp_dirs,
+                                     const char *overrides,
+                                     GError **error);

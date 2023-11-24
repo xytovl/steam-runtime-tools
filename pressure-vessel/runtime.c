@@ -111,6 +111,7 @@ struct _PvRuntime
   unsigned is_steamrt : 1;
   unsigned is_scout : 1;
   unsigned is_flatpak_env : 1;
+  unsigned any_vdpau_drivers : 1;
 };
 
 struct _PvRuntimeClass
@@ -2264,6 +2265,11 @@ pv_runtime_get_adverb (PvRuntime *self,
     }
 
   pv_runtime_adverb_regenerate_ld_so_cache (self, bwrap);
+
+  if (self->any_vdpau_drivers)
+    flatpak_bwrap_add_args (bwrap,
+                            "--overrides-path", self->overrides_in_container,
+                            NULL);
 
   return TRUE;
 }
@@ -6583,6 +6589,10 @@ collect_vdpau_drivers (PvRuntime *self,
                                                           SRT_DRIVER_FLAGS_NONE);
     }
 
+  if (vdpau_drivers == NULL)
+    return TRUE;
+
+  self->any_vdpau_drivers = TRUE;
   details_arr = g_ptr_array_new_full (g_list_length (vdpau_drivers),
                                       (GDestroyNotify) G_CALLBACK (icd_details_free));
 
@@ -7184,7 +7194,6 @@ pv_runtime_use_provider_graphics_stack (PvRuntime *self,
           g_autofree gchar *libdrm_amdgpu = NULL;
           g_autofree gchar *libglx_mesa = NULL;
           g_autofree gchar *libglx_nvidia = NULL;
-          g_autofree gchar *platform_token = NULL;
           g_autoptr(GPtrArray) patterns = NULL;
           SrtSystemInfo *arch_system_info;
           struct stat stat_buf;
@@ -7370,42 +7379,6 @@ pv_runtime_use_provider_graphics_stack (PvRuntime *self,
                                  g_ptr_array_index (dirs, j),
                                  error))
                 return FALSE;
-            }
-
-          /* Unfortunately VDPAU_DRIVER_PATH can hold just a single path, so we can't
-           * easily list both x86_64 and i386 paths. As a workaround we set
-           * VDPAU_DRIVER_PATH based on ${PLATFORM} - but each of our
-           * supported ABIs can have multiple values for ${PLATFORM}, so we
-           * need to create symlinks. Try to avoid making use of this,
-           * because it's fragile (a new glibc version can introduce
-           * new platform strings), but for some things like VDPAU it's our
-           * only choice. */
-          for (j = 0; j < G_N_ELEMENTS (arch->details->platforms); j++)
-            {
-              g_autofree gchar *platform_link = NULL;
-
-              if (arch->details->platforms[j] == NULL)
-                break;
-
-              platform_link = g_strdup_printf ("%s/lib/platform-%s",
-                                               self->overrides,
-                                               arch->details->platforms[j]);
-
-              if (symlink (arch->details->tuple, platform_link) != 0)
-                return glnx_throw_errno_prefix (error,
-                                                "Unable to create symlink %s -> %s",
-                                                platform_link, arch->details->tuple);
-            }
-
-          platform_token = srt_system_info_dup_libdl_platform (arch_system_info,
-                                                               pv_multiarch_tuples[i],
-                                                               &local_error);
-          if (platform_token == NULL)
-            {
-              /* This is not a critical error, try to continue */
-              g_warning ("The dynamic linker expansion of \"$PLATFORM\" is not what we "
-                         "expected, VDPAU drivers might not work: %s", local_error->message);
-              g_clear_error (&local_error);
             }
 
           if (!pv_runtime_create_aliases (self, arch, &local_error))
@@ -7659,14 +7632,12 @@ pv_runtime_use_provider_graphics_stack (PvRuntime *self,
 
   /* We binded the VDPAU drivers in "%{libdir}/vdpau".
    * Unfortunately VDPAU_DRIVER_PATH can hold just a single path, so we can't
-   * easily list both x86_64 and i386 drivers path.
-   * As a workaround we set VDPAU_DRIVER_PATH to
-   * "/overrides/lib/platform-${PLATFORM}/vdpau" (which is a symlink that we
-   * already created). */
-  g_autofree gchar *vdpau_val = g_strdup_printf ("%s/lib/platform-${PLATFORM}/vdpau",
-                                                 self->overrides_in_container);
+   * easily list both x86_64 and i386 driver paths; instead, we delegate the
+   * setup of VDPAU drivers to pv-adverb, which is running with our final
+   * choice of glibc and therefore can do something more clever with
+   * dynamic string tokens. */
+  pv_environ_setenv (container_env, "VDPAU_DRIVER_PATH", NULL);
 
-  pv_environ_setenv (container_env, "VDPAU_DRIVER_PATH", vdpau_val);
   return TRUE;
 }
 
