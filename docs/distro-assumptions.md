@@ -338,6 +338,35 @@ unless they happen to be part of the dependency stack of a graphics driver.
 This is intentional, and is done to provide a predictable environment
 across distributions.
 
+## glibc dynamic string tokens
+
+Some features of the container runtime framework require that we can
+automatically load appropriate 64- or 32-bit x86 libraries using glibc's
+`${ORIGIN}` and `${LIB}` dynamic string tokens (see `ld.so(8)`).
+NVIDIA's VDPAU is particularly affected by this.
+
+The expansion of `${LIB}` is not standardized, so each variation needs
+specific support.
+The framework currently knows about the following pairs:
+
+* `lib/x86_64-linux-gnu` and `lib/i386-linux-gnu`, as used on Debian,
+  modern Ubuntu, and the freedesktop.org Platform normally used by Flatpak
+* `x86_64-linux-gnu` and `i386-linux-gnu`, as used on very old Ubuntu
+* `lib64` and `lib`, as used in the Linux Standard Base and on Fedora
+* `lib` and `lib32`, as used on Arch Linux
+
+For systems where `${LIB}` has an unsupported pair of expansions that are
+different for 64- and 32-bit code, please
+[contact the maintainers][Steam Runtime issues]: it is straightforward to
+add to this list.
+
+For systems where `${LIB}` has the same expansion for 64- and 32-bit
+binaries (for example if it expands to `lib` in both cases), some features
+cannot be made to work reliably.
+The container runtime framework will attempt to work around this by using
+the `${PLATFORM}` dynamic string token, but that cannot work on older
+CPUs (those that do not have all the features of Intel Haswell).
+
 ## Graphics drivers
 
 The Steam Runtime is not able to provide graphics drivers that are
