@@ -1,14 +1,32 @@
-steam-runtime-tools (0.20231121.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20231127.0) UNRELEASED; urgency=medium
 
   * pressure-vessel:
     - Log a warning if we can't set up /etc/timezone
     - If emitting debug messages, include the full contents of the new
-      ld.so.cache (Helps: steamrt/tasks#357, steam-runtime#630)
+      ld.so.cache (steamrt/tasks#357, steam-runtime#630)
     - Make SRT_LOG=debug activate extra output.
       Previously, only --verbose or PRESSURE_VESSEL_VERBOSE would have
       activated this.
+    - Better compatibility with very old CPUs, especially when using VDPAU,
+      if the host OS has a supported expansion of ${LIB}
+      + Affected Intel CPUs are older than "Haswell" (2013)
+      + Affected AMD CPUs are older than "Excavator" (2015)
+      + Systems where this works are those that use multiarch
+        (Debian/Ubuntu or Flatpak), FHS multilib (Red Hat, etc.) or
+        Arch Linux's multilib variant. Other systems where ${LIB} expands
+        to distinct values for 32- and 64-bit x86 can easily be supported
+        if their users open an issue with the details.
+    - Better compatibility with FEX-Emu, especially when using VDPAU
+      (steamrt/tasks#349)
     - pv-verify: New tool to verify a directory against a mtree(5) manifest
     - Refactoring
+  * Diagnostic tools:
+    - Improve performance of steam-runtime-system-info, especially when
+      running under FEX-Emu emulation (steam-runtime-tools#88)
+    - Stop relying on ability to run timeout(1), which might improve
+      compatibility with some sandboxed or limited environments
+      (steam-runtime-tools#88)
+    - Resync wflinfo implementation with waffle 1.8.0
   * Steam Linux Runtime depots:
     - In usr-mtree.txt.gz, only put permissions in mode=, not all of st_mode,
       matching bsdtar(1) and mtree(8)
@@ -24,10 +42,15 @@ steam-runtime-tools (0.20231121.0) UNRELEASED; urgency=medium
   * Library code:
     - Refactor helper subprocess launching
     - Make execution environment for helper subprocesses more consistent
-  * tests:
+  * Tests:
+    - Make the pv-adverb test coverage more realistic
     - When using valgrind, don't show reachable objects by default
+    - Fix a minor memory leak in check-xdg-portal (not significant during
+      production use since this is not a long-lived process)
+    - Stop diagnosing memory leaks in wflinfo (not significant during
+      production use since this is not a long-lived process)
 
- -- Simon McVittie <smcv@collabora.com>  Tue, 21 Nov 2023 17:47:34 +0000
+ -- Simon McVittie <smcv@collabora.com>  Mon, 27 Nov 2023 13:07:41 +0000
 
 steam-runtime-tools (0.20231107.1) steamrt; urgency=medium
 
