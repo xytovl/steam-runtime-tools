@@ -5248,13 +5248,52 @@ collect_graphics_libraries_patterns (GPtrArray *patterns)
     "libva-glx.so.2",
     "libva-x11.so.2",
   };
+  static const char * const sonames_even_if_older[] =
+  {
+    /* Vendor-neutral (GLVND) */
+    "libEGL.so.1",
+    "libGL.so.1",
+    "libGLESv1_CM.so.1",
+    "libGLESv2.so.2",
+    "libGLX.so.0",
+    "libGLX_indirect.so.0",
+    "libGLdispatch.so.0",
+    "libOpenCL.so.1",
+    "libOpenGL.so.0",
+
+    /* Mesa open-source stack */
+    "libEGL_mesa.so.0",
+    "libGLX_mesa.so.0",
+
+    /* NVIDIA proprietary stack (this is only the app-facing entry points,
+     * and not the driver internals with no stable SONAME like -glcore) */
+    "libEGL_nvidia.so.0",
+    "libGLESv1_CM_nvidia.so.1",
+    "libGLESv2_nvidia.so.2",
+    "libGLX_nvidia.so.0",
+    "libXNVCtrl.so.0",
+    "libcuda.so.1",
+    "libcudadebugger.so.1",
+    "libnvcuvid.so.1",
+    "libnvidia-allocator.so.1",
+    "libnvidia-api.so.1",
+    "libnvidia-cfg.so.1",
+    "libnvidia-egl-gbm.so.1",
+    "libnvidia-egl-wayland.so.1",
+    "libnvidia-encode.so.1",
+    "libnvidia-fbc.so.1",
+    "libnvidia-ifr.so.1",
+    "libnvidia-ml.so.1",
+    "libnvidia-ngx.so.1",
+    "libnvidia-nvvm.so.4",
+    "libnvidia-opencl.so.1",
+    "libnvidia-opticalflow.so.1",
+    "libnvidia-ptxjitcompiler.so.1",
+    "libnvoptix.so.1",
+    "libvdpau_nvidia.so.1",
+  };
   /*
-   * In principle we could have another array sonames_even_if_older[] here,
-   * but in practice we don't want to do that, because we should prefer to
-   * use dependency libaries from the runtime if they're strictly newer.
-   * Otherwise, games linked against the runtime could fail to start up.
-   *
-   * Similarly, in principle we could have another array soname_globs[]
+   * In principle we could have another array soname_globs[]
    * here, but in practice the libraries that we want to match with
    * wildcards are the same ones we want to take from the host even if
    * they're older than the ones in the runtime: games are expected to
@@ -5324,6 +5363,11 @@ collect_graphics_libraries_patterns (GPtrArray *patterns)
     g_ptr_array_add (patterns,
                      g_strdup_printf ("if-exists:if-same-abi:soname:%s",
                                       sonames[i]));
+
+  for (i = 0; i < G_N_ELEMENTS (sonames_even_if_older); i++)
+    g_ptr_array_add (patterns,
+                     g_strdup_printf ("if-exists:even-if-older:if-same-abi:soname:%s",
+                                      sonames_even_if_older[i]));
 
   for (i = 0; i < G_N_ELEMENTS (soname_globs_even_if_older); i++)
     g_ptr_array_add (patterns,
