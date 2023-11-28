@@ -5389,9 +5389,13 @@ pv_runtime_collect_libc_family (PvRuntime *self,
   static const char * const patterns[] =
   {
     "if-exists:libidn2.so.0",
+    "if-exists:even-if-older:soname:libnss_compat.so.2",
     "if-exists:even-if-older:soname-match:libnss_compat.so.*",
+    "if-exists:even-if-older:soname:libnss_db.so.2",
     "if-exists:even-if-older:soname-match:libnss_db.so.*",
+    "if-exists:even-if-older:soname:libnss_dns.so.2",
     "if-exists:even-if-older:soname-match:libnss_dns.so.*",
+    "if-exists:even-if-older:soname:libnss_files.so.2",
     "if-exists:even-if-older:soname-match:libnss_files.so.*",
   };
   G_GNUC_UNUSED g_autoptr(SrtProfilingTimer) libc_timer =
