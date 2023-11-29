@@ -1703,6 +1703,9 @@ class Main:
                 skip_runtime_files=True,
             )
 
+            if '.ref' not in lc_names:
+                writer.write('./.ref type=file size=0 optional\n')
+
             if 'var' not in lc_names:
                 writer.write('./var type=dir ignore optional\n')
 
