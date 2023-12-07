@@ -5,10 +5,13 @@ steam-runtime-tools (0.20231207.0) UNRELEASED; urgency=medium
       their discovery on heavily customized OSs (steam-runtime#632)
     - Look up graphics libraries by their concrete SONAMEs, for the same
       reason
+    - Improve compatibility with FEX-Emu (steamrt/tasks#342).
+      The part of this change that is visible to those not using FEX
+      is that ld.so.cache inside the container moves from /run to /var.
   * Steam Linux Runtime depots:
     - When running pv-verify, allow SteamLinuxRuntime_whatever/.ref to exist
 
- -- Simon McVittie <smcv@collabora.com>  Thu, 07 Dec 2023 17:15:29 +0000
+ -- Simon McVittie <smcv@collabora.com>  Thu, 07 Dec 2023 19:17:46 +0000
 
 steam-runtime-tools (0.20231128.0) steamrt; urgency=medium
 
