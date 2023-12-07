@@ -158,6 +158,9 @@ with the game's container:
     directories like `/usr/local/bin` and `/usr/local/lib` are frequently
     part of libraries' search paths, and could therefore break games.
 
+* `/var/pressure-vessel` is used internally by pressure-vessel and
+    can never be shared.
+
 ## Diverted into `/run/host`
 
 * The host's `/etc` becomes `/run/host/etc`

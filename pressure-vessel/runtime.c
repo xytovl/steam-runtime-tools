@@ -156,7 +156,9 @@ path_mutable_in_container_namespace (const char *path)
   static const char * const no[] =
   {
     "run/gfx",
+    "run/interpreter-host",
     "run/host",
+    "var/pressure-vessel/gfx",
   };
   static const char * const yes[] =
   {
@@ -176,6 +178,45 @@ path_mutable_in_container_namespace (const char *path)
       if (_srt_get_path_after (path, no[i]) != NULL)
         return FALSE;
     }
+
+  for (i = 0; i < G_N_ELEMENTS (yes); i++)
+    {
+      if (_srt_get_path_after (path, yes[i]) != NULL)
+        return TRUE;
+    }
+
+  return FALSE;
+}
+
+/*
+ * pv_runtime_path_belongs_in_interpreter_root:
+ * @path: An absolute or root-relative path, for example `/etc/os-release`
+ *  or `usr/lib/os-release`
+ *
+ * Return whether the top-level directory containing @path is expected
+ * to exist in the interpreter root for tools like FEX-Emu.
+ *
+ * For simplicity and efficiency, we ignore the compatibility symlinks here,
+ * and assume a merged /usr: we always use an interpreter root in conjunction
+ * with a mutable sysroot, which is always merged-/usr, so this is OK.
+ *
+ * Returns: %TRUE if we want the top-level directory of @path to appear
+ *  in the interpreter root.
+ */
+gboolean
+pv_runtime_path_belongs_in_interpreter_root (const char *path)
+{
+  static const char * const yes[] =
+  {
+    "etc",
+    "overrides",
+    "usr",
+    "var",
+  };
+  gsize i;
+
+  while (path[0] == '/')
+    path++;
 
   for (i = 0; i < G_N_ELEMENTS (yes); i++)
     {
@@ -256,7 +297,7 @@ path_visible_in_provider_namespace (PvRuntimeFlags flags,
    * /run/parent/etc a symlink to /run/parent/usr/etc.
    *
    * Otherwise, bind_runtime_base() is responsible for mounting the provider's
-   * /etc on /run/gfx/etc. */
+   * /etc on /var/pressure-vessel/gfx/etc or /run/gfx/etc. */
   if (g_str_has_prefix (path, "etc")
       && (path[3] == '\0' || path[3] == '/'))
     return TRUE;
@@ -264,52 +305,196 @@ path_visible_in_provider_namespace (PvRuntimeFlags flags,
   return FALSE;
 }
 
-typedef enum
+/*
+ * pv_runtime_bind_into_container:
+ * @self: the runtime
+ * @bwrap: the arguments for bubblewrap
+ * @host_path: absolute path on the host system (not necessarily the
+ *  current execution environment); or if @content is non-%NULL, a basename
+ *  for debugging
+ * @content: content for a dynamically-created file
+ * @content_size: length of @content in bytes, or -1 if 0-terminated
+ * @path: absolute or root-relative path in the container and/or
+ *  interpreter root, which should be in a path for which
+ *  path_mutable_in_container_namespace() returns true
+ * @roots: if using an interpreter root for FEX-Emu or similar, whether
+ *  to modify the real root, the interpreter root or both
+ * @error: you know how this works
+ *
+ * Try to make @path a bind-mount for @target in the container.
+ */
+gboolean
+pv_runtime_bind_into_container (PvRuntime *self,
+                                FlatpakBwrap *bwrap,
+                                const char *host_path,
+                                const void *content,
+                                gssize content_size,
+                                const char *path,
+                                PvRuntimeEmulationRoots roots,
+                                GError **error)
 {
-  MAKE_SYMLINK_FLAGS_INTERPRETER_ROOT = (1 << 0),
-  MAKE_SYMLINK_FLAGS_NONE = 0
-} MakeSymlinkFlags;
+  g_autofree char *interpreter_dest = NULL;
+  const char *real_dest = path;
+
+  g_return_val_if_fail (PV_IS_RUNTIME (self), FALSE);
+  g_return_val_if_fail (bwrap != NULL, FALSE);
+  g_return_val_if_fail (!pv_bwrap_was_finished (bwrap), FALSE);
+  g_return_val_if_fail (host_path != NULL, FALSE);
+  g_return_val_if_fail (path != NULL, FALSE);
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+  g_return_val_if_fail (roots == PV_RUNTIME_EMULATION_ROOTS_REAL_ONLY
+                        || pv_runtime_path_belongs_in_interpreter_root (path),
+                        FALSE);
+
+  if (content != NULL)
+    g_return_val_if_fail (strchr (host_path, '/') == NULL, FALSE);
+  else
+    g_return_val_if_fail (host_path[0] == '/', FALSE);
+
+  if (!path_mutable_in_container_namespace (path))
+    {
+      g_set_error (error, G_IO_ERROR, G_IO_ERROR_READ_ONLY,
+                   "Not making \"%s\" a bind-mount: not modifiable", path);
+      return FALSE;
+    }
+
+  if (self->flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT)
+    {
+      if (roots != PV_RUNTIME_EMULATION_ROOTS_REAL_ONLY)
+        interpreter_dest = g_build_filename (PV_RUNTIME_PATH_INTERPRETER_ROOT,
+                                             path, NULL);
+
+      if (roots == PV_RUNTIME_EMULATION_ROOTS_INTERPRETER_ONLY)
+        real_dest = NULL;
+    }
+
+  if (real_dest != NULL)
+    {
+      gboolean ok = TRUE;
+
+      g_debug ("Creating bind-mount \"%s\" => \"${container}/%s\"",
+               host_path, real_dest);
+
+      if (content != NULL)
+        ok = flatpak_bwrap_add_args_data (bwrap,
+                                          host_path,
+                                          content,
+                                          content_size,
+                                          real_dest,
+                                          error);
+      else
+        flatpak_bwrap_add_args (bwrap,
+                                "--ro-bind",
+                                host_path,
+                                real_dest,
+                                NULL);
+
+      if (!ok)
+        {
+          g_prefix_error (error, "Unable to bind-mount \"%s\" on \"%s\": ",
+                          host_path, real_dest);
+          return FALSE;
+        }
+    }
+
+  if (interpreter_dest != NULL)
+    {
+      gboolean ok = TRUE;
+
+      g_debug ("Creating bind-mount \"%s\" => \"${container}/%s\"",
+               host_path, interpreter_dest);
+
+      if (content != NULL)
+        ok = flatpak_bwrap_add_args_data (bwrap,
+                                          host_path,
+                                          content,
+                                          content_size,
+                                          interpreter_dest,
+                                          error);
+      else
+        flatpak_bwrap_add_args (bwrap,
+                                "--ro-bind",
+                                host_path,
+                                interpreter_dest,
+                                NULL);
+
+      if (!ok)
+        {
+          g_prefix_error (error, "Unable to bind-mount \"%s\" on \"%s\": ",
+                          host_path, interpreter_dest);
+          return FALSE;
+        }
+    }
+
+  return TRUE;
+}
 
 /*
  * pv_runtime_make_symlink_in_container:
  * @self: the runtime
  * @bwrap: the arguments for bubblewrap
  * @target: target of the symlink
- * @path: absolute or root-relative path in the container
+ * @path: absolute or root-relative path in the container and/or
+ *  interpreter root
+ * @roots: if using an interpreter root for FEX-Emu or similar, whether
+ *  to modify the real root, the interpreter root or both
  * @error: you know how this works
  *
  * Try to make @path a symlink to @target in the container, by whichever
  * mechanism seems best: either editing the mutable sysroot in-place,
  * or telling bubblewrap to create a symlink in a transient directory
- * like /etc, /run, /var.
+ * like /etc or /var.
  *
  * Returns: %TRUE on success
  */
-static gboolean
+gboolean
 pv_runtime_make_symlink_in_container (PvRuntime *self,
                                       FlatpakBwrap *bwrap,
                                       const char *target,
                                       const char *path,
-                                      MakeSymlinkFlags flags,
+                                      PvRuntimeEmulationRoots roots,
                                       GError **error)
 {
-  g_autofree char *alloc_dest = NULL;
-  const char *dest = path;
+  g_autofree char *interpreter_dest = NULL;
+  const char *real_dest = path;
 
   g_return_val_if_fail (PV_IS_RUNTIME (self), FALSE);
   g_return_val_if_fail (target != NULL, FALSE);
   g_return_val_if_fail (path != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+  g_return_val_if_fail (roots == PV_RUNTIME_EMULATION_ROOTS_REAL_ONLY
+                        || pv_runtime_path_belongs_in_interpreter_root (path),
+                        FALSE);
 
-  if ((flags & MAKE_SYMLINK_FLAGS_INTERPRETER_ROOT)
-      && (self->flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT))
-    dest = alloc_dest = g_build_filename (PV_RUNTIME_PATH_INTERPRETER_ROOT,
-                                          path, NULL);
+  if (self->flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT)
+    {
+      if (roots != PV_RUNTIME_EMULATION_ROOTS_REAL_ONLY)
+        interpreter_dest = g_build_filename (PV_RUNTIME_PATH_INTERPRETER_ROOT,
+                                             path, NULL);
 
-  g_debug ("Creating symlink \"${container}/%s\" -> \"%s\"", dest, target);
+      if (roots == PV_RUNTIME_EMULATION_ROOTS_INTERPRETER_ONLY)
+        real_dest = NULL;
+    }
+
+  if (real_dest != NULL)
+    g_debug ("Creating symlink \"${container}/%s\" -> \"%s\"", real_dest, target);
+
+  if (interpreter_dest != NULL)
+    g_debug ("Creating symlink \"${container}/%s\" -> \"%s\"", interpreter_dest, target);
 
   if (_srt_get_path_after (path, "usr") != NULL)
     {
+      /* We will mount the mutable sysroot (if used) on /usr inside the
+       * interpreter root if used, or on /usr if not using an interpreter
+       * root. We can't change the real /usr. */
+      if ((self->flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT)
+          && roots != PV_RUNTIME_EMULATION_ROOTS_INTERPRETER_ONLY)
+        {
+          g_set_error (error, G_IO_ERROR, G_IO_ERROR_READ_ONLY,
+                       "Cannot modify real /usr while using emulation");
+          goto error;
+        }
+
       if (self->mutable_sysroot != NULL)
         {
           g_autofree gchar *parent = g_path_get_dirname (path);
@@ -342,11 +527,20 @@ pv_runtime_make_symlink_in_container (PvRuntime *self,
     {
       /* Note that "--symlink foo bar" is equivalent to "--symlink foo /bar":
        * both end up creating the symlink at /newroot/bar */
-      flatpak_bwrap_add_args (bwrap,
-                              "--symlink",
-                              target,
-                              dest,
-                              NULL);
+      if (real_dest != NULL)
+        flatpak_bwrap_add_args (bwrap,
+                                "--symlink",
+                                target,
+                                real_dest,
+                                NULL);
+
+      if (interpreter_dest != NULL)
+        flatpak_bwrap_add_args (bwrap,
+                                "--symlink",
+                                target,
+                                interpreter_dest,
+                                NULL);
+
       return TRUE;
     }
 
@@ -354,7 +548,7 @@ pv_runtime_make_symlink_in_container (PvRuntime *self,
                "Not modifiable in current configuration");
 error:
   g_prefix_error (error, "Not making \"%s\" a symlink to \"%s\": ",
-                  dest, target);
+                  path, target);
   return FALSE;
 }
 
@@ -2138,6 +2332,19 @@ pv_runtime_new (const char *source,
                          NULL);
 }
 
+/*
+ * This is chosen to be:
+ * - somewhere we don't bind-mount from the runtime or host
+ *   (/var/pressure-vessel is specifically excluded)
+ * - on a tmpfs
+ * - in a top-level directory that we carry in the interpreter root, so that
+ *   symlinks in the interpreter root can usefully point to it
+ * - not in /run, so that we don't get mixed up between
+ *   the real root and the interpreter root (we want /run to only
+ *   exist in the real root)
+ */
+#define MUTABLE_LDSO_DIR "/var/pressure-vessel/ldso"
+
 static void
 pv_runtime_adverb_regenerate_ld_so_cache (PvRuntime *self,
                                           FlatpakBwrap *adverb_argv)
@@ -2160,7 +2367,7 @@ pv_runtime_adverb_regenerate_ld_so_cache (PvRuntime *self,
     }
   else
     {
-      regen_dir = g_strdup ("/run/pressure-vessel/ldso");
+      regen_dir = g_strdup (MUTABLE_LDSO_DIR);
     }
 
   flatpak_bwrap_add_args (adverb_argv,
@@ -2360,6 +2567,9 @@ pv_runtime_provide_container_access (PvRuntime *self,
       g_mkdir (self->container_access, 0700);
 
       self->container_access_adverb = flatpak_bwrap_new (NULL);
+      /* Intentionally not using pv_runtime_bind_into_container for this
+       * temporary adverb command; by the time we get here, we know we
+       * are not using an interpreter root anyway */
       flatpak_bwrap_add_args (self->container_access_adverb,
                               self->bubblewrap,
                               "--ro-bind", "/", "/",
@@ -2379,6 +2589,7 @@ pv_runtime_provide_container_access (PvRuntime *self,
                               "etc", NULL);
       etc_dest = g_build_filename (self->container_access,
                                    "etc", NULL);
+      /* OK to use --ro-bind directly, as above */
       flatpak_bwrap_add_args (self->container_access_adverb,
                               "--ro-bind", etc, etc_dest,
                               NULL);
@@ -3135,6 +3346,8 @@ bind_gfx_provider (PvRuntime *self,
       in_host = g_build_filename (self->provider->path_in_host_ns,
                                   "etc", NULL);
       in_container = g_build_filename (mount_point, "etc", NULL);
+      /* The caller is expected to handle possible use of an interpreter root
+       * via prepend_path, so only act on the real root */
       flatpak_bwrap_add_args (bwrap,
                               "--ro-bind", in_host, in_container,
                               NULL);
@@ -3168,6 +3381,7 @@ bind_runtime_base (PvRuntime *self,
     "/var/lib/dhcp",
     "/var/lib/sudo",
     "/var/lib/urandom",
+    "/var/pressure-vessel",
     NULL
   };
   static const char * const from_host[] =
@@ -3197,6 +3411,7 @@ bind_runtime_base (PvRuntime *self,
   };
   g_autofree gchar *xrd = g_strdup_printf ("/run/user/%ld", (long) geteuid ());
   gsize i;
+  gboolean have_machine_id = FALSE;
 
   g_return_val_if_fail (PV_IS_RUNTIME (self), FALSE);
   g_return_val_if_fail (exports != NULL, FALSE);
@@ -3206,6 +3421,14 @@ bind_runtime_base (PvRuntime *self,
 
   if (self->flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT)
     {
+      static const char * const needed_in_real_root[] =
+      {
+        "/etc/alternatives",
+        "/etc/ld.so.cache",
+        "/etc/ld.so.conf",
+        "/etc/ld.so.conf.d",
+      };
+
       /* If we're in an emulator like FEX-Emu, we need to use the host
        * OS's /usr as our real root directory, and set the runtime up
        * in a different directory. */
@@ -3217,23 +3440,31 @@ bind_runtime_base (PvRuntime *self,
        * and so on. For now, we only support host OSs that use the
        * interoperable path; OS-specific variant paths like the ones in
        * ClearLinux and Exherbo could be added later if required. */
-      flatpak_bwrap_add_args (bwrap,
-                              "--symlink", "/run/host/etc/alternatives", "/etc/alternatives",
-                              "--symlink", "/run/host/etc/ld.so.cache", "/etc/ld.so.cache",
-                              "--symlink", "/run/host/etc/ld.so.conf", "/etc/ld.so.conf",
-                              "--symlink", "/run/host/etc/ld.so.conf.d", "/etc/ld.so.conf.d",
-                              NULL);
+      for (i = 0; i < G_N_ELEMENTS (needed_in_real_root); i++)
+        {
+          const char *path = needed_in_real_root[i];
+          g_autofree char *target = g_build_filename ("/run/interpreter-host",
+                                                      path, NULL);
+
+          if (!pv_runtime_make_symlink_in_container (self,
+                                                     bwrap,
+                                                     target,
+                                                     path,
+                                                     PV_RUNTIME_EMULATION_ROOTS_REAL_ONLY,
+                                                     error))
+            g_return_val_if_reached (FALSE);
+        }
 
       if (!pv_bwrap_bind_usr (bwrap,
                               self->runtime_files_on_host,
                               self->runtime_files_fd,
                               PV_RUNTIME_PATH_INTERPRETER_ROOT, error))
-        return FALSE;
+        g_return_val_if_reached (FALSE);
 
       /* Force FEX-Emu to use this root filesystem instead of the one
        * it would "naturally" have used. Parts of it will be symlinks
-       * into /run/gfx, which contains bind-mounts from FEX-Emu's original
-       * rootfs.
+       * into /var/pressure-vessel/gfx, which contains bind-mounts from
+       * FEX-Emu's original rootfs.
        *
        * We cannot do this via pv_environ_setenv(), since that sets the
        * environment in which we execute pv-bwrap, but that needs to be
@@ -3268,7 +3499,7 @@ bind_runtime_base (PvRuntime *self,
       if (!pv_runtime_make_symlink_in_container (self, bwrap,
                                                  &self->overrides_in_container[1],
                                                  "/overrides",
-                                                 MAKE_SYMLINK_FLAGS_INTERPRETER_ROOT,
+                                                 PV_RUNTIME_EMULATION_ROOTS_INTERPRETER_ONLY,
                                                  &local_error))
         g_warning ("%s", local_error->message);
 
@@ -3286,6 +3517,12 @@ bind_runtime_base (PvRuntime *self,
   flatpak_bwrap_add_args (bwrap,
                           "--dir", "/tmp",
                           "--dir", "/var",
+                          /* When using an interpreter root, these are not
+                           * created in $FEX_ROOTFS/{run,tmp}, but that's
+                           * consistent with the situation without
+                           * pressure-vessel: readdir() on /var doesn't
+                           * list run or tmp, but reading /var/run/ or
+                           * /var/tmp/ works anyway. */
                           "--dir", "/var/tmp",
                           "--symlink", "../run", "/var/run",
                           NULL);
@@ -3317,6 +3554,8 @@ bind_runtime_base (PvRuntime *self,
       g_auto(SrtDirIter) dir = SRT_DIR_ITER_CLEARED;
       struct dirent *dent;
 
+      g_assert (pv_runtime_path_belongs_in_interpreter_root (bind_mutable[i]));
+
       if (!_srt_dir_iter_init_at (&dir, AT_FDCWD, path,
                                   SRT_DIR_ITER_FLAGS_FOLLOW,
                                   self->arbitrary_dirent_order,
@@ -3330,7 +3569,7 @@ bind_runtime_base (PvRuntime *self,
                                                      member, NULL);
           g_autofree gchar *full = NULL;
           g_autofree gchar *target = NULL;
-          gboolean only_in_interpreter_root = FALSE;
+          PvRuntimeEmulationRoots roots = PV_RUNTIME_EMULATION_ROOTS_BOTH;
 
           if (g_strv_contains (dont_bind, dest))
             continue;
@@ -3345,15 +3584,11 @@ bind_runtime_base (PvRuntime *self,
               && g_str_has_prefix (dest, "/etc")
               && g_strv_contains (redirect_into_interpreter_root, dest))
             {
-              g_autofree gchar *original_dest = g_steal_pointer (&dest);
-
               /* We have to distinguish between the real /etc, used for
                * FEX-Emu or a similar interpreter/emulator, and the /etc
                * used for the emulated process. The former is a 1:1 copy
                * of the real /etc, but the latter is controlled by us. */
-              dest = g_build_filename (PV_RUNTIME_PATH_INTERPRETER_ROOT,
-                                       original_dest, NULL);
-              only_in_interpreter_root = TRUE;
+              roots = PV_RUNTIME_EMULATION_ROOTS_INTERPRETER_ONLY;
             }
 
           full = g_build_filename (self->runtime_files,
@@ -3364,23 +3599,21 @@ bind_runtime_base (PvRuntime *self,
 
           if (target != NULL)
             {
-              flatpak_bwrap_add_args (bwrap, "--symlink", target, dest, NULL);
-
-              if (!only_in_interpreter_root)
-                {
-                  g_autofree gchar *dest_in_interpreter_root = NULL;
-
-                  dest_in_interpreter_root = g_build_filename (PV_RUNTIME_PATH_INTERPRETER_ROOT,
-                                                               dest, NULL);
-                  flatpak_bwrap_add_args (bwrap, "--symlink", target, dest_in_interpreter_root, NULL);
-                }
+              if (!pv_runtime_make_symlink_in_container (self, bwrap,
+                                                         target, dest,
+                                                         roots, error))
+                g_return_val_if_reached (FALSE);
             }
           else
             {
               /* We will run bwrap in the host system, so translate the path
                * if necessary */
               g_autofree gchar *on_host = pv_current_namespace_path_to_host_path (full);
-              flatpak_bwrap_add_args (bwrap, "--ro-bind", on_host, dest, NULL);
+
+              if (!pv_runtime_bind_into_container (self, bwrap,
+                                                   on_host, NULL, 0,
+                                                   dest, roots, error))
+                g_return_val_if_reached (FALSE);
             }
         }
     }
@@ -3391,11 +3624,14 @@ bind_runtime_base (PvRuntime *self,
   if (_srt_sysroot_test (self->host_root, "/etc/machine-id",
                          SRT_RESOLVE_FLAGS_NONE, NULL))
     {
-      flatpak_bwrap_add_args (bwrap,
-                              "--ro-bind", "/etc/machine-id", "/etc/machine-id",
-                              "--symlink", "/etc/machine-id",
-                              "/var/lib/dbus/machine-id",
-                              NULL);
+      if (!pv_runtime_bind_into_container (self, bwrap,
+                                           "/etc/machine-id", NULL, 0,
+                                           "/etc/machine-id",
+                                           PV_RUNTIME_EMULATION_ROOTS_BOTH,
+                                           error))
+        g_return_val_if_reached (FALSE);
+
+      have_machine_id = TRUE;
     }
   /* We leave this for completeness but in practice we do not expect to have
    * access to the "/var" host directory because Flatpak usually just binds
@@ -3403,23 +3639,38 @@ bind_runtime_base (PvRuntime *self,
   else if (_srt_sysroot_test (self->host_root, "/var/lib/dbus/machine-id",
                               SRT_RESOLVE_FLAGS_NONE, NULL))
     {
-      flatpak_bwrap_add_args (bwrap,
-                              "--ro-bind", "/var/lib/dbus/machine-id",
-                              "/etc/machine-id",
-                              "--symlink", "/etc/machine-id",
-                              "/var/lib/dbus/machine-id",
-                              NULL);
+      if (!pv_runtime_bind_into_container (self, bwrap,
+                                           "/var/lib/dbus/machine-id", NULL, 0,
+                                           "/etc/machine-id",
+                                           PV_RUNTIME_EMULATION_ROOTS_BOTH,
+                                           error))
+        g_return_val_if_reached (FALSE);
+
+      have_machine_id = TRUE;
     }
+
+  if (have_machine_id
+      && !pv_runtime_make_symlink_in_container (self, bwrap,
+                                                "/etc/machine-id",
+                                                "/var/lib/dbus/machine-id",
+                                                PV_RUNTIME_EMULATION_ROOTS_BOTH,
+                                                error))
+    g_return_val_if_reached (FALSE);
 
   for (i = 0; from_host[i] != NULL; i++)
     {
       const char *item = from_host[i];
 
+      g_assert (pv_runtime_path_belongs_in_interpreter_root (item));
+
       if (_srt_sysroot_test (self->host_root, item,
-                             SRT_RESOLVE_FLAGS_NONE, NULL))
-        flatpak_bwrap_add_args (bwrap,
-                                "--ro-bind", item, item,
-                                NULL);
+                             SRT_RESOLVE_FLAGS_NONE, NULL)
+          && !pv_runtime_bind_into_container (self, bwrap,
+                                              item, NULL, 0,
+                                              item,
+                                              PV_RUNTIME_EMULATION_ROOTS_BOTH,
+                                              error))
+        g_return_val_if_reached (FALSE);
     }
 
   if (self->provider != NULL)
@@ -3430,6 +3681,17 @@ bind_runtime_base (PvRuntime *self,
           g_autoptr(GError) local_error = NULL;
           g_autofree char *path_in_provider = NULL;
           glnx_autofd int fd = -1;
+          PvRuntimeEmulationRoots roots;
+
+          /* In FEX-Emu or similar, the graphics provider is only used for
+           * the emulated architecture, so we put it in the interpreter's
+           * overlay rather than in the real root directory - unless it's
+           * outside the scope of the overlay (like sockets in /run)
+           * in which case we want it to be in the root. */
+          if (pv_runtime_path_belongs_in_interpreter_root (item))
+            roots = PV_RUNTIME_EMULATION_ROOTS_INTERPRETER_ONLY;
+          else
+            roots = PV_RUNTIME_EMULATION_ROOTS_REAL_ONLY;
 
           fd = _srt_sysroot_open (self->provider->in_current_ns, item,
                                   SRT_RESOLVE_FLAGS_NONE,
@@ -3437,26 +3699,15 @@ bind_runtime_base (PvRuntime *self,
 
           if (fd >= 0)
             {
-              g_autofree char *alloc_dest = NULL;
               g_autofree char *host_path = NULL;
-              const char *dest = item;
-
-              /* In FEX-Emu or similar, the graphics provider is only used
-               * for the emulated architecture, so we put it in the
-               * interpreter's overlay rather than in the real root
-               * directory. */
-              if (self->flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT)
-                {
-                  alloc_dest = g_build_filename (PV_RUNTIME_PATH_INTERPRETER_ROOT,
-                                                 item, NULL);
-                  dest = alloc_dest;
-                }
 
               host_path = g_build_filename (self->provider->path_in_host_ns,
                                             path_in_provider, NULL);
-              flatpak_bwrap_add_args (bwrap,
-                                      "--ro-bind", host_path, dest,
-                                      NULL);
+
+              if (!pv_runtime_bind_into_container (self, bwrap,
+                                                   host_path, NULL, 0, item,
+                                                   roots, error))
+                g_return_val_if_reached (FALSE);
             }
           else
             {
@@ -3596,24 +3847,16 @@ bind_runtime_ld_so (PvRuntime *self,
     {
       g_assert (bwrap != NULL);
 
-#define MUTABLE_LDSO_DIR "/run/pressure-vessel/ldso"
       /* The absolute path to our modifiable ld.so.cache/.conf symlink,
        * as seen from inside the container and (if applicable) the
        * interpreter root. */
       const gchar *mutable_cache_path = MUTABLE_LDSO_DIR "/ld.so.cache";
       const gchar *mutable_conf_path = MUTABLE_LDSO_DIR "/ld.so.conf";
-      /* The absolute path that will be loaded by processes inside the
-       * container, as seen by bwrap in /oldroot (so in particular it
-       * has the interpreter root prefix if necessary). */
-      const gchar *canonical_cache_in_target;
-      const gchar *canonical_conf_in_target;
-      /* mutable_*_path as seen by bwrap in /newroot */
-      const gchar *mutable_cache_in_target;
-      const gchar *mutable_conf_in_target;
       /* The locations where we will bind-mount the runtime's
-       * ld.so.cache/.conf, as seen by bwrap in /newroot */
-      const gchar *runtime_cache_in_target;
-      const gchar *runtime_conf_in_target;
+       * ld.so.cache/.conf, as seen from inside the container and
+       * (if applicable) the interpreter root. */
+      const gchar *runtime_cache_path = MUTABLE_LDSO_DIR "/runtime-ld.so.cache";
+      const gchar *runtime_conf_path = MUTABLE_LDSO_DIR "/runtime-ld.so.conf";
       /* The location of the runtime's ld.so.cache/.conf, as seen by
        * bwrap in /oldroot */
       g_autofree gchar *ld_so_cache_on_host = NULL;
@@ -3641,13 +3884,6 @@ bind_runtime_ld_so (PvRuntime *self,
        * Otherwise, they're the same as for the non-FEX code path, below. */
       if (self->flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT)
         {
-          canonical_cache_in_target = PV_RUNTIME_PATH_INTERPRETER_ROOT "/etc/ld.so.cache";
-          canonical_conf_in_target = PV_RUNTIME_PATH_INTERPRETER_ROOT "/etc/ld.so.conf";
-          mutable_cache_in_target = PV_RUNTIME_PATH_INTERPRETER_ROOT MUTABLE_LDSO_DIR "/ld.so.cache";
-          mutable_conf_in_target = PV_RUNTIME_PATH_INTERPRETER_ROOT MUTABLE_LDSO_DIR "/ld.so.conf";
-          runtime_cache_in_target = PV_RUNTIME_PATH_INTERPRETER_ROOT MUTABLE_LDSO_DIR "/runtime-ld.so.cache";
-          runtime_conf_in_target = PV_RUNTIME_PATH_INTERPRETER_ROOT MUTABLE_LDSO_DIR "/runtime-ld.so.conf";
-
           /* To make it a little easier to understand what's going on,
            * make MUTABLE_LDSO_DIR a symlink to the MUTABLE_LDSO_DIR inside
            * the rootfs. */
@@ -3661,39 +3897,61 @@ bind_runtime_ld_so (PvRuntime *self,
         }
       else
         {
-          canonical_cache_in_target = "/etc/ld.so.cache";
-          canonical_conf_in_target = "/etc/ld.so.conf";
-          mutable_cache_in_target = MUTABLE_LDSO_DIR "/ld.so.cache";
-          mutable_conf_in_target = MUTABLE_LDSO_DIR "/ld.so.conf";
-          runtime_cache_in_target = MUTABLE_LDSO_DIR "/runtime-ld.so.cache";
-          runtime_conf_in_target = MUTABLE_LDSO_DIR "/runtime-ld.so.conf";
-
           flatpak_bwrap_add_args (bwrap,
                                   "--tmpfs", MUTABLE_LDSO_DIR,
                                   NULL);
         }
 
-      flatpak_bwrap_add_args (bwrap,
-                              /* We put the ld.so.cache somewhere that we can
-                              * overwrite from inside the container by
-                              * replacing the symlink. */
-                              "--symlink",
-                              mutable_cache_path, canonical_cache_in_target,
-                              /* ... and the same for its configuration */
-                              "--symlink",
-                              mutable_conf_path, canonical_conf_in_target,
+      const struct
+      {
+        const char *target;
+        const char *dest;
+        PvRuntimeEmulationRoots roots;
+      } symlinks[] =
+      {
+          /* We put the ld.so.cache somewhere that we can overwrite from
+           * inside the container by replacing the symlink. */
+          { mutable_cache_path, "/etc/ld.so.cache" },
+          /* ... and the same for its configuration */
+          { mutable_conf_path, "/etc/ld.so.conf" },
 
-                              /* Initially it's a symlink to the runtime's
-                              * version and we rely on LD_LIBRARY_PATH
-                              * for our overrides, but -adverb will
-                              * overwrite this symlink. */
-                              "--symlink", "runtime-ld.so.cache", mutable_cache_in_target,
-                              "--symlink", "runtime-ld.so.conf", mutable_conf_in_target,
+          /* Initially it's a symlink to the runtime's version and we rely
+           * on LD_LIBRARY_PATH for our overrides, but -adverb will
+           * overwrite this symlink. */
+          { "runtime-ld.so.cache", mutable_cache_path },
+          { "runtime-ld.so.conf", mutable_conf_path },
+      };
 
-                              /* Put the runtime's version in place too. */
-                              "--ro-bind", ld_so_cache_on_host, runtime_cache_in_target,
-                              "--ro-bind", ld_so_conf_on_host, runtime_conf_in_target,
-                              NULL);
+      const struct
+      {
+        const char *host_path;
+        const char *dest;
+        PvRuntimeEmulationRoots roots;
+      } binds[] =
+      {
+          { ld_so_cache_on_host, runtime_cache_path },
+          { ld_so_conf_on_host, runtime_conf_path },
+      };
+
+      for (i = 0; i < G_N_ELEMENTS (symlinks); i++)
+        {
+          if (!pv_runtime_make_symlink_in_container (self, bwrap,
+                                                     symlinks[i].target,
+                                                     symlinks[i].dest,
+                                                     PV_RUNTIME_EMULATION_ROOTS_INTERPRETER_ONLY,
+                                                     error))
+            return FALSE;
+        }
+
+      for (i = 0; i < G_N_ELEMENTS (binds); i++)
+        {
+          if (!pv_runtime_bind_into_container (self, bwrap,
+                                               binds[i].host_path, NULL, 0,
+                                               binds[i].dest,
+                                               PV_RUNTIME_EMULATION_ROOTS_INTERPRETER_ONLY,
+                                               error))
+            g_return_val_if_reached (FALSE);
+        }
 
       /* glibc from some distributions will want to load the ld.so cache from
        * a distribution-specific path, e.g. Clear Linux uses
@@ -3708,7 +3966,7 @@ bind_runtime_ld_so (PvRuntime *self,
                                                      bwrap,
                                                      mutable_cache_path,
                                                      path,
-                                                     MAKE_SYMLINK_FLAGS_INTERPRETER_ROOT,
+                                                     PV_RUNTIME_EMULATION_ROOTS_INTERPRETER_ONLY,
                                                      &local_error))
             g_warning ("%s", local_error->message);
         }
@@ -3723,7 +3981,7 @@ bind_runtime_ld_so (PvRuntime *self,
                                                      bwrap,
                                                      mutable_conf_path,
                                                      path,
-                                                     MAKE_SYMLINK_FLAGS_INTERPRETER_ROOT,
+                                                     PV_RUNTIME_EMULATION_ROOTS_INTERPRETER_ONLY,
                                                      &local_error))
             g_warning ("%s", local_error->message);
         }
@@ -3752,7 +4010,7 @@ bind_runtime_ld_so (PvRuntime *self,
                                                          bwrap,
                                                          mutable_cache_path,
                                                          path,
-                                                         MAKE_SYMLINK_FLAGS_INTERPRETER_ROOT,
+                                                         PV_RUNTIME_EMULATION_ROOTS_INTERPRETER_ONLY,
                                                          &local_error))
                 g_warning ("%s", local_error->message);
             }
@@ -3762,14 +4020,16 @@ bind_runtime_ld_so (PvRuntime *self,
   return TRUE;
 }
 
-static void
+static gboolean
 bind_runtime_finish (PvRuntime *self,
                      FlatpakExports *exports,
-                     FlatpakBwrap *bwrap)
+                     FlatpakBwrap *bwrap,
+                     GError **error)
 {
-  g_return_if_fail (PV_IS_RUNTIME (self));
-  g_return_if_fail (exports != NULL);
-  g_return_if_fail (!pv_bwrap_was_finished (bwrap));
+  g_return_val_if_fail (PV_IS_RUNTIME (self), FALSE);
+  g_return_val_if_fail (exports != NULL, FALSE);
+  g_return_val_if_fail (!pv_bwrap_was_finished (bwrap), FALSE);
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
   pv_export_symlink_targets (exports, self->overrides, "overrides");
 
@@ -3815,27 +4075,36 @@ bind_runtime_finish (PvRuntime *self,
 
       if (is_reachable)
         {
-          flatpak_bwrap_add_args (bwrap,
-                                  "--symlink", target, "/etc/localtime",
-                                  NULL);
+          if (!pv_runtime_make_symlink_in_container (self, bwrap,
+                                                     target, "/etc/localtime",
+                                                     PV_RUNTIME_EMULATION_ROOTS_BOTH,
+                                                     error))
+            g_return_val_if_reached (FALSE);
         }
       else
         {
-          flatpak_bwrap_add_args (bwrap,
-                                  "--ro-bind", "/etc/localtime", "/etc/localtime",
-                                  NULL);
+          if (!pv_runtime_bind_into_container (self, bwrap,
+                                               "/etc/localtime", NULL, 0,
+                                               "/etc/localtime",
+                                               PV_RUNTIME_EMULATION_ROOTS_BOTH,
+                                               error))
+            g_return_val_if_reached (FALSE);
         }
 
       /* Historically we completely ignored errors here, so just warn
        * instead of bailing out. */
-      if (!flatpak_bwrap_add_args_data (bwrap, "timezone",
-                                        timezone_content, -1, "/etc/timezone",
-                                        &local_error))
+      if (!pv_runtime_bind_into_container (self, bwrap,
+                                           "timezone", timezone_content, -1,
+                                           "/etc/timezone",
+                                           PV_RUNTIME_EMULATION_ROOTS_BOTH,
+                                           &local_error))
         {
           g_warning ("%s", local_error->message);
           g_clear_error (&local_error);
         }
     }
+
+  return TRUE;
 }
 
 typedef enum
@@ -4077,6 +4346,11 @@ pv_runtime_take_from_provider (PvRuntime *self,
        * a new version over the top */
       g_assert (bwrap != NULL);
 
+      /* When setting up an interpreter root, for simplicity we require
+       * the easier mutable sysroot code-path. */
+      g_return_val_if_fail (!(self->flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT),
+                            FALSE);
+
       g_debug ("Trying to replace \"${container}/%s\" with \"%s/%s\" via "
                "bind mount",
                dest_in_container, self->provider->in_current_ns->path,
@@ -4144,6 +4418,8 @@ pv_runtime_take_from_provider (PvRuntime *self,
                                                realpath_in_provider,
                                                NULL);
       abs_dest = g_build_filename ("/", dest_in_container, NULL);
+      /* By the time we get here, we know we are not using an interpreter
+       * root, so it's OK to use --ro-bind directly */
       flatpak_bwrap_add_args (bwrap,
                               "--ro-bind", source_in_current_ns, abs_dest,
                               NULL);
@@ -5181,6 +5457,9 @@ pv_runtime_get_ld_so (PvRuntime *self,
 
       etc = g_build_filename (self->runtime_files_on_host,
                               "etc", NULL);
+      /* Intentionally not using pv_runtime_bind_into_container for this
+       * temporary adverb command; by the time we get here, we know we
+       * are not using an interpreter root anyway */
       flatpak_bwrap_add_args (temp_bwrap,
                               "--ro-bind",
                               etc,
@@ -5203,6 +5482,7 @@ pv_runtime_get_ld_so (PvRuntime *self,
                                            "etc", NULL);
           provider_etc_dest = g_build_filename (self->provider->path_in_container_ns,
                                                 "etc", NULL);
+          /* Using --ro-bind directly, as above */
           flatpak_bwrap_add_args (temp_bwrap,
                                   "--ro-bind",
                                   provider_etc,
@@ -5806,8 +6086,8 @@ pv_runtime_collect_lib_symlink_data (PvRuntime *self,
    * pv_runtime_get_capsule_capture_libs()), then the symlink will
    * point to something like /run/host/lib/libfoo.so or
    * /run/gfx/usr/lib64/libbar.so. To find the corresponding path
-   * in the graphics stack provider, we can remove the /run/host
-   * or /run/gfx prefix.
+   * in the graphics stack provider, we can remove the /run/host,
+   * /run/gfx or /var/pressure-vessel/gfx prefix.
    *
    * If capsule-capture-libs found a library elsewhere, for example
    * in $HOME or /opt, then we assume it will be visible at the same
@@ -5857,7 +6137,8 @@ collect_one_mesa_drirc (PvRuntime *self,
         /* We already created a symlink in /overrides pointing to the
          * path in the container namespace, which is the same as the
          * path in the provider namespace, but with an optional prefix
-         * that we already know how to remove (/run/host or /run/gfx). */
+         * that we already know how to remove (/run/host, /run/gfx or
+         * /var/pressure-vessel/gfx). */
         g_return_if_fail (resolved != NULL);
         symlink = g_build_filename (arch->libdir_relative_to_overrides,
                                     glnx_basename (resolved), NULL);
@@ -7732,14 +8013,16 @@ pv_runtime_bind (PvRuntime *self,
         return FALSE;
     }
 
-  if (bwrap != NULL)
-    bind_runtime_finish (self, exports, bwrap);
+  if (bwrap != NULL
+      && !bind_runtime_finish (self, exports, bwrap, error))
+    return FALSE;
 
   /* Make sure pressure-vessel itself is visible there. */
   if (self->mutable_sysroot != NULL)
     {
       g_autofree gchar *dest = NULL;
       glnx_autofd int parent_dirfd = -1;
+      const char *symlink_target = "/usr/lib/pressure-vessel/from-host";
 
       parent_dirfd = _srt_resolve_in_sysroot (self->mutable_sysroot->fd,
                                               "/usr/lib/pressure-vessel",
@@ -7758,10 +8041,15 @@ pv_runtime_bind (PvRuntime *self,
                                PV_COPY_FLAGS_CHMOD_MAY_FAIL, error))
         return FALSE;
 
+      /* Because the symlink is in a directory that doesn't exist in the
+       * $FEX_ROOTFS, its target needs to be resolvable without FEX's help. */
+      if (self->flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT)
+        symlink_target = PV_RUNTIME_PATH_INTERPRETER_ROOT "/usr/lib/pressure-vessel/from-host";
+
       if (bwrap != NULL)
         flatpak_bwrap_add_args (bwrap,
                                 "--symlink",
-                                "/usr/lib/pressure-vessel/from-host",
+                                symlink_target,
                                 "/run/pressure-vessel/pv-from-host",
                                 NULL);
 
@@ -7781,6 +8069,11 @@ pv_runtime_bind (PvRuntime *self,
 
       g_assert (bwrap != NULL);
 
+      /* When setting up an interpreter root, for simplicity we require
+       * the easier mutable sysroot code-path... */
+      g_return_val_if_fail (!(self->flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT),
+                            FALSE);
+      /* ... so it's OK to use --ro-bind directly here */
       flatpak_bwrap_add_args (bwrap,
                               "--ro-bind",
                               pressure_vessel_prefix_in_host_namespace,
@@ -7922,10 +8215,12 @@ pv_runtime_use_shared_sockets (PvRuntime *self,
 
       if (bwrap != NULL)
         {
-          flatpak_bwrap_add_args_data (bwrap, "asound.conf",
-                                       alsa_config, -1,
-                                       "/etc/asound.conf",
-                                       NULL);
+          if (!pv_runtime_bind_into_container (self, bwrap,
+                                               "asound.conf", alsa_config, -1,
+                                               "/etc/asound.conf",
+                                               PV_RUNTIME_EMULATION_ROOTS_BOTH,
+                                               error))
+            return FALSE;
         }
       else if (self->mutable_sysroot != NULL)
         {
@@ -8111,4 +8406,10 @@ pv_runtime_log_container (PvRuntime *self)
     g_debug ("\t%s", listing[i]);
 
   g_debug ("End of files in container");
+}
+
+SrtSysroot *
+pv_runtime_get_mutable_sysroot (PvRuntime *self)
+{
+  return self->mutable_sysroot;
 }

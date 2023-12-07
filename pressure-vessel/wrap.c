@@ -1478,7 +1478,17 @@ main (int argc,
       g_assert (exports != NULL);
       g_assert (bwrap_filesystem_arguments != NULL);
 
-      if (g_strcmp0 (opt_graphics_provider, "/") == 0)
+      /* When using an interpreter root, avoid /run/gfx and instead use a
+       * directory in /var. As much as possible we want each top-level
+       * directory to be either in the rootfs or in the real host system,
+       * not some mixture of the two, and the majority of /run needs to
+       * come from the real host system, for sockets and so on; but when
+       * the rootfs contains a symlink, FEX-Emu interprets it as though
+       * chrooted into the rootfs, so we have to mount the graphics
+       * provider inside the rootfs instead of in the real root. */
+      if (interpreter_root != NULL)
+        graphics_provider_mount_point = "/var/pressure-vessel/gfx";
+      else if (g_strcmp0 (opt_graphics_provider, "/") == 0)
         graphics_provider_mount_point = "/run/host";
       else
         graphics_provider_mount_point = "/run/gfx";
@@ -1496,28 +1506,42 @@ main (int argc,
 
       pv_bwrap_add_api_filesystems (bwrap_filesystem_arguments, sysfs_mode);
 
-      flatpak_bwrap_add_args (bwrap_filesystem_arguments,
-                              "--ro-bind", "/etc", "/run/host/etc", NULL);
-      if (!pv_bwrap_bind_usr (bwrap, "/", root_fd, "/run/host", error))
-        goto out;
-
       if (interpreter_root != NULL)
         {
-          /* If we are in an emulator, we also need to populate /run/host
-           * in the interpreter mount point */
-          g_autofree gchar *inter_run_host = g_build_filename (PV_RUNTIME_PATH_INTERPRETER_ROOT,
-                                                               "/run/host", NULL);
           g_autofree gchar *etc_src = g_build_filename (interpreter_root->path,
                                                         "etc", NULL);
-          g_autofree gchar *etc_dest = g_build_filename (inter_run_host, "etc", NULL);
 
+          /* Mount the interpreter root on /run/host. We'll use this
+           * to look at paths like /run/host/etc/os-release. */
           flatpak_bwrap_add_args (bwrap_filesystem_arguments,
-                                  "--ro-bind", etc_src, etc_dest, NULL);
+                                  "--ro-bind", etc_src, "/run/host/etc",
+                                  NULL);
 
           if (!pv_bwrap_bind_usr (bwrap,
                                   interpreter_root->path,
                                   interpreter_root->fd,
-                                  inter_run_host, error))
+                                  "/run/host", error))
+            goto out;
+
+          /* Mount the real root on /run/interpreter-host. We'll use this
+           * to run the interpreter. */
+          flatpak_bwrap_add_args (bwrap_filesystem_arguments,
+                                  "--ro-bind", "/etc", "/run/interpreter-host/etc",
+                                  NULL);
+
+          if (!pv_bwrap_bind_usr (bwrap, "/", root_fd, "/run/interpreter-host",
+                                  error))
+            goto out;
+
+          /* PvRuntime will mount the graphics stack provider on /gfx
+           * and PV_RUNTIME_PATH_INTERPRETER_ROOT/gfx if necessary. */
+        }
+      else
+        {
+          flatpak_bwrap_add_args (bwrap_filesystem_arguments,
+                                  "--ro-bind", "/etc", "/run/host/etc", NULL);
+
+          if (!pv_bwrap_bind_usr (bwrap, "/", root_fd, "/run/host", error))
             goto out;
         }
 
