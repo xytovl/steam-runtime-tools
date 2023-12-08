@@ -853,8 +853,7 @@ class Main:
                     'Expected {} to be an empty regular file'.format(path)
                 )
 
-    @staticmethod
-    def prune_runtime(directory: Path) -> None:
+    def prune_runtime(self, directory: Path) -> None:
         """
         Remove files that are considered to be unnecessary
         """
@@ -884,6 +883,9 @@ class Main:
             # using.
             *[x for x in usr_share.glob('locale/*') if x.name != 'en'],
         ]
+
+        if self.runtime.suite not in ('scout', 'heavy', 'soldier', 'sniper'):
+            paths.extend(directory.glob('files/lib/*/dri'))
 
         for path in paths:
             if path.is_dir():
