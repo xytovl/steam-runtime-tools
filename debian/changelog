@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20231208.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20231208.0) steamrt; urgency=medium
 
   * pressure-vessel:
     - Try to load NSS plugins without relying on ld.so.cache, fixing
@@ -13,7 +13,7 @@ steam-runtime-tools (0.20231208.0) UNRELEASED; urgency=medium
       (steamrt/tasks#364)
     - When running pv-verify, allow SteamLinuxRuntime_whatever/.ref to exist
 
- -- Simon McVittie <smcv@collabora.com>  Fri, 08 Dec 2023 12:28:10 +0000
+ -- Simon McVittie <smcv@collabora.com>  Fri, 08 Dec 2023 12:28:58 +0000
 
 steam-runtime-tools (0.20231128.0) steamrt; urgency=medium
 
