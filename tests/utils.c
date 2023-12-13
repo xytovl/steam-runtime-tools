@@ -26,8 +26,11 @@
 #include <steam-runtime-tools/steam-runtime-tools.h>
 
 #include <dlfcn.h>
+#include <netinet/in.h>
 #include <sys/resource.h>
+#include <sys/socket.h>
 #include <sys/time.h>
+#include <sys/un.h>
 #include <syslog.h>
 
 #include <glib.h>
@@ -116,6 +119,167 @@ test_bits_set (Fixture *f,
 {
   g_assert_true (_srt_all_bits_set (0xff, 0x01 | 0x02 | 0x10));
   g_assert_false (_srt_all_bits_set (0x51, 0x01 | 0x02 | 0x10));
+}
+
+static void
+test_describe_fd (Fixture *f,
+                  gconstpointer context)
+{
+    {
+      g_autofree gchar *desc = _srt_describe_fd (-1);
+
+      g_assert_nonnull (desc);
+      g_test_message ("Description of invalid fd: %s", desc);
+    }
+
+    {
+      glnx_autofd int fd = open ("/", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+      g_autofree gchar *desc = _srt_describe_fd (fd);
+
+      g_test_message ("Description of file: %s", desc);
+      g_assert_cmpstr (desc, ==, "/");
+    }
+
+    {
+      glnx_autofd int fd = open ("/dev/null", O_RDWR | O_CLOEXEC);
+      g_autofree gchar *desc = _srt_describe_fd (fd);
+
+      g_test_message ("Description of file: %s", desc);
+      g_assert_cmpstr (desc, ==, "/dev/null");
+    }
+
+    {
+      int socks[2];
+      g_autofree gchar *desc = NULL;
+
+      g_assert_no_errno (socketpair (AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0, socks));
+      desc = _srt_describe_fd (socks[0]);
+      g_assert_nonnull (desc);
+      g_test_message ("Description of half of a socketpair: %s", desc);
+      glnx_close_fd (&socks[0]);
+      glnx_close_fd (&socks[1]);
+    }
+
+    {
+      g_auto(SrtPipe) p = _SRT_PIPE_INIT;
+      g_autoptr(GError) local_error = NULL;
+      g_autofree gchar *desc = NULL;
+
+      _srt_pipe_open (&p, &local_error);
+      g_assert_no_error (local_error);
+      desc = _srt_describe_fd (p.fds[0]);
+      g_assert_nonnull (desc);
+      g_test_message ("Description of half of a pipe: %s", desc);
+    }
+
+    {
+      static union
+        {
+          struct sockaddr addr;
+          struct sockaddr_un un;
+        }
+      journal_address =
+        {
+          .un =
+            {
+              .sun_family = AF_UNIX,
+              .sun_path = "/run/systemd/journal/socket"
+            }
+        };
+      glnx_autofd int fd = socket (AF_UNIX, SOCK_DGRAM, 0);
+
+      g_assert_no_errno (fd);
+
+      /* This will only work if systemd-journald happens to be running */
+      if (connect (fd, &journal_address.addr, sizeof (journal_address)) == 0)
+        {
+          g_autofree gchar *desc = _srt_describe_fd (fd);
+
+          g_assert_nonnull (desc);
+          g_test_message ("Description of connected Unix socket: %s", desc);
+        }
+    }
+
+    {
+      union
+        {
+          struct sockaddr addr;
+          struct sockaddr_in in;
+        }
+      address =
+        {
+          .in = { .sin_family = AF_INET }
+        };
+      glnx_autofd int fd = socket (AF_INET, SOCK_STREAM, 0);
+
+      g_assert_no_errno (fd);
+
+      address.in.sin_port = htons (0);
+      address.in.sin_addr.s_addr = htonl (INADDR_ANY);
+
+      if (bind (fd, &address.addr, sizeof (address)) == 0)
+        {
+          g_autofree gchar *desc = _srt_describe_fd (fd);
+
+          g_assert_nonnull (desc);
+          g_test_message ("Description of bound IPv4 socket: %s", desc);
+        }
+    }
+
+    {
+      union
+        {
+          struct sockaddr addr;
+          struct sockaddr_in in;
+        }
+      address =
+        {
+          .in = { .sin_family = AF_INET }
+        };
+      glnx_autofd int fd = socket (AF_INET, SOCK_STREAM, 0);
+
+      g_assert_no_errno (fd);
+
+      address.in.sin_port = htons (53);
+      address.in.sin_addr.s_addr = htonl (INADDR_LOOPBACK);
+
+      /* This will only work if a local DNS resolver happens to be running */
+      if (connect (fd, &address.addr, sizeof (address)) == 0)
+        {
+          g_autofree gchar *desc = _srt_describe_fd (fd);
+
+          g_assert_nonnull (desc);
+          g_test_message ("Description of connected IPv4 socket: %s", desc);
+        }
+    }
+
+    {
+      union
+        {
+          struct sockaddr addr;
+          struct sockaddr_in6 in6;
+        }
+      address =
+        {
+          .in6 =
+            {
+              .sin6_family = AF_INET6,
+              .sin6_flowinfo = 0,
+              .sin6_scope_id = 0
+            }
+        };
+      glnx_autofd int fd = socket (AF_INET6, SOCK_STREAM, 0);
+
+      address.in6.sin6_port = htons (0);
+
+      if (fd >= 0 && bind (fd, &address.addr, sizeof (address)) == 0)
+        {
+          g_autofree gchar *desc = _srt_describe_fd (fd);
+
+          g_assert_nonnull (desc);
+          g_test_message ("Description of bound IPv6 socket: %s", desc);
+        }
+    }
 }
 
 static void
@@ -1230,6 +1394,8 @@ main (int argc,
   g_test_add ("/utils/avoid-gvfs", Fixture, NULL, setup, test_avoid_gvfs, teardown);
   g_test_add ("/utils/bits-set", Fixture, NULL,
               setup, test_bits_set, teardown);
+  g_test_add ("/utils/describe-fd", Fixture, NULL,
+              setup, test_describe_fd, teardown);
   g_test_add ("/utils/dir-iter", Fixture, NULL,
               setup, test_dir_iter, teardown);
   g_test_add ("/utils/escape_steam_runtime", Fixture, NULL,
