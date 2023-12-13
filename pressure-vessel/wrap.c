@@ -966,7 +966,6 @@ main (int argc,
   g_autoptr(PvRuntime) runtime = NULL;
   glnx_autofd int original_stdout = -1;
   glnx_autofd int original_stderr = -1;
-  g_autoptr(GArray) pass_fds_through_adverb = g_array_new (FALSE, FALSE, sizeof (int));
   const char *graphics_provider_mount_point = NULL;
   const char *steam_app_id;
   g_autoptr(GPtrArray) adverb_preload_argv = NULL;
@@ -2274,13 +2273,6 @@ main (int argc,
               flatpak_bwrap_add_fd (adverb_argv, fd);
               flatpak_bwrap_add_arg_printf (adverb_argv, "--pass-fd=%d", fd);
             }
-        }
-
-      for (i = 0; i < pass_fds_through_adverb->len; i++)
-        {
-          int fd = g_array_index (pass_fds_through_adverb, int, i);
-
-          flatpak_bwrap_add_arg_printf (adverb_argv, "--pass-fd=%d", fd);
         }
 
       switch (opt_shell)
