@@ -60,6 +60,9 @@ pv_bwrap_run_sync (FlatpakBwrap *bwrap,
 /**
  * pv_bwrap_execve:
  * @bwrap: A #FlatpakBwrap on which flatpak_bwrap_finish() has been called
+ * @inherit_fds (array length=n_inherit_fds): Allow these fds to be
+ *  inherited across execve(), but without seeking to the beginning
+ * @n_inherit_fds: Number of entries in @inherit_fds
  * @error: Used to raise an error on failure
  *
  * Attempt to replace the current process with the given bwrap command.
@@ -69,9 +72,12 @@ pv_bwrap_run_sync (FlatpakBwrap *bwrap,
  */
 gboolean
 pv_bwrap_execve (FlatpakBwrap *bwrap,
+                 int *inherit_fds,
+                 size_t n_inherit_fds,
                  GError **error)
 {
   int saved_errno;
+  size_t i;
 
   g_return_val_if_fail (bwrap != NULL, FALSE);
   g_return_val_if_fail (bwrap->argv->len >= 2, FALSE);
@@ -83,6 +89,20 @@ pv_bwrap_execve (FlatpakBwrap *bwrap,
 
   if (bwrap->fds != NULL && bwrap->fds->len > 0)
     flatpak_bwrap_child_setup_cb (bwrap->fds);
+
+  for (i = 0; i < n_inherit_fds; i++)
+    {
+      int fd = inherit_fds[i];
+      int fd_flags;
+
+      fd_flags = fcntl (fd, F_GETFD);
+
+      if (fd_flags >= 0
+          && (fd_flags & FD_CLOEXEC) != 0
+          && fcntl (fd, F_SETFD, fd_flags & ~FD_CLOEXEC) != 0)
+        g_warning ("Unable to clear close-on-exec flag of fd %d: %s",
+                   fd, g_strerror (errno));
+    }
 
   fflush (stdout);
   fflush (stderr);

@@ -936,6 +936,7 @@ int
 main (int argc,
       char *argv[])
 {
+  g_autoptr(GArray) inherit_fds = g_array_new (FALSE, FALSE, sizeof (int));
   g_autoptr(GOptionContext) context = NULL;
   g_autoptr(GError) local_error = NULL;
   GError **error = &local_error;
@@ -2258,10 +2259,10 @@ main (int argc,
                               "--subreaper",
                               NULL);
 
-      flatpak_bwrap_add_fd (adverb_argv, original_stdout);
+      g_array_append_val (inherit_fds, original_stdout);
       flatpak_bwrap_add_arg_printf (adverb_argv, "--assign-fd=%d=%d",
                                     STDOUT_FILENO, original_stdout);
-      flatpak_bwrap_add_fd (adverb_argv, original_stderr);
+      g_array_append_val (inherit_fds, original_stderr);
       flatpak_bwrap_add_arg_printf (adverb_argv, "--assign-fd=%d=%d",
                                     STDERR_FILENO, original_stderr);
 
@@ -2271,7 +2272,7 @@ main (int argc,
             {
               int fd = g_array_index (opt_pass_fds, int, i);
 
-              flatpak_bwrap_add_fd (adverb_argv, fd);
+              g_array_append_val (inherit_fds, fd);
               flatpak_bwrap_add_arg_printf (adverb_argv, "--pass-fd=%d", fd);
             }
         }
@@ -2469,7 +2470,9 @@ main (int argc,
   if (opt_systemd_scope)
     pv_wrap_move_into_scope (steam_app_id);
 
-  pv_bwrap_execve (final_argv, error);
+  pv_bwrap_execve (final_argv,
+                   (int *) inherit_fds->data, inherit_fds->len,
+                   error);
 
 out:
   if (local_error != NULL)
