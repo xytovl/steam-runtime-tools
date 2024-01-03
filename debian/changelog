@@ -1,3 +1,15 @@
+steam-runtime-tools (0.20240103.0) steamrt; urgency=medium
+
+  * pv-wrap: Don't register stdout, stderr, --pass-fd with FlatpakBwrap.
+    This fixes two separate issues:
+    - if stdout/stderr were directed to a log file, pv-adverb output would
+      start again at byte 0, overwriting pv-wrap output;
+    - on error, we would crash with an assertion failure on trying to close
+      those fds twice
+    (steamrt/tasks#370, fixing a regression in v0.20230621.0)
+
+ -- Simon McVittie <smcv@collabora.com>  Wed, 03 Jan 2024 17:12:15 +0000
+
 steam-runtime-tools (0.20231208.0) steamrt; urgency=medium
 
   * pressure-vessel:
