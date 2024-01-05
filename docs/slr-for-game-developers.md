@@ -105,12 +105,13 @@ Native Linux games that require sniper can be released on Steam.
 The intention is that this will become available as a "self-service"
 feature via the Steamworks partner web interface, which can be used by
 any game that benefits from a newer library stack.
-However, as of early 2023, this mechanism is not yet ready, so configuring
+However, as of early 2024, this mechanism is not yet ready, so configuring
 a game to run in sniper requires manual setup by a Valve developer.
 Please contact Valve for more information.
 
 Early adopters for this mechanism include
 [Battle for Wesnoth][Wesnoth on sniper],
+Counter-Strike 2,
 Dota 2,
 [Endless Sky][Endless Sky on sniper] and
 [Retroarch][Retroarch on sniper].

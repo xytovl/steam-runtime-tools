@@ -55,6 +55,9 @@ For the compatibility tools provided by Steam itself, such as
 Steam Linux Runtime and Proton, the equivalent of this information is
 downloaded out-of-band and stored in `~/.steam/root/appcache/appinfo.vdf`,
 so the depot downloaded into the Steam library will not contain this file.
+As of early 2024, details of these built-in compatibility tools
+can be viewed on the third-party SteamDB site as part of
+[the app info of app 891390 "SteamPlay 2.0 Manifests][app891390-info].
 
 Third-party compatibility tools can be installed in various locations
 such as `~/.steam/root/compatibilitytools.d`.
@@ -139,6 +142,13 @@ is a [VDF][] text file with one top-level entry, `manifest`.
     instead of proceeding directly to `SIGKILL`, to give it a chance
     to do graceful cleanup.
 
+## The legacy `LD_LIBRARY_PATH` Steam Runtime
+
+Older native Linux games on desktop systems (but usually not on Steam Deck)
+are run in the [scout `LD_LIBRARY_PATH` runtime][ldlp].
+This is an older mechanism than the compatibility tool interface, and does
+not have a tool manifest or a compatibility tool declaration.
+
 ## Command-line
 
 In a version 1 manifest, the `commandline` is a shell expression.
@@ -168,6 +178,23 @@ look something like this:
 
 (In reality it would all be one line, rather than having escaped newlines
 as shown here.)
+
+For historical reasons, this command-line is normally run in the
+[scout `LD_LIBRARY_PATH` runtime][ldlp] environment.
+Most compatibility tools that do not already depend on another
+compatibility tool will want to start by "escaping" from the scout
+environment to get back to something more closely resembling the host
+operating system environment: one convenient way to do this is to run a
+command wrapped with
+`"$STEAM_RUNTIME/scripts/switch-runtime.sh" --runtime="" --`.
+See the `undo_steamrt` function in that script for more details of what
+that means in practice.
+
+Conversely, for non-Steam game shortcuts, this command-line is normally
+run in an execution environment resembling the host operating system
+environment.
+Compatibility tools that do not already depend on another compatibility
+tool should be prepared to operate correctly in this situation.
 
 ## Launch options
 
@@ -201,6 +228,9 @@ Please note that not all invocations of compatibility tools take the
 user-specified launch options into account: they are used when running
 the actual game, but they are not used for install scripts.
 
+Because the launch options are part of the command-line, they are run
+in the [scout `LD_LIBRARY_PATH` runtime][ldlp] environment.
+
 ## Environment
 
 Some environment variables are set by Steam, including:
@@ -208,6 +238,9 @@ Some environment variables are set by Steam, including:
 * `LD_LIBRARY_PATH`:
 
     Used to load Steam Runtime libraries.
+
+    In the legacy [scout `LD_LIBRARY_PATH` runtime][ldlp], this variable
+    is particularly important.
 
 * `LD_PRELOAD`:
 
@@ -217,10 +250,19 @@ Some environment variables are set by Steam, including:
 
     The decimal app-ID of the game, for example 440 for Team Fortress 2.
 
+    In the legacy [scout `LD_LIBRARY_PATH` runtime][ldlp], this variable
+    is not set.
+    Falling back to `$SteamAppId` can be used as an alternative.
+
 * `STEAM_COMPAT_CLIENT_INSTALL_PATH`:
 
     The absolute path to the directory where Steam is installed. This is the
     same as the target of the `~/.steam/root` symbolic link.
+
+    In the legacy [scout `LD_LIBRARY_PATH` runtime][ldlp], this variable
+    is not set.
+    Falling back to dereferencing `~/.steam/root` can be used as an
+    alternative.
 
 * `STEAM_COMPAT_DATA_PATH`:
 
@@ -228,12 +270,38 @@ Some environment variables are set by Steam, including:
     store game-specific data. For example, Proton puts its `WINEPREFIX`
     in `$STEAM_COMPAT_DATA_PATH/pfx`.
 
+    In the legacy [scout `LD_LIBRARY_PATH` runtime][ldlp], this variable
+    is not set.
+
+* `STEAM_COMPAT_FLAGS`:
+
+    A comma-separated sequence of tokens set by Steam according to the
+    game's metadata, affecting the functioning of various compatibility
+    tools:
+
+    * `search-cwd`: Instructs the legacy `LD_LIBRARY_PATH` runtime to
+        append the `${STEAM_COMPAT_INSTALL_PATH}` to the `LD_LIBRARY_PATH`,
+        for backward compatibility with older games that might rely on this
+        behaviour (which was originally a bug in `run.sh`).
+        This is currently only supported by scout-compatible environments,
+        and not by Steam Runtime 2 'soldier' or later.
+
+    * `search-cwd-first`: Same as **search-cwd**,
+        but the `${STEAM_COMPAT_INSTALL_PATH}` is prepended to the
+        `LD_LIBRARY_PATH` instead of appending.
+
+    * Other tokens are likely to be added in future.
+        Games and compatibility tools should ignore unknown flags.
+
 * `STEAM_COMPAT_INSTALL_PATH`:
 
     The absolute path to the game's [install folder][], for example
     `/home/you/.local/share/Steam/steamapps/common/Estranged Act I`,
     even if the current working directory is a subdirectory of this
     (as is the case for Estranged: Act I (261820) for example).
+
+    In the legacy [scout `LD_LIBRARY_PATH` runtime][ldlp], this variable
+    is not set.
 
 * `STEAM_COMPAT_LAUNCHER_SERVICE`:
 
@@ -264,11 +332,17 @@ Some environment variables are set by Steam, including:
     If unset, empty or set to an unrecognised string, then no debugging
     commands will be inserted.
 
+    In the legacy [scout `LD_LIBRARY_PATH` runtime][ldlp], this variable
+    is not used.
+
 * `STEAM_COMPAT_LIBRARY_PATHS`:
 
     Colon-delimited list of paths to Steam Library directories containing
     the game, the compatibility tools  if  any,  and any  other resources
     that the game will need, such as DirectX installers.
+
+    In the legacy [scout `LD_LIBRARY_PATH` runtime][ldlp], this variable
+    is not set.
 
 * `STEAM_COMPAT_MOUNTS`:
 
@@ -515,6 +589,7 @@ unless this is set to the game's top-level directory.
 
 [Steamworks launch options]: https://partner.steamgames.com/doc/sdk/uploading
 [VDF]: https://developer.valvesoftware.com/wiki/KeyValues
+[app891390-info]: https://steamdb.info/app/891390/info/
 [install folder]: https://partner.steamgames.com/doc/store/application/depots
 [install script]: https://partner.steamgames.com/doc/sdk/installscripts
 [install scripts]: https://partner.steamgames.com/doc/sdk/installscripts

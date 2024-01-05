@@ -40,16 +40,17 @@ Steam games:
 - The [container runtime framework][container runtime],
     implemented in terms of containers launched by the pressure-vessel tool.
     Instances of this can be found in
-    `.../steamapps/common/SteamLinuxRuntime_soldier` and perhaps
+    `.../steamapps/common/SteamLinuxRuntime_soldier` and/or
     `.../steamapps/common/SteamLinuxRuntime_sniper`.
-    [Steam Runtime 2 'soldier'][soldier]
+    [Steam Linux Runtime 2.0 'soldier'][soldier]
     is based on Debian 10.
-    [Steam Runtime 3 'sniper'][sniper]
+    [Steam Linux Runtime 3.0 'sniper'][sniper]
     is based on Debian 11.
 
 To improve long-term compatibility with older native Linux games, there
 is also a special container runtime
 [`.../steamapps/common/SteamLinuxRuntime`][scout-on-soldier],
+referred to as `Steam Linux Runtime 1.0 (scout)`,
 which starts a Steam Runtime 2 'soldier' container and then uses a
 Steam Runtime 1 'scout' environment inside that container.
 This behaves like a combination of 'soldier' and 'scout'.
@@ -612,8 +613,6 @@ Some games that have been particularly useful in the past for this include:
 * [Floating Point][] (very small, low hardware requirements, 32-bit, OpenGL)
 * [Team Fortress 2][] (32-bit, OpenGL)
 * [Life is Strange, episode 1][Life is Strange] (32-bit, OpenGL)
-* [Counter-Strike: Global Offensive][CSGO]
-    (64-bit, normally OpenGL, Vulkan with `-vulkan` option)
 * [Aperture Desk Job][] (64-bit, Vulkan)
 
 Setting the environment variable `STEAM_LINUX_RUNTIME_LOG=1` makes
