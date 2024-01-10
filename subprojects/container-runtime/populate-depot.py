@@ -96,7 +96,7 @@ class PressureVesselRelease:
         version: str = ''
     ) -> None:
         self.cache = cache
-        self.pinned_version = None      # type: Optional[str]
+        self.pinned_version: Optional[str] = None
         self.ssh_host = ssh_host
         self.ssh_path = ssh_path
         self.uri = uri
@@ -207,8 +207,8 @@ class Runtime:
         self.ssh_host = ssh_host
         self.ssh_path = ssh_path
         self.version = version
-        self.pinned_version = None      # type: Optional[str]
-        self.sha256 = {}                # type: Dict[str, str]
+        self.pinned_version: Optional[str] = None
+        self.sha256: Dict[str, str] = {}
 
         os.makedirs(self.cache, exist_ok=True)
 
@@ -389,7 +389,7 @@ class Runtime:
         opener: urllib.request.OpenerDirector,
     ) -> str:
         pinned = self.pinned_version
-        sha256 = {}     # type: Dict[str, str]
+        sha256: Dict[str, str] = {}
 
         if pinned is None:
             if self.ssh_host and self.ssh_path:
@@ -683,7 +683,7 @@ class Main:
 
         self.runtime = self.new_runtime(name, details)
 
-        self.versions = []      # type: List[ComponentVersion]
+        self.versions: List[ComponentVersion] = []
 
         if pressure_vessel_guess:
             if self.runtime.name == pressure_vessel_guess:
@@ -702,7 +702,7 @@ class Main:
             else:
                 pressure_vessel_from_runtime = pressure_vessel_guess
 
-        self.pressure_vessel_runtime = None     # type: Optional[Runtime]
+        self.pressure_vessel_runtime: Optional[Runtime] = None
         self.pressure_vessel_version = ''
 
         if pressure_vessel_version:
@@ -1205,13 +1205,13 @@ class Main:
                     '--verb=%verb%',
                     '--',
                 ]
-                content = dict(
+                content: Dict[str, Any] = dict(
                     manifest=dict(
                         commandline=' '.join(words),
                         version='2',
                         use_tool_subprocess_reaper='1',
                     )
-                )       # type: Dict[str, Any]
+                )
 
                 if runtime.suite != 'scout':
                     content['manifest']['unlisted'] = '1'
@@ -1462,7 +1462,7 @@ class Main:
                                 exist_ok=True,
                             )
 
-                            file_path = {}    # type: Dict[str, str]
+                            file_path: Dict[str, str] = {}
 
                             for f in stanza['files']:
                                 name = f['name']
@@ -1525,7 +1525,7 @@ class Main:
         )
 
     def octal_escape_char(self, match: 're.Match') -> str:
-        ret = []    # type: List[str]
+        ret: List[str] = []
 
         for byte in match.group(0).encode('utf-8', 'surrogateescape'):
             ret.append('\\%03o' % byte)
@@ -1560,11 +1560,11 @@ class Main:
         preserve_time: bool = True,
         skip_runtime_files: bool = False
     ) -> Dict[str, str]:
-        lc_names = {}                   # type: Dict[str, str]
-        differ_only_by_case = set()     # type: Set[str]
-        not_windows_friendly = set()    # type: Set[str]
-        sha256 = {}                     # type: Dict[Tuple[int, int], str]
-        paths = {}                      # type: Dict[Tuple[int, int], str]
+        lc_names: Dict[str, str] = {}
+        differ_only_by_case: Set[str] = set()
+        not_windows_friendly: Set[str] = set()
+        sha256: Dict[Tuple[int, int], str] = {}
+        paths: Dict[Tuple[int, int], str] = {}
 
         writer.write('#mtree\n')
         writer.write('. type=dir\n')
