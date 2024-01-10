@@ -1190,9 +1190,7 @@ class Main:
             component_version.comment = comment
             self.versions.append(component_version)
 
-        for runtime in (self.runtime,):     # too much to reindent right now
-            if not self.toolmanifest:
-                continue
+        if self.toolmanifest:
 
             with open(
                 os.path.join(self.depot, 'toolmanifest.vdf'), 'w'
