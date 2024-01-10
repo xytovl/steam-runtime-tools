@@ -558,6 +558,7 @@ class Main:
         ssh_host: str = '',
         ssh_path: str = '',
         steam_app_id: str = '',
+        steam_depot_id: str = '',
         suite: str = '',
         toolmanifest: bool = False,
         unpack_ld_library_path: str = '',
@@ -628,6 +629,7 @@ class Main:
         self.ssh_host = ssh_host
         self.ssh_path = ssh_path
         self.steam_app_id = steam_app_id
+        self.steam_depot_id = steam_depot_id
         self.toolmanifest = toolmanifest
         self.unpack_ld_library_path = unpack_ld_library_path
         self.unpack_runtime = unpack_runtime
@@ -1967,12 +1969,13 @@ def main() -> None:
             'Source directory for files to include in the depot'
         )
     )
-    # Not actually used for anything at the moment, but kept for
-    # CLI backwards-compat. We could potentially use it to select
-    # depot configuration in steampipe/
     parser.add_argument(
         '--steam-app-id', default='',
         help='Set Steam app ID for the depot',
+    )
+    parser.add_argument(
+        '--steam-depot-id', default='',
+        help='Set Steam depot ID',
     )
     parser.add_argument(
         '--toolmanifest', default=False, action='store_true',
