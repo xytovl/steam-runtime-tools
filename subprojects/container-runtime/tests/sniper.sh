@@ -75,6 +75,8 @@ rm -fr depots/test-sniper-unpacked
 mkdir -p depots/test-sniper-unpacked
 python3 ./populate-depot.py \
     --depot=depots/test-sniper-unpacked \
+    --depot-archive=depots/SteamLinuxRuntime_sniper.tar.xz \
+    --fast \
     --no-include-archives \
     --toolmanifest \
     --unpack-runtime \
