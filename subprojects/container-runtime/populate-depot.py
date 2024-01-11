@@ -779,6 +779,9 @@ class Main:
 
         self.write_top_level_mtree()
 
+        if self.steam_app_id and self.steam_depot_id:
+            self.write_steampipe_config()
+
     def do_layered_runtime(self) -> None:
         if self.runtime.name != 'scout':
             raise InvocationError('Can only layer scout onto soldier')
@@ -1574,6 +1577,10 @@ class Main:
                 member = Path(dirpath) / base
                 name = str(member.relative_to(top))
 
+                if name == 'steampipe' and base in dirnames:
+                    dirnames.remove(base)
+                    continue
+
                 if (
                     skip_runtime_files
                     and base == 'files'
@@ -1708,6 +1715,13 @@ class Main:
             if '.ref' not in lc_names:
                 writer.write('./.ref type=file size=0 optional\n')
 
+            if (
+                self.steam_app_id
+                and self.steam_depot_id
+                and 'steampipe' not in lc_names
+            ):
+                writer.write('./steampipe type=dir ignore optional\n')
+
             if 'var' not in lc_names:
                 writer.write('./var type=dir ignore optional\n')
 
@@ -1746,6 +1760,64 @@ class Main:
             except OSError as e:
                 if e.errno != errno.ENOTEMPTY:
                     raise
+
+    def write_steampipe_config(self) -> None:
+        import vdf                          # noqa
+        from vdf.vdict import VDFDict       # noqa
+
+        assert self.steam_app_id
+        assert self.steam_depot_id
+
+        depot = Path(self.depot)
+        steampipe = depot / 'steampipe'
+        steampipe.mkdir(exist_ok=True)
+        app_vdf = f'app_build_{self.steam_app_id}.vdf'
+        depot_vdf = f'depot_build_{self.steam_depot_id}.vdf'
+
+        content = dict(
+            appbuild=dict(
+                appid=self.steam_app_id,
+                buildoutput='output',
+                depots={self.steam_depot_id: depot_vdf},
+            )
+        )
+
+        with open(steampipe / app_vdf, 'w') as writer:
+            vdf.dump(content, writer, pretty=True, escaped=True)
+
+        file_mappings: List[Tuple[str, Any]] = []
+
+        for child in sorted(depot.iterdir()):
+            if child.name in ('steampipe', 'var'):
+                continue
+            elif child.is_dir():
+                file_mappings.append(
+                    (
+                        'FileMapping', dict(
+                            LocalPath=f'../{child.name}/*',
+                            DepotPath=f'{child.name}/',
+                            recursive='1',
+                        ),
+                    )
+                )
+            else:
+                file_mappings.append(
+                    (
+                        'FileMapping', dict(
+                            LocalPath=child.relative_to(depot),
+                            DepotPath='.',
+                        ),
+                    )
+                )
+
+        content = dict(
+            DepotBuildConfig=VDFDict(
+                [('DepotID', self.steam_depot_id)] + file_mappings,
+            )
+        )
+
+        with open(steampipe / depot_vdf, 'w') as writer:
+            vdf.dump(content, writer, pretty=True, escaped=True)
 
 
 def main() -> None:

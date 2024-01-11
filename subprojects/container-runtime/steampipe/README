@@ -1,0 +1,5 @@
+These are only here for backwards-compat.
+
+For new integration steps, consider running `populate-depot.py` with
+`--steam-app-id=x --steam-depot-id=y`, and then using the `steampipe/*.vdf`
+inside the generated depot to upload it.

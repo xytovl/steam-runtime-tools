@@ -40,6 +40,8 @@ echo "${depot_version#v}" > subprojects/container-runtime/.tarball-version
     --steam-app-id=1070560 \
     scout
 head -n-0 "$builddir/steam-container-runtime/depot/VERSIONS.txt"
+rm -fr "$builddir/steam-container-runtime/depot/steampipe"
+rm -fr "$builddir/steam-container-runtime/depot/var"
 tar \
     -C "$builddir" \
     --clamp-mtime \
