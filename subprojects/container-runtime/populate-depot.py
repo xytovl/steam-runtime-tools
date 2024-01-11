@@ -45,7 +45,9 @@ import shlex
 import shutil
 import stat
 import subprocess
+import tarfile
 import tempfile
+import time
 import urllib.parse
 import urllib.request
 from contextlib import suppress
@@ -535,7 +537,9 @@ class Main:
         credential_envs: Sequence[str] = (),
         credential_hosts: Sequence[str] = (),
         depot: str = 'depot',
+        depot_archive: str = '',
         depot_version: str = '',
+        fast: bool = False,
         images_uri: str = DEFAULT_IMAGES_URI,
         include_archives: bool = False,
         include_sdk_debug: bool = False,
@@ -613,7 +617,9 @@ class Main:
         self.default_suite = suite
         self.default_version = version
         self.depot = os.path.abspath(depot)
+        self.depot_archive = depot_archive
         self.depot_version = depot_version
+        self.fast = fast
         self.images_uri = images_uri
         self.include_archives = include_archives
         self.include_sdk_debug = include_sdk_debug
@@ -636,6 +642,12 @@ class Main:
         self.unpack_sources = unpack_sources
         self.unpack_sources_into = unpack_sources_into
         self.versioned_directories = versioned_directories
+
+        if (
+            depot_archive
+            and not depot_archive.endswith(('.tar.gz', '.tar.xz'))
+        ):
+            raise InvocationError(f'Unknown archive format: {depot_archive}')
 
         n_sources = 0
 
@@ -730,6 +742,11 @@ class Main:
                 default_suite='scout',
             )
 
+        if 'SOURCE_DATE_EPOCH' in os.environ:
+            self.reference_timestamp = int(os.environ['SOURCE_DATE_EPOCH'])
+        else:
+            self.reference_timestamp = int(time.time())
+
     def new_runtime(
         self,
         name: str,
@@ -781,6 +798,9 @@ class Main:
 
         if self.steam_app_id and self.steam_depot_id:
             self.write_steampipe_config()
+
+        if self.depot_archive:
+            self.do_depot_archive(self.depot_archive)
 
     def do_layered_runtime(self) -> None:
         if self.runtime.name != 'scout':
@@ -1819,6 +1839,85 @@ class Main:
         with open(steampipe / depot_vdf, 'w') as writer:
             vdf.dump(content, writer, pretty=True, escaped=True)
 
+    def do_depot_archive(self, name: str) -> None:
+        if name.endswith('.tar.gz'):
+            compress_command = ['pigz', '--fast', '-c', '-n', '--rsyncable']
+            stem = name[:-len('.tar.gz')]
+        elif name.endswith('.tar.xz'):
+            if self.fast:
+                compress_command = ['xz', '-0']
+            else:
+                compress_command = ['xz']
+
+            stem = name[:-len('.tar.xz')]
+        else:
+            raise InvocationError(f'Unknown archive format: {name}')
+
+        stem = Path(stem).name
+
+        with open(
+            name, 'wb'
+        ) as archive_writer, subprocess.Popen(
+            compress_command,
+            stdin=subprocess.PIPE,
+            stdout=archive_writer,
+        ) as compressor, tarfile.open(
+            name,
+            mode='w|',
+            format=tarfile.GNU_FORMAT,
+            fileobj=compressor.stdin,
+        ) as archiver:
+            members = []
+            depot = Path(self.depot)
+
+            for dir_path, dirs, files in os.walk(
+                depot,
+                topdown=True,
+                followlinks=False,
+            ):
+                rel_dir = Path(dir_path).relative_to(depot)
+
+                if rel_dir == Path('.'):
+                    for exclude in ('var',):
+                        try:
+                            dirs.remove(exclude)
+                        except ValueError:
+                            pass
+
+                for item in dirs + files:
+                    members.append(rel_dir / item)
+
+            root = tarfile.TarInfo(stem)
+            root.size = 0
+            root.type = tarfile.DIRTYPE
+            root = self.normalize_tar_entry(root)
+            archiver.addfile(root)
+
+            for member in sorted(members):
+                archiver.add(
+                    str(depot / member),
+                    arcname=f'{stem}/{member}',
+                    recursive=False,
+                    filter=self.normalize_tar_entry,
+                )
+
+    def normalize_tar_entry(self, entry: tarfile.TarInfo) -> tarfile.TarInfo:
+        entry.uid = 65534
+        entry.gid = 65534
+
+        if entry.mtime > self.reference_timestamp:
+            entry.mtime = self.reference_timestamp
+
+        if (entry.mode & 0o111) != 0 or entry.isdir():
+            entry.mode = 0o755
+        else:
+            entry.mode = 0o644
+
+        entry.uname = 'nobody'
+        entry.gname = 'nogroup'
+
+        return entry
+
 
 def main() -> None:
     logging.basicConfig()
@@ -1910,6 +2009,18 @@ def main() -> None:
         '--depot-version', default='',
         help=(
             'Set an overall version number for the depot contents'
+        )
+    )
+    parser.add_argument(
+        '--depot-archive', default='',
+        help=(
+            'Export the depot as an archive'
+        )
+    )
+    parser.add_argument(
+        '--fast', default=False, action='store_true',
+        help=(
+            'Speed up compression at the expense of compression ratio'
         )
     )
     parser.add_argument(
