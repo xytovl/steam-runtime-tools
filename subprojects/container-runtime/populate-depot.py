@@ -1842,18 +1842,18 @@ class Main:
     def do_depot_archive(self, name: str) -> None:
         if name.endswith('.tar.gz'):
             compress_command = ['pigz', '--fast', '-c', '-n', '--rsyncable']
-            stem = name[:-len('.tar.gz')]
+            artifact_prefix = name[:-len('.tar.gz')]
         elif name.endswith('.tar.xz'):
             if self.fast:
                 compress_command = ['xz', '-0']
             else:
                 compress_command = ['xz']
 
-            stem = name[:-len('.tar.xz')]
+            artifact_prefix = name[:-len('.tar.xz')]
         else:
             raise InvocationError(f'Unknown archive format: {name}')
 
-        stem = Path(stem).name
+        stem = Path(artifact_prefix).name
 
         with open(
             name, 'wb'
@@ -1900,6 +1900,22 @@ class Main:
                     recursive=False,
                     filter=self.normalize_tar_entry,
                 )
+
+        if not self.layered:
+            with open(
+                HERE / 'SteamLinuxRuntime_whatever.sh.in'
+            ) as reader, open(
+                artifact_prefix + '.sh', 'w'
+            ) as writer:
+                for line in reader:
+                    writer.write(line.replace('@RUNTIME@', stem))
+
+            shutil.copy(
+                depot / 'VERSIONS.txt',
+                artifact_prefix + '.VERSIONS.txt',
+            )
+            os.chmod(artifact_prefix + '.VERSIONS.txt', 0o644)
+            os.chmod(artifact_prefix + '.sh', 0o755)
 
     def normalize_tar_entry(self, entry: tarfile.TarInfo) -> tarfile.TarInfo:
         entry.uid = 65534
