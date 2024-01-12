@@ -156,6 +156,7 @@ test_describe_fd (Fixture *f,
       desc = _srt_describe_fd (socks[0]);
       g_assert_nonnull (desc);
       g_test_message ("Description of half of a socketpair: %s", desc);
+      g_assert_nonnull (strstr (desc, "AF_UNIX"));
       glnx_close_fd (&socks[0]);
       glnx_close_fd (&socks[1]);
     }
@@ -197,6 +198,7 @@ test_describe_fd (Fixture *f,
 
           g_assert_nonnull (desc);
           g_test_message ("Description of connected Unix socket: %s", desc);
+          g_assert_nonnull (strstr (desc, "AF_UNIX"));
         }
     }
 
@@ -223,6 +225,7 @@ test_describe_fd (Fixture *f,
 
           g_assert_nonnull (desc);
           g_test_message ("Description of bound IPv4 socket: %s", desc);
+          g_assert_nonnull (strstr (desc, "0.0.0.0:"));
         }
     }
 
@@ -278,6 +281,7 @@ test_describe_fd (Fixture *f,
 
           g_assert_nonnull (desc);
           g_test_message ("Description of bound IPv6 socket: %s", desc);
+          g_assert_nonnull (strstr (desc, "[::]:"));
         }
     }
 }
