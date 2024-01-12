@@ -247,13 +247,13 @@ main (int argc, char **argv)
 
   if (argv[1][0] == '-')
     {
-      fprintf (stderr, "%s does not accept any --options", NAME);
+      fprintf (stderr, "%s does not accept any --options\n", NAME);
       return usage ();
     }
 
   if (argv[2][0] == '-')
     {
-      fprintf (stderr, "%s does not accept any --options", NAME);
+      fprintf (stderr, "%s does not accept any --options\n", NAME);
       return usage ();
     }
 
