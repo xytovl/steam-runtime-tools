@@ -1335,8 +1335,14 @@ main (int argc,
       for (i = 0; i < assign_fds->len; i++)
         {
           const AssignFd *item = &g_array_index (assign_fds, AssignFd, i);
+          g_autofree gchar *description = NULL;
 
-          g_debug ("\t%d>&%d", item->target, item->source);
+          description = _srt_describe_fd (item->source);
+
+          if (description != NULL)
+            g_debug ("\t%d>&%d (%s)", item->target, item->source, description);
+          else
+            g_debug ("\t%d>&%d", item->target, item->source);
         }
     }
 

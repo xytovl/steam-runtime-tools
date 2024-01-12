@@ -539,3 +539,5 @@ _srt_environ_getenv (const char * const *envp,
 {
   return g_environ_getenv ((gchar **) envp, variable);
 }
+
+gchar *_srt_describe_fd (int fd) G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
