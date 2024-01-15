@@ -34,7 +34,7 @@ static inline void oom (void) __attribute__((__noreturn__));
 static inline void
 oom (void)
 {
-  fprintf (stderr, "Out of memory");
+  fprintf (stderr, "Out of memory\n");
   exit (EX_OSERR);
 }
 
