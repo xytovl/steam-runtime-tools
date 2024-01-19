@@ -1,3 +1,11 @@
+steam-runtime-tools (0.20240119.0) UNRELEASED; urgency=medium
+
+  * Documentation updates
+  * Add missing newline to some error messages
+  * pv-adverb: Describe target of each redirection if debugging
+
+ -- Simon McVittie <smcv@collabora.com>  Fri, 19 Jan 2024 17:48:42 +0000
+
 steam-runtime-tools (0.20240103.0) steamrt; urgency=medium
 
   * pv-wrap: Don't register stdout, stderr, --pass-fd with FlatpakBwrap.
