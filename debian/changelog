@@ -1,10 +1,13 @@
-steam-runtime-tools (0.20240119.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20240119.0) steamrt; urgency=medium
 
+  * SteamLinuxRuntime 1.0 (scout):
+    Catch up with changed filenames in the Steam client client beta,
+    fixing a regression for SLR 1.0 games (steamrt/tasks#382)
   * Documentation updates
   * Add missing newline to some error messages
   * pv-adverb: Describe target of each redirection if debugging
 
- -- Simon McVittie <smcv@collabora.com>  Fri, 19 Jan 2024 17:48:42 +0000
+ -- Simon McVittie <smcv@collabora.com>  Fri, 19 Jan 2024 18:06:44 +0000
 
 steam-runtime-tools (0.20240103.0) steamrt; urgency=medium
 
