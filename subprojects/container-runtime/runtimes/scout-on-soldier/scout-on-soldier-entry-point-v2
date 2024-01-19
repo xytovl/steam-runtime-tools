@@ -132,7 +132,12 @@ main () {
         src="${STEAM_COMPAT_CLIENT_INSTALL_PATH:-"$HOME/.steam/root"}/ubuntu12_32/steam-runtime"
 
         theirs="$(cat "$src/checksum" || echo none)"
-        theirs_should_be="$(cat "${src}.checksum")"
+        if [ -e "${src}.tar.xz.checksum" ]; then
+            # Steam beta >= 2024-01-19
+            theirs_should_be="$(cat "${src}.tar.xz.checksum")"
+        else
+            theirs_should_be="$(cat "${src}.checksum")"
+        fi
 
         if [ "$theirs" = "$theirs_should_be" ]; then
             [ -z "$verbose" ] || log "Using default scout runtime ${src}"
