@@ -114,10 +114,10 @@ extract_archive() {
             # Intentionally not expanding $TAR_CHECKPOINT:
             # shellcheck disable=SC2016
             tar --blocking-factor="${BF}" --checkpoint=1 --checkpoint-action='exec=echo "$TAR_CHECKPOINT" || true' -xf "$2" -C "$3" \
-                | ( "${STEAM_ZENITY}" --progress --auto-close --no-cancel --width 400 --text="$1" || true )
+                | ( "${STEAM_ZENITY}" --progress --auto-close --no-cancel --width 400 --text="$1" || true ) >&2
         else
             # shellcheck disable=SC2016
-            tar --blocking-factor="${BF}" --checkpoint=1 --checkpoint-action='exec=echo "$TAR_CHECKPOINT%" || true' -xf "$2" -C "$3"
+            tar --blocking-factor="${BF}" --checkpoint=1 --checkpoint-action='exec=echo "$TAR_CHECKPOINT%" || true' -xf "$2" -C "$3" >&2
         fi
     else
         echo "$1"
