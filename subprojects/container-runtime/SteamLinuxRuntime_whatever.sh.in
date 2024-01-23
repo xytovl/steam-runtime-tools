@@ -193,9 +193,10 @@ usage () {
     fi
 
     cat << EOF
-Usage: $me [OPTIONS...] [--] COMMAND [ARGUMENTS]
+Usage: $me [OPTIONS...] [--] [COMMAND [ARGUMENTS]]
 
 Bootstrap a container-based Steam Linux Runtime and run COMMAND in it.
+If no COMMAND, just write the entry point to standard output and exit.
 
 Options:
 --try-runtime=RUNTIME                   Try to use RUNTIME instead of unpacking
@@ -209,6 +210,7 @@ EOF
 }
 
 main () {
+    local entry_point=
     local getopt_temp="help"
     local try_runtime=
     local unpack_dir="$here"
@@ -263,22 +265,23 @@ main () {
         esac
     done
 
-    if [ "$#" -lt 1 ]
-    then
-        log "this script requires positional parameters"
-        usage
-    fi
-
     if [ -n "$try_runtime" ] \
         && cmp -s "$try_runtime/VERSIONS.txt" "$unpack_dir/$RUNTIME.VERSIONS.txt" \
         && { [ -z "$validate" ] || "$try_runtime/pressure-vessel/bin/pv-verify" --quiet; }
     then
         rm -fr "${unpack_dir:?}/$RUNTIME"
-        exec "$try_runtime/_v2-entry-point" -- "$@"
+        entry_point="$try_runtime/_v2-entry-point"
+    else
+        bootstrap "$unpack_dir" "$RUNTIME" "$validate"
+        entry_point="$unpack_dir/$RUNTIME/_v2-entry-point"
     fi
 
-    bootstrap "$unpack_dir" "$RUNTIME" "$validate"
-    exec "$unpack_dir/$RUNTIME/_v2-entry-point" -- "$@"
+    if [ "$#" -gt 0 ]; then
+        "$entry_point" -- "$@"
+    else
+        echo "$entry_point"
+        return 0
+    fi
 }
 
 undo_steamrt
