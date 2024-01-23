@@ -155,6 +155,10 @@ bootstrap () {
     local available="${unpack_dir:?}/$steamrt/VERSIONS.txt"
     local tmpdir="${unpack_dir:?}/$steamrt.new"
 
+    if ! [ -e "$reference" ]; then
+        reference="${unpack_dir:?}/$steamrt.version.txt"
+    fi
+
     if [ -e "$available" ] && cmp -s "$reference" "$available"; then
         # Runtime is unpacked and up to date, use it as-is
         return 0
