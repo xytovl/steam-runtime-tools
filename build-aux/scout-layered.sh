@@ -25,30 +25,38 @@ case "${CI_COMMIT_TAG-}" in
 esac
 
 if [ -n "${SOURCE_DATE_EPOCH-}" ]; then
-    timestamp="@${SOURCE_DATE_EPOCH}"
+    :
 elif [ -n "${CI_COMMIT_TIMESTAMP-}" ]; then
-    timestamp="${CI_COMMIT_TIMESTAMP}"
+    SOURCE_DATE_EPOCH="$(date --date="${CI_COMMIT_TIMESTAMP}" '+%s')"
 else
-    timestamp="$(git log -1 --pretty=format:'@%at' HEAD)"
+    SOURCE_DATE_EPOCH="$(git log -1 --pretty=format:'%at' HEAD)"
 fi
+
+export SOURCE_DATE_EPOCH
 
 echo "${depot_version#v}" > subprojects/container-runtime/.tarball-version
 ./subprojects/container-runtime/populate-depot.py \
     --depot="$builddir/steam-container-runtime/depot" \
+    --depot-archive="$builddir/SteamLinuxRuntime.tar.xz" \
     --depot-version="${depot_version#v}" \
     --layered \
     --steam-app-id=1070560 \
+    --steam-depot-id=1070561 \
     scout
+tar -tvf "$builddir/SteamLinuxRuntime.tar.xz"
 head -n-0 "$builddir/steam-container-runtime/depot/VERSIONS.txt"
+rm -fr "$builddir/steam-container-runtime/depot/steampipe"
+rm -fr "$builddir/steam-container-runtime/depot/var"
 tar \
     -C "$builddir" \
     --clamp-mtime \
-    --mtime="${timestamp}" \
+    --mtime="@${SOURCE_DATE_EPOCH}" \
     --owner=nobody:65534 \
     --group=nogroup:65534 \
     --mode=u=rwX,go=rX \
     --use-compress-program='pigz --fast -c -n --rsyncable' \
     -cvf "$builddir/steam-container-runtime.tar.gz" \
     steam-container-runtime
+tar -tvf "$builddir/steam-container-runtime.tar.gz"
 
 # vim:set sw=4 sts=4 et:

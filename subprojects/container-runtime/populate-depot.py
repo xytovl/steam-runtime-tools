@@ -45,7 +45,9 @@ import shlex
 import shutil
 import stat
 import subprocess
+import tarfile
 import tempfile
+import time
 import urllib.parse
 import urllib.request
 from contextlib import suppress
@@ -96,7 +98,7 @@ class PressureVesselRelease:
         version: str = ''
     ) -> None:
         self.cache = cache
-        self.pinned_version = None      # type: Optional[str]
+        self.pinned_version: Optional[str] = None
         self.ssh_host = ssh_host
         self.ssh_path = ssh_path
         self.uri = uri
@@ -207,8 +209,8 @@ class Runtime:
         self.ssh_host = ssh_host
         self.ssh_path = ssh_path
         self.version = version
-        self.pinned_version = None      # type: Optional[str]
-        self.sha256 = {}                # type: Dict[str, str]
+        self.pinned_version: Optional[str] = None
+        self.sha256: Dict[str, str] = {}
 
         os.makedirs(self.cache, exist_ok=True)
 
@@ -389,7 +391,7 @@ class Runtime:
         opener: urllib.request.OpenerDirector,
     ) -> str:
         pinned = self.pinned_version
-        sha256 = {}     # type: Dict[str, str]
+        sha256: Dict[str, str] = {}
 
         if pinned is None:
             if self.ssh_host and self.ssh_path:
@@ -535,7 +537,9 @@ class Main:
         credential_envs: Sequence[str] = (),
         credential_hosts: Sequence[str] = (),
         depot: str = 'depot',
+        depot_archive: str = '',
         depot_version: str = '',
+        fast: bool = False,
         images_uri: str = DEFAULT_IMAGES_URI,
         include_archives: bool = False,
         include_sdk_debug: bool = False,
@@ -558,6 +562,7 @@ class Main:
         ssh_host: str = '',
         ssh_path: str = '',
         steam_app_id: str = '',
+        steam_depot_id: str = '',
         suite: str = '',
         toolmanifest: bool = False,
         unpack_ld_library_path: str = '',
@@ -612,7 +617,9 @@ class Main:
         self.default_suite = suite
         self.default_version = version
         self.depot = os.path.abspath(depot)
+        self.depot_archive = depot_archive
         self.depot_version = depot_version
+        self.fast = fast
         self.images_uri = images_uri
         self.include_archives = include_archives
         self.include_sdk_debug = include_sdk_debug
@@ -628,12 +635,19 @@ class Main:
         self.ssh_host = ssh_host
         self.ssh_path = ssh_path
         self.steam_app_id = steam_app_id
+        self.steam_depot_id = steam_depot_id
         self.toolmanifest = toolmanifest
         self.unpack_ld_library_path = unpack_ld_library_path
         self.unpack_runtime = unpack_runtime
         self.unpack_sources = unpack_sources
         self.unpack_sources_into = unpack_sources_into
         self.versioned_directories = versioned_directories
+
+        if (
+            depot_archive
+            and not depot_archive.endswith(('.tar.gz', '.tar.xz'))
+        ):
+            raise InvocationError(f'Unknown archive format: {depot_archive}')
 
         n_sources = 0
 
@@ -681,7 +695,7 @@ class Main:
 
         self.runtime = self.new_runtime(name, details)
 
-        self.versions = []      # type: List[ComponentVersion]
+        self.versions: List[ComponentVersion] = []
 
         if pressure_vessel_guess:
             if self.runtime.name == pressure_vessel_guess:
@@ -700,7 +714,7 @@ class Main:
             else:
                 pressure_vessel_from_runtime = pressure_vessel_guess
 
-        self.pressure_vessel_runtime = None     # type: Optional[Runtime]
+        self.pressure_vessel_runtime: Optional[Runtime] = None
         self.pressure_vessel_version = ''
 
         if pressure_vessel_version:
@@ -727,6 +741,11 @@ class Main:
                 json.loads(pressure_vessel_from_runtime_json),
                 default_suite='scout',
             )
+
+        if 'SOURCE_DATE_EPOCH' in os.environ:
+            self.reference_timestamp = int(os.environ['SOURCE_DATE_EPOCH'])
+        else:
+            self.reference_timestamp = int(time.time())
 
     def new_runtime(
         self,
@@ -776,6 +795,12 @@ class Main:
             self.do_container_runtime()
 
         self.write_top_level_mtree()
+
+        if self.steam_app_id and self.steam_depot_id:
+            self.write_steampipe_config()
+
+        if self.depot_archive:
+            self.do_depot_archive(self.depot_archive)
 
     def do_layered_runtime(self) -> None:
         if self.runtime.name != 'scout':
@@ -1190,9 +1215,7 @@ class Main:
             component_version.comment = comment
             self.versions.append(component_version)
 
-        for runtime in (self.runtime,):     # too much to reindent right now
-            if not self.toolmanifest:
-                continue
+        if self.toolmanifest:
 
             with open(
                 os.path.join(self.depot, 'toolmanifest.vdf'), 'w'
@@ -1205,13 +1228,13 @@ class Main:
                     '--verb=%verb%',
                     '--',
                 ]
-                content = dict(
+                content: Dict[str, Any] = dict(
                     manifest=dict(
                         commandline=' '.join(words),
                         version='2',
                         use_tool_subprocess_reaper='1',
                     )
-                )       # type: Dict[str, Any]
+                )
 
                 if runtime.suite != 'scout':
                     content['manifest']['unlisted'] = '1'
@@ -1462,7 +1485,7 @@ class Main:
                                 exist_ok=True,
                             )
 
-                            file_path = {}    # type: Dict[str, str]
+                            file_path: Dict[str, str] = {}
 
                             for f in stanza['files']:
                                 name = f['name']
@@ -1525,7 +1548,7 @@ class Main:
         )
 
     def octal_escape_char(self, match: 're.Match') -> str:
-        ret = []    # type: List[str]
+        ret: List[str] = []
 
         for byte in match.group(0).encode('utf-8', 'surrogateescape'):
             ret.append('\\%03o' % byte)
@@ -1560,11 +1583,11 @@ class Main:
         preserve_time: bool = True,
         skip_runtime_files: bool = False
     ) -> Dict[str, str]:
-        lc_names = {}                   # type: Dict[str, str]
-        differ_only_by_case = set()     # type: Set[str]
-        not_windows_friendly = set()    # type: Set[str]
-        sha256 = {}                     # type: Dict[Tuple[int, int], str]
-        paths = {}                      # type: Dict[Tuple[int, int], str]
+        lc_names: Dict[str, str] = {}
+        differ_only_by_case: Set[str] = set()
+        not_windows_friendly: Set[str] = set()
+        sha256: Dict[Tuple[int, int], str] = {}
+        paths: Dict[Tuple[int, int], str] = {}
 
         writer.write('#mtree\n')
         writer.write('. type=dir\n')
@@ -1573,6 +1596,10 @@ class Main:
             for base in sorted(dirnames + filenames):
                 member = Path(dirpath) / base
                 name = str(member.relative_to(top))
+
+                if name == 'steampipe' and base in dirnames:
+                    dirnames.remove(base)
+                    continue
 
                 if (
                     skip_runtime_files
@@ -1708,6 +1735,13 @@ class Main:
             if '.ref' not in lc_names:
                 writer.write('./.ref type=file size=0 optional\n')
 
+            if (
+                self.steam_app_id
+                and self.steam_depot_id
+                and 'steampipe' not in lc_names
+            ):
+                writer.write('./steampipe type=dir ignore optional\n')
+
             if 'var' not in lc_names:
                 writer.write('./var type=dir ignore optional\n')
 
@@ -1746,6 +1780,159 @@ class Main:
             except OSError as e:
                 if e.errno != errno.ENOTEMPTY:
                     raise
+
+    def write_steampipe_config(self) -> None:
+        import vdf                          # noqa
+        from vdf.vdict import VDFDict       # noqa
+
+        assert self.steam_app_id
+        assert self.steam_depot_id
+
+        depot = Path(self.depot)
+        steampipe = depot / 'steampipe'
+        steampipe.mkdir(exist_ok=True)
+        app_vdf = f'app_build_{self.steam_app_id}.vdf'
+        depot_vdf = f'depot_build_{self.steam_depot_id}.vdf'
+
+        content = dict(
+            appbuild=dict(
+                appid=self.steam_app_id,
+                buildoutput='output',
+                depots={self.steam_depot_id: depot_vdf},
+            )
+        )
+
+        with open(steampipe / app_vdf, 'w') as writer:
+            vdf.dump(content, writer, pretty=True, escaped=True)
+
+        file_mappings: List[Tuple[str, Any]] = []
+
+        for child in sorted(depot.iterdir()):
+            if child.name in ('steampipe', 'var'):
+                continue
+            elif child.is_dir():
+                file_mappings.append(
+                    (
+                        'FileMapping', dict(
+                            LocalPath=f'../{child.name}/*',
+                            DepotPath=f'{child.name}/',
+                            recursive='1',
+                        ),
+                    )
+                )
+            else:
+                file_mappings.append(
+                    (
+                        'FileMapping', dict(
+                            LocalPath=child.relative_to(depot),
+                            DepotPath='.',
+                        ),
+                    )
+                )
+
+        content = dict(
+            DepotBuildConfig=VDFDict(
+                [('DepotID', self.steam_depot_id)] + file_mappings,
+            )
+        )
+
+        with open(steampipe / depot_vdf, 'w') as writer:
+            vdf.dump(content, writer, pretty=True, escaped=True)
+
+    def do_depot_archive(self, name: str) -> None:
+        if name.endswith('.tar.gz'):
+            compress_command = ['pigz', '--fast', '-c', '-n', '--rsyncable']
+            artifact_prefix = name[:-len('.tar.gz')]
+        elif name.endswith('.tar.xz'):
+            if self.fast:
+                compress_command = ['xz', '-0']
+            else:
+                compress_command = ['xz']
+
+            artifact_prefix = name[:-len('.tar.xz')]
+        else:
+            raise InvocationError(f'Unknown archive format: {name}')
+
+        stem = Path(artifact_prefix).name
+
+        with open(
+            name, 'wb'
+        ) as archive_writer, subprocess.Popen(
+            compress_command,
+            stdin=subprocess.PIPE,
+            stdout=archive_writer,
+        ) as compressor, tarfile.open(
+            name,
+            mode='w|',
+            format=tarfile.GNU_FORMAT,
+            fileobj=compressor.stdin,
+        ) as archiver:
+            members = []
+            depot = Path(self.depot)
+
+            for dir_path, dirs, files in os.walk(
+                depot,
+                topdown=True,
+                followlinks=False,
+            ):
+                rel_dir = Path(dir_path).relative_to(depot)
+
+                if rel_dir == Path('.'):
+                    for exclude in ('var',):
+                        try:
+                            dirs.remove(exclude)
+                        except ValueError:
+                            pass
+
+                for item in dirs + files:
+                    members.append(rel_dir / item)
+
+            root = tarfile.TarInfo(stem)
+            root.size = 0
+            root.type = tarfile.DIRTYPE
+            root = self.normalize_tar_entry(root)
+            archiver.addfile(root)
+
+            for member in sorted(members):
+                archiver.add(
+                    str(depot / member),
+                    arcname=f'{stem}/{member}',
+                    recursive=False,
+                    filter=self.normalize_tar_entry,
+                )
+
+        if not self.layered:
+            with open(
+                HERE / 'SteamLinuxRuntime_whatever.sh.in'
+            ) as reader, open(
+                artifact_prefix + '.sh', 'w'
+            ) as writer:
+                for line in reader:
+                    writer.write(line.replace('@RUNTIME@', stem))
+
+            shutil.copy(
+                depot / 'VERSIONS.txt',
+                artifact_prefix + '.VERSIONS.txt',
+            )
+            os.chmod(artifact_prefix + '.VERSIONS.txt', 0o644)
+            os.chmod(artifact_prefix + '.sh', 0o755)
+
+    def normalize_tar_entry(self, entry: tarfile.TarInfo) -> tarfile.TarInfo:
+        entry.uid = 65534
+        entry.gid = 65534
+
+        if entry.mtime > self.reference_timestamp:
+            entry.mtime = self.reference_timestamp
+
+        if (entry.mode & 0o111) != 0 or entry.isdir():
+            entry.mode = 0o755
+        else:
+            entry.mode = 0o644
+
+        entry.uname = 'nobody'
+        entry.gname = 'nogroup'
+
+        return entry
 
 
 def main() -> None:
@@ -1838,6 +2025,18 @@ def main() -> None:
         '--depot-version', default='',
         help=(
             'Set an overall version number for the depot contents'
+        )
+    )
+    parser.add_argument(
+        '--depot-archive', default='',
+        help=(
+            'Export the depot as an archive'
+        )
+    )
+    parser.add_argument(
+        '--fast', default=False, action='store_true',
+        help=(
+            'Speed up compression at the expense of compression ratio'
         )
     )
     parser.add_argument(
@@ -1969,12 +2168,13 @@ def main() -> None:
             'Source directory for files to include in the depot'
         )
     )
-    # Not actually used for anything at the moment, but kept for
-    # CLI backwards-compat. We could potentially use it to select
-    # depot configuration in steampipe/
     parser.add_argument(
         '--steam-app-id', default='',
         help='Set Steam app ID for the depot',
+    )
+    parser.add_argument(
+        '--steam-depot-id', default='',
+        help='Set Steam depot ID',
     )
     parser.add_argument(
         '--toolmanifest', default=False, action='store_true',

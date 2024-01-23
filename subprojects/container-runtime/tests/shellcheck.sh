@@ -21,6 +21,7 @@ echo "TAP version 13"
 
 n=0
 for shell_script in \
+        ./*.sh.in \
         common/_v2-entry-point \
         debian/tests/depot \
         runtimes/scout-on-soldier/_v2-entry-point \

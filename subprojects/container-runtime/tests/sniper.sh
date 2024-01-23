@@ -12,6 +12,7 @@ fi
 populate_depot_args=( \
     "--scripts-version=test test" \
     "--steam-app-id=1628350" \
+    "--steam-depot-id=1628351" \
 )
 
 if [ -n "${IMAGES_DOWNLOAD_CREDENTIAL-}" ]; then
@@ -74,6 +75,8 @@ rm -fr depots/test-sniper-unpacked
 mkdir -p depots/test-sniper-unpacked
 python3 ./populate-depot.py \
     --depot=depots/test-sniper-unpacked \
+    --depot-archive=depots/SteamLinuxRuntime_sniper.tar.xz \
+    --fast \
     --no-include-archives \
     --toolmanifest \
     --unpack-runtime \
@@ -83,6 +86,14 @@ python3 ./populate-depot.py \
     sniper \
     ${NULL+}
 find depots/test-sniper-unpacked -ls > depots/test-sniper-unpacked.txt
+if ! [ -e "depots/test-sniper-unpacked/steampipe/app_build_1628350.vdf" ]; then
+    echo "Bail out! app_build_1628350.vdf not found"
+    exit 1
+fi
+if ! [ -e "depots/test-sniper-unpacked/steampipe/depot_build_1628351.vdf" ]; then
+    echo "Bail out! depot_build_1628351.vdf not found"
+    exit 1
+fi
 echo "ok 2 - sniper, running from unpacked directory"
 
 # vim:set sw=4 sts=4 et:

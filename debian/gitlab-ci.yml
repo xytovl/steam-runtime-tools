@@ -178,6 +178,7 @@ build:devel:
             pigz \
             pycodestyle \
             pyflakes3 \
+            python3-vdf \
             reuse \
             shellcheck \
             ${NULL+}
@@ -201,6 +202,7 @@ build:devel:
         paths:
             - _build/devel/meson-logs/*.txt
             - _build/scout-layered/steam-container-runtime.tar.gz
+            - _build/scout-layered/SteamLinuxRuntime.tar.xz
         when: always
 
 build:clang:
