@@ -114,10 +114,10 @@ extract_archive() {
             # Intentionally not expanding $TAR_CHECKPOINT:
             # shellcheck disable=SC2016
             tar --blocking-factor="${BF}" --checkpoint=1 --checkpoint-action='exec=echo "$TAR_CHECKPOINT" || true' -xf "$2" -C "$3" \
-                | ( "${STEAM_ZENITY}" --progress --auto-close --no-cancel --width 400 --text="$1" || true )
+                | ( "${STEAM_ZENITY}" --progress --auto-close --no-cancel --width 400 --text="$1" || true ) >&2
         else
             # shellcheck disable=SC2016
-            tar --blocking-factor="${BF}" --checkpoint=1 --checkpoint-action='exec=echo "$TAR_CHECKPOINT%" || true' -xf "$2" -C "$3"
+            tar --blocking-factor="${BF}" --checkpoint=1 --checkpoint-action='exec=echo "$TAR_CHECKPOINT%" || true' -xf "$2" -C "$3" >&2
         fi
     else
         echo "$1"
@@ -128,7 +128,8 @@ extract_archive() {
 bootstrap () {
     local unpack_dir="$1"
     local steamrt="$2"
-    local validate="$3"
+    local subdir="$3"
+    local validate="$4"
 
     case "$steamrt" in
         (.)
@@ -154,6 +155,10 @@ bootstrap () {
     local available="${unpack_dir:?}/$steamrt/VERSIONS.txt"
     local tmpdir="${unpack_dir:?}/$steamrt.new"
 
+    if ! [ -e "$reference" ]; then
+        reference="${unpack_dir:?}/$steamrt.version.txt"
+    fi
+
     if [ -e "$available" ] && cmp -s "$reference" "$available"; then
         # Runtime is unpacked and up to date, use it as-is
         return 0
@@ -167,8 +172,16 @@ bootstrap () {
         EX_SOFTWARE
     fi
 
+    # Allow the tarball to unpack to either SteamLinuxRuntime_sniper/ or
+    # steam-linux-runtime-sniper/, for example. We don't use
+    # tar --strip-components=1 in case it's a non-GNU tar.
+    if [ -d "$tmpdir/$subdir" ] && ! [ -e "$tmpdir/$steamrt" ]; then
+        mv "${tmpdir:?}/${subdir:?}" "${tmpdir:?}/${steamrt:?}"
+    fi
+
     if ! cmp -s "$reference" "$tmpdir/$steamrt/VERSIONS.txt"; then
         log "$tarball contained unexpected VERSIONS.txt: $tmpdir/$steamrt/VERSIONS.txt should match $reference"
+        diff -Nu "$reference" "$tmpdir/$steamrt/VERSIONS.txt" >&2 || true
         EX_SOFTWARE
     fi
 
@@ -193,13 +206,16 @@ usage () {
     fi
 
     cat << EOF
-Usage: $me [OPTIONS...] [--] COMMAND [ARGUMENTS]
+Usage: $me [OPTIONS...] [--] [COMMAND [ARGUMENTS]]
 
 Bootstrap a container-based Steam Linux Runtime and run COMMAND in it.
+If no COMMAND, just write the entry point to standard output and exit.
 
 Options:
---try-runtime=RUNTIME                   Try to use RUNTIME instead of unpacking
-                                        DIRECTORY/$RUNTIME.tar.xz
+--runtime=NAME                          Use NAME in filenames instead of
+                                        $RUNTIME
+--try-runtime=OTHER_DIRECTORY           Try to use OTHER_DIRECTORY instead of
+                                        unpacking DIRECTORY/$RUNTIME.tar.xz
 --unpack-dir=DIRECTORY                  Unpack DIRECTORY/$RUNTIME.tar.xz
                                         into DIRECTORY/$RUNTIME
                                         (default: $here)
@@ -209,11 +225,14 @@ EOF
 }
 
 main () {
+    local entry_point=
     local getopt_temp="help"
+    local runtime="$RUNTIME"
     local try_runtime=
     local unpack_dir="$here"
     local validate=
 
+    getopt_temp="$getopt_temp,runtime:"
     getopt_temp="$getopt_temp,try-runtime:"
     getopt_temp="$getopt_temp,unpack-dir:"
     getopt_temp="$getopt_temp,validate"
@@ -226,6 +245,11 @@ main () {
         case "$1" in
             (--help)
                 usage 0
+                ;;
+
+            (--runtime)
+                runtime="$2"
+                shift 2
                 ;;
 
             (--try-runtime)
@@ -263,22 +287,23 @@ main () {
         esac
     done
 
-    if [ "$#" -lt 1 ]
-    then
-        log "this script requires positional parameters"
-        usage
-    fi
-
     if [ -n "$try_runtime" ] \
-        && cmp -s "$try_runtime/VERSIONS.txt" "$unpack_dir/$RUNTIME.VERSIONS.txt" \
+        && cmp -s "$try_runtime/VERSIONS.txt" "$unpack_dir/$runtime.VERSIONS.txt" \
         && { [ -z "$validate" ] || "$try_runtime/pressure-vessel/bin/pv-verify" --quiet; }
     then
-        rm -fr "${unpack_dir:?}/$RUNTIME"
-        exec "$try_runtime/_v2-entry-point" -- "$@"
+        rm -fr "${unpack_dir:?}/$runtime"
+        entry_point="$try_runtime/_v2-entry-point"
+    else
+        bootstrap "$unpack_dir" "$runtime" "$RUNTIME" "$validate"
+        entry_point="$unpack_dir/$runtime/_v2-entry-point"
     fi
 
-    bootstrap "$unpack_dir" "$RUNTIME" "$validate"
-    exec "$unpack_dir/$RUNTIME/_v2-entry-point" -- "$@"
+    if [ "$#" -gt 0 ]; then
+        "$entry_point" -- "$@"
+    else
+        echo "$entry_point"
+        return 0
+    fi
 }
 
 undo_steamrt
