@@ -1,3 +1,12 @@
+steam-runtime-tools (0.20240119.1) UNRELEASED; urgency=medium
+
+  * SteamLinuxRuntime_sniper, etc.:
+    - Optionally generate Steampipe upload configuration
+    - Optionally generate an archive, and a script to unpack and launch it
+      (steamrt/tasks#375, steamrt/tasks#376)
+
+ -- Simon McVittie <smcv@collabora.com>  Tue, 23 Jan 2024 13:34:53 +0000
+
 steam-runtime-tools (0.20240119.0) steamrt; urgency=medium
 
   * SteamLinuxRuntime 1.0 (scout):
