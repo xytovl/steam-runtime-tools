@@ -1,3 +1,14 @@
+steam-runtime-tools (0.20240123.2) steamrt; urgency=medium
+
+  * SteamLinuxRuntime_sniper.sh, etc.:
+    - Avoid corrupting machine-readable output on stdout, if any
+    - If no COMMAND, just print an entry point to use later
+    - Allow using a name not matching tarball content
+    - Accept .version.txt as an alternative to .VERSIONS.txt
+    (steamrt/tasks#375, steamrt/tasks#385)
+
+ -- Simon McVittie <smcv@collabora.com>  Tue, 23 Jan 2024 20:36:28 +0000
+
 steam-runtime-tools (0.20240123.1) steamrt; urgency=medium
 
   * upload-artifacts: Really upload SteamLinuxRuntime.tar.xz
