@@ -1824,7 +1824,7 @@ class Main:
                 file_mappings.append(
                     (
                         'FileMapping', dict(
-                            LocalPath=child.relative_to(depot),
+                            LocalPath='../' + str(child.relative_to(depot)),
                             DepotPath='.',
                         ),
                     )
