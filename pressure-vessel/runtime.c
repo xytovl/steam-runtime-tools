@@ -111,6 +111,7 @@ struct _PvRuntime
   unsigned is_steamrt : 1;
   unsigned is_scout : 1;
   unsigned is_flatpak_env : 1;
+  unsigned is_snap_env : 1;
   unsigned any_vdpau_drivers : 1;
 };
 
@@ -204,7 +205,8 @@ path_mutable_in_container_namespace (const char *path)
  *  in the interpreter root.
  */
 gboolean
-pv_runtime_path_belongs_in_interpreter_root (const char *path)
+pv_runtime_path_belongs_in_interpreter_root (PvRuntime *self,
+                                             const char *path)
 {
   static const char * const yes[] =
   {
@@ -223,6 +225,15 @@ pv_runtime_path_belongs_in_interpreter_root (const char *path)
       if (_srt_get_path_after (path, yes[i]) != NULL)
         return TRUE;
     }
+
+  /* Special case: when running under Snap we have to use
+   * /run/pressure-vessel/ldso because /var/pressure-vessel/ldso isn't
+   * allowed. We don't expect to be running FEX-Emu under Snap,
+   * so it doesn't matter that this would break FEX-Emu. */
+  if (self != NULL
+      && self->is_snap_env
+      && _srt_get_path_after (path, "run/pressure-vessel/ldso") != NULL)
+    return TRUE;
 
   return FALSE;
 }
@@ -343,7 +354,7 @@ pv_runtime_bind_into_container (PvRuntime *self,
   g_return_val_if_fail (path != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
   g_return_val_if_fail (roots == PV_RUNTIME_EMULATION_ROOTS_REAL_ONLY
-                        || pv_runtime_path_belongs_in_interpreter_root (path),
+                        || pv_runtime_path_belongs_in_interpreter_root (self, path),
                         FALSE);
 
   if (content != NULL)
@@ -463,7 +474,7 @@ pv_runtime_make_symlink_in_container (PvRuntime *self,
   g_return_val_if_fail (path != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
   g_return_val_if_fail (roots == PV_RUNTIME_EMULATION_ROOTS_REAL_ONLY
-                        || pv_runtime_path_belongs_in_interpreter_root (path),
+                        || pv_runtime_path_belongs_in_interpreter_root (self, path),
                         FALSE);
 
   if (self->flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT)
@@ -670,6 +681,9 @@ pv_runtime_init (PvRuntime *self)
   self->variable_dir_fd = -1;
   self->is_flatpak_env = g_file_test ("/.flatpak-info",
                                       G_FILE_TEST_IS_REGULAR);
+  self->is_snap_env = (g_getenv ("SNAP") != NULL
+                       && g_getenv ("SNAP_NAME") != NULL
+                       && g_getenv ("SNAP_REVISION") != NULL);
 }
 
 static void
@@ -2343,7 +2357,14 @@ pv_runtime_new (const char *source,
  *   the real root and the interpreter root (we want /run to only
  *   exist in the real root)
  */
-#define MUTABLE_LDSO_DIR "/var/pressure-vessel/ldso"
+#define MUTABLE_LDSO_DIR_NORMAL "/var/pressure-vessel/ldso"
+/*
+ * Unfortunately we can't currently use that path under Snap, because
+ * snapd thinks it knows better than we do what our mount points are.
+ * Keep using the old path for now.
+ * https://github.com/canonical/steam-snap/issues/356
+ */
+#define MUTABLE_LDSO_DIR_SNAP "/run/pressure-vessel/ldso"
 
 static void
 pv_runtime_adverb_regenerate_ld_so_cache (PvRuntime *self,
@@ -2365,9 +2386,13 @@ pv_runtime_adverb_regenerate_ld_so_cache (PvRuntime *self,
 
       regen_dir = g_build_filename (xrd, "pressure-vessel", "ldso", NULL);
     }
+  else if (self->is_snap_env)
+    {
+      regen_dir = g_strdup (MUTABLE_LDSO_DIR_SNAP);
+    }
   else
     {
-      regen_dir = g_strdup (MUTABLE_LDSO_DIR);
+      regen_dir = g_strdup (MUTABLE_LDSO_DIR_NORMAL);
     }
 
   flatpak_bwrap_add_args (adverb_argv,
@@ -3554,7 +3579,7 @@ bind_runtime_base (PvRuntime *self,
       g_auto(SrtDirIter) dir = SRT_DIR_ITER_CLEARED;
       struct dirent *dent;
 
-      g_assert (pv_runtime_path_belongs_in_interpreter_root (bind_mutable[i]));
+      g_assert (pv_runtime_path_belongs_in_interpreter_root (self, bind_mutable[i]));
 
       if (!_srt_dir_iter_init_at (&dir, AT_FDCWD, path,
                                   SRT_DIR_ITER_FLAGS_FOLLOW,
@@ -3661,7 +3686,7 @@ bind_runtime_base (PvRuntime *self,
     {
       const char *item = from_host[i];
 
-      g_assert (pv_runtime_path_belongs_in_interpreter_root (item));
+      g_assert (pv_runtime_path_belongs_in_interpreter_root (self, item));
 
       if (_srt_sysroot_test (self->host_root, item,
                              SRT_RESOLVE_FLAGS_NONE, NULL)
@@ -3688,7 +3713,7 @@ bind_runtime_base (PvRuntime *self,
            * overlay rather than in the real root directory - unless it's
            * outside the scope of the overlay (like sockets in /run)
            * in which case we want it to be in the root. */
-          if (pv_runtime_path_belongs_in_interpreter_root (item))
+          if (pv_runtime_path_belongs_in_interpreter_root (self, item))
             roots = PV_RUNTIME_EMULATION_ROOTS_INTERPRETER_ONLY;
           else
             roots = PV_RUNTIME_EMULATION_ROOTS_REAL_ONLY;
@@ -3847,20 +3872,31 @@ bind_runtime_ld_so (PvRuntime *self,
     {
       g_assert (bwrap != NULL);
 
+      const char *mutable_ldso_dir;
       /* The absolute path to our modifiable ld.so.cache/.conf symlink,
        * as seen from inside the container and (if applicable) the
        * interpreter root. */
-      const gchar *mutable_cache_path = MUTABLE_LDSO_DIR "/ld.so.cache";
-      const gchar *mutable_conf_path = MUTABLE_LDSO_DIR "/ld.so.conf";
+      g_autofree gchar *mutable_cache_path = NULL;
+      g_autofree gchar *mutable_conf_path = NULL;
       /* The locations where we will bind-mount the runtime's
        * ld.so.cache/.conf, as seen from inside the container and
        * (if applicable) the interpreter root. */
-      const gchar *runtime_cache_path = MUTABLE_LDSO_DIR "/runtime-ld.so.cache";
-      const gchar *runtime_conf_path = MUTABLE_LDSO_DIR "/runtime-ld.so.conf";
+      g_autofree gchar *runtime_cache_path = NULL;
+      g_autofree gchar *runtime_conf_path = NULL;
       /* The location of the runtime's ld.so.cache/.conf, as seen by
        * bwrap in /oldroot */
       g_autofree gchar *ld_so_cache_on_host = NULL;
       g_autofree gchar *ld_so_conf_on_host = NULL;
+
+      if (self->is_snap_env)
+        mutable_ldso_dir = MUTABLE_LDSO_DIR_SNAP;
+      else
+        mutable_ldso_dir = MUTABLE_LDSO_DIR_NORMAL;
+
+      mutable_cache_path = g_build_filename (mutable_ldso_dir, "ld.so.cache", NULL);
+      mutable_conf_path = g_build_filename (mutable_ldso_dir, "ld.so.conf", NULL);
+      runtime_cache_path = g_build_filename (mutable_ldso_dir, "runtime-ld.so.cache", NULL);
+      runtime_conf_path = g_build_filename (mutable_ldso_dir, "runtime-ld.so.conf", NULL);
 
       /* We only support runtimes that include /etc/ld.so.cache and
         * /etc/ld.so.conf at their interoperable path. */
@@ -3885,20 +3921,21 @@ bind_runtime_ld_so (PvRuntime *self,
       if (self->flags & PV_RUNTIME_FLAGS_INTERPRETER_ROOT)
         {
           /* To make it a little easier to understand what's going on,
-           * make MUTABLE_LDSO_DIR a symlink to the MUTABLE_LDSO_DIR inside
+           * make mutable_ldso_dir a symlink to the mutable_ldso_dir inside
            * the rootfs. */
+          g_autofree gchar *in_interpreter_root = g_strconcat (PV_RUNTIME_PATH_INTERPRETER_ROOT,
+                                                               mutable_ldso_dir,
+                                                               NULL);
+
           flatpak_bwrap_add_args (bwrap,
-                                  "--tmpfs",
-                                  PV_RUNTIME_PATH_INTERPRETER_ROOT MUTABLE_LDSO_DIR,
-                                  "--symlink",
-                                  PV_RUNTIME_PATH_INTERPRETER_ROOT MUTABLE_LDSO_DIR,
-                                  MUTABLE_LDSO_DIR,
+                                  "--tmpfs", in_interpreter_root,
+                                  "--symlink", in_interpreter_root, mutable_ldso_dir,
                                   NULL);
         }
       else
         {
           flatpak_bwrap_add_args (bwrap,
-                                  "--tmpfs", MUTABLE_LDSO_DIR,
+                                  "--tmpfs", mutable_ldso_dir,
                                   NULL);
         }
 

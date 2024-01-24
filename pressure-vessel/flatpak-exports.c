@@ -68,7 +68,7 @@
    here. */
 const char *dont_export_in[] = {
   /* This first line is pressure-vessel-specific */
-  "/overrides", "/var/pressure-vessel",
+  "/overrides", "/run/pressure-vessel", "/var/pressure-vessel",
   "/usr", "/etc", "/app", "/dev", "/proc", NULL
 };
 

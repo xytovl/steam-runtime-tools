@@ -572,7 +572,7 @@ pv_bwrap_append_adjusted_exports (FlatpakBwrap *to,
                                                               from_src, NULL);
               g_autofree gchar *inter_dest = NULL;
 
-              if (pv_runtime_path_belongs_in_interpreter_root (from_dest))
+              if (pv_runtime_path_belongs_in_interpreter_root (NULL, from_dest))
                 {
                   inter_dest = g_build_filename (PV_RUNTIME_PATH_INTERPRETER_ROOT,
                                                  from_dest, NULL);
