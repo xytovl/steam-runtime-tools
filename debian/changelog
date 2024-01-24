@@ -1,3 +1,16 @@
+steam-runtime-tools (0.20240124.0) UNRELEASED; urgency=medium
+
+  * pressure-vessel:
+    - Temporarily go back to using /run/pressure-vessel/ldso under Snap.
+      This is a workaround for snapd's steam_support AppArmor profile
+      making overly specific assumptions about pressure-vessel implementation
+      details, and will be reverted in a future release.
+      (canonical/steam-snap#356, steam-runtime#640)
+  * SteamLinuxRuntime_sniper, etc.:
+    - Fix relative path from steampipe metadata to top-level regular files
+
+ -- Simon McVittie <smcv@collabora.com>  Wed, 24 Jan 2024 15:58:11 +0000
+
 steam-runtime-tools (0.20240123.2) steamrt; urgency=medium
 
   * SteamLinuxRuntime_sniper.sh, etc.:
