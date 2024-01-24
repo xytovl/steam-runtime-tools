@@ -52,6 +52,7 @@ static const char * const exclude_prefixes[] =
   "/run/gfx/",
   "/run/host/",
   "/run/interpreter-host/",
+  "/run/pressure-vessel/",
   "/sbin/",
   "/usr/",
   "/var/pressure-vessel/",
