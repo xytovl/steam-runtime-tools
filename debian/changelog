@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20240124.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20240124.0) steamrt; urgency=medium
 
   * pressure-vessel:
     - Temporarily go back to using /run/pressure-vessel/ldso under Snap.
@@ -8,8 +8,9 @@ steam-runtime-tools (0.20240124.0) UNRELEASED; urgency=medium
       (canonical/steam-snap#356, steam-runtime#640)
   * SteamLinuxRuntime_sniper, etc.:
     - Fix relative path from steampipe metadata to top-level regular files
+      (steamrt/tasks#375)
 
- -- Simon McVittie <smcv@collabora.com>  Wed, 24 Jan 2024 15:58:11 +0000
+ -- Simon McVittie <smcv@collabora.com>  Wed, 24 Jan 2024 16:09:11 +0000
 
 steam-runtime-tools (0.20240123.2) steamrt; urgency=medium
 
