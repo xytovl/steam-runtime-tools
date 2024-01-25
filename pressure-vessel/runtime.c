@@ -194,6 +194,8 @@ static const PvAppFrameworkPath framework_paths[] =
   { "/nix", PV_WORKAROUND_FLAGS_NONE, NULL },
   { "/snap", PV_WORKAROUND_FLAGS_STEAMSNAP_359,
     "https://github.com/canonical/steam-snap/issues/359" },
+  { "/var/lib/snapd/hostfs", PV_WORKAROUND_FLAGS_STEAMSNAP_359,
+    "https://github.com/canonical/steam-snap/issues/359" },
   { NULL }
 };
 
@@ -207,6 +209,7 @@ static const PvAppFrameworkPath framework_paths[] =
  * * /gnu/store, for Guix
  * * /nix, for Nix and NixOS
  * * /snap, for Canonical's unofficial Snap version of Steam
+ * * /var/lib/snapd/hostfs, for Snap's equivalent of our /run/host
  *
  * Returns: (array zero-terminated=1) (transfer none):
  *  An array of absolute paths that should be made available read-only
