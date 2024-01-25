@@ -2371,6 +2371,13 @@ main (int argc,
           flatpak_bwrap_add_arg (flatpak_subsandbox, fd_str);
         }
 
+      for (i = 0; i < inherit_fds->len; i++)
+        {
+          g_autofree char *fd_str = g_strdup_printf ("--forward-fd=%d",
+                                                     g_array_index (inherit_fds, int, i));
+          flatpak_bwrap_add_arg (flatpak_subsandbox, fd_str);
+        }
+
       flatpak_bwrap_add_arg (flatpak_subsandbox, "--");
 
       g_warn_if_fail (g_strv_length (flatpak_subsandbox->envp) == 0);
