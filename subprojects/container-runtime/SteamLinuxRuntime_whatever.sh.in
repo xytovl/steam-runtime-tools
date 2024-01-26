@@ -159,7 +159,12 @@ bootstrap () {
         reference="${unpack_dir:?}/$steamrt.version.txt"
     fi
 
-    if [ -e "$available" ] && cmp -s "$reference" "$available"; then
+    local ref_content
+    # Apparently transferring these files through the Steam bootstrap
+    # converts LF to CRLF line endings, so undo that
+    ref_content="$(sed -e 's/\r//' < "$reference")"
+
+    if [ -e "$available" ] && [ "$ref_content" = "$(sed -e 's/\r//' < "$available" || true)" ]; then
         # Runtime is unpacked and up to date, use it as-is
         return 0
     fi
@@ -179,9 +184,9 @@ bootstrap () {
         mv "${tmpdir:?}/${subdir:?}" "${tmpdir:?}/${steamrt:?}"
     fi
 
-    if ! cmp -s "$reference" "$tmpdir/$steamrt/VERSIONS.txt"; then
+    if [ "$ref_content" != "$(sed -e 's/\r//' < "$tmpdir/$steamrt/VERSIONS.txt" || true)" ]; then
         log "$tarball contained unexpected VERSIONS.txt: $tmpdir/$steamrt/VERSIONS.txt should match $reference"
-        diff -Nu "$reference" "$tmpdir/$steamrt/VERSIONS.txt" >&2 || true
+        diff -Nu --strip-trailing-cr "$reference" "$tmpdir/$steamrt/VERSIONS.txt" >&2 || true
         EX_SOFTWARE
     fi
 
