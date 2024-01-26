@@ -1,3 +1,10 @@
+steam-runtime-tools (0.20240126.0) steamrt; urgency=medium
+
+  * SteamLinuxRuntime_sniper.sh: Tolerate CRLF line endings in VERSIONS.txt
+    (steamrt/tasks#375)
+
+ -- Simon McVittie <smcv@collabora.com>  Fri, 26 Jan 2024 12:55:48 +0000
+
 steam-runtime-tools (0.20240125.0) steamrt; urgency=medium
 
   * pressure-vessel:
