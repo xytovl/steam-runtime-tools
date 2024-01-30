@@ -1,3 +1,16 @@
+steam-runtime-tools (0.20240127.0) UNRELEASED; urgency=medium
+
+  * pressure-vessel:
+    - Look for internal Nvidia helper libraries by their canonical names,
+      which will be helpful if canonical/steam-snap#361 is fixed
+      (steam-runtime#586)
+  * Steam Linux Runtime 1.0 (scout):
+    - Stop generating and uploading steam-container-runtime.tar.gz,
+      superseded by SteamLinuxRuntime.tar.xz (steamrt/tasks#388)
+  * Documentation updates
+
+ -- Simon McVittie <smcv@collabora.com>  Tue, 30 Jan 2024 17:02:16 +0000
+
 steam-runtime-tools (0.20240126.0) steamrt; urgency=medium
 
   * SteamLinuxRuntime_sniper.sh: Tolerate CRLF line endings in VERSIONS.txt
