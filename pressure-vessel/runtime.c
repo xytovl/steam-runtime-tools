@@ -68,9 +68,7 @@ struct _PvRuntime
 
   gchar *bubblewrap;
   gchar *source;
-  gchar *id;
-  gchar *deployment;
-  gchar *source_files;          /* either deployment or that + "/files" */
+  gchar *source_files;          /* either source or that + "/files" */
   const gchar *pv_prefix;
   const gchar *helpers_path;
   PvBwrapLock *runtime_lock;
@@ -128,7 +126,6 @@ enum {
   PROP_SOURCE,
   PROP_ORIGINAL_ENVIRON,
   PROP_FLAGS,
-  PROP_ID,
   PROP_VARIABLE_DIR,
   N_PROPERTIES
 };
@@ -716,10 +713,6 @@ pv_runtime_get_property (GObject *object,
         g_value_set_flags (value, self->flags);
         break;
 
-      case PROP_ID:
-        g_value_set_string (value, self->id);
-        break;
-
       case PROP_VARIABLE_DIR:
         g_value_set_string (value, self->variable_dir);
         break;
@@ -790,12 +783,6 @@ pv_runtime_set_property (GObject *object,
               }
           }
 
-        break;
-
-      case PROP_ID:
-        /* Construct-only */
-        g_return_if_fail (self->id == NULL);
-        self->id = g_value_dup_string (value);
         break;
 
       case PROP_SOURCE:
@@ -954,7 +941,7 @@ pv_runtime_garbage_collect (PvRuntime *self,
           if (_srt_fstatat_is_same_file (self->variable_dir_fd,
                                          dent->d_name,
                                          AT_FDCWD,
-                                         self->deployment))
+                                         self->source))
             {
               g_debug ("Ignoring %s/%s: is the current version",
                        self->variable_dir, dent->d_name);
@@ -1195,204 +1182,6 @@ pv_runtime_create_copy (PvRuntime *self,
   self->runtime_lock = g_steal_pointer (&copy_lock);
   self->mutable_sysroot = _srt_sysroot_new_take (g_steal_pointer (&temp_dir),
                                                  g_steal_fd (&temp_dir_fd));
-
-  return TRUE;
-}
-
-static gboolean
-gstring_replace_suffix (GString *s,
-                        const char *suffix,
-                        const char *replacement)
-{
-  gsize len = strlen (suffix);
-
-  if (s->len >= len
-      && strcmp (&s->str[s->len - len], suffix) == 0)
-    {
-      g_string_truncate (s, s->len - len);
-      g_string_append (s, replacement);
-      return TRUE;
-    }
-
-  return FALSE;
-}
-
-/*
- * mutable_lock: (out) (not optional):
- */
-static gboolean
-pv_runtime_unpack (PvRuntime *self,
-                   PvBwrapLock **mutable_lock,
-                   GError **error)
-{
-  g_autoptr(GString) debug_tarball = NULL;
-  G_GNUC_UNUSED g_autoptr(SrtProfilingTimer) timer = NULL;
-  g_autofree gchar *deploy_basename = NULL;
-  g_autofree gchar *unpack_dir = NULL;
-
-  g_return_val_if_fail (PV_IS_RUNTIME (self), FALSE);
-  g_return_val_if_fail (mutable_lock != NULL, FALSE);
-  g_return_val_if_fail (*mutable_lock == NULL, FALSE);
-  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
-  g_return_val_if_fail (self->source != NULL, FALSE);
-  g_return_val_if_fail (self->variable_dir != NULL, FALSE);
-  g_return_val_if_fail (self->variable_dir_fd >= 0, FALSE);
-  g_return_val_if_fail (self->deployment == NULL, FALSE);
-
-  if (!g_file_test (self->source, G_FILE_TEST_IS_REGULAR))
-    return glnx_throw (error, "\"%s\" is not a regular file", self->source);
-
-  if (!g_str_has_suffix (self->source, ".tar.gz"))
-    return glnx_throw (error, "\"%s\" is not a .tar.gz file", self->source);
-
-  if (self->id == NULL)
-    {
-      g_autoptr(GString) build_id_file = g_string_new (self->source);
-      g_autofree char *id = NULL;
-      gsize len;
-      gsize i;
-
-      if (gstring_replace_suffix (build_id_file, "-runtime.tar.gz",
-                                  "-buildid.txt")
-          || gstring_replace_suffix (build_id_file, "-sysroot.tar.gz",
-                                     "-buildid.txt"))
-        {
-          if (!g_file_get_contents (build_id_file->str, &id, &len, error))
-            {
-              g_prefix_error (error, "Unable to determine build ID from \"%s\": ",
-                              build_id_file->str);
-              return FALSE;
-            }
-
-          if (len == 0)
-            return glnx_throw (error, "Build ID in \"%s\" is empty",
-                               build_id_file->str);
-
-          for (i = 0; i < len; i++)
-            {
-              /* Ignore a trailing newline */
-              if (i + 1 == len && id[i] == '\n')
-                {
-                  id[i] = '\0';
-                  break;
-                }
-
-              /* Allow dot, dash or underscore, but not at the beginning */
-              if (i > 0 && strchr (".-_", id[i]) != NULL)
-                continue;
-
-              if (!g_ascii_isalnum (id[i]))
-                return glnx_throw (error, "Build ID in \"%s\" is invalid",
-                                   build_id_file->str);
-            }
-
-          self->id = g_steal_pointer (&id);
-        }
-    }
-
-  if (self->id == NULL)
-    return glnx_throw (error, "Cannot unpack archive without unique ID");
-
-  deploy_basename = g_strdup_printf ("deploy-%s", self->id);
-  self->deployment = g_build_filename (self->variable_dir,
-                                       deploy_basename, NULL);
-
-  /* Fast path: if we already unpacked it, nothing more to do! */
-  if (g_file_test (self->deployment, G_FILE_TEST_IS_DIR))
-    return TRUE;
-
-  /* Lock the parent directory. Anything that directly manipulates the
-   * unpacked runtimes is expected to do the same, so that
-   * it cannot be deleting unpacked runtimes at the same time we're
-   * creating them.
-   *
-   * This is an exclusive lock, to avoid two concurrent processes trying
-   * to unpack the same runtime. */
-  *mutable_lock = pv_bwrap_lock_new (self->variable_dir_fd, ".ref",
-                                     (PV_BWRAP_LOCK_FLAGS_CREATE
-                                      | PV_BWRAP_LOCK_FLAGS_WAIT),
-                                     error);
-
-  if (*mutable_lock == NULL)
-    return FALSE;
-
-  /* Slow path: we need to do this the hard way. */
-  timer = _srt_profiling_start ("Unpacking %s", self->source);
-  unpack_dir = g_build_filename (self->variable_dir, "tmp-XXXXXX", NULL);
-
-  if (g_mkdtemp (unpack_dir) == NULL)
-    return glnx_throw_errno_prefix (error,
-                                    "Cannot create temporary directory \"%s\"",
-                                    unpack_dir);
-
-  g_info ("Unpacking \"%s\" into \"%s\"...", self->source, unpack_dir);
-
-    {
-      g_autoptr(FlatpakBwrap) tar = flatpak_bwrap_new (NULL);
-
-      flatpak_bwrap_add_args (tar,
-                              "tar",
-                              "--force-local",
-                              "-C", unpack_dir,
-                              NULL);
-
-      if (self->flags & PV_RUNTIME_FLAGS_VERBOSE)
-        flatpak_bwrap_add_arg (tar, "-v");
-
-      flatpak_bwrap_add_args (tar,
-                              "-xf", self->source,
-                              NULL);
-      flatpak_bwrap_finish (tar);
-
-      if (!pv_bwrap_run_sync (tar, NULL, error))
-        {
-          glnx_shutil_rm_rf_at (-1, unpack_dir, NULL, NULL);
-          return FALSE;
-        }
-    }
-
-  debug_tarball = g_string_new (self->source);
-
-  if (gstring_replace_suffix (debug_tarball, "-runtime.tar.gz",
-                              "-debug.tar.gz")
-      && g_file_test (debug_tarball->str, G_FILE_TEST_EXISTS))
-    {
-      g_autoptr(FlatpakBwrap) tar = flatpak_bwrap_new (NULL);
-      g_autoptr(GError) local_error = NULL;
-      g_autofree char *files_lib_debug = NULL;
-
-      files_lib_debug = g_build_filename (unpack_dir, "files", "lib",
-                                          "debug", NULL);
-
-      flatpak_bwrap_add_args (tar,
-                              "tar",
-                              "--force-local",
-                              "-C", files_lib_debug,
-                              NULL);
-
-      if (self->flags & PV_RUNTIME_FLAGS_VERBOSE)
-        flatpak_bwrap_add_arg (tar, "-v");
-
-      flatpak_bwrap_add_args (tar,
-                              "-xf", debug_tarball->str,
-                              "files/",
-                              NULL);
-      flatpak_bwrap_finish (tar);
-
-      if (!pv_bwrap_run_sync (tar, NULL, &local_error))
-        g_debug ("Ignoring error unpacking detached debug symbols: %s",
-                 local_error->message);
-    }
-
-  g_info ("Renaming \"%s\" to \"%s\"...", unpack_dir, deploy_basename);
-
-  if (!glnx_renameat (self->variable_dir_fd, unpack_dir,
-                      self->variable_dir_fd, deploy_basename,
-                      error))
-    {
-      glnx_shutil_rm_rf_at (-1, unpack_dir, NULL, NULL);
-      return FALSE;
-    }
 
   return TRUE;
 }
@@ -1732,30 +1521,13 @@ pv_runtime_initable_init (GInitable *initable,
   if (!pv_runtime_init_variable_dir (self, error))
     return FALSE;
 
-  if (self->flags & PV_RUNTIME_FLAGS_UNPACK_ARCHIVE)
-    {
-      if (self->variable_dir_fd < 0)
-        return glnx_throw (error,
-                           "Cannot unpack archive without variable directory");
-
-      if (!pv_runtime_unpack (self, &mutable_lock, error))
-        return FALSE;
-
-      /* Set by pv_runtime_unpack */
-      g_assert (self->deployment != NULL);
-    }
-  else
-    {
-      self->deployment = g_strdup (self->source);
-    }
-
-  if (!g_file_test (self->deployment, G_FILE_TEST_IS_DIR))
+  if (!g_file_test (self->source, G_FILE_TEST_IS_DIR))
     {
       return glnx_throw (error, "\"%s\" is not a directory",
-                         self->deployment);
+                         self->source);
     }
 
-  /* If the deployment contains usr-mtree.txt, assume that it's a
+  /* If the runtime directory contains usr-mtree.txt, assume that it's a
    * Flatpak-style merged-/usr runtime, and usr-mtree.txt describes
    * what's in the runtime. The content is taken from the files/
    * directory, but files not listed in the mtree are not included.
@@ -1763,7 +1535,7 @@ pv_runtime_initable_init (GInitable *initable,
    * The manifest compresses well (about 3:1 if sha256sums are included)
    * so try to read a compressed version first, falling back to
    * uncompressed. */
-  usr_mtree = g_build_filename (self->deployment, "usr-mtree.txt.gz", NULL);
+  usr_mtree = g_build_filename (self->source, "usr-mtree.txt.gz", NULL);
 
   if (g_file_test (usr_mtree, G_FILE_TEST_IS_REGULAR))
     {
@@ -1772,7 +1544,7 @@ pv_runtime_initable_init (GInitable *initable,
   else
     {
       g_clear_pointer (&usr_mtree, g_free);
-      usr_mtree = g_build_filename (self->deployment, "usr-mtree.txt", NULL);
+      usr_mtree = g_build_filename (self->source, "usr-mtree.txt", NULL);
     }
 
   if (!g_file_test (usr_mtree, G_FILE_TEST_IS_REGULAR))
@@ -1780,23 +1552,23 @@ pv_runtime_initable_init (GInitable *initable,
 
   /* Or, if it contains ./files/, assume it's a Flatpak-style runtime where
    * ./files is a merged /usr and ./metadata is an optional GKeyFile. */
-  self->source_files = g_build_filename (self->deployment, "files", NULL);
+  self->source_files = g_build_filename (self->source, "files", NULL);
 
   if (usr_mtree != NULL)
     {
       g_debug ("Assuming %s is a merged-/usr runtime because it has "
                "a /usr mtree",
-               self->deployment);
+               self->source);
     }
   else if (g_file_test (self->source_files, G_FILE_TEST_IS_DIR))
     {
-      g_debug ("Assuming %s is a Flatpak-style runtime", self->deployment);
+      g_debug ("Assuming %s is a Flatpak-style runtime", self->source);
     }
   else
     {
-      g_debug ("Assuming %s is a sysroot or merged /usr", self->deployment);
+      g_debug ("Assuming %s is a sysroot or merged /usr", self->source);
       g_clear_pointer (&self->source_files, g_free);
-      self->source_files = g_strdup (self->deployment);
+      self->source_files = g_strdup (self->source);
     }
 
   g_debug ("Taking runtime files from: %s", self->source_files);
@@ -2071,8 +1843,6 @@ pv_runtime_finalize (GObject *object)
 
   pv_runtime_cleanup (self);
   g_free (self->bubblewrap);
-  g_free (self->deployment);
-  g_free (self->id);
   g_free (self->libcapsule_knowledge);
   g_strfreev (self->original_environ);
   glnx_close_fd (&self->overrides_fd);
@@ -2138,13 +1908,6 @@ pv_runtime_class_init (PvRuntimeClass *cls)
                         (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
                          G_PARAM_STATIC_STRINGS));
 
-  properties[PROP_ID] =
-    g_param_spec_string ("id", "ID",
-                         "Unique identifier of runtime to be unpacked",
-                         NULL,
-                         (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-                          G_PARAM_STATIC_STRINGS));
-
   properties[PROP_VARIABLE_DIR] =
     g_param_spec_string ("variable-dir", "Variable directory",
                          ("Path to directory for temporary files, or NULL"),
@@ -2155,7 +1918,7 @@ pv_runtime_class_init (PvRuntimeClass *cls)
   properties[PROP_SOURCE] =
     g_param_spec_string ("source", "Source",
                          ("Path to read-only runtime files (merged-/usr "
-                          "or sysroot) or archive, in current namespace"),
+                          "or sysroot), in current namespace"),
                          NULL,
                          (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
                           G_PARAM_STATIC_STRINGS));
@@ -2165,7 +1928,6 @@ pv_runtime_class_init (PvRuntimeClass *cls)
 
 PvRuntime *
 pv_runtime_new (const char *source,
-                const char *id,
                 const char *variable_dir,
                 const char *bubblewrap,
                 PvGraphicsProvider *provider,
@@ -2186,7 +1948,6 @@ pv_runtime_new (const char *source,
                          "original-environ", original_environ,
                          "variable-dir", variable_dir,
                          "source", source,
-                         "id", id,
                          "flags", flags,
                          NULL);
 }

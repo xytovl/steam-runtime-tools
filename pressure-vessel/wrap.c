@@ -250,9 +250,7 @@ static PvShell opt_shell = PV_SHELL_NONE;
 static GArray *opt_pass_fds = NULL;
 static GArray *opt_preload_modules = NULL;
 static char *opt_runtime = NULL;
-static char *opt_runtime_archive = NULL;
 static char *opt_runtime_base = NULL;
-static char *opt_runtime_id = NULL;
 static Tristate opt_share_home = TRISTATE_MAYBE;
 static gboolean opt_share_pid = TRUE;
 static gboolean opt_single_thread = FALSE;
@@ -788,22 +786,12 @@ static GOptionEntry options[] =
     "it with the provider's graphics stack. The empty string "
     "means don't use a runtime. [Default: $PRESSURE_VESSEL_RUNTIME or '']",
     "RUNTIME" },
-  { "runtime-archive", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_FILENAME, &opt_runtime_archive,
-    "Unpack the ARCHIVE and use it as the runtime, using --runtime-id to "
-    "avoid repeatedly unpacking the same archive. "
-    "[Default: $PRESSURE_VESSEL_RUNTIME_ARCHIVE]",
-    "ARCHIVE" },
   { "runtime-base", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_FILENAME, &opt_runtime_base,
-    "If a --runtime or --runtime-archive is a relative path, look for "
+    "If a --runtime is a relative path, look for "
     "it relative to BASE. "
     "[Default: $PRESSURE_VESSEL_RUNTIME_BASE or '.']",
     "BASE" },
-  { "runtime-id", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_FILENAME, &opt_runtime_id,
-    "Reuse a previously-unpacked --runtime-archive if its ID matched this",
-    "ID" },
   { "share-home", '\0',
     G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK, opt_share_home_cb,
     "Use the real home directory. "
@@ -1021,7 +1009,6 @@ main (int argc,
   opt_deterministic = _srt_boolean_environment ("PRESSURE_VESSEL_DETERMINISTIC",
                                                 FALSE);
   opt_devel = _srt_boolean_environment ("PRESSURE_VESSEL_DEVEL", FALSE);
-  opt_runtime_id = g_strdup (g_getenv ("PRESSURE_VESSEL_RUNTIME_ID"));
 
     {
       const char *value = g_getenv ("PRESSURE_VESSEL_VARIABLE_DIR");
@@ -1097,52 +1084,17 @@ main (int argc,
 
   pv_wrap_detect_virtualization (&interpreter_root, &host_machine);
 
-  /* Specifying either one of these mutually-exclusive options as a
-   * command-line option disables use of the environment variable for
-   * the other one */
-  if (opt_runtime == NULL && opt_runtime_archive == NULL)
+  if (opt_runtime == NULL)
     {
       opt_runtime = g_strdup (g_getenv ("PRESSURE_VESSEL_RUNTIME"));
 
       /* Normalize empty string to NULL to simplify later code */
       if (opt_runtime != NULL && opt_runtime[0] == '\0')
         g_clear_pointer (&opt_runtime, g_free);
-
-      opt_runtime_archive = g_strdup (g_getenv ("PRESSURE_VESSEL_RUNTIME_ARCHIVE"));
-
-      if (opt_runtime_archive != NULL && opt_runtime_archive[0] == '\0')
-        g_clear_pointer (&opt_runtime_archive, g_free);
-    }
-
-  if (opt_runtime_id != NULL)
-    {
-      const char *p;
-
-      if (opt_runtime_id[0] == '-' || opt_runtime_id[0] == '.')
-        {
-          usage_error ("--runtime-id must not start with dash or dot");
-          goto out;
-        }
-
-      for (p = opt_runtime_id; *p != '\0'; p++)
-        {
-          if (!g_ascii_isalnum (*p) && *p != '_' && *p != '-' && *p != '.')
-            {
-              usage_error ("--runtime-id may only contain "
-                           "alphanumerics, underscore, dash or dot");
-              goto out;
-            }
-        }
     }
 
   if (opt_runtime_base == NULL)
     opt_runtime_base = g_strdup (g_getenv ("PRESSURE_VESSEL_RUNTIME_BASE"));
-
-  if (opt_runtime != NULL && opt_runtime_archive != NULL)
-    {
-      usage_error ("--runtime and --runtime-archive cannot both be used");
-      goto out;
-    }
 
   if (opt_graphics_provider == NULL)
     opt_graphics_provider = g_strdup (g_getenv ("PRESSURE_VESSEL_GRAPHICS_PROVIDER"));
@@ -1580,7 +1532,7 @@ main (int argc,
         }
     }
 
-  if (opt_runtime != NULL || opt_runtime_archive != NULL)
+  if (opt_runtime != NULL)
     {
       G_GNUC_UNUSED g_autoptr(SrtProfilingTimer) timer =
         _srt_profiling_start ("Setting up runtime");
@@ -1644,17 +1596,7 @@ main (int argc,
             }
         }
 
-      if (opt_runtime != NULL)
-        {
-          /* already checked for mutually exclusive options */
-          g_assert (opt_runtime_archive == NULL);
-          runtime_path = opt_runtime;
-        }
-      else
-        {
-          flags |= PV_RUNTIME_FLAGS_UNPACK_ARCHIVE;
-          runtime_path = opt_runtime_archive;
-        }
+      runtime_path = opt_runtime;
 
       if (!g_path_is_absolute (runtime_path)
           && opt_runtime_base != NULL
@@ -1676,7 +1618,6 @@ main (int argc,
         }
 
       runtime = pv_runtime_new (runtime_path,
-                                opt_runtime_id,
                                 opt_variable_dir,
                                 bwrap_executable,
                                 graphics_provider,
@@ -2468,9 +2409,7 @@ out:
   g_clear_pointer (&opt_steam_app_id, g_free);
   g_clear_pointer (&opt_home, g_free);
   g_clear_pointer (&opt_runtime, g_free);
-  g_clear_pointer (&opt_runtime_archive, g_free);
   g_clear_pointer (&opt_runtime_base, g_free);
-  g_clear_pointer (&opt_runtime_id, g_free);
   g_clear_pointer (&opt_pass_fds, g_array_unref);
   g_clear_pointer (&opt_variable_dir, g_free);
 

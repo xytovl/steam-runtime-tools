@@ -179,7 +179,6 @@ fixture_create_runtime (Fixture *f,
   g_assert_nonnull (graphics_provider);
 
   runtime = pv_runtime_new (f->mock_runtime,
-                            "mock_platform_1.0",
                             f->var,
                             NULL,
                             graphics_provider,
