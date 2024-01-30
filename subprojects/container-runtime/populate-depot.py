@@ -260,21 +260,13 @@ class Runtime:
 
     def get_archives(
         self,
-        include_sdk_debug=False,
-        include_sdk_runtime=False,
         include_sdk_sysroot=False,
     ):
         archives = [self.tarball]
 
-        if include_sdk_debug:
-            archives.append(self.debug_tarball)
-
         if include_sdk_sysroot:
             archives.append(self.dockerfile)
             archives.append(self.sysroot_tarball)
-
-        if include_sdk_runtime:
-            archives.append(self.sdk_tarball)
 
         return archives
 
@@ -514,8 +506,6 @@ class Main:
         depot_version: str = '',
         fast: bool = False,
         images_uri: str = DEFAULT_IMAGES_URI,
-        include_sdk_debug: bool = False,
-        include_sdk_runtime: bool = False,
         include_sdk_sysroot: bool = False,
         layered: bool = False,
         minimize: bool = False,
@@ -593,8 +583,6 @@ class Main:
         self.depot_version = depot_version
         self.fast = fast
         self.images_uri = images_uri
-        self.include_sdk_debug = include_sdk_debug
-        self.include_sdk_runtime = include_sdk_runtime
         self.include_sdk_sysroot = include_sdk_sysroot
         self.layered = layered
         self.minimize = minimize
@@ -777,11 +765,7 @@ class Main:
                 'Cannot use --unpack-ld-library-path with --layered'
             )
 
-        if (
-            self.include_sdk_debug
-            or self.include_sdk_runtime
-            or self.include_sdk_sysroot
-        ):
+        if self.include_sdk_sysroot:
             raise InvocationError(
                 'Cannot use --include-sdk-* with --layered'
             )
@@ -1030,53 +1014,6 @@ class Main:
 
                 self.ensure_ref(dest)
 
-                if self.include_sdk_runtime:
-                    if self.versioned_directories:
-                        sdk_subdir = '{}_sdk_{}'.format(runtime.name, version)
-                    else:
-                        sdk_subdir = '{}_sdk'.format(runtime.name)
-
-                    dest = os.path.join(self.depot, sdk_subdir)
-                    runtime_files.add(sdk_subdir + '/')
-
-                    with suppress(FileNotFoundError):
-                        shutil.rmtree(os.path.join(dest, 'files'))
-
-                    with suppress(FileNotFoundError):
-                        os.remove(os.path.join(dest, 'metadata'))
-
-                    os.makedirs(
-                        os.path.join(dest, 'files', 'lib', 'debug'),
-                        exist_ok=True,
-                    )
-                    argv = [
-                        'tar',
-                        '-C', dest,
-                        '-xf', os.path.join(self.cache, runtime.sdk_tarball),
-                    ]
-                    logger.info('%r', argv)
-                    subprocess.run(argv, check=True)
-                    self.prune_runtime(Path(dest))
-
-                    if self.mtree or self.minimize:
-                        self.write_lookaside(dest)
-
-                    if self.minimize:
-                        self.minimize_runtime(dest)
-
-                    self.ensure_ref(dest)
-
-                    if self.include_sdk_debug:
-                        argv = [
-                            'tar',
-                            '-C', os.path.join(dest, 'files', 'lib', 'debug'),
-                            '--transform', r's,^\(\./\)\?files\(/\|$\),,',
-                            '-xf',
-                            os.path.join(self.cache, runtime.debug_tarball),
-                        ]
-                        logger.info('%r', argv)
-                        subprocess.run(argv, check=True)
-
                 if self.include_sdk_sysroot:
                     if self.versioned_directories:
                         sysroot_subdir = '{}_sysroot_{}'.format(
@@ -1108,31 +1045,6 @@ class Main:
                         ),
                         exist_ok=True,
                     )
-
-                    if self.include_sdk_debug:
-                        if self.include_sdk_sysroot:
-                            argv = [
-                                'cp',
-                                '-al',
-                                os.path.join(dest, 'files', 'lib', 'debug'),
-                                os.path.join(sysroot, 'files', 'usr', 'lib'),
-                            ]
-                            logger.info('%r', argv)
-                            subprocess.run(argv, check=True)
-                        else:
-                            argv = [
-                                'tar',
-                                '-C', os.path.join(
-                                    sysroot, 'files', 'usr', 'lib', 'debug'
-                                ),
-                                '--transform', r's,^\(\./\)\?files\(/\|$\),,',
-                                '-xf',
-                                os.path.join(
-                                    self.cache, runtime.debug_tarball,
-                                ),
-                            ]
-                            logger.info('%r', argv)
-                            subprocess.run(argv, check=True)
 
             with open(
                 os.path.join(self.depot, 'run-in-' + runtime.name), 'w'
@@ -1300,8 +1212,6 @@ class Main:
         assert runtime.path
 
         for basename in runtime.get_archives(
-            include_sdk_debug=self.include_sdk_debug,
-            include_sdk_runtime=self.include_sdk_runtime,
             include_sdk_sysroot=self.include_sdk_sysroot,
         ):
             src = os.path.join(runtime.path, basename)
@@ -1359,8 +1269,6 @@ class Main:
         runtime.pin_version(self.opener)
 
         for basename in runtime.get_archives(
-            include_sdk_debug=self.include_sdk_debug,
-            include_sdk_runtime=self.include_sdk_runtime,
             include_sdk_sysroot=self.include_sdk_sysroot,
         ):
             downloaded = runtime.fetch(basename, self.opener)
@@ -2021,18 +1929,6 @@ def main() -> None:
         help='Ignored for backwards compatibility',
     )
     parser.add_argument(
-        '--include-sdk', default=False, action='store_true',
-        help='Include a corresponding SDK',
-    )
-    parser.add_argument(
-        '--include-sdk-debug', default=False, action='store_true',
-        help='Include a corresponding SDK',
-    )
-    parser.add_argument(
-        '--include-sdk-runtime', default=False, action='store_true',
-        help='Include a corresponding SDK',
-    )
-    parser.add_argument(
         '--include-sdk-sysroot', default=False, action='store_true',
         help='Include a corresponding SDK',
     )
@@ -2135,11 +2031,6 @@ def main() -> None:
 
     try:
         args = parser.parse_args()
-
-        args.include_sdk_debug = args.include_sdk_debug or args.include_sdk
-        args.include_sdk_runtime = args.include_sdk_runtime or args.include_sdk
-        args.include_sdk_sysroot = args.include_sdk_sysroot or args.include_sdk
-
         Main(**vars(args)).run()
     except InvocationError as e:
         parser.error(str(e))
