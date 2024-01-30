@@ -956,114 +956,114 @@ class Main:
                 exist_ok=True,
             )
 
-        for runtime in (self.runtime,):     # too much to reindent right now
-            if runtime.path:
-                logger.info(
-                    'Using runtime from local directory %r',
-                    runtime.path)
-                self.use_local_runtime(runtime)
-            else:
-                logger.info(
-                    'Downloading runtime from %s',
-                    runtime)
-                self.download_runtime(runtime)
+        runtime = self.runtime
 
-            component_version = ComponentVersion(runtime.name)
+        if runtime.path:
+            logger.info(
+                'Using runtime from local directory %r',
+                runtime.path)
+            self.use_local_runtime(runtime)
+        else:
+            logger.info(
+                'Downloading runtime from %s',
+                runtime)
+            self.download_runtime(runtime)
 
-            if runtime.path:
-                with open(
-                    os.path.join(runtime.path, runtime.build_id_file), 'r',
-                ) as text_reader:
-                    version = text_reader.read().strip()
-            else:
-                version = runtime.pinned_version or ''
-                assert version
+        component_version = ComponentVersion(runtime.name)
 
-            runtime_files = set()
-
-            if True:                    # not re-indenting this right now
-                if self.versioned_directories:
-                    subdir = '{}_platform_{}'.format(runtime.name, version)
-                else:
-                    subdir = runtime.name
-
-                dest = os.path.join(self.depot, subdir)
-                runtime_files.add(subdir + '/')
-
-                with suppress(FileNotFoundError):
-                    shutil.rmtree(dest)
-
-                os.makedirs(dest, exist_ok=True)
-                argv = [
-                    'tar',
-                    '-C', dest,
-                    '-xf',
-                    os.path.join(self.cache, runtime.tarball),
-                ]
-                logger.info('%r', argv)
-                subprocess.run(argv, check=True)
-                self.prune_runtime(Path(dest))
-                self.write_lookaside(dest)
-                self.minimize_runtime(dest)
-
-                self.ensure_ref(dest)
-
-                if self.include_sdk_sysroot:
-                    if self.versioned_directories:
-                        sysroot_subdir = '{}_sysroot_{}'.format(
-                            runtime.name, version,
-                        )
-                    else:
-                        sysroot_subdir = '{}_sysroot'.format(runtime.name)
-
-                    sysroot = os.path.join(self.depot, sysroot_subdir)
-                    runtime_files.add(sysroot_subdir + '/')
-
-                    with suppress(FileNotFoundError):
-                        shutil.rmtree(sysroot)
-
-                    os.makedirs(os.path.join(sysroot, 'files'), exist_ok=True)
-                    argv = [
-                        'tar',
-                        '-C', os.path.join(sysroot, 'files'),
-                        '--exclude', 'dev/*',
-                        '-xf',
-                        os.path.join(self.cache, runtime.sysroot_tarball),
-                    ]
-                    logger.info('%r', argv)
-                    subprocess.run(argv, check=True)
-
-                    os.makedirs(
-                        os.path.join(
-                            sysroot, 'files', 'usr', 'lib', 'debug',
-                        ),
-                        exist_ok=True,
-                    )
-
+        if runtime.path:
             with open(
-                os.path.join(self.depot, 'run-in-' + runtime.name), 'w'
-            ) as writer:
-                writer.write(
-                    RUN_IN_DIR_SOURCE.format(
-                        escaped_dir=shlex.quote(subdir),
-                        source_for_generated_file=(
-                            'Generated file, do not edit'
-                        ),
-                    )
+                os.path.join(runtime.path, runtime.build_id_file), 'r',
+            ) as text_reader:
+                version = text_reader.read().strip()
+        else:
+            version = runtime.pinned_version or ''
+            assert version
+
+        runtime_files = set()
+
+        if self.versioned_directories:
+            subdir = '{}_platform_{}'.format(runtime.name, version)
+        else:
+            subdir = runtime.name
+
+        dest = os.path.join(self.depot, subdir)
+        runtime_files.add(subdir + '/')
+
+        with suppress(FileNotFoundError):
+            shutil.rmtree(dest)
+
+        os.makedirs(dest, exist_ok=True)
+        argv = [
+            'tar',
+            '-C', dest,
+            '-xf',
+            os.path.join(self.cache, runtime.tarball),
+        ]
+        logger.info('%r', argv)
+        subprocess.run(argv, check=True)
+        self.prune_runtime(Path(dest))
+        self.write_lookaside(dest)
+        self.minimize_runtime(dest)
+
+        self.ensure_ref(dest)
+
+        if self.include_sdk_sysroot:
+            if self.versioned_directories:
+                sysroot_subdir = '{}_sysroot_{}'.format(
+                    runtime.name, version,
                 )
+            else:
+                sysroot_subdir = '{}_sysroot'.format(runtime.name)
 
-            os.chmod(os.path.join(self.depot, 'run-in-' + runtime.name), 0o755)
+            sysroot = os.path.join(self.depot, sysroot_subdir)
+            runtime_files.add(sysroot_subdir + '/')
 
-            comment = ', '.join(sorted(runtime_files))
+            with suppress(FileNotFoundError):
+                shutil.rmtree(sysroot)
 
-            if runtime.path and not runtime.official:
-                comment += ' (from local build)'
+            os.makedirs(os.path.join(sysroot, 'files'), exist_ok=True)
+            argv = [
+                'tar',
+                '-C', os.path.join(sysroot, 'files'),
+                '--exclude', 'dev/*',
+                '-xf',
+                os.path.join(self.cache, runtime.sysroot_tarball),
+            ]
+            logger.info('%r', argv)
+            subprocess.run(argv, check=True)
 
-            component_version.version = version
-            component_version.runtime = runtime.suite
-            component_version.runtime_version = version
-            component_version.comment = comment
-            self.versions.append(component_version)
+            os.makedirs(
+                os.path.join(
+                    sysroot, 'files', 'usr', 'lib', 'debug',
+                ),
+                exist_ok=True,
+            )
+
+        with open(
+            os.path.join(self.depot, 'run-in-' + runtime.name), 'w'
+        ) as writer:
+            writer.write(
+                RUN_IN_DIR_SOURCE.format(
+                    escaped_dir=shlex.quote(subdir),
+                    source_for_generated_file=(
+                        'Generated file, do not edit'
+                    ),
+                )
+            )
+
+        os.chmod(os.path.join(self.depot, 'run-in-' + runtime.name), 0o755)
+
+        comment = ', '.join(sorted(runtime_files))
+
+        if runtime.path and not runtime.official:
+            comment += ' (from local build)'
+
+        component_version.version = version
+        component_version.runtime = runtime.suite
+        component_version.runtime_version = version
+        component_version.comment = comment
+        self.versions.append(component_version)
 
         if self.toolmanifest:
 
