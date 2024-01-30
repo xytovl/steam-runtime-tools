@@ -484,50 +484,6 @@ class DirectoryRuntime(ContainerRuntime):
         return description
 
 
-class ArchiveRuntime(ContainerRuntime):
-    def __init__(
-        self,
-        path,           # type: str
-        buildid_file,   # type: str
-        home,           # type: str
-    ):  # type: (...) -> None
-        super().__init__(path, home=home)
-
-        if path.startswith(self.home + '/'):
-            path = '~' + path[len(self.home):]
-
-        description = os.path.basename(path)
-        sdk_suffix = ''
-
-        if description.startswith('com.valvesoftware.SteamRuntime.'):
-            description = description[len('com.valvesoftware.SteamRuntime.'):]
-
-        if description.startswith('Platform-'):
-            description = description[len('Platform-'):]
-
-        if description.startswith('Sdk-'):
-            sdk_suffix = '-sdk'
-            description = description[len('Sdk-'):]
-
-        if description.startswith('amd64,i386-'):
-            description = description[len('amd64,i386-'):]
-
-        if description.endswith('.tar.gz'):
-            description = description[:-len('.tar.gz')]
-
-        if description.endswith('-runtime'):
-            description = description[:-len('-runtime')]
-
-        with open(buildid_file) as reader:
-            build = reader.read().strip()
-
-        self.deploy_id = '{}{}_{}'.format(description, sdk_suffix, build)
-        self.description = '{} build {}\n({})'.format(description, build, path)
-
-    def get_sort_weight(self, default):
-        return (2, self._runtime_version(), self.path)
-
-
 class Gui:
     def __init__(self):
         # type: (...) -> None
@@ -1283,26 +1239,6 @@ class Gui:
 
                 continue
 
-            if member.endswith(('-runtime.tar.gz', '-sysroot.tar.gz')):
-                # runtime and sysroot happen to be the same length!
-                buildid_file = os.path.join(
-                    source_of_runtimes,
-                    member[:-len('-runtime.tar.gz')] + '-buildid.txt',
-                )
-
-                if os.path.exists(buildid_file):
-                    logger.debug(
-                        'Discovered possible archive runtime: %s', path,
-                    )
-                    if path not in self.container_runtimes:
-                        self.container_runtimes[path] = ArchiveRuntime(
-                            path,
-                            buildid_file=buildid_file,
-                            home=self.home,
-                        )
-
-                continue
-
             if member in ('steam-runtime', 'steam-runtime-heavy'):
                 logger.debug(
                     'Discovered possible LD_LIBRARY_PATH runtime: %s', path,
@@ -1859,21 +1795,8 @@ class Gui:
                         pv.unruntime,
                     ]
 
-                    if isinstance(component, ArchiveRuntime):
-                        args.append(
-                            '--runtime-archive=' + component.path
-                        )
-                        args.append(
-                            '--runtime-id=' + component.deploy_id
-                        )
-                    elif isinstance(component, DirectoryRuntime):
-                        args.append('--runtime=' + component.path)
-                    else:
-                        raise AssertionError(
-                            'Unhandled ContainerRuntime subclass: %r'
-                            % component
-                        )
-
+                    assert isinstance(component, DirectoryRuntime)
+                    args.append('--runtime=' + component.path)
                     args.append('--')
 
                 value = self.graphics_provider_combo.get_active_id()
