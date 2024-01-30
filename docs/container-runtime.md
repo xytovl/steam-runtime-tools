@@ -146,6 +146,10 @@ It can also be installed by running this command:
 
     steam steam://install/1628350
 
+In Steam client betas since January 2024, a private copy of the sniper
+runtime is installed into `~/.steam/root/ubuntu12_64/steam-runtime-sniper`
+and used to run the Steam client user interface (`steamwebhelper`).
+
 Documentation in the `steamrt` "metapackage" provides
 [more information about sniper](https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/sniper/README.md).
 
