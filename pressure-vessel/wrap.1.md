@@ -667,24 +667,19 @@ require communication or integration with Steam, without going via
 Steam to launch it. This will only work for simple games without DRM
 or significant Steam integration.
 
-    $ steam steam://install/1070560     # Steam Linux Runtime 'scout'
-    $ steam steam://install/302380      # Floating Point, a small free game
+    $ steam steam://install/1628350     # Steam Linux Runtime 3.0 'sniper'
+    $ steam steam://install/599390      # Battle for Wesnoth
     $ rm -fr ~/tmp/pressure-vessel-var
     $ mkdir -p ~/tmp/pressure-vessel-var
-    $ archive=com.valvesoftware.SteamRuntime.Platform-amd64,i386-scout-runtime.tar.gz
-    $ cd ~/.steam/steam/steamapps/common/"Floating Point"
+    $ cd ~/.steam/steam/steamapps/common/wesnoth
     $ /path/to/pressure-vessel/bin/pressure-vessel-wrap \
-        --runtime-archive ~/.steam/steamapps/common/SteamLinuxRuntime/"$archive" \
+        --runtime ~/.steam/steam/steamapps/common/SteamLinuxRuntime_sniper/sniper_platform_*/
         --variable-dir ~/tmp/pressure-vessel-var \
         --shell=instead \
         -- \
-        "./Floating Point.x86"
+        ./start.sh
 
 In the resulting **xterm**(1), you can explore the container interactively,
 then type `"$@"` (including the double quotes) to run the game itself.
-
-For more joined-up integration with Steam, install the Steam Linux Runtime
-(`steam://install/1070560`), and configure a native Linux game in Steam
-to be run with the `Steam Linux Runtime` "compatibility tool".
 
 <!-- vim:set sw=4 sts=4 et: -->
