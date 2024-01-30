@@ -51,81 +51,13 @@ elif [ -n "${PRESSURE_VESSEL_DOWNLOAD_URL-}" ]; then
     )
 fi
 
-echo "1..4"
-
-archive=com.valvesoftware.SteamRuntime.Platform-amd64,i386-soldier
-
-rm -fr depots/test-soldier-archives
-mkdir -p depots/test-soldier-archives
-python3 ./populate-depot.py \
-    --depot=depots/test-soldier-archives \
-    --depot-version=0.1.2.3 \
-    --toolmanifest \
-    --include-archives \
-    --no-unpack-runtime \
-    "${populate_depot_args[@]}" \
-    "${pressure_vessel_args[@]}" \
-    soldier \
-    ${NULL+}
-find depots/test-soldier-archives -ls > depots/test-soldier-archives.txt
-tar -tf "depots/test-soldier-archives/${archive}-runtime.tar.gz" \
-    > depots/test-soldier-archives-tar.txt
-
-if ! grep $'^depot\t0\\.1\\.2\\.3\t' depots/test-soldier-archives/VERSIONS.txt >/dev/null; then
-    echo "Bail out! Depot version number not found"
-    exit 1
-fi
-
-buildid="$(cat "depots/test-soldier-archives/$archive-buildid.txt")"
-soldier_version="$(
-    IFS="$(printf '\t')"
-    while read -r component version runtime comment; do
-        : "$runtime"    # unused
-        : "$comment"    # unused
-        if [ "$component" = "soldier" ]; then
-            printf '%s' "$version"
-        fi
-    done < depots/test-soldier-archives/VERSIONS.txt
-)"
-echo "# In -buildid.txt: $buildid"
-echo "# In VERSIONS.txt: $soldier_version"
-
-if [ "$buildid" != "$soldier_version" ]; then
-    echo "Bail out! Version mismatch"
-    exit 1
-fi
-
-run_archive="$(sed -ne 's/^archive=//p' depots/test-soldier-archives/run)"
-echo "# Expected: ${archive}-runtime.tar.gz"
-echo "# In ./run: $run_archive"
-
-if [ "$run_archive" != "${archive}-runtime.tar.gz" ]; then
-    echo "Bail out! Unexpected archive"
-    exit 1
-fi
-
-run_archive="$(sed -ne 's/^archive=//p' depots/test-soldier-archives/run-in-soldier)"
-echo "# Expected: ${archive}-runtime.tar.gz"
-echo "# In ./run-in-soldier: $run_archive"
-
-if [ "$run_archive" != "${archive}-runtime.tar.gz" ]; then
-    echo "Bail out! Unexpected archive"
-    exit 1
-fi
-
-for dir in depots/test-soldier-archives/soldier*; do
-    if [ -d "$dir" ]; then
-        echo "Bail out! Unexpected directory $dir"
-        exit 1
-    fi
-done
-
-echo "ok 1 - soldier, deploying from archive"
+echo "1..3"
 
 rm -fr depots/test-soldier-unpacked
 mkdir -p depots/test-soldier-unpacked
 python3 ./populate-depot.py \
     --depot=depots/test-soldier-unpacked \
+    --depot-version=0.1.2.3 \
     --no-include-archives \
     --toolmanifest \
     --unpack-runtime \
@@ -135,6 +67,11 @@ python3 ./populate-depot.py \
     soldier \
     ${NULL+}
 find depots/test-soldier-unpacked -ls > depots/test-soldier-unpacked.txt
+
+if ! grep $'^depot\t0\\.1\\.2\\.3\t' depots/test-soldier-unpacked/VERSIONS.txt >/dev/null; then
+    echo "Bail out! Depot version number not found"
+    exit 1
+fi
 
 soldier_version="$(
     IFS="$(printf '\t')"
@@ -179,7 +116,13 @@ for dir in depots/test-soldier-unpacked/soldier*; do
     fi
 done
 
-echo "ok 2 - soldier, running from unpacked directory"
+echo "ok 1 - soldier, running from unpacked directory"
+
+# We rely on this having been downloaded into .cache by the previous run
+ln .cache/com.valvesoftware.SteamRuntime.Platform-amd64,i386-soldier-runtime.tar.gz \
+    depots/test-soldier-unpacked
+echo "$soldier_version" > \
+    depots/test-soldier-unpacked/com.valvesoftware.SteamRuntime.Platform-amd64,i386-soldier-buildid.txt
 
 rm -fr depots/test-soldier-local
 mkdir -p depots/test-soldier-local
@@ -192,7 +135,7 @@ python3 ./populate-depot.py \
     --versioned-directories \
     "${populate_depot_args[@]}" \
     --pressure-vessel-archive=./.cache/pressure-vessel-bin.tar.gz \
-    'soldier={"path": "./depots/test-soldier-archives"}' \
+    'soldier={"path": "./depots/test-soldier-unpacked"}' \
     ${NULL+}
 find depots/test-soldier-local -ls > depots/test-soldier-local.txt
 
@@ -272,16 +215,14 @@ if [ -n "$symlinks" ]; then
     exit 1
 fi
 
-echo "ok 3 - soldier, running from local builds"
+echo "ok 2 - soldier, running from local builds"
 
 rm -fr depots/test-soldier-unversioned
 mkdir -p depots/test-soldier-unversioned
 python3 ./populate-depot.py \
     --depot=depots/test-soldier-unversioned \
-    --no-include-archives \
     --no-minimize \
     --toolmanifest \
-    --unpack-runtime \
     --no-versioned-directories \
     "${populate_depot_args[@]}" \
     "${pressure_vessel_args[@]}" \
@@ -350,6 +291,6 @@ if [ -z "$symlinks" ]; then
     exit 1
 fi
 
-echo "ok 4 - soldier, running from unpacked directory without version"
+echo "ok 3 - soldier, running from unpacked directory without version"
 
 # vim:set sw=4 sts=4 et:

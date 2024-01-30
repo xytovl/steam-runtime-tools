@@ -55,21 +55,7 @@ elif [ -n "${PRESSURE_VESSEL_DOWNLOAD_URL-}" ]; then
     )
 fi
 
-echo "1..2"
-
-rm -fr depots/test-sniper-archives
-mkdir -p depots/sniper-archives
-python3 ./populate-depot.py \
-    --depot=depots/test-sniper-archives \
-    --include-archives \
-    --no-unpack-runtime \
-    --toolmanifest \
-    "${populate_depot_args[@]}" \
-    "${pressure_vessel_args[@]}" \
-    sniper \
-    ${NULL+}
-find depots/test-sniper-archives -ls > depots/test-sniper-archives.txt
-echo "ok 1 - sniper, deploying from archive"
+echo "1..1"
 
 rm -fr depots/test-sniper-unpacked
 mkdir -p depots/test-sniper-unpacked
@@ -94,6 +80,6 @@ if ! [ -e "depots/test-sniper-unpacked/steampipe/depot_build_1628351.vdf" ]; the
     echo "Bail out! depot_build_1628351.vdf not found"
     exit 1
 fi
-echo "ok 2 - sniper, running from unpacked directory"
+echo "ok 1 - sniper, running from unpacked directory"
 
 # vim:set sw=4 sts=4 et:

@@ -461,31 +461,6 @@ fi
 exec "${{pressure_vessel}}/bin/pressure-vessel-unruntime" "$@"
 '''
 
-RUN_IN_ARCHIVE_SOURCE = '''\
-#!/bin/sh
-# {source_for_generated_file}
-
-set -eu
-
-me="$(readlink -f "$0")"
-here="${{me%/*}}"
-me="${{me##*/}}"
-
-archive={escaped_runtime}-{escaped_arch}-{escaped_suite}-runtime.tar.gz
-pressure_vessel="${{PRESSURE_VESSEL_PREFIX:-"${{here}}/pressure-vessel"}}"
-
-export PRESSURE_VESSEL_COPY_RUNTIME=1
-unset PRESSURE_VESSEL_RUNTIME
-export PRESSURE_VESSEL_RUNTIME_ARCHIVE="${{archive}}"
-export PRESSURE_VESSEL_RUNTIME_BASE="${{here}}"
-
-if [ -z "${{PRESSURE_VESSEL_VARIABLE_DIR-}}" ]; then
-    export PRESSURE_VESSEL_VARIABLE_DIR="${{here}}/var"
-fi
-
-exec "${{pressure_vessel}}/bin/pressure-vessel-unruntime" "$@"
-'''
-
 
 class ComponentVersion:
     def __init__(
@@ -539,7 +514,6 @@ class Main:
         depot_version: str = '',
         fast: bool = False,
         images_uri: str = DEFAULT_IMAGES_URI,
-        include_archives: bool = False,
         include_sdk_debug: bool = False,
         include_sdk_runtime: bool = False,
         include_sdk_sysroot: bool = False,
@@ -565,7 +539,6 @@ class Main:
         suite: str = '',
         toolmanifest: bool = False,
         unpack_ld_library_path: str = '',
-        unpack_runtime: bool = True,
         unpack_sources: Sequence[str] = (),
         unpack_sources_into: str = '.',
         version: str = '',
@@ -620,7 +593,6 @@ class Main:
         self.depot_version = depot_version
         self.fast = fast
         self.images_uri = images_uri
-        self.include_archives = include_archives
         self.include_sdk_debug = include_sdk_debug
         self.include_sdk_runtime = include_sdk_runtime
         self.include_sdk_sysroot = include_sdk_sysroot
@@ -638,7 +610,6 @@ class Main:
         self.steam_depot_id = steam_depot_id
         self.toolmanifest = toolmanifest
         self.unpack_ld_library_path = unpack_ld_library_path
-        self.unpack_runtime = unpack_runtime
         self.unpack_sources = unpack_sources
         self.unpack_sources_into = unpack_sources_into
         self.versioned_directories = versioned_directories
@@ -674,12 +645,6 @@ class Main:
             )
 
         os.makedirs(self.cache, exist_ok=True)
-
-        if not (self.include_archives or self.unpack_runtime):
-            raise RuntimeError(
-                'Cannot use both --no-include-archives and '
-                '--no-unpack-runtime'
-            )
 
         if '=' in runtime:
             name, rhs = runtime.split('=', 1)
@@ -810,11 +775,6 @@ class Main:
         if self.unpack_ld_library_path:
             raise InvocationError(
                 'Cannot use --unpack-ld-library-path with --layered'
-            )
-
-        if self.include_archives:
-            raise InvocationError(
-                'Cannot use --include-archives with --layered'
             )
 
         if (
@@ -1037,18 +997,9 @@ class Main:
                 version = runtime.pinned_version or ''
                 assert version
 
-            if self.include_archives:
-                runtime_files = set(
-                    runtime.get_archives(
-                        include_sdk_debug=self.include_sdk_debug,
-                        include_sdk_runtime=self.include_sdk_runtime,
-                        include_sdk_sysroot=self.include_sdk_sysroot,
-                    )
-                )
-            else:
-                runtime_files = set()
+            runtime_files = set()
 
-            if self.unpack_runtime:
+            if True:                    # not re-indenting this right now
                 if self.versioned_directories:
                     subdir = '{}_platform_{}'.format(runtime.name, version)
                 else:
@@ -1186,27 +1137,15 @@ class Main:
             with open(
                 os.path.join(self.depot, 'run-in-' + runtime.name), 'w'
             ) as writer:
-                if self.unpack_runtime:
-                    writer.write(
-                        RUN_IN_DIR_SOURCE.format(
-                            escaped_dir=shlex.quote(subdir),
-                            source_for_generated_file=(
-                                'Generated file, do not edit'
-                            ),
-                        )
+                writer.write(
+                    RUN_IN_DIR_SOURCE.format(
+                        escaped_dir=shlex.quote(subdir),
+                        source_for_generated_file=(
+                            'Generated file, do not edit'
+                        ),
                     )
-                else:
-                    writer.write(
-                        RUN_IN_ARCHIVE_SOURCE.format(
-                            escaped_arch=shlex.quote(runtime.architecture),
-                            escaped_name=shlex.quote(runtime.name),
-                            escaped_runtime=shlex.quote(runtime.platform),
-                            escaped_suite=shlex.quote(runtime.suite),
-                            source_for_generated_file=(
-                                'Generated file, do not edit'
-                            ),
-                        )
-                    )
+                )
+
             os.chmod(os.path.join(self.depot, 'run-in-' + runtime.name), 0o755)
 
             comment = ', '.join(sorted(runtime_files))
@@ -1374,27 +1313,6 @@ class Main:
 
             os.link(src, dest)
 
-            if self.include_archives:
-                dest = os.path.join(self.depot, basename)
-                logger.info('Hard-linking local runtime %r to %r', src, dest)
-
-                with suppress(FileNotFoundError):
-                    os.unlink(dest)
-
-                os.link(src, dest)
-
-        if self.include_archives:
-            with open(
-                os.path.join(self.depot, runtime.build_id_file), 'w',
-            ) as writer:
-                writer.write(f'{runtime.version}\n')
-
-            if self.include_sdk_runtime or self.include_sdk_sysroot:
-                with open(
-                    os.path.join(self.depot, runtime.sdk_build_id_file), 'w',
-                ) as writer:
-                    writer.write(f'{runtime.version}\n')
-
         if self.unpack_sources:
             with open(
                 os.path.join(runtime.path, runtime.sources), 'rb',
@@ -1438,7 +1356,7 @@ class Main:
         runtime build.
         """
 
-        pinned = runtime.pin_version(self.opener)
+        runtime.pin_version(self.opener)
 
         for basename in runtime.get_archives(
             include_sdk_debug=self.include_sdk_debug,
@@ -1446,26 +1364,6 @@ class Main:
             include_sdk_sysroot=self.include_sdk_sysroot,
         ):
             downloaded = runtime.fetch(basename, self.opener)
-
-            if self.include_archives:
-                dest = os.path.join(self.depot, basename)
-
-                with suppress(FileNotFoundError):
-                    os.unlink(dest)
-
-                os.link(downloaded, dest)
-
-        if self.include_archives:
-            with open(
-                os.path.join(self.depot, runtime.build_id_file), 'w',
-            ) as writer:
-                writer.write(f'{pinned}\n')
-
-            if self.include_sdk_runtime or self.include_sdk_sysroot:
-                with open(
-                    os.path.join(self.depot, runtime.sdk_build_id_file), 'w',
-                ) as writer:
-                    writer.write(f'{pinned}\n')
 
         if self.unpack_sources:
             with tempfile.TemporaryDirectory(prefix='populate-depot.') as tmp:
@@ -2118,19 +2016,9 @@ def main() -> None:
             'file/directory is an official one'
         ),
     )
-
     parser.add_argument(
-        '--include-archives', action='store_true', default=False,
-        help=(
-            'Provide the runtime as an archive to be unpacked'
-        )
-    )
-    parser.add_argument(
-        '--no-include-archives', action='store_false', dest='include_archives',
-        help=(
-            'Do not provide the runtime as an archive to be unpacked '
-            '[default]'
-        )
+        '--no-include-archives', dest='_ignored', action='store_true',
+        help='Ignored for backwards compatibility',
     )
     parser.add_argument(
         '--include-sdk', default=False, action='store_true',
@@ -2198,19 +2086,9 @@ def main() -> None:
         )
     )
     parser.add_argument(
-        '--unpack-runtime', '--unpack-runtimes',
+        '--unpack-runtime', '--unpack-runtimes', dest='_ignored',
         action='store_true', default=True,
-        help=(
-            "Unpack the runtime into the --depot, for use with "
-            "pressure-vessel's tests/containers.py. [default]"
-        )
-    )
-    parser.add_argument(
-        '--no-unpack-runtime', '--no-unpack-runtimes',
-        action='store_false', dest='unpack_runtime',
-        help=(
-            "Don't unpack the runtime into the --depot"
-        )
+        help='Ignored for backwards compatibility',
     )
     parser.add_argument(
         '--unpack-source', metavar='PACKAGE', action='append', default=[],
