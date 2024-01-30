@@ -74,9 +74,6 @@ It can also be installed by running this command:
 Documentation in the `steamrt` "metapackage" provides
 [more information about soldier](https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/soldier/README.md).
 
-Before September 2023, this compatibility tool was labelled
-*Steam Linux Runtime - soldier*.
-
 ## <span id="scout-on-soldier">Steam Linux Runtime 1.0 (scout)</span>
 
 [scout-on-soldier]: #scout-on-soldier
@@ -118,10 +115,6 @@ This mechanism is not currently available for third-party games on
 desktop Linux, but users can opt-in to running specific games in the
 Steam Linux Runtime 1.0 (scout) container via *Properties* → *Compatibility*.
 
-Before September 2023, this compatibility tool was labelled
-*Steam Linux Runtime*.
-The old name might still appear in some contexts.
-
 ## <span id="sniper">Steam Linux Runtime 3.0 (sniper)</span>
 
 [sniper]: #sniper
@@ -137,7 +130,7 @@ Native Linux games that require sniper can be released on Steam.
 The intention is that this will become available as a "self-service"
 feature via the Steamworks partner web interface, which can be used by
 any game that benefits from a newer library stack.
-However, as of early 2023, this mechanism is not yet ready, so configuring
+However, as of early 2024, this mechanism is not yet ready, so configuring
 a game to run in sniper requires manual setup by a Valve developer.
 Please contact Valve for more information.
 
@@ -153,11 +146,12 @@ It can also be installed by running this command:
 
     steam steam://install/1628350
 
+In Steam client betas since January 2024, a private copy of the sniper
+runtime is installed into `~/.steam/root/ubuntu12_64/steam-runtime-sniper`
+and used to run the Steam client user interface (`steamwebhelper`).
+
 Documentation in the `steamrt` "metapackage" provides
 [more information about sniper](https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/sniper/README.md).
-
-Before September 2023, this compatibility tool was labelled
-*Steam Linux Runtime - sniper*.
 
 ## <span id="medic">Steam Runtime 4, `medic`</span>
 

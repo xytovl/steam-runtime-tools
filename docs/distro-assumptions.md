@@ -40,8 +40,9 @@ Steam games:
 - The [container runtime framework][container runtime],
     implemented in terms of containers launched by the pressure-vessel tool.
     Instances of this can be found in
-    `.../steamapps/common/SteamLinuxRuntime_soldier` and/or
-    `.../steamapps/common/SteamLinuxRuntime_sniper`.
+    `.../steamapps/common/SteamLinuxRuntime_soldier`,
+    `.../steamapps/common/SteamLinuxRuntime_sniper` and/or
+    `~/.steam/root/ubuntu12_64/steam-runtime-sniper`.
     [Steam Linux Runtime 2.0 'soldier'][soldier]
     is based on Debian 10.
     [Steam Linux Runtime 3.0 'sniper'][sniper]
