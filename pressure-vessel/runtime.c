@@ -936,19 +936,7 @@ pv_runtime_garbage_collect (PvRuntime *self,
             continue;
         }
 
-      if (g_str_has_prefix (dent->d_name, "deploy-"))
-        {
-          if (_srt_fstatat_is_same_file (self->variable_dir_fd,
-                                         dent->d_name,
-                                         AT_FDCWD,
-                                         self->source))
-            {
-              g_debug ("Ignoring %s/%s: is the current version",
-                       self->variable_dir, dent->d_name);
-              continue;
-            }
-        }
-      else if (!g_str_has_prefix (dent->d_name, "tmp-"))
+      if (!g_str_has_prefix (dent->d_name, "tmp-"))
         {
           g_debug ("Ignoring %s/%s: not tmp-*",
                    self->variable_dir, dent->d_name);

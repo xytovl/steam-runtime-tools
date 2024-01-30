@@ -643,11 +643,6 @@ class TestContainers(BaseTest):
             os.makedirs(os.path.join(temp, 'donotdelete'), exist_ok=True)
             # Delete
             os.makedirs(os.path.join(temp, 'tmp-deleteme'), exist_ok=True)
-            # Delete, and assert that it is recursive
-            os.makedirs(
-                os.path.join(temp, 'deploy-deleteme', 'usr', 'lib'),
-                exist_ok=True,
-            )
             # Do not delete because it has ./keep
             os.makedirs(os.path.join(temp, 'tmp-keep', 'keep'), exist_ok=True)
             # Do not delete because we will read-lock .ref
@@ -725,7 +720,6 @@ class TestContainers(BaseTest):
                     self.assertNotIn('tmp-deleteme', members)
                 else:
                     # These would have been deleted if not for --no-gc-runtimes
-                    self.assertIn('deploy-deleteme', members)
                     self.assertIn('tmp-deleteme', members)
 
                 members.discard('.ref')
@@ -734,8 +728,6 @@ class TestContainers(BaseTest):
                 members.discard('tmp-keep')
                 members.discard('tmp-rlock')
                 members.discard('tmp-wlock')
-                members.discard('deploy-deleteme')
-                members.discard('deploy-myruntime_0.1.2')
                 # After discarding those, there should be exactly one left:
                 # the one we just created
                 self.assertEqual(len(members), 1)
