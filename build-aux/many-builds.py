@@ -186,6 +186,7 @@ class Environment:
                         '--depot', self.containers,
                         '--include-archives',
                         '--include-sdk-sysroot',
+                        '--no-mtrees',
                         '--no-versioned-directories',
                         '--source-dir', empty_depot_template,
                         '--unpack-runtimes',
