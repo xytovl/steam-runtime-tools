@@ -499,7 +499,7 @@ class Environment:
         )
         print(
             'rsync -avzP --delete '
-            '{}/scout-layered/steam-container-runtime/depot/ '
+            '{}/scout-layered/SteamLinuxRuntime/ '
             'machine:.../steamapps/common/SteamLinuxRuntime/'.format(
                 self.builddir_parent,
             )
