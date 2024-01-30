@@ -508,7 +508,6 @@ class Main:
         images_uri: str = DEFAULT_IMAGES_URI,
         include_sdk_sysroot: bool = False,
         layered: bool = False,
-        minimize: bool = False,
         mtree: bool = True,
         pressure_vessel_archive: str = '',
         pressure_vessel_from_runtime: str = '',
@@ -585,7 +584,6 @@ class Main:
         self.images_uri = images_uri
         self.include_sdk_sysroot = include_sdk_sysroot
         self.layered = layered
-        self.minimize = minimize
         self.mtree = mtree
         self.pressure_vessel_ssh_host = pressure_vessel_ssh_host or ssh_host
         self.pressure_vessel_ssh_path = pressure_vessel_ssh_path
@@ -1005,12 +1003,8 @@ class Main:
                 logger.info('%r', argv)
                 subprocess.run(argv, check=True)
                 self.prune_runtime(Path(dest))
-
-                if self.mtree or self.minimize:
-                    self.write_lookaside(dest)
-
-                if self.minimize:
-                    self.minimize_runtime(dest)
+                self.write_lookaside(dest)
+                self.minimize_runtime(dest)
 
                 self.ensure_ref(dest)
 
@@ -1937,19 +1931,8 @@ def main() -> None:
         help='Produce a layered runtime that runs scout on soldier',
     )
     parser.add_argument(
-        '--minimize', action='store_true', default=False,
-        help=(
-            'Omit empty files, empty directories and symlinks from '
-            'runtime content, requiring pressure-vessel to fill them in '
-            'from the mtree manifest'
-        )
-    )
-    parser.add_argument(
-        '--no-minimize', action='store_false', dest='minimize',
-        help=(
-            'Include empty files, empty directories and symlinks in '
-            'runtime content [default]'
-        )
+        '--minimize', dest='_ignored', action='store_true',
+        help='Ignored for backwards compatibility',
     )
     parser.add_argument(
         '--no-mtrees', dest='mtree', action='store_false', default=True,

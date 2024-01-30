@@ -221,7 +221,6 @@ rm -fr depots/test-soldier-unversioned
 mkdir -p depots/test-soldier-unversioned
 python3 ./populate-depot.py \
     --depot=depots/test-soldier-unversioned \
-    --no-minimize \
     --toolmanifest \
     --no-versioned-directories \
     "${populate_depot_args[@]}" \
@@ -272,24 +271,6 @@ for dir in depots/test-soldier-unversioned/soldier*; do
         exit 1
     fi
 done
-
-empties="$(find "depots/test-soldier-unversioned/soldier/files" -name .ref -prune -o -empty | sed -e 's/^/# /')"
-echo "# Empty files/dirs in runtime:"
-echo "$empties"
-
-if [ -z "$empties" ]; then
-    echo "Bail out! Runtime should include empty files"
-    exit 1
-fi
-
-symlinks="$(find "depots/test-soldier-unversioned/soldier/files" -type l | sed -e 's/^/# /')"
-echo "# Symlinks in runtime:"
-echo "$symlinks"
-
-if [ -z "$symlinks" ]; then
-    echo "Bail out! Runtime should include symlinks"
-    exit 1
-fi
 
 echo "ok 3 - soldier, running from unpacked directory without version"
 
