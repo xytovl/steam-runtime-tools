@@ -5582,8 +5582,11 @@ collect_graphics_libraries_patterns (GPtrArray *patterns)
     "libEGL_mesa.so.0",
     "libGLX_mesa.so.0",
 
-    /* NVIDIA proprietary stack (this is only the app-facing entry points,
-     * and not the driver internals with no stable SONAME like -glcore) */
+    /* NVIDIA proprietary stack: this is only the app-facing entry points,
+     * and not the driver internals with no stable SONAME like -glcore
+     * (which are listed in nvidia_private[] below).
+     * TODO: It would be better if these came from some sort of manifest:
+     * https://gitlab.steamos.cloud/steamrt/steam-runtime-tools/-/issues/123 */
     "libEGL_nvidia.so.0",
     "libGLESv1_CM_nvidia.so.1",
     "libGLESv2_nvidia.so.2",
@@ -5669,7 +5672,22 @@ collect_graphics_libraries_patterns (GPtrArray *patterns)
     "libnvoptix.so.*",
     "libvdpau_nvidia.so.*",
   };
+  /* Each of these is substituted into libnvidia-NAME.so.VERSION.
+   * TODO: It would be better if these came from some sort of manifest:
+   * https://gitlab.steamos.cloud/steamrt/steam-runtime-tools/-/issues/123 */
+  static const char * const nvidia_private[] =
+  {
+    "eglcore",
+    "glcore",
+    "glsi",
+    "glvkspirv",
+    "gpucomp",
+    "rtcore",
+    "tls",
+    "vulkan-producer",
+  };
   gsize i;
+  g_autofree gchar *nvidia_version = NULL;
 
   g_return_if_fail (patterns != NULL);
 
@@ -5690,6 +5708,17 @@ collect_graphics_libraries_patterns (GPtrArray *patterns)
     g_ptr_array_add (patterns,
                      g_strdup_printf ("if-exists:even-if-older:soname-match:%s",
                                       soname_globs_even_if_older[i]));
+
+  if (g_file_get_contents ("/sys/module/nvidia/version",
+                           &nvidia_version, NULL, NULL))
+    {
+      g_strstrip (nvidia_version);
+
+      for (i = 0; i < G_N_ELEMENTS (nvidia_private); i++)
+        g_ptr_array_add (patterns,
+                         g_strdup_printf ("if-exists:even-if-older:soname:libnvidia-%s.so.%s",
+                                          nvidia_private[i], nvidia_version));
+    }
 }
 
 static void
