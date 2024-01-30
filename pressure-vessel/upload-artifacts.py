@@ -304,7 +304,6 @@ class Uploader:
         app1070560.mkdir()
 
         for f in (
-            'steam-container-runtime.tar.gz',
             'SteamLinuxRuntime.tar.xz',
         ):
             a = Path('_build', 'scout-layered', f)

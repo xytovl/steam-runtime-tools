@@ -1,18 +1,15 @@
 #!/bin/sh
-# Copyright 2021-2023 Collabora Ltd.
+# Copyright 2021-2024 Collabora Ltd.
 # SPDX-License-Identifier: MIT
 
 set -eux
 
 builddir="${1:-_build/scout-layered}"
 
-rm -fr "$builddir/steam-container-runtime/depot"
-install -d "$builddir/steam-container-runtime/depot"
-install -d "$builddir/steam-container-runtime/steampipe"
-install -m644 \
-    subprojects/container-runtime/steampipe/app_build_1070560.vdf \
-    subprojects/container-runtime/steampipe/depot_build_1070561.vdf \
-    "$builddir/steam-container-runtime/steampipe/"
+rm -fr "$builddir/SteamLinuxRuntime"
+rm -fr "$builddir/steam-container-runtime"
+rm -fr "$builddir/steam-container-runtime.tar.gz"
+install -d "$builddir/SteamLinuxRuntime"
 
 case "${CI_COMMIT_TAG-}" in
     (v*)
@@ -36,7 +33,7 @@ export SOURCE_DATE_EPOCH
 
 echo "${depot_version#v}" > subprojects/container-runtime/.tarball-version
 ./subprojects/container-runtime/populate-depot.py \
-    --depot="$builddir/steam-container-runtime/depot" \
+    --depot="$builddir/SteamLinuxRuntime" \
     --depot-archive="$builddir/SteamLinuxRuntime.tar.xz" \
     --depot-version="${depot_version#v}" \
     --layered \
@@ -44,19 +41,6 @@ echo "${depot_version#v}" > subprojects/container-runtime/.tarball-version
     --steam-depot-id=1070561 \
     scout
 tar -tvf "$builddir/SteamLinuxRuntime.tar.xz"
-head -n-0 "$builddir/steam-container-runtime/depot/VERSIONS.txt"
-rm -fr "$builddir/steam-container-runtime/depot/steampipe"
-rm -fr "$builddir/steam-container-runtime/depot/var"
-tar \
-    -C "$builddir" \
-    --clamp-mtime \
-    --mtime="@${SOURCE_DATE_EPOCH}" \
-    --owner=nobody:65534 \
-    --group=nogroup:65534 \
-    --mode=u=rwX,go=rX \
-    --use-compress-program='pigz --fast -c -n --rsyncable' \
-    -cvf "$builddir/steam-container-runtime.tar.gz" \
-    steam-container-runtime
-tar -tvf "$builddir/steam-container-runtime.tar.gz"
+head -n-0 "$builddir/SteamLinuxRuntime/VERSIONS.txt"
 
 # vim:set sw=4 sts=4 et:
