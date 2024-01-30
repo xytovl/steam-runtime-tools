@@ -238,7 +238,6 @@ static char **opt_env_if_host = NULL;
 static char **opt_filesystems = NULL;
 static char *opt_freedesktop_app_id = NULL;
 static char *opt_steam_app_id = NULL;
-static gboolean opt_gc_legacy_runtimes = FALSE;
 static gboolean opt_gc_runtimes = TRUE;
 static gboolean opt_generate_locales = TRUE;
 static char *opt_home = NULL;
@@ -267,6 +266,16 @@ static gboolean opt_version_only = FALSE;
 static gboolean opt_test = FALSE;
 static PvTerminal opt_terminal = PV_TERMINAL_AUTO;
 static char *opt_write_final_argv = NULL;
+
+static gboolean
+opt_ignored_cb (const gchar *option_name,
+                const gchar *value,
+                gpointer data,
+                GError **error)
+{
+  g_warning ("%s is deprecated and no longer has any effect", option_name);
+  return TRUE;
+}
 
 typedef enum
 {
@@ -677,14 +686,11 @@ static GOptionEntry options[] =
     "as home directory. [Default: $STEAM_COMPAT_APP_ID or $SteamAppId]",
     "N" },
   { "gc-legacy-runtimes", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_gc_legacy_runtimes,
-    "Garbage-collect old unpacked runtimes in $PRESSURE_VESSEL_RUNTIME_BASE.",
-    NULL },
+    G_OPTION_FLAG_HIDDEN, G_OPTION_ARG_CALLBACK, &opt_ignored_cb,
+    NULL, NULL },
   { "no-gc-legacy-runtimes", '\0',
-    G_OPTION_FLAG_REVERSE, G_OPTION_ARG_NONE, &opt_gc_legacy_runtimes,
-    "Don't garbage-collect old unpacked runtimes in "
-    "$PRESSURE_VESSEL_RUNTIME_BASE [default].",
-    NULL },
+    G_OPTION_FLAG_HIDDEN, G_OPTION_ARG_CALLBACK, &opt_ignored_cb,
+    NULL, NULL },
   { "gc-runtimes", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_gc_runtimes,
     "If using --variable-dir, garbage-collect old temporary "
@@ -1045,7 +1051,6 @@ main (int argc,
                                                        TRUE);
 
   opt_share_home = tristate_environment ("PRESSURE_VESSEL_SHARE_HOME");
-  opt_gc_legacy_runtimes = _srt_boolean_environment ("PRESSURE_VESSEL_GC_LEGACY_RUNTIMES", FALSE);
   opt_gc_runtimes = _srt_boolean_environment ("PRESSURE_VESSEL_GC_RUNTIMES", TRUE);
   opt_generate_locales = _srt_boolean_environment ("PRESSURE_VESSEL_GENERATE_LOCALES", TRUE);
 
@@ -1572,27 +1577,6 @@ main (int argc,
                       "Flatpak subsandboxing can only use / or /run/host "
                       "to provide graphics drivers");
           goto out;
-        }
-    }
-
-  if (opt_gc_legacy_runtimes
-      && opt_runtime_base != NULL
-      && opt_runtime_base[0] != '\0'
-      && opt_variable_dir != NULL)
-    {
-      SrtDirentCompareFunc cmp = NULL;
-
-      if (opt_deterministic)
-        cmp = _srt_dirent_strcmp;
-
-      if (!pv_runtime_garbage_collect_legacy (opt_variable_dir,
-                                              opt_runtime_base,
-                                              cmp,
-                                              &local_error))
-        {
-          g_warning ("Unable to clean up old runtimes: %s",
-                     local_error->message);
-          g_clear_error (&local_error);
         }
     }
 

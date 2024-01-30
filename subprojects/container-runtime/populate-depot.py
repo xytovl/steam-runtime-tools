@@ -450,7 +450,6 @@ dir={escaped_dir}
 pressure_vessel="${{PRESSURE_VESSEL_PREFIX:-"${{here}}/pressure-vessel"}}"
 
 export PRESSURE_VESSEL_COPY_RUNTIME=1
-export PRESSURE_VESSEL_GC_LEGACY_RUNTIMES=1
 export PRESSURE_VESSEL_RUNTIME="${{dir}}"
 unset PRESSURE_VESSEL_RUNTIME_ARCHIVE
 export PRESSURE_VESSEL_RUNTIME_BASE="${{here}}"
@@ -476,7 +475,6 @@ archive={escaped_runtime}-{escaped_arch}-{escaped_suite}-runtime.tar.gz
 pressure_vessel="${{PRESSURE_VESSEL_PREFIX:-"${{here}}/pressure-vessel"}}"
 
 export PRESSURE_VESSEL_COPY_RUNTIME=1
-export PRESSURE_VESSEL_GC_LEGACY_RUNTIMES=1
 unset PRESSURE_VESSEL_RUNTIME
 export PRESSURE_VESSEL_RUNTIME_ARCHIVE="${{archive}}"
 export PRESSURE_VESSEL_RUNTIME_BASE="${{here}}"

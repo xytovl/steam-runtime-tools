@@ -504,7 +504,6 @@ class TestContainers(BaseTest):
         copy: bool = False,
         fake_home: bool = False,
         gc: bool = True,
-        gc_legacy: bool = True,
         locales: bool = False,
         only_prepare: bool = False
     ) -> None:
@@ -514,7 +513,6 @@ class TestContainers(BaseTest):
             copy=copy,
             fake_home=fake_home,
             gc=gc,
-            gc_legacy=gc_legacy,
             is_scout=True,
             locales=locales,
             only_prepare=only_prepare,
@@ -528,7 +526,6 @@ class TestContainers(BaseTest):
         copy: bool = False,
         fake_home: bool = False,
         gc: bool = True,
-        gc_legacy: bool = True,
         locales: bool = False,
         only_prepare: bool = False
     ) -> None:
@@ -537,7 +534,6 @@ class TestContainers(BaseTest):
             runtime,
             copy=copy,
             gc=gc,
-            gc_legacy=gc_legacy,
             is_soldier=True,
             locales=locales,
             only_prepare=only_prepare,
@@ -553,7 +549,6 @@ class TestContainers(BaseTest):
         fake_home: bool = False,
         fast_path: bool = False,
         gc: bool = True,
-        gc_legacy: bool = True,
         is_scout: bool = False,
         is_soldier: bool = False,
         locales: bool = False,
@@ -661,11 +656,6 @@ class TestContainers(BaseTest):
             else:
                 argv.append('--no-gc-runtimes')
 
-            if gc_legacy:
-                argv.append('--gc-legacy-runtimes')
-            else:
-                argv.append('--no-gc-legacy-runtimes')
-
             if fake_home:
                 argv.append('--home=' + fake_home_temp)
             else:
@@ -718,34 +708,6 @@ class TestContainers(BaseTest):
             # Do not delete because we will write-lock .ref
             os.makedirs(os.path.join(temp, 'tmp-wlock'), exist_ok=True)
 
-            for d in [mock_base, temp]:
-                os.makedirs(
-                    os.path.join(d, 'scout_before_0.20200101.0'),
-                    exist_ok=True,
-                )
-                os.makedirs(
-                    os.path.join(d, 'soldier_0.20200101.0'),
-                    exist_ok=True,
-                )
-                os.makedirs(
-                    os.path.join(d, '.scout_0.20200202.0_unpack-temp'),
-                    exist_ok=True,
-                )
-                os.makedirs(
-                    os.path.join(d, '.soldier_dontdelete'),
-                    exist_ok=True,
-                )
-                os.makedirs(
-                    os.path.join(d, 'scout_dontdelete'),
-                    exist_ok=True,
-                )
-                os.makedirs(
-                    os.path.join(d, 'soldier_0.20200101.0_keep', 'keep'),
-                    exist_ok=True,
-                )
-                os.symlink('soldier_0.20200101.0', os.path.join(d, 'soldier'))
-                os.symlink('scout_dontdelete', os.path.join(d, 'scout'))
-
             with open(
                 os.path.join(temp, 'tmp-rlock', '.ref'), 'w+'
             ) as rlock_writer, open(
@@ -796,27 +758,6 @@ class TestContainers(BaseTest):
 
             final_argv_temp.close()
 
-            for d in [mock_base, temp]:
-                members = set(os.listdir(d))
-
-                if gc_legacy:
-                    self.assertNotIn('scout_before_0.20200101.0', members)
-                    self.assertNotIn('soldier', members)
-                    self.assertNotIn('soldier_0.20200101.0', members)
-                    self.assertNotIn(
-                        '.scout_0.20200202.0_unpack-temp', members,
-                    )
-                else:
-                    self.assertIn('.scout_0.20200202.0_unpack-temp', members)
-                    self.assertIn('scout_before_0.20200101.0', members)
-                    self.assertIn('soldier', members)
-                    self.assertIn('soldier_0.20200101.0', members)
-
-                self.assertIn('.soldier_dontdelete', members)
-                self.assertIn('scout', members)
-                self.assertIn('scout_dontdelete', members)
-                self.assertIn('soldier_0.20200101.0_keep', members)
-
             if fake_home:
                 members = set(os.listdir(fake_home_temp))
 
@@ -847,15 +788,7 @@ class TestContainers(BaseTest):
                     self.assertIn('tmp-deleteme', members)
 
                 members.discard('.ref')
-                members.discard('.scout_0.20200202.0_unpack-temp')
-                members.discard('.soldier_dontdelete')
                 members.discard('donotdelete')
-                members.discard('scout')
-                members.discard('scout_before_0.20200101.0')
-                members.discard('scout_dontdelete')
-                members.discard('soldier')
-                members.discard('soldier_0.20200101.0')
-                members.discard('soldier_0.20200101.0_keep')
                 members.discard('tmp-deleteme')
                 members.discard('tmp-keep')
                 members.discard('tmp-rlock')
@@ -1293,7 +1226,7 @@ class TestContainers(BaseTest):
         with self.subTest('copy'):
             self._test_scout(
                 'scout_sysroot_copy_usrmerge', scout,
-                copy=True, gc=False, gc_legacy=False,
+                copy=True, gc=False,
             )
 
         with self.subTest('fake-home'):
