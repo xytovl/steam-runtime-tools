@@ -43,7 +43,6 @@
  * @PV_RUNTIME_FLAGS_VERBOSE: Be more verbose
  * @PV_RUNTIME_FLAGS_IMPORT_VULKAN_LAYERS: Include host Vulkan layers
  * @PV_RUNTIME_FLAGS_COPY_RUNTIME: Copy the runtime and modify the copy
- * @PV_RUNTIME_FLAGS_UNPACK_ARCHIVE: Source is an archive, not a deployment
  * @PV_RUNTIME_FLAGS_FLATPAK_SUBSANDBOX: The runtime will be used in a
  *  Flatpak subsandbox
  * @PV_RUNTIME_FLAGS_INTERPRETER_ROOT: The runtime is being set up as a
@@ -107,7 +106,6 @@ typedef struct _PvRuntimeClass PvRuntimeClass;
 GType pv_runtime_get_type (void);
 
 PvRuntime *pv_runtime_new (const char *source,
-                           const char *id,
                            const char *variable_dir,
                            const char *bubblewrap,
                            PvGraphicsProvider *provider,

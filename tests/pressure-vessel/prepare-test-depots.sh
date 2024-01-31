@@ -34,7 +34,6 @@ for suite in $suites; do
 
     time python3 ./subprojects/container-runtime/populate-depot.py \
         --depot="$builddir/depots/$suite" \
-        --include-archives \
         --no-versioned-directories \
         --pressure-vessel-archive "${PRESSURE_VESSEL}" \
         --source-dir="$builddir/depot-template" \

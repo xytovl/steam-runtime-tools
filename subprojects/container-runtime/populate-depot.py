@@ -260,21 +260,13 @@ class Runtime:
 
     def get_archives(
         self,
-        include_sdk_debug=False,
-        include_sdk_runtime=False,
         include_sdk_sysroot=False,
     ):
         archives = [self.tarball]
 
-        if include_sdk_debug:
-            archives.append(self.debug_tarball)
-
         if include_sdk_sysroot:
             archives.append(self.dockerfile)
             archives.append(self.sysroot_tarball)
-
-        if include_sdk_runtime:
-            archives.append(self.sdk_tarball)
 
         return archives
 
@@ -450,35 +442,8 @@ dir={escaped_dir}
 pressure_vessel="${{PRESSURE_VESSEL_PREFIX:-"${{here}}/pressure-vessel"}}"
 
 export PRESSURE_VESSEL_COPY_RUNTIME=1
-export PRESSURE_VESSEL_GC_LEGACY_RUNTIMES=1
 export PRESSURE_VESSEL_RUNTIME="${{dir}}"
 unset PRESSURE_VESSEL_RUNTIME_ARCHIVE
-export PRESSURE_VESSEL_RUNTIME_BASE="${{here}}"
-
-if [ -z "${{PRESSURE_VESSEL_VARIABLE_DIR-}}" ]; then
-    export PRESSURE_VESSEL_VARIABLE_DIR="${{here}}/var"
-fi
-
-exec "${{pressure_vessel}}/bin/pressure-vessel-unruntime" "$@"
-'''
-
-RUN_IN_ARCHIVE_SOURCE = '''\
-#!/bin/sh
-# {source_for_generated_file}
-
-set -eu
-
-me="$(readlink -f "$0")"
-here="${{me%/*}}"
-me="${{me##*/}}"
-
-archive={escaped_runtime}-{escaped_arch}-{escaped_suite}-runtime.tar.gz
-pressure_vessel="${{PRESSURE_VESSEL_PREFIX:-"${{here}}/pressure-vessel"}}"
-
-export PRESSURE_VESSEL_COPY_RUNTIME=1
-export PRESSURE_VESSEL_GC_LEGACY_RUNTIMES=1
-unset PRESSURE_VESSEL_RUNTIME
-export PRESSURE_VESSEL_RUNTIME_ARCHIVE="${{archive}}"
 export PRESSURE_VESSEL_RUNTIME_BASE="${{here}}"
 
 if [ -z "${{PRESSURE_VESSEL_VARIABLE_DIR-}}" ]; then
@@ -541,12 +506,8 @@ class Main:
         depot_version: str = '',
         fast: bool = False,
         images_uri: str = DEFAULT_IMAGES_URI,
-        include_archives: bool = False,
-        include_sdk_debug: bool = False,
-        include_sdk_runtime: bool = False,
         include_sdk_sysroot: bool = False,
         layered: bool = False,
-        minimize: bool = False,
         mtree: bool = True,
         pressure_vessel_archive: str = '',
         pressure_vessel_from_runtime: str = '',
@@ -567,7 +528,6 @@ class Main:
         suite: str = '',
         toolmanifest: bool = False,
         unpack_ld_library_path: str = '',
-        unpack_runtime: bool = True,
         unpack_sources: Sequence[str] = (),
         unpack_sources_into: str = '.',
         version: str = '',
@@ -622,12 +582,8 @@ class Main:
         self.depot_version = depot_version
         self.fast = fast
         self.images_uri = images_uri
-        self.include_archives = include_archives
-        self.include_sdk_debug = include_sdk_debug
-        self.include_sdk_runtime = include_sdk_runtime
         self.include_sdk_sysroot = include_sdk_sysroot
         self.layered = layered
-        self.minimize = minimize
         self.mtree = mtree
         self.pressure_vessel_ssh_host = pressure_vessel_ssh_host or ssh_host
         self.pressure_vessel_ssh_path = pressure_vessel_ssh_path
@@ -640,7 +596,6 @@ class Main:
         self.steam_depot_id = steam_depot_id
         self.toolmanifest = toolmanifest
         self.unpack_ld_library_path = unpack_ld_library_path
-        self.unpack_runtime = unpack_runtime
         self.unpack_sources = unpack_sources
         self.unpack_sources_into = unpack_sources_into
         self.versioned_directories = versioned_directories
@@ -676,12 +631,6 @@ class Main:
             )
 
         os.makedirs(self.cache, exist_ok=True)
-
-        if not (self.include_archives or self.unpack_runtime):
-            raise RuntimeError(
-                'Cannot use both --no-include-archives and '
-                '--no-unpack-runtime'
-            )
 
         if '=' in runtime:
             name, rhs = runtime.split('=', 1)
@@ -814,16 +763,7 @@ class Main:
                 'Cannot use --unpack-ld-library-path with --layered'
             )
 
-        if self.include_archives:
-            raise InvocationError(
-                'Cannot use --include-archives with --layered'
-            )
-
-        if (
-            self.include_sdk_debug
-            or self.include_sdk_runtime
-            or self.include_sdk_sysroot
-        ):
+        if self.include_sdk_sysroot:
             raise InvocationError(
                 'Cannot use --include-sdk-* with --layered'
             )
@@ -1016,211 +956,114 @@ class Main:
                 exist_ok=True,
             )
 
-        for runtime in (self.runtime,):     # too much to reindent right now
-            if runtime.path:
-                logger.info(
-                    'Using runtime from local directory %r',
-                    runtime.path)
-                self.use_local_runtime(runtime)
-            else:
-                logger.info(
-                    'Downloading runtime from %s',
-                    runtime)
-                self.download_runtime(runtime)
+        runtime = self.runtime
 
-            component_version = ComponentVersion(runtime.name)
+        if runtime.path:
+            logger.info(
+                'Using runtime from local directory %r',
+                runtime.path)
+            self.use_local_runtime(runtime)
+        else:
+            logger.info(
+                'Downloading runtime from %s',
+                runtime)
+            self.download_runtime(runtime)
 
-            if runtime.path:
-                with open(
-                    os.path.join(runtime.path, runtime.build_id_file), 'r',
-                ) as text_reader:
-                    version = text_reader.read().strip()
-            else:
-                version = runtime.pinned_version or ''
-                assert version
+        component_version = ComponentVersion(runtime.name)
 
-            if self.include_archives:
-                runtime_files = set(
-                    runtime.get_archives(
-                        include_sdk_debug=self.include_sdk_debug,
-                        include_sdk_runtime=self.include_sdk_runtime,
-                        include_sdk_sysroot=self.include_sdk_sysroot,
-                    )
+        if runtime.path:
+            with open(
+                os.path.join(runtime.path, runtime.build_id_file), 'r',
+            ) as text_reader:
+                version = text_reader.read().strip()
+        else:
+            version = runtime.pinned_version or ''
+            assert version
+
+        runtime_files = set()
+
+        if self.versioned_directories:
+            subdir = '{}_platform_{}'.format(runtime.name, version)
+        else:
+            subdir = runtime.name
+
+        dest = os.path.join(self.depot, subdir)
+        runtime_files.add(subdir + '/')
+
+        with suppress(FileNotFoundError):
+            shutil.rmtree(dest)
+
+        os.makedirs(dest, exist_ok=True)
+        argv = [
+            'tar',
+            '-C', dest,
+            '-xf',
+            os.path.join(self.cache, runtime.tarball),
+        ]
+        logger.info('%r', argv)
+        subprocess.run(argv, check=True)
+        self.prune_runtime(Path(dest))
+        self.write_lookaside(dest)
+        self.minimize_runtime(dest)
+
+        self.ensure_ref(dest)
+
+        if self.include_sdk_sysroot:
+            if self.versioned_directories:
+                sysroot_subdir = '{}_sysroot_{}'.format(
+                    runtime.name, version,
                 )
             else:
-                runtime_files = set()
+                sysroot_subdir = '{}_sysroot'.format(runtime.name)
 
-            if self.unpack_runtime:
-                if self.versioned_directories:
-                    subdir = '{}_platform_{}'.format(runtime.name, version)
-                else:
-                    subdir = runtime.name
+            sysroot = os.path.join(self.depot, sysroot_subdir)
+            runtime_files.add(sysroot_subdir + '/')
 
-                dest = os.path.join(self.depot, subdir)
-                runtime_files.add(subdir + '/')
+            with suppress(FileNotFoundError):
+                shutil.rmtree(sysroot)
 
-                with suppress(FileNotFoundError):
-                    shutil.rmtree(dest)
+            os.makedirs(os.path.join(sysroot, 'files'), exist_ok=True)
+            argv = [
+                'tar',
+                '-C', os.path.join(sysroot, 'files'),
+                '--exclude', 'dev/*',
+                '-xf',
+                os.path.join(self.cache, runtime.sysroot_tarball),
+            ]
+            logger.info('%r', argv)
+            subprocess.run(argv, check=True)
 
-                os.makedirs(dest, exist_ok=True)
-                argv = [
-                    'tar',
-                    '-C', dest,
-                    '-xf',
-                    os.path.join(self.cache, runtime.tarball),
-                ]
-                logger.info('%r', argv)
-                subprocess.run(argv, check=True)
-                self.prune_runtime(Path(dest))
+            os.makedirs(
+                os.path.join(
+                    sysroot, 'files', 'usr', 'lib', 'debug',
+                ),
+                exist_ok=True,
+            )
 
-                if self.mtree or self.minimize:
-                    self.write_lookaside(dest)
+        with open(
+            os.path.join(self.depot, 'run-in-' + runtime.name), 'w'
+        ) as writer:
+            writer.write(
+                RUN_IN_DIR_SOURCE.format(
+                    escaped_dir=shlex.quote(subdir),
+                    source_for_generated_file=(
+                        'Generated file, do not edit'
+                    ),
+                )
+            )
 
-                if self.minimize:
-                    self.minimize_runtime(dest)
+        os.chmod(os.path.join(self.depot, 'run-in-' + runtime.name), 0o755)
 
-                self.ensure_ref(dest)
+        comment = ', '.join(sorted(runtime_files))
 
-                if self.include_sdk_runtime:
-                    if self.versioned_directories:
-                        sdk_subdir = '{}_sdk_{}'.format(runtime.name, version)
-                    else:
-                        sdk_subdir = '{}_sdk'.format(runtime.name)
+        if runtime.path and not runtime.official:
+            comment += ' (from local build)'
 
-                    dest = os.path.join(self.depot, sdk_subdir)
-                    runtime_files.add(sdk_subdir + '/')
-
-                    with suppress(FileNotFoundError):
-                        shutil.rmtree(os.path.join(dest, 'files'))
-
-                    with suppress(FileNotFoundError):
-                        os.remove(os.path.join(dest, 'metadata'))
-
-                    os.makedirs(
-                        os.path.join(dest, 'files', 'lib', 'debug'),
-                        exist_ok=True,
-                    )
-                    argv = [
-                        'tar',
-                        '-C', dest,
-                        '-xf', os.path.join(self.cache, runtime.sdk_tarball),
-                    ]
-                    logger.info('%r', argv)
-                    subprocess.run(argv, check=True)
-                    self.prune_runtime(Path(dest))
-
-                    if self.mtree or self.minimize:
-                        self.write_lookaside(dest)
-
-                    if self.minimize:
-                        self.minimize_runtime(dest)
-
-                    self.ensure_ref(dest)
-
-                    if self.include_sdk_debug:
-                        argv = [
-                            'tar',
-                            '-C', os.path.join(dest, 'files', 'lib', 'debug'),
-                            '--transform', r's,^\(\./\)\?files\(/\|$\),,',
-                            '-xf',
-                            os.path.join(self.cache, runtime.debug_tarball),
-                        ]
-                        logger.info('%r', argv)
-                        subprocess.run(argv, check=True)
-
-                if self.include_sdk_sysroot:
-                    if self.versioned_directories:
-                        sysroot_subdir = '{}_sysroot_{}'.format(
-                            runtime.name, version,
-                        )
-                    else:
-                        sysroot_subdir = '{}_sysroot'.format(runtime.name)
-
-                    sysroot = os.path.join(self.depot, sysroot_subdir)
-                    runtime_files.add(sysroot_subdir + '/')
-
-                    with suppress(FileNotFoundError):
-                        shutil.rmtree(sysroot)
-
-                    os.makedirs(os.path.join(sysroot, 'files'), exist_ok=True)
-                    argv = [
-                        'tar',
-                        '-C', os.path.join(sysroot, 'files'),
-                        '--exclude', 'dev/*',
-                        '-xf',
-                        os.path.join(self.cache, runtime.sysroot_tarball),
-                    ]
-                    logger.info('%r', argv)
-                    subprocess.run(argv, check=True)
-
-                    os.makedirs(
-                        os.path.join(
-                            sysroot, 'files', 'usr', 'lib', 'debug',
-                        ),
-                        exist_ok=True,
-                    )
-
-                    if self.include_sdk_debug:
-                        if self.include_sdk_sysroot:
-                            argv = [
-                                'cp',
-                                '-al',
-                                os.path.join(dest, 'files', 'lib', 'debug'),
-                                os.path.join(sysroot, 'files', 'usr', 'lib'),
-                            ]
-                            logger.info('%r', argv)
-                            subprocess.run(argv, check=True)
-                        else:
-                            argv = [
-                                'tar',
-                                '-C', os.path.join(
-                                    sysroot, 'files', 'usr', 'lib', 'debug'
-                                ),
-                                '--transform', r's,^\(\./\)\?files\(/\|$\),,',
-                                '-xf',
-                                os.path.join(
-                                    self.cache, runtime.debug_tarball,
-                                ),
-                            ]
-                            logger.info('%r', argv)
-                            subprocess.run(argv, check=True)
-
-            with open(
-                os.path.join(self.depot, 'run-in-' + runtime.name), 'w'
-            ) as writer:
-                if self.unpack_runtime:
-                    writer.write(
-                        RUN_IN_DIR_SOURCE.format(
-                            escaped_dir=shlex.quote(subdir),
-                            source_for_generated_file=(
-                                'Generated file, do not edit'
-                            ),
-                        )
-                    )
-                else:
-                    writer.write(
-                        RUN_IN_ARCHIVE_SOURCE.format(
-                            escaped_arch=shlex.quote(runtime.architecture),
-                            escaped_name=shlex.quote(runtime.name),
-                            escaped_runtime=shlex.quote(runtime.platform),
-                            escaped_suite=shlex.quote(runtime.suite),
-                            source_for_generated_file=(
-                                'Generated file, do not edit'
-                            ),
-                        )
-                    )
-            os.chmod(os.path.join(self.depot, 'run-in-' + runtime.name), 0o755)
-
-            comment = ', '.join(sorted(runtime_files))
-
-            if runtime.path and not runtime.official:
-                comment += ' (from local build)'
-
-            component_version.version = version
-            component_version.runtime = runtime.suite
-            component_version.runtime_version = version
-            component_version.comment = comment
-            self.versions.append(component_version)
+        component_version.version = version
+        component_version.runtime = runtime.suite
+        component_version.runtime_version = version
+        component_version.comment = comment
+        self.versions.append(component_version)
 
         if self.toolmanifest:
 
@@ -1363,8 +1206,6 @@ class Main:
         assert runtime.path
 
         for basename in runtime.get_archives(
-            include_sdk_debug=self.include_sdk_debug,
-            include_sdk_runtime=self.include_sdk_runtime,
             include_sdk_sysroot=self.include_sdk_sysroot,
         ):
             src = os.path.join(runtime.path, basename)
@@ -1375,27 +1216,6 @@ class Main:
                 os.unlink(dest)
 
             os.link(src, dest)
-
-            if self.include_archives:
-                dest = os.path.join(self.depot, basename)
-                logger.info('Hard-linking local runtime %r to %r', src, dest)
-
-                with suppress(FileNotFoundError):
-                    os.unlink(dest)
-
-                os.link(src, dest)
-
-        if self.include_archives:
-            with open(
-                os.path.join(self.depot, runtime.build_id_file), 'w',
-            ) as writer:
-                writer.write(f'{runtime.version}\n')
-
-            if self.include_sdk_runtime or self.include_sdk_sysroot:
-                with open(
-                    os.path.join(self.depot, runtime.sdk_build_id_file), 'w',
-                ) as writer:
-                    writer.write(f'{runtime.version}\n')
 
         if self.unpack_sources:
             with open(
@@ -1440,34 +1260,12 @@ class Main:
         runtime build.
         """
 
-        pinned = runtime.pin_version(self.opener)
+        runtime.pin_version(self.opener)
 
         for basename in runtime.get_archives(
-            include_sdk_debug=self.include_sdk_debug,
-            include_sdk_runtime=self.include_sdk_runtime,
             include_sdk_sysroot=self.include_sdk_sysroot,
         ):
             downloaded = runtime.fetch(basename, self.opener)
-
-            if self.include_archives:
-                dest = os.path.join(self.depot, basename)
-
-                with suppress(FileNotFoundError):
-                    os.unlink(dest)
-
-                os.link(downloaded, dest)
-
-        if self.include_archives:
-            with open(
-                os.path.join(self.depot, runtime.build_id_file), 'w',
-            ) as writer:
-                writer.write(f'{pinned}\n')
-
-            if self.include_sdk_runtime or self.include_sdk_sysroot:
-                with open(
-                    os.path.join(self.depot, runtime.sdk_build_id_file), 'w',
-                ) as writer:
-                    writer.write(f'{pinned}\n')
 
         if self.unpack_sources:
             with tempfile.TemporaryDirectory(prefix='populate-depot.') as tmp:
@@ -2120,31 +1918,9 @@ def main() -> None:
             'file/directory is an official one'
         ),
     )
-
     parser.add_argument(
-        '--include-archives', action='store_true', default=False,
-        help=(
-            'Provide the runtime as an archive to be unpacked'
-        )
-    )
-    parser.add_argument(
-        '--no-include-archives', action='store_false', dest='include_archives',
-        help=(
-            'Do not provide the runtime as an archive to be unpacked '
-            '[default]'
-        )
-    )
-    parser.add_argument(
-        '--include-sdk', default=False, action='store_true',
-        help='Include a corresponding SDK',
-    )
-    parser.add_argument(
-        '--include-sdk-debug', default=False, action='store_true',
-        help='Include a corresponding SDK',
-    )
-    parser.add_argument(
-        '--include-sdk-runtime', default=False, action='store_true',
-        help='Include a corresponding SDK',
+        '--no-include-archives', dest='_ignored', action='store_true',
+        help='Ignored for backwards compatibility',
     )
     parser.add_argument(
         '--include-sdk-sysroot', default=False, action='store_true',
@@ -2155,19 +1931,8 @@ def main() -> None:
         help='Produce a layered runtime that runs scout on soldier',
     )
     parser.add_argument(
-        '--minimize', action='store_true', default=False,
-        help=(
-            'Omit empty files, empty directories and symlinks from '
-            'runtime content, requiring pressure-vessel to fill them in '
-            'from the mtree manifest'
-        )
-    )
-    parser.add_argument(
-        '--no-minimize', action='store_false', dest='minimize',
-        help=(
-            'Include empty files, empty directories and symlinks in '
-            'runtime content [default]'
-        )
+        '--minimize', dest='_ignored', action='store_true',
+        help='Ignored for backwards compatibility',
     )
     parser.add_argument(
         '--no-mtrees', dest='mtree', action='store_false', default=True,
@@ -2200,19 +1965,9 @@ def main() -> None:
         )
     )
     parser.add_argument(
-        '--unpack-runtime', '--unpack-runtimes',
+        '--unpack-runtime', '--unpack-runtimes', dest='_ignored',
         action='store_true', default=True,
-        help=(
-            "Unpack the runtime into the --depot, for use with "
-            "pressure-vessel's tests/containers.py. [default]"
-        )
-    )
-    parser.add_argument(
-        '--no-unpack-runtime', '--no-unpack-runtimes',
-        action='store_false', dest='unpack_runtime',
-        help=(
-            "Don't unpack the runtime into the --depot"
-        )
+        help='Ignored for backwards compatibility',
     )
     parser.add_argument(
         '--unpack-source', metavar='PACKAGE', action='append', default=[],
@@ -2259,11 +2014,6 @@ def main() -> None:
 
     try:
         args = parser.parse_args()
-
-        args.include_sdk_debug = args.include_sdk_debug or args.include_sdk
-        args.include_sdk_runtime = args.include_sdk_runtime or args.include_sdk
-        args.include_sdk_sysroot = args.include_sdk_sysroot or args.include_sdk
-
         Main(**vars(args)).run()
     except InvocationError as e:
         parser.error(str(e))
