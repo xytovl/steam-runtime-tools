@@ -547,6 +547,7 @@ class Main:
         include_sdk_sysroot: bool = False,
         layered: bool = False,
         minimize: bool = False,
+        mtree: bool = True,
         pressure_vessel_archive: str = '',
         pressure_vessel_from_runtime: str = '',
         pressure_vessel_from_runtime_json: str = '',
@@ -627,6 +628,7 @@ class Main:
         self.include_sdk_sysroot = include_sdk_sysroot
         self.layered = layered
         self.minimize = minimize
+        self.mtree = mtree
         self.pressure_vessel_ssh_host = pressure_vessel_ssh_host or ssh_host
         self.pressure_vessel_ssh_path = pressure_vessel_ssh_path
         self.pressure_vessel_uri = pressure_vessel_uri
@@ -794,7 +796,8 @@ class Main:
         else:
             self.do_container_runtime()
 
-        self.write_top_level_mtree()
+        if self.mtree:
+            self.write_top_level_mtree()
 
         if self.steam_app_id and self.steam_depot_id:
             self.write_steampipe_config()
@@ -1069,7 +1072,9 @@ class Main:
                 logger.info('%r', argv)
                 subprocess.run(argv, check=True)
                 self.prune_runtime(Path(dest))
-                self.write_lookaside(dest)
+
+                if self.mtree or self.minimize:
+                    self.write_lookaside(dest)
 
                 if self.minimize:
                     self.minimize_runtime(dest)
@@ -1103,7 +1108,9 @@ class Main:
                     logger.info('%r', argv)
                     subprocess.run(argv, check=True)
                     self.prune_runtime(Path(dest))
-                    self.write_lookaside(dest)
+
+                    if self.mtree or self.minimize:
+                        self.write_lookaside(dest)
 
                     if self.minimize:
                         self.minimize_runtime(dest)
@@ -2161,6 +2168,10 @@ def main() -> None:
             'Include empty files, empty directories and symlinks in '
             'runtime content [default]'
         )
+    )
+    parser.add_argument(
+        '--no-mtrees', dest='mtree', action='store_false', default=True,
+        help='Skip generation of non-essential mtree manifests',
     )
     parser.add_argument(
         '--source-dir', default=str(HERE),
