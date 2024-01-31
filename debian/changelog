@@ -1,15 +1,27 @@
-steam-runtime-tools (0.20240127.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20240131.0) UNRELEASED; urgency=medium
 
   * pressure-vessel:
     - Look for internal Nvidia helper libraries by their canonical names,
       which will be helpful if canonical/steam-snap#361 is fixed
       (steam-runtime#586)
+    - Drop code paths that we have not used in production since mid 2021:
+      + Remove support for providing the runtime as a tar archive
+      + Remove obsolete command line options:
+        - pv-wrap --runtime-archive=...
+        - pv-wrap --runtime-id=...
+        - populate-depot.py --include-sdk-debug
+        - populate-depot.py --include-sdk-runtime
+        - populate-depot.py --no-minimize
+        - populate-depot.py --no-unpack-runtime
+      + Stop checking for and deleting pre-2021 unpack/deploy directories
   * Steam Linux Runtime 1.0 (scout):
     - Stop generating and uploading steam-container-runtime.tar.gz,
       superseded by SteamLinuxRuntime.tar.xz (steamrt/tasks#388)
+  * Library code:
+    - Refactoring
   * Documentation updates
 
- -- Simon McVittie <smcv@collabora.com>  Tue, 30 Jan 2024 17:02:16 +0000
+ -- Simon McVittie <smcv@collabora.com>  Wed, 31 Jan 2024 17:35:24 +0000
 
 steam-runtime-tools (0.20240126.0) steamrt; urgency=medium
 
