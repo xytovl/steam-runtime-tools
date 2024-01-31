@@ -75,6 +75,7 @@ libsteamrt_public_headers = [
     'xdg-portal.h',
 ]
 
+# Modules that are needed by parts of the public API
 libsteamrt_internals = [
     'architecture-internal.h',
     'cpu-feature-internal.h',
@@ -104,12 +105,8 @@ libsteamrt_internals = [
     'log-internal.h',
     'log.c',
     'os-internal.h',
-    'portal-listener.c',
-    'portal-listener-internal.h',
     'profiling-internal.h',
     'profiling.c',
-    'pty-bridge-internal.h',
-    'pty-bridge.c',
     'resolve-in-sysroot-internal.h',
     'resolve-in-sysroot.c',
     'runtime-internal.h',
@@ -123,6 +120,15 @@ libsteamrt_internals = [
     'udev-input-device.c',
     'utils-internal.h',
     'virtualization-internal.h',
+]
+
+# Modules that are needed by bin/ or pressure-vessel/ but not by the
+# library API
+libsteamrt_static_extras = [
+    'portal-listener.c',
+    'portal-listener-internal.h',
+    'pty-bridge-internal.h',
+    'pty-bridge.c',
 ]
 
 enums = gnome.mkenums_simple(
@@ -196,10 +202,10 @@ systemd_codegen_dep = declare_dependency(
 
 libsteamrt_generated_headers_dep = declare_dependency(
   include_directories : project_include_dirs,
-  sources : [enums[1], launcher1[1], systemd_dbus[1]],
+  sources : [enums[1]],
 )
-libsteamrt_static = static_library(
-  'steam-runtime-tools-internal',
+libsteamrt_base = static_library(
+  'steam-runtime-tools-base',
   libsteamrt_sources + libsteamrt_internals + libsteamrt_public_headers + enums,
   c_args : srt_c_args,
   include_directories : project_include_dirs,
@@ -229,10 +235,34 @@ libsteamrt = library(
     json_glib,
     libsteamrt_generated_headers_dep,
   ],
-  objects : [libsteamrt_static.extract_all_objects(recursive : true)],
+  objects : [libsteamrt_base.extract_all_objects(recursive : true)],
   soversion : abi_major,
   version : abi_major + '.' + abi_minor,
   install : true,
+)
+libsteamrt_static_generated_headers_dep = declare_dependency(
+  include_directories : project_include_dirs,
+  sources : [launcher1[1], systemd_dbus[1]],
+)
+libsteamrt_static = static_library(
+  'steam-runtime-tools-internal',
+  libsteamrt_static_extras,
+  c_args : srt_c_args,
+  include_directories : project_include_dirs,
+  dependencies : [
+    libdl,
+    threads,
+    libelf,
+    gio_unix,
+    glib,
+    gobject,
+    libglnx_dep,
+    json_glib,
+    libsteamrt_generated_headers_dep,
+    libsteamrt_static_generated_headers_dep,
+  ],
+  objects : [libsteamrt_base.extract_all_objects(recursive : true)],
+  install : false,
 )
 pkg.generate(
   description : 'Steam runtime tools library',
@@ -248,7 +278,10 @@ libsteamrt_dep = declare_dependency(
   link_with : libsteamrt,
 )
 libsteamrt_static_dep = declare_dependency(
-  dependencies : libsteamrt_generated_headers_dep,
+  dependencies : [
+    libsteamrt_generated_headers_dep,
+    libsteamrt_static_generated_headers_dep,
+  ],
   include_directories : project_include_dirs,
   link_with : libsteamrt_static,
 )
