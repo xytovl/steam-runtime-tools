@@ -5,7 +5,7 @@
 set -eux
 
 builddir="${1:-_build}"
-PRESSURE_VESSEL="${2:-_build/production/pressure-vessel-bin.tar.gz}"
+PRESSURE_VESSEL="${2:-_build/pressure-vessel-bin.tar.gz}"
 
 rm -fr "$builddir/depot"
 rm -fr "$builddir/depot-template"

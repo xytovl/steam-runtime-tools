@@ -249,10 +249,10 @@ class Uploader:
                 if '_all.' not in a.name:
                     os.link(str(a), str(dbgsym / a.name))
 
-        a = Path('_build', 'production', 'pressure-vessel-bin.tar.gz')
+        a = Path('_build', 'pressure-vessel-bin.tar.gz')
         os.link(str(a), upload / a.name)
 
-        a = Path('_build', 'production', 'pressure-vessel-bin+src.tar.gz')
+        a = Path('_build', 'pressure-vessel-bin+src.tar.gz')
 
         # Unpack sources/*.{dsc,tar.*,txt,...} into sources/
         with tarfile.open(str(a), 'r') as unarchiver:
