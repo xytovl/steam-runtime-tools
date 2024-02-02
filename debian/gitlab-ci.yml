@@ -286,7 +286,7 @@ relocatable-install:i386:
             - _build/i386/pressure-vessel-i386.tar.gz
         when: on_success
 
-relocatable-install:production:
+relocatable-install:
     extends: .relocatable_install
     needs:
         - package
@@ -317,27 +317,28 @@ relocatable-install:production:
             debian/tmp/artifacts/build/pressure-vessel-libs-i386_*_i386.deb \
             ${NULL+}
 
-            rm -fr _build/production/relocatable-install
-            mkdir -p _build/production
+            rm -fr _build/pressure-vessel-*.tar.gz
+            rm -fr _build/relocatable-install
+            mkdir -p _build
             python3.5 pressure-vessel/build-relocatable-install.py \
               --cache _build/cache \
-              --output _build/production/relocatable-install \
-              --archive "$(pwd)/_build/production" \
+              --output _build/relocatable-install \
+              --archive "$(pwd)/_build" \
               --no-archive-versions \
               ${CI_ALLOW_MISSING_SOURCES:+--allow-missing-sources} \
               ${NULL+}
             PYTHONPATH=$(pwd)/tests \
             python3.5 ./tests/pressure-vessel/relocatable-install.py \
-              "$(pwd)/_build/production/relocatable-install"
+              "$(pwd)/_build/relocatable-install"
     artifacts:
         paths:
-            - _build/production/pressure-vessel-bin.tar.gz
-            - _build/production/pressure-vessel-bin+src.tar.gz
+            - _build/pressure-vessel-bin.tar.gz
+            - _build/pressure-vessel-bin+src.tar.gz
         when: on_success
 
 .test_template:
     needs:
-        - relocatable-install:production
+        - relocatable-install
     stage: test
     artifacts:
         paths:
@@ -418,7 +419,7 @@ deploy:
         - build:devel                   # for steam-container-runtime.tar.gz
         - package
         - package:i386
-        - relocatable-install:production
+        - relocatable-install
     rules:
         - if: '$PRESSURE_VESSEL_CI_UPLOAD_HOST == ""'
           when: never
