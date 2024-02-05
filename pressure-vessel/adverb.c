@@ -1420,7 +1420,7 @@ main (int argc,
     }
   else
     {
-      ret = EX_SOFTWARE;
+      ret = 255;
       g_info ("Command terminated in an unknown way (wait status %d)",
               wait_status);
     }
