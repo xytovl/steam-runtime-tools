@@ -1304,6 +1304,7 @@ _srt_boolean_environment (const gchar *name,
 
 /*
  * _srt_async_signal_safe_error:
+ * @prgname: The program name, like g_get_prgname()
  * @message: A human-readable message
  * @exit_status: Call `_exit` with this status
  *
@@ -1311,10 +1312,14 @@ _srt_boolean_environment (const gchar *name,
  * (see signal-safety(7)).
  */
 void
-_srt_async_signal_safe_error (const char *message,
+_srt_async_signal_safe_error (const char *prgname,
+                              const char *message,
                               int exit_status)
 {
-  if (write (2, message, strlen (message)) < 0)
+  if ((prgname != NULL && write (STDERR_FILENO, prgname, strlen (prgname)) < 0)
+      || (prgname != NULL && write (STDERR_FILENO, ": ", 2) < 0)
+      || write (STDERR_FILENO, message, strlen (message)) < 0
+      || write (STDERR_FILENO, "\n", 1) < 0)
     {
       /* Ignore - there's nothing we can do about it anyway - but
        * suppress -Wunused-result. */

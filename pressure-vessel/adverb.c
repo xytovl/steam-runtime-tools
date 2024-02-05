@@ -105,7 +105,8 @@ child_setup_cb (gpointer user_data)
    * needs to follow signal-safety(7) rules. */
   if (opt_exit_with_parent
       && !_srt_raise_on_parent_death (SIGTERM, NULL))
-    _srt_async_signal_safe_error ("Failed to set up parent-death signal\n",
+    _srt_async_signal_safe_error ("pressure-vessel-adverb",
+                                  "Failed to set up parent-death signal",
                                   LAUNCH_EX_FAILED);
 
   /* Unblock all signals and reset signal disposition to SIG_DFL */
@@ -125,12 +126,14 @@ child_setup_cb (gpointer user_data)
           fd_flags = fcntl (fd, F_GETFD);
 
           if (fd_flags < 0)
-            _srt_async_signal_safe_error ("pressure-vessel-adverb: Invalid fd?\n",
+            _srt_async_signal_safe_error ("pressure-vessel-adverb",
+                                          "Invalid fd?",
                                           LAUNCH_EX_FAILED);
 
           if ((fd_flags & FD_CLOEXEC) != 0
               && fcntl (fd, F_SETFD, fd_flags & ~FD_CLOEXEC) != 0)
-            _srt_async_signal_safe_error ("pressure-vessel-adverb: Unable to clear close-on-exec\n",
+            _srt_async_signal_safe_error ("pressure-vessel-adverb",
+                                          "Unable to clear close-on-exec",
                                           LAUNCH_EX_FAILED);
         }
 
@@ -140,7 +143,9 @@ child_setup_cb (gpointer user_data)
           int source = data->assign_fds[j].source;
 
           if (dup2 (source, target) != target)
-            _srt_async_signal_safe_error ("pressure-vessel-adverb: Unable to assign file descriptors\n", LAUNCH_EX_FAILED);
+            _srt_async_signal_safe_error ("pressure-vessel-adverb",
+                                          "Unable to assign file descriptors",
+                                          LAUNCH_EX_FAILED);
         }
     }
 }

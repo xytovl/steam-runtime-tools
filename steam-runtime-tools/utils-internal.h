@@ -172,7 +172,8 @@ _srt_all_bits_set (unsigned int flags,
   return (flags == (flags | bits));
 }
 
-void _srt_async_signal_safe_error (const char *message,
+void _srt_async_signal_safe_error (const char *prgname,
+                                   const char *message,
                                    int exit_status) G_GNUC_NORETURN;
 
 void _srt_get_current_dirs (gchar **cwd_p,
