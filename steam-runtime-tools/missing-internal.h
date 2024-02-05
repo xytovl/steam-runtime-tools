@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <sys/prctl.h>
+
 #ifndef PR_GET_CHILD_SUBREAPER
 #define PR_GET_CHILD_SUBREAPER 37
 #endif
