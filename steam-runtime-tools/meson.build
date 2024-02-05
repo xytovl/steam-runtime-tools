@@ -129,6 +129,8 @@ libsteamrt_static_extras = [
     'file-lock-internal.h',
     'portal-listener.c',
     'portal-listener-internal.h',
+    'process-manager.c',
+    'process-manager-internal.h',
     'pty-bridge-internal.h',
     'pty-bridge.c',
 ]

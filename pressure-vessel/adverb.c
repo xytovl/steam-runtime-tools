@@ -38,6 +38,7 @@
 #include "steam-runtime-tools/file-lock-internal.h"
 #include "steam-runtime-tools/launcher-internal.h"
 #include "steam-runtime-tools/log-internal.h"
+#include "steam-runtime-tools/process-manager-internal.h"
 #include "steam-runtime-tools/profiling-internal.h"
 #include "steam-runtime-tools/steam-runtime-tools.h"
 #include "steam-runtime-tools/utils-internal.h"
@@ -1404,7 +1405,7 @@ main (int argc,
     }
 
   /* Reap child processes until child_pid exits */
-  if (!pv_wait_for_child_processes (child_pid, &wait_status, error))
+  if (!_srt_wait_for_child_processes (child_pid, &wait_status, error))
     {
       ret = LAUNCH_EX_CANNOT_REPORT;
       goto out;
@@ -1412,25 +1413,7 @@ main (int argc,
 
   child_pid = 0;
 
-  if (WIFEXITED (wait_status))
-    {
-      ret = WEXITSTATUS (wait_status);
-      if (ret == 0)
-        g_debug ("Command exited with status %d", ret);
-      else
-        g_info ("Command exited with status %d", ret);
-    }
-  else if (WIFSIGNALED (wait_status))
-    {
-      ret = 128 + WTERMSIG (wait_status);
-      g_info ("Command killed by signal %d", ret - 128);
-    }
-  else
-    {
-      ret = 255;
-      g_info ("Command terminated in an unknown way (wait status %d)",
-              wait_status);
-    }
+  ret = _srt_wait_status_to_exit_status (wait_status);
 
   if (opt_terminate_idle_timeout < 0.0)
     opt_terminate_idle_timeout = 0.0;
@@ -1438,14 +1421,14 @@ main (int argc,
   /* Wait for the other child processes, if any, possibly killing them */
   if (opt_terminate_timeout >= 0.0)
     {
-      if (!pv_terminate_all_child_processes (opt_terminate_idle_timeout * G_TIME_SPAN_SECOND,
-                                             opt_terminate_timeout * G_TIME_SPAN_SECOND,
-                                             error))
+      if (!_srt_subreaper_terminate_all_child_processes (opt_terminate_idle_timeout * G_TIME_SPAN_SECOND,
+                                                         opt_terminate_timeout * G_TIME_SPAN_SECOND,
+                                                         error))
         goto out;
     }
   else
     {
-      if (!pv_wait_for_child_processes (0, NULL, error))
+      if (!_srt_wait_for_child_processes (0, NULL, error))
         goto out;
     }
 

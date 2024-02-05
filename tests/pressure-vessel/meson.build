@@ -70,7 +70,6 @@ compiled_tests = [
   {'name': 'adverb-preload', 'adverb': true},
   {'name': 'bwrap', 'wrap': true},
   {'name': 'graphics-provider', 'wrap': true},
-  {'name': 'wait-for-child-processes'},
   {'name': 'wrap-setup', 'wrap': true},
   {'name': 'utils'},
 ]
