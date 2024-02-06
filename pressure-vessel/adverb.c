@@ -1372,7 +1372,12 @@ main (int argc,
                       &child_pid,
                       &local_error))
     {
-      ret = 127;
+      if (local_error->domain == G_SPAWN_ERROR
+          && local_error->code == G_SPAWN_ERROR_NOENT)
+        ret = LAUNCH_EX_NOT_FOUND;
+      else
+        ret = LAUNCH_EX_CANNOT_INVOKE;
+
       goto out;
     }
 
