@@ -26,7 +26,6 @@
 #include <steam-runtime-tools/steam-runtime-tools.h>
 #include <steam-runtime-tools/glib-backports-internal.h>
 #include <steam-runtime-tools/utils-internal.h>
-#include "flatpak-utils-private.h"
 
 #include <glib.h>
 
@@ -99,15 +98,26 @@ teardown (Fixture *f,
 static void
 _spawn_and_check_output (const IdentifyLibraryAbi *t)
 {
-  g_autofree gchar *command = NULL;
+  g_autoptr(GString) command = g_string_new ("");
   g_autofree gchar *child_stdout = NULL;
   g_autofree gchar *child_stderr = NULL;
   g_autoptr(GError) error = NULL;
   gboolean ret;
   int wait_status = -1;
+  size_t i;
 
-  command = flatpak_quote_argv ((const char **) t->argv, -1);
-  g_test_message ("%s", command);
+  for (i = 0; t->argv[i] != NULL; i++)
+    {
+      g_autofree gchar *quoted = NULL;
+
+      if (i > 0)
+        g_string_append (command, " ");
+
+      quoted = g_shell_quote (t->argv[i]);
+      g_string_append (command, quoted);
+    }
+
+  g_test_message ("%s", command->str);
   ret = g_spawn_sync (NULL,    /* working directory */
                       (gchar **) t->argv,
                       NULL,    /* envp */
