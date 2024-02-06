@@ -1405,7 +1405,10 @@ main (int argc,
 
   /* Reap child processes until child_pid exits */
   if (!pv_wait_for_child_processes (child_pid, &wait_status, error))
-    goto out;
+    {
+      ret = LAUNCH_EX_CANNOT_REPORT;
+      goto out;
+    }
 
   child_pid = 0;
 
