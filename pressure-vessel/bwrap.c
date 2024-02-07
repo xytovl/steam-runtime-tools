@@ -648,3 +648,148 @@ pv_bwrap_append_adjusted_exports (FlatpakBwrap *to,
 
   return TRUE;
 }
+
+/* List of variables that are stripped down from the environment when
+ * using the secure-execution mode.
+ * List taken from glibc sysdeps/generic/unsecvars.h */
+static const char* unsecure_environment_variables[] = {
+  "GCONV_PATH",
+  "GETCONF_DIR",
+  "GLIBC_TUNABLES",
+  "HOSTALIASES",
+  "LD_AUDIT",
+  "LD_DEBUG",
+  "LD_DEBUG_OUTPUT",
+  "LD_DYNAMIC_WEAK",
+  "LD_HWCAP_MASK",
+  "LD_LIBRARY_PATH",
+  "LD_ORIGIN_PATH",
+  "LD_PRELOAD",
+  "LD_PROFILE",
+  "LD_SHOW_AUXV",
+  "LD_USE_LOAD_BIAS",
+  "LOCALDOMAIN",
+  "LOCPATH",
+  "MALLOC_TRACE",
+  "NIS_PATH",
+  "NLSPATH",
+  "RESOLV_HOST_CONF",
+  "RES_OPTIONS",
+  "TMPDIR",
+  "TZDIR",
+  NULL,
+};
+
+/*
+ * Populate @flatpak_subsandbox with environment variables from @container_env.
+ * They'll be passed via pv-launch `--env`/`--unset-env`.
+ */
+void
+pv_bwrap_container_env_to_subsandbox_argv (FlatpakBwrap *flatpak_subsandbox,
+                                           PvEnviron *container_env)
+{
+  g_autoptr(GList) vars = NULL;
+  const GList *iter;
+
+  g_return_if_fail (flatpak_subsandbox != NULL);
+  g_return_if_fail (container_env != NULL);
+
+  vars = pv_environ_get_vars (container_env);
+
+  for (iter = vars; iter != NULL; iter = iter->next)
+    {
+      const char *var = iter->data;
+      const char *val = pv_environ_getenv (container_env, var);
+
+      if (val != NULL)
+        flatpak_bwrap_add_arg_printf (flatpak_subsandbox,
+                                      "--env=%s=%s",
+                                      var, val);
+      else
+        flatpak_bwrap_add_args (flatpak_subsandbox,
+                                "--unset-env", var,
+                                NULL);
+    }
+}
+
+/*
+ * Populate @bwrap with environment variables from @container_env.
+ * They'll be passed via bubblewrap `--setenv`/`--unsetenv`.
+ */
+void
+pv_bwrap_container_env_to_bwrap_argv (FlatpakBwrap *bwrap,
+                                      PvEnviron *container_env)
+{
+  g_autoptr(GList) vars = NULL;
+  const GList *iter;
+
+  g_return_if_fail (bwrap != NULL);
+  g_return_if_fail (container_env != NULL);
+
+  vars = pv_environ_get_vars (container_env);
+
+  for (iter = vars; iter != NULL; iter = iter->next)
+    {
+      const char *var = iter->data;
+      const char *val = pv_environ_getenv (container_env, var);
+
+      if (val != NULL)
+        flatpak_bwrap_add_args (bwrap,
+                                "--setenv", var, val,
+                                NULL);
+      else
+        flatpak_bwrap_add_args (bwrap,
+                                "--unsetenv", var,
+                                NULL);
+    }
+}
+
+/*
+ * Populate @bwrap with environment variables from @container_env.
+ */
+void
+pv_bwrap_container_env_to_envp (FlatpakBwrap *bwrap,
+                                PvEnviron *container_env)
+{
+  g_autoptr(GList) vars = NULL;
+  const GList *iter;
+
+  g_return_if_fail (bwrap != NULL);
+  g_return_if_fail (container_env != NULL);
+
+  vars = pv_environ_get_vars (container_env);
+
+  for (iter = vars; iter != NULL; iter = iter->next)
+    {
+      const char *var = iter->data;
+      const char *val = pv_environ_getenv (container_env, var);
+
+      if (val != NULL)
+        flatpak_bwrap_set_env (bwrap, var, val, TRUE);
+      else
+        flatpak_bwrap_unset_env (bwrap, var);
+    }
+}
+
+/*
+ * For each variable in @container_env that would be filtered out by
+ * a setuid bubblewrap, add it to @bwrap via `--setenv`.
+ */
+void
+pv_bwrap_filtered_container_env_to_bwrap_argv (FlatpakBwrap *bwrap,
+                                               PvEnviron *container_env)
+{
+  gsize i;
+
+  g_return_if_fail (bwrap != NULL);
+  g_return_if_fail (container_env != NULL);
+
+  for (i = 0; unsecure_environment_variables[i] != NULL; i++)
+    {
+      const char *var = unsecure_environment_variables[i];
+      const char *val = pv_environ_getenv (container_env, var);
+
+      if (val != NULL)
+        flatpak_bwrap_add_args (bwrap, "--setenv", var, val, NULL);
+    }
+}

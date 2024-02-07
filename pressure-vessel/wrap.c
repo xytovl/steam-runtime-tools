@@ -52,164 +52,6 @@
 #include "wrap-interactive.h"
 #include "wrap-setup.h"
 
-/* List of variables that are stripped down from the environment when
- * using the secure-execution mode.
- * List taken from glibc sysdeps/generic/unsecvars.h */
-static const char* unsecure_environment_variables[] = {
-  "GCONV_PATH",
-  "GETCONF_DIR",
-  "GLIBC_TUNABLES",
-  "HOSTALIASES",
-  "LD_AUDIT",
-  "LD_DEBUG",
-  "LD_DEBUG_OUTPUT",
-  "LD_DYNAMIC_WEAK",
-  "LD_HWCAP_MASK",
-  "LD_LIBRARY_PATH",
-  "LD_ORIGIN_PATH",
-  "LD_PRELOAD",
-  "LD_PROFILE",
-  "LD_SHOW_AUXV",
-  "LD_USE_LOAD_BIAS",
-  "LOCALDOMAIN",
-  "LOCPATH",
-  "MALLOC_TRACE",
-  "NIS_PATH",
-  "NLSPATH",
-  "RESOLV_HOST_CONF",
-  "RES_OPTIONS",
-  "TMPDIR",
-  "TZDIR",
-  NULL,
-};
-
-typedef enum
-{
-  ENV_MOUNT_FLAGS_COLON_DELIMITED = (1 << 0),
-  ENV_MOUNT_FLAGS_DEPRECATED = (1 << 1),
-  ENV_MOUNT_FLAGS_READ_ONLY = (1 << 2),
-  ENV_MOUNT_FLAGS_NONE = 0
-} EnvMountFlags;
-
-typedef struct
-{
-  const char *name;
-  EnvMountFlags flags;
-} EnvMount;
-
-static const EnvMount known_required_env[] =
-{
-    { "PRESSURE_VESSEL_FILESYSTEMS_RO",
-      ENV_MOUNT_FLAGS_READ_ONLY | ENV_MOUNT_FLAGS_COLON_DELIMITED },
-    { "PRESSURE_VESSEL_FILESYSTEMS_RW", ENV_MOUNT_FLAGS_COLON_DELIMITED },
-    { "PROTON_LOG_DIR", ENV_MOUNT_FLAGS_NONE },
-    { "STEAM_COMPAT_APP_LIBRARY_PATH", ENV_MOUNT_FLAGS_DEPRECATED },
-    { "STEAM_COMPAT_APP_LIBRARY_PATHS",
-      ENV_MOUNT_FLAGS_COLON_DELIMITED | ENV_MOUNT_FLAGS_DEPRECATED },
-    { "STEAM_COMPAT_CLIENT_INSTALL_PATH", ENV_MOUNT_FLAGS_NONE },
-    { "STEAM_COMPAT_DATA_PATH", ENV_MOUNT_FLAGS_NONE },
-    { "STEAM_COMPAT_INSTALL_PATH", ENV_MOUNT_FLAGS_NONE },
-    { "STEAM_COMPAT_LIBRARY_PATHS", ENV_MOUNT_FLAGS_COLON_DELIMITED },
-    { "STEAM_COMPAT_MOUNT_PATHS",
-      ENV_MOUNT_FLAGS_COLON_DELIMITED | ENV_MOUNT_FLAGS_DEPRECATED },
-    { "STEAM_COMPAT_MOUNTS", ENV_MOUNT_FLAGS_COLON_DELIMITED },
-    { "STEAM_COMPAT_SHADER_PATH", ENV_MOUNT_FLAGS_NONE },
-    { "STEAM_COMPAT_TOOL_PATH", ENV_MOUNT_FLAGS_DEPRECATED },
-    { "STEAM_COMPAT_TOOL_PATHS", ENV_MOUNT_FLAGS_COLON_DELIMITED },
-    { "STEAM_EXTRA_COMPAT_TOOLS_PATHS", ENV_MOUNT_FLAGS_COLON_DELIMITED },
-};
-
-static void
-bind_and_propagate_from_environ (FlatpakExports *exports,
-                                 PvEnviron *container_env,
-                                 const char *variable,
-                                 EnvMountFlags flags)
-{
-  g_auto(GStrv) values = NULL;
-  FlatpakFilesystemMode mode = FLATPAK_FILESYSTEM_MODE_READ_WRITE;
-  const char *value;
-  const char *before;
-  const char *after;
-  gboolean changed = FALSE;
-  gsize i;
-
-  g_return_if_fail (exports != NULL);
-  g_return_if_fail (variable != NULL);
-
-  value = g_getenv (variable);
-
-  if (value == NULL)
-    return;
-
-  if (flags & ENV_MOUNT_FLAGS_DEPRECATED)
-    g_message ("Setting $%s is deprecated", variable);
-
-  if (flags & ENV_MOUNT_FLAGS_READ_ONLY)
-    mode = FLATPAK_FILESYSTEM_MODE_READ_ONLY;
-
-  if (flags & ENV_MOUNT_FLAGS_COLON_DELIMITED)
-    {
-      values = g_strsplit (value, ":", -1);
-      before = "...:";
-      after = ":...";
-    }
-  else
-    {
-      values = g_new0 (gchar *, 2);
-      values[0] = g_strdup (value);
-      values[1] = NULL;
-      before = "";
-      after = "";
-    }
-
-  for (i = 0; values[i] != NULL; i++)
-    {
-      g_autofree gchar *value_host = NULL;
-      g_autofree gchar *canon = NULL;
-
-      if (values[i][0] == '\0')
-        continue;
-
-      if (!g_file_test (values[i], G_FILE_TEST_EXISTS))
-        {
-          g_info ("Not bind-mounting %s=\"%s%s%s\" because it does not exist",
-                  variable, before, values[i], after);
-          continue;
-        }
-
-      canon = g_canonicalize_filename (values[i], NULL);
-      value_host = pv_current_namespace_path_to_host_path (canon);
-
-      if (flatpak_has_path_prefix (canon, "/overrides"))
-        {
-          g_warning_once ("The path \"/overrides/\" is reserved and cannot be shared");
-          continue;
-        }
-
-      if (flatpak_has_path_prefix (canon, "/usr"))
-        g_warning_once ("Binding directories that are located under \"/usr/\" is not supported!");
-
-      g_info ("Bind-mounting %s=\"%s%s%s\" from the current env as %s=\"%s%s%s\" in the host",
-              variable, before, values[i], after,
-              variable, before, value_host, after);
-      flatpak_exports_add_path_expose (exports, mode, canon);
-
-      if (strcmp (values[i], value_host) != 0)
-        {
-          g_clear_pointer (&values[i], g_free);
-          values[i] = g_steal_pointer (&value_host);
-          changed = TRUE;
-        }
-    }
-
-  if (changed || g_file_test ("/.flatpak-info", G_FILE_TEST_IS_REGULAR))
-    {
-      g_autofree gchar *joined = g_strjoinv (":", values);
-
-      pv_environ_setenv (container_env, variable, joined);
-    }
-}
-
 typedef enum
 {
   PV_WRAP_LOG_FLAGS_OVERRIDES = (1 << 0),
@@ -1790,18 +1632,13 @@ main (int argc,
         }
     }
 
+  pv_bind_and_propagate_from_environ (exports, container_env);
+
   if (flatpak_subsandbox == NULL)
     {
       g_assert (bwrap != NULL);
       g_assert (bwrap_filesystem_arguments != NULL);
       g_assert (exports != NULL);
-
-      g_debug ("Making Steam environment variables available if required...");
-
-      for (i = 0; i < G_N_ELEMENTS (known_required_env); i++)
-        bind_and_propagate_from_environ (exports, container_env,
-                                         known_required_env[i].name,
-                                         known_required_env[i].flags);
 
       /* Bind-mount /run/udev to support games that detect joysticks by using
        * udev directly. We only do that when the host's version of libudev.so.1
@@ -1895,11 +1732,6 @@ main (int argc,
     }
   else
     {
-      for (i = 0; i < G_N_ELEMENTS (known_required_env); i++)
-        pv_environ_setenv (container_env,
-                           known_required_env[i].name,
-                           g_getenv (known_required_env[i].name));
-
       flatpak_bwrap_add_args (flatpak_subsandbox,
                               "--directory", cwd_p,
                               NULL);
@@ -2003,9 +1835,6 @@ main (int argc,
 
   if (is_flatpak_env)
     {
-      g_autoptr(GList) vars = NULL;
-      const GList *iter;
-
       /* Let these inherit from the sub-sandbox environment */
       pv_environ_inherit_env (container_env, "FLATPAK_ID");
       pv_environ_inherit_env (container_env, "FLATPAK_SANDBOX_DIR");
@@ -2019,38 +1848,10 @@ main (int argc,
        * variables would be wrong, because pv-launch needs to see the
        * current execution environment's DBUS_SESSION_BUS_ADDRESS
        * (if different). For this reason we convert them to `--setenv`. */
-      vars = pv_environ_get_vars (container_env);
-
-      for (iter = vars; iter != NULL; iter = iter->next)
-        {
-          const char *var = iter->data;
-          const char *val = pv_environ_getenv (container_env, var);
-
-          if (flatpak_subsandbox != NULL)
-            {
-              if (val != NULL)
-                flatpak_bwrap_add_arg_printf (flatpak_subsandbox,
-                                              "--env=%s=%s",
-                                              var, val);
-              else
-                flatpak_bwrap_add_args (flatpak_subsandbox,
-                                        "--unset-env", var,
-                                        NULL);
-            }
-          else
-            {
-              g_assert (bwrap != NULL);
-
-              if (val != NULL)
-                flatpak_bwrap_add_args (bwrap,
-                                        "--setenv", var, val,
-                                        NULL);
-              else
-                flatpak_bwrap_add_args (bwrap,
-                                        "--unsetenv", var,
-                                        NULL);
-            }
-        }
+      if (flatpak_subsandbox != NULL)
+        pv_bwrap_container_env_to_subsandbox_argv (flatpak_subsandbox, container_env);
+      else
+        pv_bwrap_container_env_to_bwrap_argv (bwrap, container_env);
     }
 
   final_argv = flatpak_bwrap_new (original_environ);
@@ -2062,32 +1863,9 @@ main (int argc,
    * invoke pv-launch (for which original_environ is appropriate). */
   if (!is_flatpak_env)
     {
-      g_autoptr(GList) vars = NULL;
-      const GList *iter;
-
-      vars = pv_environ_get_vars (container_env);
-
-      for (iter = vars; iter != NULL; iter = iter->next)
-        {
-          const char *var = iter->data;
-          const char *val = pv_environ_getenv (container_env, var);
-
-          if (val != NULL)
-            flatpak_bwrap_set_env (final_argv, var, val, TRUE);
-          else
-            flatpak_bwrap_unset_env (final_argv, var);
-        }
-
-      /* The setuid bwrap will filter out some of the environment variables,
-       * so we still have to go via --setenv for these. */
-      for (i = 0; unsecure_environment_variables[i] != NULL; i++)
-        {
-          const char *var = unsecure_environment_variables[i];
-          const gchar *val = pv_environ_getenv (container_env, var);
-
-          if (val != NULL)
-            flatpak_bwrap_add_args (bwrap, "--setenv", var, val, NULL);
-        }
+      /* Note that these are two different FlatpakBwrap instances! */
+      pv_bwrap_container_env_to_envp (final_argv, container_env);
+      pv_bwrap_filtered_container_env_to_bwrap_argv (bwrap, container_env);
     }
 
   /* Now that we've populated final_argv->envp, it's too late to change

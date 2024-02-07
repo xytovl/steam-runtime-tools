@@ -68,6 +68,7 @@ tests = [
 
 compiled_tests = [
   {'name': 'adverb-preload', 'adverb': true},
+  {'name': 'bwrap', 'wrap': true},
   {'name': 'bwrap-lock'},
   {'name': 'graphics-provider', 'wrap': true},
   {'name': 'wait-for-child-processes'},
