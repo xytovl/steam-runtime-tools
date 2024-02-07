@@ -125,6 +125,8 @@ libsteamrt_internals = [
 # Modules that are needed by bin/ or pressure-vessel/ but not by the
 # library API
 libsteamrt_static_extras = [
+    'file-lock.c',
+    'file-lock-internal.h',
     'portal-listener.c',
     'portal-listener-internal.h',
     'pty-bridge-internal.h',

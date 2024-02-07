@@ -37,7 +37,6 @@
 #include "libglnx.h"
 
 #include "bwrap.h"
-#include "bwrap-lock.h"
 #include "environ.h"
 #include "flatpak-bwrap-private.h"
 #include "flatpak-run-private.h"

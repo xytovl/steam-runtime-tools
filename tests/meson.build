@@ -35,6 +35,7 @@ tests = [
   {'name': 'cpu-feature', 'static': true},
   {'name': 'desktop-entry'},
   {'name': 'display', 'static': true},
+  {'name': 'file-lock', 'static': true},
   {'name': 'graphics'},
   {
     'name': 'input-device',

@@ -1,5 +1,5 @@
 /*
- * Copyright © 2019-2020 Collabora Ltd.
+ * Copyright © 2019-2024 Collabora Ltd.
  *
  * SPDX-License-Identifier: MIT
  *
@@ -29,12 +29,11 @@
 #include <glib/gstdio.h>
 
 #include "steam-runtime-tools/glib-backports-internal.h"
+#include "steam-runtime-tools/file-lock-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
 #include "libglnx.h"
 
-#include "bwrap-lock.h"
 #include "tests/test-utils.h"
-#include "utils.h"
 
 typedef struct
 {
@@ -68,10 +67,10 @@ static void
 test_locks (Fixture *f,
             gconstpointer context)
 {
-  g_autoptr(PvBwrapLock) read_lock1 = NULL;
-  g_autoptr(PvBwrapLock) read_lock2 = NULL;
-  g_autoptr(PvBwrapLock) write_lock1 = NULL;
-  g_autoptr(PvBwrapLock) write_lock2 = NULL;
+  g_autoptr(SrtFileLock) shared_lock1 = NULL;
+  g_autoptr(SrtFileLock) shared_lock2 = NULL;
+  g_autoptr(SrtFileLock) exclusive_lock1 = NULL;
+  g_autoptr(SrtFileLock) exclusive_lock2 = NULL;
   g_autoptr(GError) error = NULL;
   g_auto(GLnxTmpDir) tmpdir = { FALSE };
   g_autofree gchar *lock = NULL;
@@ -83,78 +82,85 @@ test_locks (Fixture *f,
   lock = g_build_filename (tmpdir.path, "lockfile", NULL);
 
   /* Take a shared (read) lock */
-  read_lock1 = pv_bwrap_lock_new (AT_FDCWD, lock, PV_BWRAP_LOCK_FLAGS_CREATE,
-                                  &error);
+  shared_lock1 = srt_file_lock_new (AT_FDCWD, lock, SRT_FILE_LOCK_FLAGS_CREATE,
+                                    &error);
   g_assert_no_error (error);
-  g_assert_nonnull (read_lock1);
+  g_assert_nonnull (shared_lock1);
 
   /* We cannot take an exclusive (write) lock at the same time */
-  write_lock1 = pv_bwrap_lock_new (AT_FDCWD, lock, PV_BWRAP_LOCK_FLAGS_WRITE,
-                                   &error);
+  exclusive_lock1 = srt_file_lock_new (AT_FDCWD, lock,
+                                       SRT_FILE_LOCK_FLAGS_EXCLUSIVE,
+                                       &error);
   g_assert_error (error, G_IO_ERROR, G_IO_ERROR_BUSY);
-  g_assert_null (write_lock1);
+  g_assert_null (exclusive_lock1);
   g_clear_error (&error);
 
   /* We can steal the fd, and still cannot take an exclusive (write) lock */
-  is_ofd = pv_bwrap_lock_is_ofd (read_lock1);
-  fd = pv_bwrap_lock_steal_fd (read_lock1);
+  is_ofd = srt_file_lock_is_ofd (shared_lock1);
+  fd = srt_file_lock_steal_fd (shared_lock1);
   g_assert_cmpint (fd, >=, 0);
-  write_lock1 = pv_bwrap_lock_new (AT_FDCWD, lock, PV_BWRAP_LOCK_FLAGS_WRITE,
-                                   &error);
+  exclusive_lock1 = srt_file_lock_new (AT_FDCWD, lock,
+                                       SRT_FILE_LOCK_FLAGS_EXCLUSIVE,
+                                       &error);
   g_assert_error (error, G_IO_ERROR, G_IO_ERROR_BUSY);
-  g_assert_null (write_lock1);
+  g_assert_null (exclusive_lock1);
   g_clear_error (&error);
   /* We cannot steal it again */
-  g_assert_cmpint (pv_bwrap_lock_steal_fd (read_lock1), ==, -1);
+  g_assert_cmpint (srt_file_lock_steal_fd (shared_lock1), ==, -1);
 
   /* The lock is held even after we free the original lock abstraction */
-  g_clear_pointer (&read_lock1, pv_bwrap_lock_free);
-  write_lock1 = pv_bwrap_lock_new (AT_FDCWD, lock, PV_BWRAP_LOCK_FLAGS_WRITE,
-                                   &error);
+  g_clear_pointer (&shared_lock1, srt_file_lock_free);
+  exclusive_lock1 = srt_file_lock_new (AT_FDCWD, lock,
+                                       SRT_FILE_LOCK_FLAGS_EXCLUSIVE,
+                                       &error);
   g_assert_error (error, G_IO_ERROR, G_IO_ERROR_BUSY);
-  g_assert_null (write_lock1);
+  g_assert_null (exclusive_lock1);
   g_clear_error (&error);
 
   /* We can make a new lock from an existing one */
-  read_lock1 = pv_bwrap_lock_new_take (g_steal_fd (&fd), is_ofd);
-  g_assert_nonnull (read_lock1);
-  write_lock1 = pv_bwrap_lock_new (AT_FDCWD, lock, PV_BWRAP_LOCK_FLAGS_WRITE,
-                                   &error);
+  shared_lock1 = srt_file_lock_new_take (g_steal_fd (&fd), is_ofd);
+  g_assert_nonnull (shared_lock1);
+  exclusive_lock1 = srt_file_lock_new (AT_FDCWD, lock,
+                                       SRT_FILE_LOCK_FLAGS_EXCLUSIVE,
+                                       &error);
   g_assert_error (error, G_IO_ERROR, G_IO_ERROR_BUSY);
-  g_assert_null (write_lock1);
+  g_assert_null (exclusive_lock1);
   g_clear_error (&error);
 
-  /* We can take a second read lock at the same time */
-  read_lock2 = pv_bwrap_lock_new (AT_FDCWD, lock, PV_BWRAP_LOCK_FLAGS_CREATE,
+  /* We can take a second shared lock at the same time */
+  shared_lock2 = srt_file_lock_new (AT_FDCWD, lock, SRT_FILE_LOCK_FLAGS_CREATE,
                                   &error);
   g_assert_no_error (error);
-  g_assert_nonnull (read_lock2);
+  g_assert_nonnull (shared_lock2);
 
-  /* Releasing one read lock is not enough */
-  g_clear_pointer (&read_lock1, pv_bwrap_lock_free);
-  write_lock1 = pv_bwrap_lock_new (AT_FDCWD, lock, PV_BWRAP_LOCK_FLAGS_WRITE,
-                                   &error);
+  /* Releasing one shared lock is not enough */
+  g_clear_pointer (&shared_lock1, srt_file_lock_free);
+  exclusive_lock1 = srt_file_lock_new (AT_FDCWD, lock,
+                                       SRT_FILE_LOCK_FLAGS_EXCLUSIVE,
+                                       &error);
   g_assert_error (error, G_IO_ERROR, G_IO_ERROR_BUSY);
-  g_assert_null (write_lock1);
+  g_assert_null (exclusive_lock1);
   g_clear_error (&error);
 
-  /* Releasing both read locks is enough to allow a write lock. This
+  /* Releasing both shared locks is enough to allow an exclusive lock. This
    * incidentally also tests the normalization of -1 to AT_FDCWD. */
-  g_clear_pointer (&read_lock2, pv_bwrap_lock_free);
-  write_lock1 = pv_bwrap_lock_new (-1, lock, PV_BWRAP_LOCK_FLAGS_WRITE, &error);
+  g_clear_pointer (&shared_lock2, srt_file_lock_free);
+  exclusive_lock1 = srt_file_lock_new (-1, lock, SRT_FILE_LOCK_FLAGS_EXCLUSIVE,
+                                       &error);
   g_assert_no_error (error);
-  g_assert_nonnull (write_lock1);
+  g_assert_nonnull (exclusive_lock1);
 
-  /* We cannot take read or write locks while this lock is held.
+  /* We cannot take shared or exclusive locks while this lock is held.
    * The second part here also exercises a non-trivial at_fd. */
-  write_lock2 = pv_bwrap_lock_new (-1, lock, PV_BWRAP_LOCK_FLAGS_WRITE, &error);
+  exclusive_lock2 = srt_file_lock_new (-1, lock, SRT_FILE_LOCK_FLAGS_EXCLUSIVE,
+                                       &error);
   g_assert_error (error, G_IO_ERROR, G_IO_ERROR_BUSY);
-  g_assert_null (write_lock2);
+  g_assert_null (exclusive_lock2);
   g_clear_error (&error);
-  read_lock1 = pv_bwrap_lock_new (tmpdir.fd, "lockfile",
-                                  PV_BWRAP_LOCK_FLAGS_NONE, &error);
+  shared_lock1 = srt_file_lock_new (tmpdir.fd, "lockfile",
+                                    SRT_FILE_LOCK_FLAGS_NONE, &error);
   g_assert_error (error, G_IO_ERROR, G_IO_ERROR_BUSY);
-  g_assert_null (read_lock1);
+  g_assert_null (shared_lock1);
   g_clear_error (&error);
 }
 

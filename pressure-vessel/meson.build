@@ -70,8 +70,6 @@ enums = gnome.mkenums_simple(
 pressure_vessel_utils = static_library(
   'pressure-vessel-utils',
   sources : [
-    'bwrap-lock.c',
-    'bwrap-lock.h',
     'flatpak-bwrap.c',
     'flatpak-bwrap-private.h',
     'flatpak-utils-base.c',
