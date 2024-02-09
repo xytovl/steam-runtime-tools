@@ -111,9 +111,12 @@ main () {
 
         case "$steam_runtime" in
             (/*)
-                # Re-enter the Steam Runtime, because STEAM_ZENITY might
-                # not work otherwise
-                run="$steam_runtime/run.sh"
+                if [ "$STEAM_ZENITY" = 'zenity' ]; then
+                    # Re-enter the Steam Runtime, because STEAM_ZENITY=zenity
+                    # currently means the one from the Steam Runtime's PATH,
+                    # which might not work otherwise
+                    run="$steam_runtime/run.sh"
+                fi
                 ;;
         esac
 
