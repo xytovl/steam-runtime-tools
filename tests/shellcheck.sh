@@ -26,7 +26,6 @@ for shell_script in \
         ./pressure-vessel/pressure-vessel-unruntime \
         ./subprojects/container-runtime/common/_v2-entry-point \
         ./subprojects/container-runtime/debian/tests/depot \
-        ./subprojects/container-runtime/runtimes/scout-on-soldier/_v2-entry-point \
         ./subprojects/container-runtime/runtimes/scout-on-soldier/scout-on-soldier-entry-point-v2 \
         ./subprojects/container-runtime/tests/*.sh \
         ./tests/*.sh \

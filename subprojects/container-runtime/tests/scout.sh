@@ -83,7 +83,7 @@ test -e depots/test-scout-layered/README.md
 test -e depots/test-scout-layered/VERSIONS.txt
 test -e depots/test-scout-layered/toolmanifest.vdf
 test -x depots/test-scout-layered/scout-on-soldier-entry-point-v2
-test -x depots/test-scout-layered/_v2-entry-point
+test ! -e depots/test-scout-layered/_v2-entry-point
 test ! -e depots/test-scout-layered/steam-runtime
 
 if ! grep $'^LD_LIBRARY_PATH\t-\tscout\t-\t#' depots/test-scout-layered/VERSIONS.txt >/dev/null; then
@@ -108,7 +108,7 @@ test -e depots/test-scout-layered-beta/README.md
 test -e depots/test-scout-layered-beta/VERSIONS.txt
 test -e depots/test-scout-layered-beta/toolmanifest.vdf
 test -x depots/test-scout-layered-beta/scout-on-soldier-entry-point-v2
-test -x depots/test-scout-layered-beta/_v2-entry-point
+test ! -e depots/test-scout-layered-beta/_v2-entry-point
 test -e depots/test-scout-layered-beta/steam-runtime/version.txt
 test -d depots/test-scout-layered-beta/steam-runtime/usr/
 
