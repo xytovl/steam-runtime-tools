@@ -98,6 +98,8 @@ main () {
     fi
 
     if ! result="$("$script" --check-gui-dependencies 2>&1)"; then
+        echo "$result" >&2
+
         result="$(printf '%s' "$result" | sed -e 's/&/\&amp;/' -e 's/</\&lt;/' -e 's/>/\&gt;/')"
         run="env"
 
