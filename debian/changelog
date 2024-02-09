@@ -14,17 +14,20 @@ steam-runtime-tools (0.20240205.0) UNRELEASED; urgency=medium
         - populate-depot.py --no-minimize
         - populate-depot.py --no-unpack-runtime
       + Stop checking for and deleting pre-2021 unpack/deploy directories
+    - Improve test coverage
+    - Refactoring
     - CI: Simplify path to relocatable amd64+i386 build of pressure-vessel
   * Steam Linux Runtime 1.0 (scout):
     - Stop generating and uploading steam-container-runtime.tar.gz,
       superseded by SteamLinuxRuntime.tar.xz (steamrt/tasks#388)
   * Diagnostic tools:
     - Report some more VR-related environment variables (steam-runtime#575)
+    - check-vulkan: Update list of known errors for v1.3.275
   * Library code:
     - Refactoring
   * Documentation updates
 
- -- Simon McVittie <smcv@collabora.com>  Mon, 05 Feb 2024 16:29:56 +0000
+ -- Simon McVittie <smcv@collabora.com>  Fri, 09 Feb 2024 13:50:43 +0000
 
 steam-runtime-tools (0.20240126.0) steamrt; urgency=medium
 
