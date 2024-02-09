@@ -378,8 +378,10 @@ class ContainerRuntimeDepot(ContainerRuntime):
                 if row.startswith('depot\t'):
                     depot_version = row.split('\t')[1]
 
-                if row.startswith(('soldier\t', 'sniper\t')):
-                    platform = row.split('\t')[:1]
+                for rt in RUNTIMES:
+                    if row.startswith(rt + '\t'):
+                        platform = row.split('\t')[:1]
+                        break
 
         if platform[0]:
             self.provides = platform[0]
