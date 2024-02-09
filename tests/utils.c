@@ -422,26 +422,27 @@ test_escape_steam_runtime (Fixture *f,
   static const EscapeSteamRuntimeTest tests[] =
   {
       {
-        .name = "with system variables",
+        .name = "with system variables, using host zenity",
         .before = {
           "STEAM_RUNTIME=/steam-runtime",
           "SYSTEM_PATH=/usr/local/bin:/usr/bin:/bin",
           "PATH=/usr/local/bin:/steam-runtime/amd64/bin:/usr/bin:/bin",
           "SYSTEM_LD_LIBRARY_PATH=/opt/lib",
           "LD_LIBRARY_PATH=/steam-runtime/lib/...:/opt/lib",
-          "STEAM_ZENITY=zenity",
+          "STEAM_ZENITY=/usr/bin/zenity",
           NULL
         },
         .expected = {
           "LD_LIBRARY_PATH=/opt/lib",
           "PATH=/usr/local/bin:/usr/bin:/bin",
+          "STEAM_ZENITY=/usr/bin/zenity",
           "SYSTEM_LD_LIBRARY_PATH=/opt/lib",
           "SYSTEM_PATH=/usr/local/bin:/usr/bin:/bin",
           NULL
         },
       },
       {
-        .name = "without system variables",
+        .name = "without system variables, using scout zenity",
         .before = {
           "STEAM_RUNTIME=/steam-runtime",
           "PATH=/usr/local/bin:/steam-runtime/amd64/bin:/usr/bin:/bin",
@@ -451,6 +452,35 @@ test_escape_steam_runtime (Fixture *f,
         },
         .expected = {
           "PATH=/usr/local/bin:/usr/bin:/bin",
+          NULL
+        },
+      },
+      {
+        .name = "without system variables, explicitly using scout zenity",
+        .before = {
+          "STEAM_RUNTIME=/steam-runtime",
+          "PATH=/usr/local/bin:/steam-runtime/amd64/bin:/usr/bin:/bin",
+          "LD_LIBRARY_PATH=/steam-runtime/lib/...:/opt/lib",
+          "STEAM_ZENITY=/steam-runtime/amd64/usr/bin/zenity",
+          NULL
+        },
+        .expected = {
+          "PATH=/usr/local/bin:/usr/bin:/bin",
+          NULL
+        },
+      },
+      {
+        .name = "zenity explicitly disabled (like Steam Deck)",
+        .before = {
+          "STEAM_RUNTIME=/steam-runtime",
+          "PATH=/usr/local/bin:/steam-runtime/amd64/bin:/usr/bin:/bin",
+          "LD_LIBRARY_PATH=/steam-runtime/lib/...:/opt/lib",
+          "STEAM_ZENITY=",
+          NULL
+        },
+        .expected = {
+          "PATH=/usr/local/bin:/usr/bin:/bin",
+          "STEAM_ZENITY=",
           NULL
         },
       },

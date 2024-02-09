@@ -741,6 +741,7 @@ _srt_environ_escape_steam_runtime (GStrv env)
   const char *steam_runtime = g_environ_getenv (env, "STEAM_RUNTIME");
   const char *system_ldlp;
   const char *system_path;
+  const char *zenity;
 
   if (steam_runtime == NULL || steam_runtime[0] != '/')
     return env;
@@ -782,7 +783,13 @@ _srt_environ_escape_steam_runtime (GStrv env)
       env = g_environ_setenv (env, "PATH", buf->str, TRUE);
     }
 
+  zenity = g_environ_getenv (env, "STEAM_ZENITY");
+
+  if (zenity != NULL &&
+      (g_strcmp0 (zenity, "zenity") == 0
+       || _srt_get_path_after (zenity, steam_runtime) != NULL))
+    env = g_environ_unsetenv (env, "STEAM_ZENITY");
+
   env = g_environ_unsetenv (env, "STEAM_RUNTIME");
-  env = g_environ_unsetenv (env, "STEAM_ZENITY");
   return env;
 }
