@@ -100,6 +100,12 @@ main () {
     if ! result="$("$script" --check-gui-dependencies 2>&1)"; then
         echo "$result" >&2
 
+        if [ -z "${STEAM_ZENITY-unset}" ]; then
+            # Steam sets STEAM_ZENITY to the empty string if it wants to
+            # suppress use of zenity dialogs, for example on Steam Deck.
+            exit 125
+        fi
+
         result="$(printf '%s' "$result" | sed -e 's/&/\&amp;/' -e 's/</\&lt;/' -e 's/>/\&gt;/')"
         run="env"
 
