@@ -25,20 +25,7 @@
 #include <unistd.h>
 
 #include "bwrap-lock.h"
-
-/*
- * These compatibility definitions let us use OFD locks in older glibc
- * versions. This requires Linux kernel >= v3.15.
- */
-#ifndef F_OFD_GETLK
-#define F_OFD_GETLK 36
-#endif
-#ifndef F_OFD_SETLK
-#define F_OFD_SETLK 37
-#endif
-#ifndef F_OFD_SETLKW
-#define F_OFD_SETLKW 38
-#endif
+#include "steam-runtime-tools/missing-internal.h"
 
 /**
  * PvBwrapLock:
