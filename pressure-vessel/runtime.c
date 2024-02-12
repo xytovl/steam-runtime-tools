@@ -7637,6 +7637,8 @@ pv_runtime_bind (PvRuntime *self,
                  PvEnviron *container_env,
                  GError **error)
 {
+  const char *value;
+
   g_return_val_if_fail (PV_IS_RUNTIME (self), FALSE);
   g_return_val_if_fail ((exports == NULL) == (bwrap == NULL), FALSE);
   g_return_val_if_fail (bwrap == NULL || !pv_bwrap_was_finished (bwrap), FALSE);
@@ -7808,6 +7810,29 @@ pv_runtime_bind (PvRuntime *self,
       sdl_videodriver = g_environ_getenv (self->original_environ, "SDL_VIDEODRIVER");
       if (g_strcmp0 (sdl_videodriver, "wayland") == 0)
         pv_environ_setenv (container_env, "SDL_VIDEODRIVER", NULL);
+    }
+
+  value = g_environ_getenv (self->original_environ, "STEAM_ZENITY");
+
+  if (g_strcmp0 (value, "") == 0)
+    {
+      g_debug ("zenity UIs disabled by STEAM_ZENITY='' (gamescope/Steam Deck)");
+      pv_environ_setenv (container_env, "STEAM_ZENITY", "");
+    }
+  else
+    {
+      g_autofree gchar *zenity = g_build_filename (self->runtime_usr, "bin", "zenity", NULL);
+
+      if (g_file_test (zenity, G_FILE_TEST_IS_EXECUTABLE))
+        {
+          g_debug ("container runtime has zenity");
+          pv_environ_setenv (container_env, "STEAM_ZENITY", "/usr/bin/zenity");
+        }
+      else
+        {
+          g_debug ("container runtime does not have zenity");
+          pv_environ_setenv (container_env, "STEAM_ZENITY", NULL);
+        }
     }
 
   pv_runtime_set_search_paths (self, container_env);

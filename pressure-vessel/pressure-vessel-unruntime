@@ -91,9 +91,16 @@ if [ -n "${SYSTEM_PATH+set}" ]; then
     export PATH="$SYSTEM_PATH"
 fi
 
+# STEAM_ZENITY="" explicitly disables use of zenity, and should be kept.
+# Any other value can be unset.
+if [ -n "${STEAM_ZENITY-}" ]; then
+    unset STEAM_ZENITY
+fi
+
 unset SYSTEM_LD_LIBRARY_PATH
 unset SYSTEM_LD_PRELOAD
 unset SYSTEM_PATH
+unset SYSTEM_ZENITY
 
 if [ -n "${PRESSURE_VESSEL_APP_LD_LIBRARY_PATH+set}" ]; then
     set -- "--env-if-host=PRESSURE_VESSEL_APP_LD_LIBRARY_PATH=$PRESSURE_VESSEL_APP_LD_LIBRARY_PATH" "$@"
