@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20240212.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20240212.0) steamrt; urgency=medium
 
   * pressure-vessel:
     - Look for internal Nvidia helper libraries by their canonical names,
@@ -29,7 +29,7 @@ steam-runtime-tools (0.20240212.0) UNRELEASED; urgency=medium
     - Refactoring
   * Documentation updates
 
- -- Simon McVittie <smcv@collabora.com>  Mon, 12 Feb 2024 11:26:03 +0000
+ -- Simon McVittie <smcv@collabora.com>  Mon, 12 Feb 2024 11:29:18 +0000
 
 steam-runtime-tools (0.20240126.0) steamrt; urgency=medium
 
