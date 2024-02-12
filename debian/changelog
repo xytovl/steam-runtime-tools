@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20240205.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20240212.0) UNRELEASED; urgency=medium
 
   * pressure-vessel:
     - Look for internal Nvidia helper libraries by their canonical names,
@@ -23,11 +23,13 @@ steam-runtime-tools (0.20240205.0) UNRELEASED; urgency=medium
   * Diagnostic tools:
     - Report some more VR-related environment variables (steam-runtime#575)
     - check-vulkan: Update list of known errors for v1.3.275
+  * s-r-launch-options:
+    - Label medic and steamrt5 runtimes nicely
   * Library code:
     - Refactoring
   * Documentation updates
 
- -- Simon McVittie <smcv@collabora.com>  Fri, 09 Feb 2024 13:50:43 +0000
+ -- Simon McVittie <smcv@collabora.com>  Mon, 12 Feb 2024 11:26:03 +0000
 
 steam-runtime-tools (0.20240126.0) steamrt; urgency=medium
 
