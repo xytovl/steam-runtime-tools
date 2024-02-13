@@ -1,3 +1,28 @@
+steam-runtime-tools (0.20240213.0) UNRELEASED; urgency=medium
+
+  * pressure-vessel:
+    - Unset STEAM_ZENITY on entry, and reset it to a path accessible inside
+      the container runtime before running the game (steamrt/tasks#397)
+  * Steam Linux Runtime 1.0 (scout):
+    - Remove workaround for a mid 2021 configuration change
+  * steam-runtime-launcher-service --alongside-steam:
+    - Only unset STEAM_ZENITY if it belongs to the LDLP runtime.
+      Keep it as-is if it's the empty string (used on Steam Deck to disable
+      use of zenity) or if it's the absolute path to the host zenity.
+      (steamrt/tasks#397)
+  * steam-runtime-launch-options:
+    - If GUI dependencies are missing, log that to stderr
+    - Don't use zenity if STEAM_ZENITY is explicitly set empty
+      (steamrt/tasks#397)
+    - Don't re-enter the scout runtime to run system zenity
+      (steamrt/tasks#396, steamrt/tasks#397)
+  * Library code:
+    - Move code from pressure-vessel to here
+    - Avoid using Flatpak-derived code outside pressure-vessel,
+      to simplify the build
+
+ -- Simon McVittie <smcv@collabora.com>  Tue, 13 Feb 2024 13:26:53 +0000
+
 steam-runtime-tools (0.20240212.0) steamrt; urgency=medium
 
   * pressure-vessel:
