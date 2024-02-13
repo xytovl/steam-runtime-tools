@@ -19,41 +19,29 @@
 
 #include "config.h"
 
-#include <gio/gio.h>
-
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "bwrap-lock.h"
+#include <gio/gio.h>
+#include "libglnx.h"
 
-/*
- * These compatibility definitions let us use OFD locks in older glibc
- * versions. This requires Linux kernel >= v3.15.
- */
-#ifndef F_OFD_GETLK
-#define F_OFD_GETLK 36
-#endif
-#ifndef F_OFD_SETLK
-#define F_OFD_SETLK 37
-#endif
-#ifndef F_OFD_SETLKW
-#define F_OFD_SETLKW 38
-#endif
+#include "steam-runtime-tools/file-lock-internal.h"
+#include "steam-runtime-tools/missing-internal.h"
 
 /**
- * PvBwrapLock:
+ * SrtFileLock:
  *
  * A read/write lock compatible with the locks taken out by
  * `bwrap --lock-file FILENAME` and Flatpak.
  */
-struct _PvBwrapLock
+struct _SrtFileLock
 {
   int fd;
   gboolean is_ofd;
 };
 
 /**
- * pv_bwrap_lock_new:
+ * srt_file_lock_new:
  * @at_fd: If not `AT_FDCWD` or -1, look up @path relative to this
  *  directory fd instead of the current working directory, as per `openat(2)`
  * @path: File to lock
@@ -62,22 +50,23 @@ struct _PvBwrapLock
  *
  * Take out a lock on a file.
  *
- * If %PV_BWRAP_LOCK_FLAGS_WRITE is in @flags, the lock is a write-lock,
- * which can be held by at most one process at a time. This is appropriate
- * when about to modify or delete the runtime. Otherwise it is a read-lock,
- * which excludes writers but does not exclude other readers. This is
- * appropriate when running an app or game using the runtime.
+ * If %SRT_FILE_LOCK_FLAGS_EXCLUSIVE is in @flags, the lock is an exclusive
+ * (write) lock, which can be held by at most one process at a time. This is
+ * appropriate when about to modify or delete the locked resource.
+ * Otherwise it is a shared (read) lock, which excludes exclusive locks
+ * but does not exclude other shared locks. This is appropriate when using
+ * but not modifying the locked resource.
  *
- * If %PV_BWRAP_LOCK_FLAGS_WAIT is not in @flags, raise %G_IO_ERROR_BUSY
+ * If %SRT_FILE_LOCK_FLAGS_WAIT is not in @flags, raise %G_IO_ERROR_BUSY
  * if the lock cannot be obtained immediately.
  *
- * Returns: (nullable): A lock (release and free with pv_bwrap_lock_free())
+ * Returns: (nullable): A lock (release and free with srt_file_lock_free())
  *  or %NULL.
  */
-PvBwrapLock *
-pv_bwrap_lock_new (int at_fd,
+SrtFileLock *
+srt_file_lock_new (int at_fd,
                    const gchar *path,
-                   PvBwrapLockFlags flags,
+                   SrtFileLockFlags flags,
                    GError **error)
 {
   glnx_autofd int fd = -1;
@@ -86,13 +75,13 @@ pv_bwrap_lock_new (int at_fd,
 
   g_return_val_if_fail (path != NULL, NULL);
   g_return_val_if_fail (error == NULL || *error == NULL, NULL);
-  g_return_val_if_fail ((flags & PV_BWRAP_LOCK_FLAGS_PROCESS_ORIENTED) == 0 ||
-                        (flags & PV_BWRAP_LOCK_FLAGS_REQUIRE_OFD) == 0,
+  g_return_val_if_fail ((flags & SRT_FILE_LOCK_FLAGS_PROCESS_ORIENTED) == 0 ||
+                        (flags & SRT_FILE_LOCK_FLAGS_REQUIRE_OFD) == 0,
                         NULL);
 
-  if (flags & PV_BWRAP_LOCK_FLAGS_CREATE)
+  if (flags & SRT_FILE_LOCK_FLAGS_CREATE)
     open_flags |= O_RDWR | O_CREAT;
-  else if (flags & PV_BWRAP_LOCK_FLAGS_WRITE)
+  else if (flags & SRT_FILE_LOCK_FLAGS_EXCLUSIVE)
     open_flags |= O_RDWR;
   else
     open_flags |= O_RDONLY;
@@ -107,7 +96,7 @@ pv_bwrap_lock_new (int at_fd,
     }
 
   /* If PROCESS_ORIENTED, only do ofd == 0. If not, try 1 then 0. */
-  for (ofd = (flags & PV_BWRAP_LOCK_FLAGS_PROCESS_ORIENTED) ? 0 : 1;
+  for (ofd = (flags & SRT_FILE_LOCK_FLAGS_PROCESS_ORIENTED) ? 0 : 1;
        ofd >= 0;
        ofd--)
     {
@@ -136,20 +125,20 @@ pv_bwrap_lock_new (int at_fd,
        */
       if (ofd)
         {
-          if (flags & PV_BWRAP_LOCK_FLAGS_WAIT)
+          if (flags & SRT_FILE_LOCK_FLAGS_WAIT)
             cmd = F_OFD_SETLKW;
           else
             cmd = F_OFD_SETLK;
         }
       else
         {
-          if (flags & PV_BWRAP_LOCK_FLAGS_WAIT)
+          if (flags & SRT_FILE_LOCK_FLAGS_WAIT)
             cmd = F_SETLKW;
           else
             cmd = F_SETLK;
         }
 
-      if (flags & PV_BWRAP_LOCK_FLAGS_WRITE)
+      if (flags & SRT_FILE_LOCK_FLAGS_EXCLUSIVE)
         {
           l.l_type = F_WRLCK;
           type_str = "writing";
@@ -164,7 +153,7 @@ pv_bwrap_lock_new (int at_fd,
        * process-oriented locks if allowed. */
       if (saved_errno == EINVAL &&
           ofd &&
-          (flags & PV_BWRAP_LOCK_FLAGS_REQUIRE_OFD) == 0)
+          (flags & SRT_FILE_LOCK_FLAGS_REQUIRE_OFD) == 0)
         continue;
 
       if (saved_errno == EACCES || saved_errno == EAGAIN)
@@ -181,55 +170,55 @@ pv_bwrap_lock_new (int at_fd,
     }
 
   g_assert (ofd == 0 || ofd == 1);
-  return pv_bwrap_lock_new_take (g_steal_fd (&fd), ofd);
+  return srt_file_lock_new_take (g_steal_fd (&fd), ofd);
 }
 
 /**
- * pv_bwrap_lock_new_take:
+ * srt_file_lock_new_take:
  * @fd: A file descriptor, already locked
  * @is_ofd: %TRUE if @fd is an open file descriptor lock
  *
- * Convert a simple file descriptor into a #PvBwrapLock.
+ * Convert a simple file descriptor into a #SrtFileLock.
  *
  * Returns: (not nullable): A lock (release and free
- *  with pv_bwrap_lock_free())
+ *  with srt_file_lock_free())
  */
-PvBwrapLock *
-pv_bwrap_lock_new_take (int fd,
+SrtFileLock *
+srt_file_lock_new_take (int fd,
                         gboolean is_ofd)
 {
-  PvBwrapLock *self = NULL;
+  SrtFileLock *self = NULL;
 
   g_return_val_if_fail (fd >= 0, NULL);
   g_return_val_if_fail (is_ofd == 0 || is_ofd == 1, NULL);
 
-  self = g_slice_new0 (PvBwrapLock);
+  self = g_slice_new0 (SrtFileLock);
   self->fd = g_steal_fd (&fd);
   self->is_ofd = is_ofd;
   return self;
 }
 
 void
-pv_bwrap_lock_free (PvBwrapLock *self)
+srt_file_lock_free (SrtFileLock *self)
 {
   glnx_autofd int fd = -1;
 
   g_return_if_fail (self != NULL);
 
   fd = g_steal_fd (&self->fd);
-  g_slice_free (PvBwrapLock, self);
+  g_slice_free (SrtFileLock, self);
   /* fd is closed by glnx_autofd if necessary, and that releases the lock */
 }
 
 int
-pv_bwrap_lock_steal_fd (PvBwrapLock *self)
+srt_file_lock_steal_fd (SrtFileLock *self)
 {
   g_return_val_if_fail (self != NULL, -1);
   return g_steal_fd (&self->fd);
 }
 
 gboolean
-pv_bwrap_lock_is_ofd (PvBwrapLock *self)
+srt_file_lock_is_ofd (SrtFileLock *self)
 {
   g_return_val_if_fail (self != NULL, FALSE);
   return self->is_ofd;

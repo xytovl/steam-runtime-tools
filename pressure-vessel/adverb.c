@@ -35,6 +35,7 @@
 #include <gio/gio.h>
 
 #include "steam-runtime-tools/glib-backports-internal.h"
+#include "steam-runtime-tools/file-lock-internal.h"
 #include "steam-runtime-tools/launcher-internal.h"
 #include "steam-runtime-tools/log-internal.h"
 #include "steam-runtime-tools/profiling-internal.h"
@@ -43,7 +44,6 @@
 #include "libglnx.h"
 
 #include "adverb-preload.h"
-#include "bwrap-lock.h"
 #include "flatpak-utils-base-private.h"
 #include "per-arch-dirs.h"
 #include "supported-architectures.h"
@@ -105,7 +105,8 @@ child_setup_cb (gpointer user_data)
    * needs to follow signal-safety(7) rules. */
   if (opt_exit_with_parent
       && !_srt_raise_on_parent_death (SIGTERM, NULL))
-    _srt_async_signal_safe_error ("Failed to set up parent-death signal\n",
+    _srt_async_signal_safe_error ("pressure-vessel-adverb",
+                                  "Failed to set up parent-death signal",
                                   LAUNCH_EX_FAILED);
 
   /* Unblock all signals and reset signal disposition to SIG_DFL */
@@ -125,12 +126,14 @@ child_setup_cb (gpointer user_data)
           fd_flags = fcntl (fd, F_GETFD);
 
           if (fd_flags < 0)
-            _srt_async_signal_safe_error ("pressure-vessel-adverb: Invalid fd?\n",
+            _srt_async_signal_safe_error ("pressure-vessel-adverb",
+                                          "Invalid fd?",
                                           LAUNCH_EX_FAILED);
 
           if ((fd_flags & FD_CLOEXEC) != 0
               && fcntl (fd, F_SETFD, fd_flags & ~FD_CLOEXEC) != 0)
-            _srt_async_signal_safe_error ("pressure-vessel-adverb: Unable to clear close-on-exec\n",
+            _srt_async_signal_safe_error ("pressure-vessel-adverb",
+                                          "Unable to clear close-on-exec",
                                           LAUNCH_EX_FAILED);
         }
 
@@ -140,7 +143,9 @@ child_setup_cb (gpointer user_data)
           int source = data->assign_fds[j].source;
 
           if (dup2 (source, target) != target)
-            _srt_async_signal_safe_error ("pressure-vessel-adverb: Unable to assign file descriptors\n", LAUNCH_EX_FAILED);
+            _srt_async_signal_safe_error ("pressure-vessel-adverb",
+                                          "Unable to assign file descriptors",
+                                          LAUNCH_EX_FAILED);
         }
     }
 }
@@ -184,7 +189,7 @@ opt_fd_cb (const char *name,
   /* We don't know whether this is an OFD lock or not. Assume it is:
    * it won't change our behaviour either way, and if it was passed
    * to us across a fork(), it had better be an OFD. */
-  g_ptr_array_add (global_locks, pv_bwrap_lock_new_take (fd, TRUE));
+  g_ptr_array_add (global_locks, srt_file_lock_new_take (fd, TRUE));
   return TRUE;
 }
 
@@ -487,23 +492,23 @@ opt_lock_file_cb (const char *name,
                   gpointer data,
                   GError **error)
 {
-  PvBwrapLock *lock;
-  PvBwrapLockFlags flags = PV_BWRAP_LOCK_FLAGS_NONE;
+  SrtFileLock *lock;
+  SrtFileLockFlags flags = SRT_FILE_LOCK_FLAGS_NONE;
 
   g_return_val_if_fail (global_locks != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
   g_return_val_if_fail (value != NULL, FALSE);
 
   if (opt_create)
-    flags |= PV_BWRAP_LOCK_FLAGS_CREATE;
+    flags |= SRT_FILE_LOCK_FLAGS_CREATE;
 
   if (opt_write)
-    flags |= PV_BWRAP_LOCK_FLAGS_WRITE;
+    flags |= SRT_FILE_LOCK_FLAGS_EXCLUSIVE;
 
   if (opt_wait)
-    flags |= PV_BWRAP_LOCK_FLAGS_WAIT;
+    flags |= SRT_FILE_LOCK_FLAGS_WAIT;
 
-  lock = pv_bwrap_lock_new (AT_FDCWD, value, flags, error);
+  lock = srt_file_lock_new (AT_FDCWD, value, flags, error);
 
   if (lock == NULL)
     return FALSE;
@@ -1020,7 +1025,7 @@ main (int argc,
   ld_so_conf_entries = g_ptr_array_new_with_free_func (g_free);
   global_ld_so_conf_entries = ld_so_conf_entries;
 
-  locks = g_ptr_array_new_with_free_func ((GDestroyNotify) pv_bwrap_lock_free);
+  locks = g_ptr_array_new_with_free_func ((GDestroyNotify) srt_file_lock_free);
   global_locks = locks;
 
   pass_fds = g_array_new (FALSE, FALSE, sizeof (int));

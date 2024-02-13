@@ -690,7 +690,9 @@ static void
 stdout_to_stderr_child_setup (gpointer nil)
 {
   if (dup2 (STDERR_FILENO, STDOUT_FILENO) != STDOUT_FILENO)
-    _srt_async_signal_safe_error ("Unable to redirect stdout to stderr", 1);
+    _srt_async_signal_safe_error ("test-system-info-cli",
+                                  "Unable to redirect stdout to stderr",
+                                  1);
 }
 
 static gchar *

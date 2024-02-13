@@ -28,7 +28,7 @@
 
 #include <glib.h>
 
-#include "missing.h"
+#include "steam-runtime-tools/missing-internal.h"
 
 void pv_search_path_append (GString *search_path,
                             const gchar *item);

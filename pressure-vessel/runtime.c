@@ -32,6 +32,7 @@
 #include <steam-runtime-tools/steam-runtime-tools.h>
 
 #include "steam-runtime-tools/architecture-internal.h"
+#include "steam-runtime-tools/file-lock-internal.h"
 #include "steam-runtime-tools/graphics-internal.h"
 #include "steam-runtime-tools/graphics-drivers-json-based-internal.h"
 #include "steam-runtime-tools/profiling-internal.h"
@@ -40,7 +41,6 @@
 #include "steam-runtime-tools/utils-internal.h"
 
 #include "bwrap.h"
-#include "bwrap-lock.h"
 #include "enumtypes.h"
 #include "exports.h"
 #include "flatpak-run-private.h"
@@ -71,7 +71,7 @@ struct _PvRuntime
   gchar *source_files;          /* either source or that + "/files" */
   const gchar *pv_prefix;
   const gchar *helpers_path;
-  PvBwrapLock *runtime_lock;
+  SrtFileLock *runtime_lock;
   GStrv original_environ;
 
   gchar *libcapsule_knowledge;  /* relative to runtime_files */
@@ -827,7 +827,7 @@ pv_runtime_maybe_garbage_collect_subdir (const char *description,
                                          const char *member)
 {
   g_autoptr(GError) local_error = NULL;
-  g_autoptr(PvBwrapLock) temp_lock = NULL;
+  g_autoptr(SrtFileLock) temp_lock = NULL;
   g_autofree gchar *keep = NULL;
   g_autofree gchar *ref = NULL;
   struct stat ignore;
@@ -860,9 +860,9 @@ pv_runtime_maybe_garbage_collect_subdir (const char *description,
   g_clear_error (&local_error);
 
   ref = g_build_filename (member, ".ref", NULL);
-  temp_lock = pv_bwrap_lock_new (parent_fd, ref,
-                                 (PV_BWRAP_LOCK_FLAGS_CREATE |
-                                  PV_BWRAP_LOCK_FLAGS_WRITE),
+  temp_lock = srt_file_lock_new (parent_fd, ref,
+                                 (SRT_FILE_LOCK_FLAGS_CREATE |
+                                  SRT_FILE_LOCK_FLAGS_EXCLUSIVE),
                                  &local_error);
 
   if (temp_lock == NULL)
@@ -885,7 +885,7 @@ pv_runtime_maybe_garbage_collect_subdir (const char *description,
 
 static gboolean
 pv_runtime_garbage_collect (PvRuntime *self,
-                            PvBwrapLock *variable_dir_lock,
+                            SrtFileLock *variable_dir_lock,
                             GError **error)
 {
   g_auto(SrtDirIter) iter = SRT_DIR_ITER_CLEARED;
@@ -973,7 +973,7 @@ pv_runtime_init_variable_dir (PvRuntime *self,
 
 static gboolean
 pv_runtime_create_copy (PvRuntime *self,
-                        PvBwrapLock *variable_dir_lock,
+                        SrtFileLock *variable_dir_lock,
                         const char *usr_mtree,
                         PvMtreeApplyFlags mtree_flags,
                         GError **error)
@@ -981,8 +981,8 @@ pv_runtime_create_copy (PvRuntime *self,
   g_autofree gchar *dest_usr = NULL;
   g_autofree gchar *temp_dir = NULL;
   g_auto(SrtDirIter) dir = SRT_DIR_ITER_CLEARED;
-  g_autoptr(PvBwrapLock) copy_lock = NULL;
-  G_GNUC_UNUSED g_autoptr(PvBwrapLock) source_lock = NULL;
+  g_autoptr(SrtFileLock) copy_lock = NULL;
+  G_GNUC_UNUSED g_autoptr(SrtFileLock) source_lock = NULL;
   G_GNUC_UNUSED g_autoptr(SrtProfilingTimer) timer = NULL;
   struct dirent *dent;
   glnx_autofd int temp_dir_fd = -1;
@@ -1104,8 +1104,8 @@ pv_runtime_create_copy (PvRuntime *self,
    * runtime's /usr to Flatpak, which normally takes out a lock on
    * /usr/.ref (obviously this will only work if the runtime happens
    * to be merged-/usr). */
-  copy_lock = pv_bwrap_lock_new (temp_dir_fd, "usr/.ref",
-                                 PV_BWRAP_LOCK_FLAGS_CREATE,
+  copy_lock = srt_file_lock_new (temp_dir_fd, "usr/.ref",
+                                 SRT_FILE_LOCK_FLAGS_CREATE,
                                  error);
 
   if (copy_lock == NULL)
@@ -1442,7 +1442,7 @@ pv_runtime_initable_init (GInitable *initable,
                           GError **error)
 {
   PvRuntime *self = PV_RUNTIME (initable);
-  g_autoptr(PvBwrapLock) mutable_lock = NULL;
+  g_autoptr(SrtFileLock) mutable_lock = NULL;
   g_autofree gchar *contents = NULL;
   g_autofree gchar *os_release = NULL;
   g_autofree gchar *usr_mtree = NULL;
@@ -1573,8 +1573,8 @@ pv_runtime_initable_init (GInitable *initable,
       g_autofree gchar *files_ref = NULL;
 
       files_ref = g_build_filename (self->source_files, ".ref", NULL);
-      self->runtime_lock = pv_bwrap_lock_new (AT_FDCWD, files_ref,
-                                              PV_BWRAP_LOCK_FLAGS_CREATE,
+      self->runtime_lock = srt_file_lock_new (AT_FDCWD, files_ref,
+                                              SRT_FILE_LOCK_FLAGS_CREATE,
                                               error);
     }
 
@@ -1594,9 +1594,9 @@ pv_runtime_initable_init (GInitable *initable,
        * with other concurrent processes that are halfway through
        * deploying or unpacking a runtime. */
       if (mutable_lock == NULL)
-        mutable_lock = pv_bwrap_lock_new (self->variable_dir_fd, ".ref",
-                                          (PV_BWRAP_LOCK_FLAGS_CREATE
-                                           | PV_BWRAP_LOCK_FLAGS_WRITE),
+        mutable_lock = srt_file_lock_new (self->variable_dir_fd, ".ref",
+                                          (SRT_FILE_LOCK_FLAGS_CREATE
+                                           | SRT_FILE_LOCK_FLAGS_EXCLUSIVE),
                                           &local_error);
 
       if (mutable_lock == NULL)
@@ -1633,9 +1633,9 @@ pv_runtime_initable_init (GInitable *initable,
        * time. If another process is doing GC, wait for it to finish,
        * then take our lock. */
       if (mutable_lock == NULL)
-        mutable_lock = pv_bwrap_lock_new (self->variable_dir_fd, ".ref",
-                                          (PV_BWRAP_LOCK_FLAGS_CREATE
-                                           | PV_BWRAP_LOCK_FLAGS_WAIT),
+        mutable_lock = srt_file_lock_new (self->variable_dir_fd, ".ref",
+                                          (SRT_FILE_LOCK_FLAGS_CREATE
+                                           | SRT_FILE_LOCK_FLAGS_WAIT),
                                           error);
 
       if (mutable_lock == NULL)
@@ -1839,7 +1839,7 @@ pv_runtime_finalize (GObject *object)
   glnx_close_fd (&self->runtime_files_fd);
   g_free (self->runtime_files_on_host);
   g_free (self->runtime_usr);
-  g_clear_pointer (&self->runtime_lock, pv_bwrap_lock_free);
+  g_clear_pointer (&self->runtime_lock, srt_file_lock_free);
   g_free (self->source);
   g_free (self->source_files);
   g_free (self->variable_dir);
@@ -2056,9 +2056,9 @@ pv_runtime_get_adverb (PvRuntime *self,
   if (self->flags & PV_RUNTIME_FLAGS_GENERATE_LOCALES)
     flatpak_bwrap_add_args (bwrap, "--generate-locales", NULL);
 
-  if (pv_bwrap_lock_is_ofd (self->runtime_lock))
+  if (srt_file_lock_is_ofd (self->runtime_lock))
     {
-      int fd = pv_bwrap_lock_steal_fd (self->runtime_lock);
+      int fd = srt_file_lock_steal_fd (self->runtime_lock);
       g_autofree gchar *fd_str = NULL;
 
       g_debug ("Passing lock fd %d down to adverb", fd);

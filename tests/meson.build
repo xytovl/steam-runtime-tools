@@ -35,6 +35,7 @@ tests = [
   {'name': 'cpu-feature', 'static': true},
   {'name': 'desktop-entry'},
   {'name': 'display', 'static': true},
+  {'name': 'file-lock', 'static': true},
   {'name': 'graphics'},
   {
     'name': 'input-device',
@@ -60,15 +61,7 @@ tests = [
 if get_option('bin')
   tests += [
     {'name': 'check-requirements-cli'},
-    {
-      'name': 'identify-library-abi-cli',
-      'include_directories': pv_include_dirs,
-      'sources': [
-        'identify-library-abi-cli.c',
-        '../pressure-vessel/flatpak-utils-base.c',
-        '../pressure-vessel/flatpak-utils.c',
-      ],
-    },
+    {'name': 'identify-library-abi-cli'},
     {'name': 'system-info-cli', 'static': true, 'slow': true},
   ]
 endif
