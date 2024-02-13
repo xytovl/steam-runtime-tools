@@ -48,8 +48,6 @@
 #include "steam-runtime-tools/utils-internal.h"
 #include "libglnx.h"
 
-#include "flatpak-utils-base-private.h"
-
 /* Absence of GConnectFlags; slightly more readable than a magic number */
 #define CONNECT_FLAGS_NONE (0)
 
@@ -404,7 +402,7 @@ child_setup_func (gpointer user_data)
   FdMapEntry *fd_map = data->fd_map;
   int i;
 
-  flatpak_close_fds_workaround (3);
+  g_fdwalk_set_cloexec (3);
 
   /* Unblock all signals and reset signal disposition to SIG_DFL */
   _srt_child_setup_unblock_signals (NULL);
@@ -604,7 +602,8 @@ handle_launch (PvLauncher1           *object,
   else
     env = g_environ_setenv (env, "PWD", arg_cwd_path, TRUE);
 
-  /* We use LEAVE_DESCRIPTORS_OPEN to work around dead-lock, see flatpak_close_fds_workaround */
+  /* We use LEAVE_DESCRIPTORS_OPEN and set CLOEXEC in the child_setup,
+   * to work around a deadlock in GLib < 2.60 */
   if (!g_spawn_async_with_pipes (arg_cwd_path,
                                  (gchar **) arg_argv,
                                  env,
@@ -897,8 +896,8 @@ pv_launcher_server_finish_startup (PvLauncherServer *self,
       child_setup_data.fd_map_len = 1;
       child_setup_data.keep_tty_session = TRUE;
 
-      /* We use LEAVE_DESCRIPTORS_OPEN to work around dead-lock, see
-       * flatpak_close_fds_workaround */
+      /* We use LEAVE_DESCRIPTORS_OPEN and set CLOEXEC in the child_setup,
+       * to work around a deadlock in GLib < 2.60 */
       if (!g_spawn_async_with_pipes (NULL,
                                      self->wrapped_command,
                                      NULL,
