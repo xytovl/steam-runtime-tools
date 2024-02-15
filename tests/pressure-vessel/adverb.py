@@ -28,6 +28,7 @@ logger = logging.getLogger('test-adverb')
 
 
 EX_USAGE = 64
+STDERR_FILENO = 2
 
 
 class TestAdverb(BaseTest):
@@ -168,7 +169,7 @@ class TestAdverb(BaseTest):
             check=True,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=2,
+            stderr=STDERR_FILENO,
             universal_newlines=True,
         )
 
@@ -261,7 +262,7 @@ class TestAdverb(BaseTest):
             ],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=2,
+            stderr=STDERR_FILENO,
             universal_newlines=True,
         )
         pid = 0
@@ -296,8 +297,8 @@ class TestAdverb(BaseTest):
                 'sh', '-euc', 'echo hello >&%d' % write_end,
             ],
             pass_fds=[write_end],
-            stdout=2,
-            stderr=2,
+            stdout=STDERR_FILENO,
+            stderr=STDERR_FILENO,
             universal_newlines=True,
         )
 
@@ -326,8 +327,8 @@ class TestAdverb(BaseTest):
                     '--',
                     'sh', '-euc', 'exit 42',
                 ],
-                stdout=2,
-                stderr=2,
+                stdout=STDERR_FILENO,
+                stderr=STDERR_FILENO,
                 universal_newlines=True,
             )
             proc.wait()
