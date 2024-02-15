@@ -98,8 +98,8 @@ test_bwrap_executable (const char *bwrap_executable,
   g_ptr_array_add (argv, (char *) "true");
   g_ptr_array_add (argv, NULL);
 
-  /* We use LEAVE_DESCRIPTORS_OPEN to work around a deadlock in older GLib,
-   * see flatpak_close_fds_workaround */
+  /* We use LEAVE_DESCRIPTORS_OPEN and set CLOEXEC in the child_setup,
+   * to work around a deadlock in GLib < 2.60 */
   if (!g_spawn_sync (NULL,  /* cwd */
                      (gchar **) argv->pdata,
                      NULL,  /* environ */

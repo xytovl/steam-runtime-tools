@@ -507,7 +507,13 @@ flatpak_bwrap_child_setup (GArray *fd_array,
   int i;
 
   if (close_fd_workaround)
+#if 0
     flatpak_close_fds_workaround (3);
+#else
+    /* pressure-vessel-specific change for now, but see
+     * https://github.com/flatpak/flatpak/pull/5687 */
+    g_fdwalk_set_cloexec (3);
+#endif
 
   /* If no fd_array was specified, don't care. */
   if (fd_array == NULL)
