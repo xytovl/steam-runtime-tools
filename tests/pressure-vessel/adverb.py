@@ -28,6 +28,8 @@ logger = logging.getLogger('test-adverb')
 
 
 EX_USAGE = 64
+LAUNCH_EX_CANNOT_INVOKE = 126
+LAUNCH_EX_NOT_FOUND = 127
 STDERR_FILENO = 2
 
 
@@ -78,6 +80,26 @@ class TestAdverb(BaseTest):
         self.multiarch = os.environ.get('SRT_TEST_MULTIARCH')
         if not self.multiarch:
             self.skipTest('No multiarch tuple has been set')
+
+    def test_enoent(self) -> None:
+        proc = subprocess.Popen(
+            self.adverb + ['--', '/nonexistent'],
+            stdout=STDERR_FILENO,
+            stderr=STDERR_FILENO,
+            universal_newlines=True,
+        )
+        proc.wait()
+        self.assertEqual(proc.returncode, LAUNCH_EX_NOT_FOUND)
+
+    def test_enoexec(self) -> None:
+        proc = subprocess.Popen(
+            self.adverb + ['--', '/dev/null'],
+            stdout=STDERR_FILENO,
+            stderr=STDERR_FILENO,
+            universal_newlines=True,
+        )
+        proc.wait()
+        self.assertEqual(proc.returncode, LAUNCH_EX_CANNOT_INVOKE)
 
     def test_ld_preload(self) -> None:
         if (
