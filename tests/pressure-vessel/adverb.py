@@ -30,6 +30,7 @@ logger = logging.getLogger('test-adverb')
 EX_USAGE = 64
 LAUNCH_EX_CANNOT_INVOKE = 126
 LAUNCH_EX_NOT_FOUND = 127
+STDOUT_FILENO = 1
 STDERR_FILENO = 2
 
 
@@ -309,6 +310,31 @@ class TestAdverb(BaseTest):
                 proc.wait(),
                 (128 + signal.SIGTERM, -signal.SIGTERM),
             )
+
+    def test_fd_assign(self) -> None:
+        for target in (STDOUT_FILENO, 9):
+            read_end, write_end = os.pipe2(os.O_CLOEXEC)
+
+            proc = subprocess.Popen(
+                self.adverb + [
+                    '--assign-fd=%d=%d' % (target, write_end),
+                    '--',
+                    'sh', '-euc', 'echo hello >&%d' % target,
+                ],
+                pass_fds=[write_end],
+                stdout=STDERR_FILENO,
+                stderr=STDERR_FILENO,
+                universal_newlines=True,
+            )
+
+            try:
+                os.close(write_end)
+
+                with os.fdopen(read_end, 'rb') as reader:
+                    self.assertEqual(reader.read(), b'hello\n')
+            finally:
+                proc.wait()
+                self.assertEqual(proc.returncode, 0)
 
     def test_fd_passthrough(self) -> None:
         read_end, write_end = os.pipe2(os.O_CLOEXEC)
