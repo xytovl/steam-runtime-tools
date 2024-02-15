@@ -116,7 +116,7 @@ child_setup_cb (gpointer user_data)
   if (data != NULL)
     {
       /* Make all other file descriptors close-on-exec */
-      flatpak_close_fds_workaround (3);
+      g_fdwalk_set_cloexec (3);
 
       for (j = 0; j < data->n_pass_fds; j++)
         {
@@ -1354,8 +1354,8 @@ main (int argc,
   fflush (stdout);
   fflush (stderr);
 
-  /* We use LEAVE_DESCRIPTORS_OPEN to work around a deadlock in older GLib,
-   * see flatpak_close_fds_workaround */
+  /* We use LEAVE_DESCRIPTORS_OPEN and set CLOEXEC in the child_setup,
+   * to work around a deadlock in GLib < 2.60 */
   if (!g_spawn_async (NULL,   /* working directory */
                       (char **) wrapped_command->argv->pdata,
                       wrapped_command->envp,
