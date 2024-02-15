@@ -321,11 +321,10 @@ opt_assign_fd_cb (const char *name,
       return FALSE;
     }
 
+  /* Note that the target does not need to be a valid fd yet -
+   * we can use something like --assign-fd=9=1 to make fd 9
+   * a copy of existing fd 1 */
   pair.target = (int) i64;
-  fd_flags = fcntl (pair.target, F_GETFD);
-
-  if (fd_flags < 0)
-    return glnx_throw_errno_prefix (error, "Unable to receive --assign-fd target %d", pair.target);
 
   value = endptr + 1;
   i64 = g_ascii_strtoll (value, &endptr, 10);
