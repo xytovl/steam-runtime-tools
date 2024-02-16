@@ -29,6 +29,7 @@ from testutils import (
 logger = logging.getLogger('test-adverb')
 
 
+EX_UNAVAILABLE = 69
 EX_USAGE = 64
 LAUNCH_EX_CANNOT_INVOKE = 126
 LAUNCH_EX_NOT_FOUND = 127
@@ -475,7 +476,17 @@ class TestAdverb(BaseTest):
             '--ld-preload=/nonexistent/libfoo.so:abi=hal9000-movieos',
             '--ld-preload=/nonexistent/libfoo.so:abi=i386-linux-gnu:foo',
             '--ld-preload=/nonexistent/libfoo.so:foo=bar',
+            '--fd=-1',
+            '--fd=23',
+            '--fd=nope',
             '--pass-fd=-1',
+            '--pass-fd=23',
+            '--pass-fd=nope',
+            '--assign-fd=-1',
+            '--assign-fd=nope',
+            '--assign-fd=2',
+            '--assign-fd=2=-1',
+            '--assign-fd=2=23',
             '--shell=wrong',
             '--terminal=wrong',
         ):
@@ -490,7 +501,15 @@ class TestAdverb(BaseTest):
                 universal_newlines=True,
             )
             proc.wait()
-            self.assertEqual(proc.returncode, EX_USAGE)
+
+            if option in (
+                '--fd=23',
+                '--pass-fd=23',
+                '--assign-fd=2=23',
+            ):
+                self.assertEqual(proc.returncode, EX_UNAVAILABLE)
+            else:
+                self.assertEqual(proc.returncode, EX_USAGE)
 
     def tearDown(self) -> None:
         super().tearDown()
