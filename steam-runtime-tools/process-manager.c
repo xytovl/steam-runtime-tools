@@ -14,7 +14,10 @@
 #include "libglnx.h"
 
 #include "steam-runtime-tools/glib-backports-internal.h"
+#include "steam-runtime-tools/launcher-internal.h"
+#include "steam-runtime-tools/log-internal.h"
 #include "steam-runtime-tools/missing-internal.h"
+#include "steam-runtime-tools/utils-internal.h"
 
 /*
  * _srt_wait_status_to_exit_status:
@@ -42,7 +45,7 @@ _srt_wait_status_to_exit_status (int wait_status)
     }
   else
     {
-      ret = 255;
+      ret = LAUNCH_EX_CANNOT_REPORT;
       g_info ("Command terminated in an unknown way (wait status %d)",
               wait_status);
     }
@@ -531,4 +534,709 @@ _srt_subreaper_terminate_all_child_processes (GTimeSpan wait_period,
     }
 
   return TRUE;
+}
+
+typedef struct
+{
+  int target;
+  int source;
+} AssignFd;
+
+/*
+ * _srt_process_manager_options_clear:
+ * @self: The process manager options
+ *
+ * Free all dynamically-allocated contents of @self and reset it
+ * to %SRT_PROCESS_MANAGER_OPTIONS_INIT.
+ */
+void
+_srt_process_manager_options_clear (SrtProcessManagerOptions *self)
+{
+  SrtProcessManagerOptions blank = SRT_PROCESS_MANAGER_OPTIONS_INIT;
+
+  g_clear_pointer (&self->assign_fds, g_array_unref);
+  g_clear_pointer (&self->pass_fds, g_array_unref);
+  g_clear_pointer (&self->locks, g_ptr_array_unref);
+
+  *self = blank;
+}
+
+/*
+ * _srt_process_manager_init_single_threaded:
+ * @error: Error indicator, see GLib documentation
+ *
+ * Initialize the process manager.
+ *
+ * This function carries out non-thread-safe actions such as blocking
+ * delivery of signals, so it must be called early in `main()`, before
+ * any threads have been created.
+ * However, it may also log warnings, so it should be called after
+ * initializing logging.
+ */
+gboolean
+_srt_process_manager_init_single_threaded (GError **error)
+{
+  sigset_t mask;
+
+  _srt_unblock_signals ();
+
+  sigemptyset (&mask);
+  sigaddset (&mask, SIGCHLD);
+
+  if ((errno = pthread_sigmask (SIG_BLOCK, &mask, NULL)) != 0)
+    return glnx_throw_errno_prefix (error, "pthread_sigmask");
+
+  return TRUE;
+}
+
+/*
+ * _srt_process_manager_options_take_fd_assignment:
+ * @self: The process manager options
+ * @target: A file descriptor in the child process's namespace
+ * @source: A file descriptor in the current namespace
+ *
+ * Arrange for @target in the child process to become a copy of @source.
+ *
+ * Ownership of @source is taken.
+ */
+void
+_srt_process_manager_options_take_fd_assignment (SrtProcessManagerOptions *self,
+                                                 int target,
+                                                 int source)
+{
+  AssignFd pair = { .target = target, .source = source };
+
+  if (self->assign_fds == NULL)
+    self->assign_fds = g_array_new (FALSE, FALSE, sizeof (AssignFd));
+
+  g_array_append_val (self->assign_fds, pair);
+}
+
+/*
+ * _srt_process_manager_options_take_original_stdout_stderr:
+ * @self: The process manager options
+ * @original_stdout: The original standard output, or negative to ignore
+ * @original_stderr: The original standard error, or negative to ignore
+ *
+ * If a file descriptor is already assigned to `STDOUT_FILENO`,
+ * close @original_stdout. Otherwise, assign @original_stdout to
+ * `STDOUT_FILENO`. Then do the same for `stderr`.
+ *
+ * Ownership of both file descriptors is taken.
+ */
+void
+_srt_process_manager_options_take_original_stdout_stderr (SrtProcessManagerOptions *self,
+                                                          int original_stdout,
+                                                          int original_stderr)
+{
+  size_t i;
+
+  if (self->assign_fds != NULL)
+    {
+      for (i = 0; i < self->assign_fds->len; i++)
+        {
+          AssignFd *pair = &g_array_index (self->assign_fds, AssignFd, i);
+
+          if (pair->target == STDOUT_FILENO)
+            glnx_close_fd (&original_stdout);
+
+          if (pair->target == STDERR_FILENO)
+            glnx_close_fd (&original_stderr);
+        }
+    }
+
+  if (original_stdout >= 0)
+    _srt_process_manager_options_take_fd_assignment (self,
+                                                     STDOUT_FILENO,
+                                                     original_stdout);
+
+  if (original_stderr >= 0)
+    _srt_process_manager_options_take_fd_assignment (self,
+                                                     STDERR_FILENO,
+                                                     original_stderr);
+}
+
+/*
+ * _srt_process_manager_options_assign_fd_cli:
+ * @self: The process manager options
+ * @name: A command-line option name, probably `--assign-fd`
+ * @value: A command-line option value of the form `3=4`
+ * @error: Error indicator, see GLib documentation
+ *
+ * Parse a command-line option such as `--assign-fd=3=4` and convert it
+ * into a file descriptor assignment analogous to `3>&4`.
+ */
+gboolean
+_srt_process_manager_options_assign_fd_cli (SrtProcessManagerOptions *self,
+                                            const char *name,
+                                            const char *value,
+                                            GError **error)
+{
+  char *endptr;
+  gint64 i64 = g_ascii_strtoll (value, &endptr, 10);
+  int source;
+  int target;
+  int fd_flags;
+
+  g_return_val_if_fail (self != NULL, FALSE);
+  g_return_val_if_fail (name != NULL, FALSE);
+  g_return_val_if_fail (value != NULL, FALSE);
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+
+  if (i64 < 0 || i64 > G_MAXINT || endptr == value || *endptr != '=')
+    {
+      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
+                   "Target fd out of range or invalid: %s", value);
+      return FALSE;
+    }
+
+  /* Note that the target does not need to be a valid fd yet -
+   * we can use something like --assign-fd=9=1 to make fd 9
+   * a copy of existing fd 1 */
+  target = (int) i64;
+
+  value = endptr + 1;
+  i64 = g_ascii_strtoll (value, &endptr, 10);
+
+  if (i64 < 0 || i64 > G_MAXINT || endptr == value || *endptr != '\0')
+    {
+      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
+                   "Source fd out of range or invalid: %s", value);
+      return FALSE;
+    }
+
+  source = (int) i64;
+  fd_flags = fcntl (source, F_GETFD);
+
+  if (fd_flags < 0)
+    return glnx_throw_errno_prefix (error, "Unable to receive %s source %d",
+                                    name, source);
+
+  _srt_process_manager_options_take_fd_assignment (self, target, source);
+  return TRUE;
+}
+
+/*
+ * _srt_process_manager_options_lock_fd_cli:
+ * @self: The process manager options
+ * @name: A command-line option name, probably `--lock-fd` or `fd`
+ * @value: A command-line option value
+ * @error: Error indicator, see GLib documentation
+ *
+ * Parse a command-line option such as `--lock-fd=3` and keep that
+ * file descriptor open until child processes have exited.
+ */
+gboolean
+_srt_process_manager_options_lock_fd_cli (SrtProcessManagerOptions *self,
+                                          const char *name,
+                                          const char *value,
+                                          GError **error)
+{
+  char *endptr;
+  gint64 i64 = g_ascii_strtoll (value, &endptr, 10);
+  int fd;
+  int fd_flags;
+
+  g_return_val_if_fail (self != NULL, FALSE);
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+  g_return_val_if_fail (value != NULL, FALSE);
+
+  if (i64 < 0 || i64 > G_MAXINT || endptr == value || *endptr != '\0')
+    {
+      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
+                   "Integer out of range or invalid: %s", value);
+      return FALSE;
+    }
+
+  fd = (int) i64;
+
+  fd_flags = fcntl (fd, F_GETFD);
+
+  if (fd_flags < 0)
+    return glnx_throw_errno_prefix (error, "Unable to receive %s %d",
+                                    name, fd);
+
+  if ((fd_flags & FD_CLOEXEC) == 0
+      && fcntl (fd, F_SETFD, fd_flags | FD_CLOEXEC) != 0)
+    return glnx_throw_errno_prefix (error,
+                                    "Unable to configure %s %d for "
+                                    "close-on-exec",
+                                    name, fd);
+
+  /* We don't know whether this is an OFD lock or not. Assume it is:
+   * it won't change our behaviour either way, and if it was passed
+   * to us across a fork(), it had better be an OFD. */
+  _srt_process_manager_options_take_lock (self,
+                                          srt_file_lock_new_take (fd, TRUE));
+  return TRUE;
+}
+
+/*
+ * _srt_process_manager_options_pass_fd_cli:
+ * @self: The process manager options
+ * @name: A command-line option name, probably `--pass-fd`
+ * @value: A command-line option value
+ * @error: Error indicator, see GLib documentation
+ *
+ * Parse a command-line option such as `--pass-fd=3` and convert it
+ * into an instruction to make file descriptor 3 not be close-on-execute.
+ */
+gboolean
+_srt_process_manager_options_pass_fd_cli (SrtProcessManagerOptions *self,
+                                          const char *name,
+                                          const char *value,
+                                          GError **error)
+{
+  char *endptr;
+  gint64 i64 = g_ascii_strtoll (value, &endptr, 10);
+  int fd;
+  int fd_flags;
+
+  g_return_val_if_fail (self != NULL, FALSE);
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+  g_return_val_if_fail (value != NULL, FALSE);
+
+  if (i64 < 0 || i64 > G_MAXINT || endptr == value || *endptr != '\0')
+    {
+      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
+                   "Integer out of range or invalid: %s", value);
+      return FALSE;
+    }
+
+  fd = (int) i64;
+
+  fd_flags = fcntl (fd, F_GETFD);
+
+  if (fd_flags < 0)
+    return glnx_throw_errno_prefix (error, "Unable to receive %s %d",
+                                    name, fd);
+
+  if (self->pass_fds == NULL)
+    self->pass_fds = g_array_new (FALSE, FALSE, sizeof (int));
+
+  g_array_append_val (self->pass_fds, fd);
+  return TRUE;
+}
+
+/*
+ * _srt_process_manager_options_take_lock:
+ * @self: The process manager options
+ * @lock: (transfer full): Data structure encapsulating a lock file descriptor
+ *
+ * Take ownership of @lock until child processes have exited.
+ */
+void
+_srt_process_manager_options_take_lock (SrtProcessManagerOptions *self,
+                                        SrtFileLock *lock)
+{
+  if (self->locks == NULL)
+    self->locks = g_ptr_array_new_with_free_func ((GDestroyNotify) srt_file_lock_free);
+
+  g_ptr_array_add (self->locks, lock);
+}
+
+struct _SrtProcessManager
+{
+  GObject parent;
+
+  SrtProcessManagerOptions opts;
+
+  const char *prgname;
+  size_t n_assign_fds;
+  const AssignFd *assign_fds;
+  size_t n_pass_fds;
+  const int *pass_fds;
+
+  int exit_status;
+};
+
+struct _SrtProcessManagerClass
+{
+  GObjectClass parent_class;
+};
+
+G_DEFINE_TYPE (SrtProcessManager, _srt_process_manager, G_TYPE_OBJECT)
+
+static void
+_srt_process_manager_init (SrtProcessManager *self)
+{
+  SrtProcessManagerOptions blank = SRT_PROCESS_MANAGER_OPTIONS_INIT;
+
+  self->opts = blank;
+  self->exit_status = -1;
+}
+
+static void
+_srt_process_manager_finalize (GObject *object)
+{
+  SrtProcessManager *self = SRT_PROCESS_MANAGER (object);
+
+  self->prgname = NULL;
+  self->assign_fds = NULL;
+  self->n_assign_fds = 0;
+  self->pass_fds = NULL;
+  self->n_pass_fds = 0;
+  self->exit_status = -1;
+
+  _srt_process_manager_options_clear (&self->opts);
+
+  G_OBJECT_CLASS (_srt_process_manager_parent_class)->finalize (object);
+}
+
+static void
+_srt_process_manager_class_init (SrtProcessManagerClass *cls)
+{
+  GObjectClass *object_class = G_OBJECT_CLASS (cls);
+
+  object_class->finalize = _srt_process_manager_finalize;
+}
+
+/*
+ * _srt_process_manager_new:
+ * @options: The process manager options
+ * @error: Error indicator, see GLib documentation
+ *
+ * Construct a new process manager from the given @options,
+ * which are cleared.
+ *
+ * Returns: (transfer full): A new process manager
+ */
+SrtProcessManager *
+_srt_process_manager_new (SrtProcessManagerOptions *options,
+                          GError **error)
+{
+  SrtProcessManagerOptions blank = SRT_PROCESS_MANAGER_OPTIONS_INIT;
+  g_autoptr(SrtProcessManager) self = NULL;
+
+  g_return_val_if_fail ((options->terminate_grace_usec < 0
+                         || options->subreaper),
+                        FALSE);
+
+  if (options->exit_with_parent)
+    {
+      g_debug ("Setting up to exit when parent does");
+
+      if (!_srt_raise_on_parent_death (SIGTERM, error))
+        return NULL;
+    }
+
+  if (options->subreaper && prctl (PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) != 0)
+    return glnx_null_throw_errno_prefix (error,
+                                         "Unable to manage background processes");
+
+  self = g_object_new (SRT_TYPE_PROCESS_MANAGER,
+                       NULL);
+
+  self->opts = *options;
+  *options = blank;
+
+  return g_steal_pointer (&self);
+}
+
+static void
+_srt_process_manager_child_setup_cb (void *user_data)
+{
+  SrtProcessManager *self = user_data;
+  size_t j;
+
+  /* The adverb should wait for its child before it exits, but if it
+   * gets terminated prematurely, we want the child to terminate too.
+   * The child could reset this, but we assume it usually won't.
+   * This makes it exit even if we are killed by SIGKILL, unless it
+   * takes steps not to be.
+   * Note that we can't use the GError here, because a GSpawnChildSetupFunc
+   * needs to follow signal-safety(7) rules. */
+  if (self->opts.exit_with_parent && !_srt_raise_on_parent_death (SIGTERM, NULL))
+    _srt_async_signal_safe_error (self->prgname,
+                                  "Failed to set up parent-death signal",
+                                  LAUNCH_EX_FAILED);
+
+  /* Unblock all signals and reset signal disposition to SIG_DFL */
+  _srt_child_setup_unblock_signals (NULL);
+
+  if (self->opts.close_fds)
+    g_fdwalk_set_cloexec (3);
+
+  for (j = 0; j < self->n_pass_fds; j++)
+    {
+      int fd = self->pass_fds[j];
+      int fd_flags;
+
+      fd_flags = fcntl (fd, F_GETFD);
+
+      if (fd_flags < 0)
+        _srt_async_signal_safe_error ("pressure-vessel-adverb",
+                                      "Invalid fd?",
+                                      LAUNCH_EX_FAILED);
+
+      if ((fd_flags & FD_CLOEXEC) != 0
+          && fcntl (fd, F_SETFD, fd_flags & ~FD_CLOEXEC) != 0)
+        _srt_async_signal_safe_error ("pressure-vessel-adverb",
+                                      "Unable to clear close-on-exec",
+                                      LAUNCH_EX_FAILED);
+    }
+
+  for (j = 0; j < self->n_assign_fds; j++)
+    {
+      int target = self->assign_fds[j].target;
+      int source = self->assign_fds[j].source;
+
+      if (dup2 (source, target) != target)
+        _srt_async_signal_safe_error ("pressure-vessel-adverb",
+                                      "Unable to assign file descriptors",
+                                      LAUNCH_EX_FAILED);
+    }
+}
+
+static void
+_srt_process_manager_dump_parameters (SrtProcessManager *self,
+                                      const char * const *argv,
+                                      const char * const *envp)
+{
+  size_t i;
+
+  g_debug ("Command-line:");
+
+  for (i = 0; argv != NULL && argv[i] != NULL; i++)
+    {
+      g_autofree gchar *quoted = NULL;
+
+      quoted = g_shell_quote (argv[i]);
+      g_debug ("\t%s", quoted);
+    }
+
+  g_debug ("Environment:");
+
+  for (i = 0; envp != NULL && envp[i] != NULL; i++)
+    {
+      g_autofree gchar *quoted = NULL;
+
+      quoted = g_shell_quote (envp[i]);
+      g_debug ("\t%s", quoted);
+    }
+
+  g_debug ("Inherited file descriptors:");
+
+  if (self->opts.pass_fds != NULL)
+    {
+      for (i = 0; i < self->opts.pass_fds->len; i++)
+        g_debug ("\t%d", g_array_index (self->opts.pass_fds, int, i));
+    }
+  else
+    {
+      g_debug ("\t(none)");
+    }
+
+  g_debug ("Redirections:");
+
+  if (self->opts.assign_fds != NULL)
+    {
+      for (i = 0; i < self->opts.assign_fds->len; i++)
+        {
+          const AssignFd *item = &g_array_index (self->opts.assign_fds, AssignFd, i);
+          g_autofree gchar *description = NULL;
+
+          description = _srt_describe_fd (item->source);
+
+          if (description != NULL)
+            g_debug ("\t%d>&%d (%s)", item->target, item->source, description);
+          else
+            g_debug ("\t%d>&%d", item->target, item->source);
+        }
+    }
+  else
+    {
+      g_debug ("\t(none)");
+    }
+}
+
+static pid_t global_child_pid = 0;
+
+static int forwarded_signals[] =
+{
+  SIGHUP,
+  SIGINT,
+  SIGQUIT,
+  SIGTERM,
+  SIGUSR1,
+  SIGUSR2,
+};
+
+/* Only do async-signal-safe things here: see signal-safety(7) */
+static void
+terminate_child_cb (int signum)
+{
+  if (global_child_pid != 0)
+    {
+      /* pass it on to the child we're going to wait for */
+      kill (global_child_pid, signum);
+    }
+  else
+    {
+      /* guess I'll just die, then */
+      signal (signum, SIG_DFL);
+      raise (signum);
+    }
+}
+
+/*
+ * _srt_process_manager_run:
+ * @self: The process manager
+ * @argv: (array zero-terminated=1): Arguments vector
+ * @envp: (array zero-terminated=1): Environment
+ *
+ * Run the main process given by @argv in an environment given by @envp,
+ * and wait for it to exit. If #SrtProcessManagerOptions.subreaper is true,
+ * also wait for all descendant processes to exit.
+ *
+ * This function may alter global state such as signal handlers,
+ * and is non-reentrant. Only call it from the main thread.
+ *
+ * It is an error to call this function more than once.
+ * After calling this function, _srt_process_manager_get_exit_status()
+ * becomes available.
+ *
+ * Returns: %TRUE if the process for @argv was started, even if it
+ *  subsequently exited unsuccessfully or was killed by a signal.
+ */
+gboolean
+_srt_process_manager_run (SrtProcessManager *self,
+                          const char * const *argv,
+                          const char * const *envp,
+                          GError **error)
+{
+  g_autoptr(GError) local_error = NULL;
+  struct sigaction terminate_child_action = {};
+  int wait_status = -1;
+  size_t i;
+
+  g_return_val_if_fail (global_child_pid == 0, FALSE);
+  g_return_val_if_fail (self->exit_status == -1, FALSE);
+
+  g_debug ("Launching child process...");
+
+  /* Respond to common termination signals by killing the child instead of
+   * ourselves */
+  if (self->opts.forward_signals)
+    {
+      terminate_child_action.sa_handler = terminate_child_cb;
+
+      for (i = 0; i < G_N_ELEMENTS (forwarded_signals); i++)
+        sigaction (forwarded_signals[i],
+                   &terminate_child_action,
+                   NULL);
+    }
+
+  self->prgname = g_get_prgname ();
+
+  if (self->opts.assign_fds != NULL)
+    {
+      self->assign_fds = (const AssignFd *) self->opts.assign_fds->data;
+      self->n_assign_fds = self->opts.assign_fds->len;
+    }
+  else
+    {
+      self->n_assign_fds = 0;
+    }
+
+  if (self->opts.pass_fds != NULL)
+    {
+      self->pass_fds = (const int *) self->opts.pass_fds->data;
+      self->n_pass_fds = self->opts.pass_fds->len;
+    }
+  else
+    {
+      self->n_pass_fds = 0;
+    }
+
+  if (self->opts.dump_parameters && _srt_util_is_debugging ())
+    _srt_process_manager_dump_parameters (self, argv, envp);
+
+  fflush (stdout);
+  fflush (stderr);
+
+  /* We use LEAVE_DESCRIPTORS_OPEN and set CLOEXEC in the child_setup,
+   * to work around a deadlock in GLib < 2.60 */
+  if (!g_spawn_async (NULL,   /* working directory */
+                      (char **) argv,
+                      (char **) envp,
+                      (G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD |
+                       G_SPAWN_LEAVE_DESCRIPTORS_OPEN |
+                       G_SPAWN_CHILD_INHERITS_STDIN),
+                      _srt_process_manager_child_setup_cb, self,
+                      &global_child_pid,
+                      &local_error))
+    {
+      if (local_error->domain == G_SPAWN_ERROR
+          && local_error->code == G_SPAWN_ERROR_NOENT)
+        self->exit_status = LAUNCH_EX_NOT_FOUND;
+      else
+        self->exit_status = LAUNCH_EX_CANNOT_INVOKE;
+
+      g_propagate_error (error, g_steal_pointer (&local_error));
+      return FALSE;
+    }
+
+  /* If the parent or child writes to a passed fd and closes it,
+   * don't stand in the way of that. Skip fds 0 (stdin),
+   * 1 (stdout) and 2 (stderr); this code assumes we have moved our original
+   * stdout/stderr to another fd, which will be dealt with as one of the
+   * assign_fds, and we want to keep our current stdin, stdout and
+   * stderr open. */
+  for (i = 0; i < self->n_pass_fds; i++)
+    {
+      int fd = self->pass_fds[i];
+
+      if (fd > 2)
+        close (fd);
+    }
+
+  /* Same for reassigned fds, notably our original stdout and stderr */
+  for (i = 0; i < self->n_assign_fds; i++)
+    {
+      int fd = self->assign_fds[i].source;
+
+      if (fd > 2)
+        close (fd);
+    }
+
+  /* Reap child processes until child_pid exits */
+  if (!_srt_wait_for_child_processes (global_child_pid, &wait_status, error))
+    {
+      self->exit_status = LAUNCH_EX_CANNOT_REPORT;
+      return FALSE;
+    }
+
+  global_child_pid = 0;
+  self->exit_status = _srt_wait_status_to_exit_status (wait_status);
+
+  /* Wait for the other child processes, if any, possibly killing them.
+   * Note that this affects whether we return FALSE and set the error,
+   * but doesn't affect self->exit_status. */
+  if (self->opts.terminate_grace_usec >= 0)
+    return _srt_subreaper_terminate_all_child_processes (self->opts.terminate_wait_usec,
+                                                         self->opts.terminate_grace_usec,
+                                                         error);
+  else
+    return _srt_wait_for_child_processes (0, NULL, error);
+}
+
+/*
+ * _srt_process_manager_get_exit_status:
+ * @self: The process manager
+ *
+ * Return an `env(1)`-like exit status representing the result of the
+ * process launched by _srt_process_manager_run().
+ *
+ * It is an error to call this function if _srt_process_manager_run()
+ * has not yet returned, but it is valid to call this function after
+ * _srt_process_manager_run() fails.
+ *
+ * Returns: An exit status
+ */
+int
+_srt_process_manager_get_exit_status (SrtProcessManager *self)
+{
+  g_return_val_if_fail (self->exit_status >= 0, self->exit_status);
+  return self->exit_status;
 }
