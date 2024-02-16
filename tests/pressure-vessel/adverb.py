@@ -338,6 +338,55 @@ class TestAdverb(BaseTest):
                 proc.wait()
                 self.assertEqual(proc.returncode, 0)
 
+    def test_fd_hold(self) -> None:
+        lock_fd, lock_name = tempfile.mkstemp()
+
+        proc = subprocess.Popen(
+            self.adverb + [
+                '--fd=%d' % lock_fd,
+                '--',
+                'sh', '-euc',
+                # The echo is to assert that the --fd is not inherited
+                # by the process being supervised
+                'echo this will fail >&%d || true; cat' % lock_fd,
+            ],
+            pass_fds=[lock_fd],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=STDERR_FILENO,
+            universal_newlines=True,
+        )
+
+        try:
+            os.close(lock_fd)
+
+            # Until we let it terminate by closing stdin, the supervisor
+            # process is still holding the lock open
+            path = os.readlink('/proc/%d/fd/%d' % (proc.pid, lock_fd))
+            self.assertEqual(
+                os.path.realpath(path),
+                os.path.realpath(lock_name),
+            )
+
+            stdin = proc.stdin
+            assert stdin is not None
+            stdin.write('from stdin')
+            stdin.close()
+
+            stdout = proc.stdout
+            assert stdout is not None
+            self.assertEqual(stdout.read(), 'from stdin')
+            stdout.close()
+        finally:
+            proc.wait()
+            self.assertEqual(proc.returncode, 0)
+
+        with open(lock_name, 'rb') as reader:
+            # The "echo hello" didn't write to the lock file
+            self.assertEqual(reader.read(), b'')
+
+        os.unlink(lock_name)
+
     def test_fd_passthrough(self) -> None:
         read_end, write_end = os.pipe2(os.O_CLOEXEC)
 
