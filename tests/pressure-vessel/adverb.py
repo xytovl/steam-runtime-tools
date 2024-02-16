@@ -6,9 +6,11 @@
 import logging
 import os
 import re
+import shlex
 import signal
 import subprocess
 import sys
+import tempfile
 
 
 try:
@@ -359,6 +361,64 @@ class TestAdverb(BaseTest):
         finally:
             proc.wait()
             self.assertEqual(proc.returncode, 0)
+
+    def test_lock_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            read_end, write_end = os.pipe2(os.O_CLOEXEC)
+
+            proc = subprocess.Popen(
+                self.adverb + [
+                    '--create',
+                    '--write',
+                    '--lock-file=%s/.ref' % tmpdir,
+                    '--',
+                    'sh', '-euc',
+                    'exec >/dev/null; echo hello > %s/.ref' % (
+                        shlex.quote(tmpdir),
+                    ),
+                ],
+                stdin=read_end,
+                stdout=subprocess.PIPE,
+                stderr=STDERR_FILENO,
+            )
+
+            try:
+                os.close(read_end)
+
+                # By the time sh runs, pv-adverb should have taken the lock.
+                # The sh process signals that it is running by closing stdout.
+                stdout = proc.stdout
+                assert stdout is not None
+                self.assertEqual(stdout.read(), b'')
+                stdout.close()
+
+                proc2 = subprocess.Popen(
+                    self.adverb + [
+                        '--create',
+                        '--wait',
+                        '--write',
+                        '--lock-file=%s/.ref' % tmpdir,
+                        '--',
+                        'sh', '-euc',
+                        'cat %s/.ref' % shlex.quote(tmpdir),
+                    ],
+                    stdout=subprocess.PIPE,
+                    stderr=STDERR_FILENO,
+                )
+
+                # proc2 doesn't exit until proc releases the lock,
+                # by which time .ref contains "hello\n"
+
+                os.close(write_end)
+                proc2.wait()
+                self.assertEqual(proc2.returncode, 0)
+                stdout = proc2.stdout
+                assert stdout is not None
+                self.assertEqual(stdout.read(), b'hello\n')
+                stdout.close()
+            finally:
+                proc.wait()
+                self.assertEqual(proc.returncode, 0)
 
     def test_wrong_options(self) -> None:
         for option in (
