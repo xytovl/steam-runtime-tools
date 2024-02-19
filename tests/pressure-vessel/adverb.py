@@ -276,6 +276,7 @@ class TestAdverb(BaseTest):
             stdout = proc.stdout
             assert stdout is not None
             pid = int(stdout.read().strip())
+            stdout.close()
         finally:
             if pid:
                 os.kill(pid, signal.SIGTERM)
