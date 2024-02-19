@@ -137,6 +137,7 @@ srt_bin += executable(
 )
 
 sh_scripts = [
+  'dialog',
   'launch-options',
 ]
 

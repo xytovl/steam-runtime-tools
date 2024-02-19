@@ -1,5 +1,6 @@
 usr/bin/srt-logger
 usr/bin/steam-runtime-check-requirements
+usr/bin/steam-runtime-dialog
 usr/bin/steam-runtime-input-monitor
 usr/bin/steam-runtime-launch-client
 usr/bin/steam-runtime-launch-options
