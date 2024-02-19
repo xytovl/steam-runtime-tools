@@ -97,12 +97,11 @@ srt_bin += executable(
   install_rpath : bin_rpath,
 )
 
-# Slightly different: needs threads, codegen and flatpak-utils-base
+# Slightly different: needs threads and codegen
 srt_bin += executable(
   'steam-runtime-launcher-service',
   sources: [
     'launcher-service.c',
-    '../pressure-vessel/flatpak-utils-base.c',
   ],
   c_args : srt_c_args,
   dependencies : [
@@ -112,8 +111,6 @@ srt_bin += executable(
     libglnx_dep,
     libsteamrt_static_dep,
   ],
-  # Needs pv_include_dirs for flatpak-*.h
-  include_directories : pv_include_dirs,
   install : true,
   build_rpath : bin_rpath,
   install_rpath : bin_rpath,

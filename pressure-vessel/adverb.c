@@ -91,11 +91,8 @@ typedef struct
 static GArray *opt_preload_modules = NULL;
 
 static void
-child_setup_cb (gpointer user_data)
+base_child_setup_cb (gpointer nil)
 {
-  ChildSetupData *data = user_data;
-  size_t j;
-
   /* The adverb should wait for its child before it exits, but if it
    * gets terminated prematurely, we want the child to terminate too.
    * The child could reset this, but we assume it usually won't.
@@ -111,12 +108,21 @@ child_setup_cb (gpointer user_data)
 
   /* Unblock all signals and reset signal disposition to SIG_DFL */
   _srt_child_setup_unblock_signals (NULL);
+}
+
+static void
+child_setup_cb (gpointer user_data)
+{
+  ChildSetupData *data = user_data;
+  size_t j;
+
+  base_child_setup_cb (NULL);
 
   /* Make the fds we pass through *not* be close-on-exec */
   if (data != NULL)
     {
       /* Make all other file descriptors close-on-exec */
-      flatpak_close_fds_workaround (3);
+      g_fdwalk_set_cloexec (3);
 
       for (j = 0; j < data->n_pass_fds; j++)
         {
@@ -554,7 +560,7 @@ run_helper_sync (const char *cwd,
                       (gchar **) argv,
                       (gchar **) envp,
                       G_SPAWN_LEAVE_DESCRIPTORS_OPEN,
-                      child_setup_cb, NULL,
+                      base_child_setup_cb, NULL,
                       child_stdout,
                       child_stderr,
                       wait_status,
@@ -1354,8 +1360,8 @@ main (int argc,
   fflush (stdout);
   fflush (stderr);
 
-  /* We use LEAVE_DESCRIPTORS_OPEN to work around a deadlock in older GLib,
-   * see flatpak_close_fds_workaround */
+  /* We use LEAVE_DESCRIPTORS_OPEN and set CLOEXEC in the child_setup,
+   * to work around a deadlock in GLib < 2.60 */
   if (!g_spawn_async (NULL,   /* working directory */
                       (char **) wrapped_command->argv->pdata,
                       wrapped_command->envp,

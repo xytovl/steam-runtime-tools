@@ -120,6 +120,7 @@ flatpak_canonicalize_filename (const char *path)
   return g_file_get_path (file);
 }
 
+#if 0
 /* There is a dead-lock in glib versions before 2.60 when it closes
  * the fds. See:  https://gitlab.gnome.org/GNOME/glib/merge_requests/490
  * This was hitting the test-suite a lot, so we work around it by using
@@ -135,3 +136,4 @@ flatpak_close_fds_workaround (int start_fd)
   for (fd = start_fd; fd < max_open_fds; fd++)
     fcntl (fd, F_SETFD, FD_CLOEXEC);
 }
+#endif
