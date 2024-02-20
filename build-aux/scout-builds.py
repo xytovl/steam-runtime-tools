@@ -62,6 +62,7 @@ def setup(args):
         [
             'meson', 'setup',
         ] + common_options + [
+            '-Dpressure_vessel=true',
             '--native-file=build-aux/meson/scout.txt',
             os.path.join(args.abs_builddir_parent, 'scout-x86_64')
         ] + list(args.args),
