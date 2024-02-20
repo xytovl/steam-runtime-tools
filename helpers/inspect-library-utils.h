@@ -30,33 +30,13 @@
 #include <getopt.h>
 #include <link.h>
 
-static inline void oom (void) __attribute__((__noreturn__));
-static inline void
-oom (void)
-{
-  fprintf (stderr, "Out of memory\n");
-  exit (EX_OSERR);
-}
-
-#define asprintf_or_die(...) \
-do { \
-    if (asprintf (__VA_ARGS__) < 0) \
-      oom (); \
-} while (0)
+#include "steam-runtime-tools/libc-utils-internal.h"
 
 #define argz_add_or_die(...) \
 do { \
     if (argz_add (__VA_ARGS__) != 0) \
       oom (); \
 } while (0)
-
-void *steal_pointer (void *pp);
-int steal_fd (int *fdp);
-void clear_with_free (void *pp);
-void clear_with_fclose (void *pp);
-
-#define autofclose __attribute__((__cleanup__(clear_with_fclose)))
-#define autofree __attribute__((__cleanup__(clear_with_free)))
 
 void print_strescape (const char *bytestring);
 void print_json_string_content (const char *s);

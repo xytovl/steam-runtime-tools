@@ -39,39 +39,6 @@
 
 #include "inspect-library-utils.h"
 
-void *
-steal_pointer (void *pp)
-{
-    typedef void *__attribute__((may_alias)) voidp_alias;
-    voidp_alias *pointer_to_pointer = pp;
-    void *ret = *pointer_to_pointer;
-    *pointer_to_pointer = NULL;
-    return ret;
-}
-
-int
-steal_fd (int *fdp)
-{
-  int fd = *fdp;
-  *fdp = -1;
-  return fd;
-}
-
-void
-clear_with_free (void *pp)
-{
-  free (steal_pointer (pp));
-}
-
-void
-clear_with_fclose (void *pp)
-{
-  FILE *fh = steal_pointer (pp);
-
-  if (fh != NULL)
-    fclose (fh);
-}
-
 /*
  * Print a bytestring to stdout, escaping backslashes and control
  * characters in octal. The result can be parsed with g_strcompress().

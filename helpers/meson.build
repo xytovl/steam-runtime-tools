@@ -49,7 +49,7 @@ srt_helpers += executable(
 srt_helpers += executable(
   multiarch + '-inspect-library',
   sources : ['inspect-library.c', 'inspect-library-utils.c'],
-  dependencies : [libdl],
+  dependencies : [libdl, libsteamrt_libc_utils_dep],
   include_directories : project_include_dirs,
   install : true,
   install_dir : pkglibexecdir,
@@ -60,7 +60,7 @@ srt_helpers += executable(
 srt_helpers += executable(
   multiarch + '-inspect-library-libelf',
   sources : ['inspect-library-libelf.c', 'inspect-library-utils.c'],
-  dependencies : [libdl, libelf],
+  dependencies : [libdl, libelf, libsteamrt_libc_utils_dep],
   include_directories : project_include_dirs,
   install : true,
   install_dir : pkglibexecdir,
@@ -129,7 +129,7 @@ endforeach
 srt_helpers += executable(
   multiarch + '-check-gl',
   'check-gl.c',
-  dependencies : [xlib, gl],
+  dependencies : [xlib, gl, libsteamrt_libc_utils_dep],
   include_directories : project_include_dirs,
   install : true,
   install_dir : join_paths(

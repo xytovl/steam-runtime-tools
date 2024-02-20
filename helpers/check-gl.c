@@ -30,10 +30,10 @@
 
 #include <getopt.h>
 
+#include "steam-runtime-tools/libc-utils-internal.h"
+
 static const int WIDTH = 200;
 static const int HEIGHT = 200;
-
-#define N_ELEMENTS(arr) (sizeof (arr) / sizeof (arr[0]))
 
 static const char *argv0;
 
@@ -44,20 +44,6 @@ typedef struct
   Window window;
   GLXContext context;
 } App;
-
-static void *
-xcalloc (size_t n,
-         size_t len)
-{
-  void *self = calloc (n, len);
-
-  if (self == NULL)
-    err (EXIT_FAILURE, "calloc");
-
-  return self;
-}
-
-#define new0(type) ((type *) xcalloc (1, sizeof (type)))
 
 static App *
 app_new (bool visible)

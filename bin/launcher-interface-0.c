@@ -19,6 +19,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "steam-runtime-tools/libc-utils-internal.h"
+
 #define NAME "steam-runtime-launcher-interface-0"
 
 /* Chosen to be similar to env(1) */
@@ -55,26 +57,6 @@ log_oom (void)
 {
   fprintf (stderr, "%s: %s\n", NAME, strerror (ENOMEM));
 }
-
-static inline void
-indirect_free (void *location)
-{
-  void **pointer_to_pointer = location;
-
-  free (*pointer_to_pointer);
-}
-
-static void *
-steal_pointer (void *location)
-{
-  void **pointer_to_pointer = location;
-  void *value = *pointer_to_pointer;
-
-  *pointer_to_pointer = NULL;
-  return value;
-}
-
-#define autofree __attribute__((__cleanup__ (indirect_free)))
 
 static bool
 want_launcher_service (const char *tool_names)
@@ -122,8 +104,6 @@ log_if_oom (void *copy)
 
   return copy;
 }
-
-#define N_ELEMENTS(arr) (sizeof (arr) / sizeof (arr[0]))
 
 static char *
 find_launcher_service (void)
