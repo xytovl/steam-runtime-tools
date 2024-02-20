@@ -3,6 +3,13 @@ steam-runtime-tools (0.20240219.0) UNRELEASED; urgency=medium
   * pressure-vessel:
     - Unset STEAM_ZENITY on entry, and reset it to a path accessible inside
       the container runtime before running the game (steamrt/tasks#397)
+    - Change pv-adverb exit status to 126 (was 127) if the executable was
+      found but could not be run
+    - Change pv-adverb exit status to 255 (was 69) if we somehow lose track
+      of the main process
+    - Fix pv-adverb --assign-fd=X=Y so that only Y is required to be open
+      already (previously X was also required to be open)
+    - Improve pv-adverb test coverage
   * Steam Linux Runtime 1.0 (scout):
     - Remove workaround for a mid 2021 configuration change
   * steam-runtime-launcher-service --alongside-steam:
@@ -17,14 +24,17 @@ steam-runtime-tools (0.20240219.0) UNRELEASED; urgency=medium
     - Don't re-enter the scout runtime to run system zenity
       (steamrt/tasks#396, steamrt/tasks#397)
   * Library code / tree-wide changes:
-    - Move code from pressure-vessel to here
+    - Change "adverb" commands' exit status to 255 (previously 70 for
+      pv-adverb, 128 for launch-client and launcher-interface-0)
+      if the wait status cannot be parsed, consistent with bubblewrap
+    - Move some code from pressure-vessel to be shareable between tools
     - Avoid using Flatpak-derived code outside pressure-vessel,
       to simplify the build
     - Update libglnx to 2024-02-09
     - Use libglnx's backport of g_fdwalk_set_cloexec() everywhere, for
       better async-signal-safety
 
- -- Simon McVittie <smcv@collabora.com>  Mon, 19 Feb 2024 15:33:53 +0000
+ -- Simon McVittie <smcv@collabora.com>  Tue, 20 Feb 2024 19:55:40 +0000
 
 steam-runtime-tools (0.20240212.0) steamrt; urgency=medium
 
