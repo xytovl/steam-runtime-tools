@@ -274,14 +274,17 @@ changed to be more like **env**(1) in future.
 69 (**EX_UNAVAILABLE**)
 :   An error occurred while setting up the execution environment
 
-70 (**EX_SOFTWARE**)
-:   The *COMMAND* terminated in an unknown way
-
 75 (**EX_TEMPFAIL**)
 :   A **--lock-file** could not be acquired, and **--wait** was not given
 
-127
+126
 :   The *COMMAND* could not be started
+
+127
+:   The *COMMAND* was not found
+
+255
+:   The *COMMAND* terminated in an unknown way
 
 Any value 1-255
 :   The *COMMAND* exited unsuccessfully with the status indicated

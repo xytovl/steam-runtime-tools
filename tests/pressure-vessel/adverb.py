@@ -6,9 +6,11 @@
 import logging
 import os
 import re
+import shlex
 import signal
 import subprocess
 import sys
+import tempfile
 
 
 try:
@@ -27,7 +29,12 @@ from testutils import (
 logger = logging.getLogger('test-adverb')
 
 
+EX_UNAVAILABLE = 69
 EX_USAGE = 64
+LAUNCH_EX_CANNOT_INVOKE = 126
+LAUNCH_EX_NOT_FOUND = 127
+STDOUT_FILENO = 1
+STDERR_FILENO = 2
 
 
 class TestAdverb(BaseTest):
@@ -77,6 +84,26 @@ class TestAdverb(BaseTest):
         self.multiarch = os.environ.get('SRT_TEST_MULTIARCH')
         if not self.multiarch:
             self.skipTest('No multiarch tuple has been set')
+
+    def test_enoent(self) -> None:
+        proc = subprocess.Popen(
+            self.adverb + ['--', '/nonexistent'],
+            stdout=STDERR_FILENO,
+            stderr=STDERR_FILENO,
+            universal_newlines=True,
+        )
+        proc.wait()
+        self.assertEqual(proc.returncode, LAUNCH_EX_NOT_FOUND)
+
+    def test_enoexec(self) -> None:
+        proc = subprocess.Popen(
+            self.adverb + ['--', '/dev/null'],
+            stdout=STDERR_FILENO,
+            stderr=STDERR_FILENO,
+            universal_newlines=True,
+        )
+        proc.wait()
+        self.assertEqual(proc.returncode, LAUNCH_EX_CANNOT_INVOKE)
 
     def test_ld_preload(self) -> None:
         if (
@@ -168,7 +195,7 @@ class TestAdverb(BaseTest):
             check=True,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=2,
+            stderr=STDERR_FILENO,
             universal_newlines=True,
         )
 
@@ -261,7 +288,7 @@ class TestAdverb(BaseTest):
             ],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=2,
+            stderr=STDERR_FILENO,
             universal_newlines=True,
         )
         pid = 0
@@ -275,6 +302,7 @@ class TestAdverb(BaseTest):
             stdout = proc.stdout
             assert stdout is not None
             pid = int(stdout.read().strip())
+            stdout.close()
         finally:
             if pid:
                 os.kill(pid, signal.SIGTERM)
@@ -286,6 +314,80 @@ class TestAdverb(BaseTest):
                 (128 + signal.SIGTERM, -signal.SIGTERM),
             )
 
+    def test_fd_assign(self) -> None:
+        for target in (STDOUT_FILENO, 9):
+            read_end, write_end = os.pipe2(os.O_CLOEXEC)
+
+            proc = subprocess.Popen(
+                self.adverb + [
+                    '--assign-fd=%d=%d' % (target, write_end),
+                    '--',
+                    'sh', '-euc', 'echo hello >&%d' % target,
+                ],
+                pass_fds=[write_end],
+                stdout=STDERR_FILENO,
+                stderr=STDERR_FILENO,
+                universal_newlines=True,
+            )
+
+            try:
+                os.close(write_end)
+
+                with os.fdopen(read_end, 'rb') as reader:
+                    self.assertEqual(reader.read(), b'hello\n')
+            finally:
+                proc.wait()
+                self.assertEqual(proc.returncode, 0)
+
+    def test_fd_hold(self) -> None:
+        lock_fd, lock_name = tempfile.mkstemp()
+
+        proc = subprocess.Popen(
+            self.adverb + [
+                '--fd=%d' % lock_fd,
+                '--',
+                'sh', '-euc',
+                # The echo is to assert that the --fd is not inherited
+                # by the process being supervised
+                'echo this will fail >&%d || true; cat' % lock_fd,
+            ],
+            pass_fds=[lock_fd],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=STDERR_FILENO,
+            universal_newlines=True,
+        )
+
+        try:
+            os.close(lock_fd)
+
+            # Until we let it terminate by closing stdin, the supervisor
+            # process is still holding the lock open
+            path = os.readlink('/proc/%d/fd/%d' % (proc.pid, lock_fd))
+            self.assertEqual(
+                os.path.realpath(path),
+                os.path.realpath(lock_name),
+            )
+
+            stdin = proc.stdin
+            assert stdin is not None
+            stdin.write('from stdin')
+            stdin.close()
+
+            stdout = proc.stdout
+            assert stdout is not None
+            self.assertEqual(stdout.read(), 'from stdin')
+            stdout.close()
+        finally:
+            proc.wait()
+            self.assertEqual(proc.returncode, 0)
+
+        with open(lock_name, 'rb') as reader:
+            # The "echo hello" didn't write to the lock file
+            self.assertEqual(reader.read(), b'')
+
+        os.unlink(lock_name)
+
     def test_fd_passthrough(self) -> None:
         read_end, write_end = os.pipe2(os.O_CLOEXEC)
 
@@ -296,8 +398,8 @@ class TestAdverb(BaseTest):
                 'sh', '-euc', 'echo hello >&%d' % write_end,
             ],
             pass_fds=[write_end],
-            stdout=2,
-            stderr=2,
+            stdout=STDERR_FILENO,
+            stderr=STDERR_FILENO,
             universal_newlines=True,
         )
 
@@ -310,13 +412,81 @@ class TestAdverb(BaseTest):
             proc.wait()
             self.assertEqual(proc.returncode, 0)
 
+    def test_lock_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            read_end, write_end = os.pipe2(os.O_CLOEXEC)
+
+            proc = subprocess.Popen(
+                self.adverb + [
+                    '--create',
+                    '--write',
+                    '--lock-file=%s/.ref' % tmpdir,
+                    '--',
+                    'sh', '-euc',
+                    'exec >/dev/null; echo hello > %s/.ref' % (
+                        shlex.quote(tmpdir),
+                    ),
+                ],
+                stdin=read_end,
+                stdout=subprocess.PIPE,
+                stderr=STDERR_FILENO,
+            )
+
+            try:
+                os.close(read_end)
+
+                # By the time sh runs, pv-adverb should have taken the lock.
+                # The sh process signals that it is running by closing stdout.
+                stdout = proc.stdout
+                assert stdout is not None
+                self.assertEqual(stdout.read(), b'')
+                stdout.close()
+
+                proc2 = subprocess.Popen(
+                    self.adverb + [
+                        '--create',
+                        '--wait',
+                        '--write',
+                        '--lock-file=%s/.ref' % tmpdir,
+                        '--',
+                        'sh', '-euc',
+                        'cat %s/.ref' % shlex.quote(tmpdir),
+                    ],
+                    stdout=subprocess.PIPE,
+                    stderr=STDERR_FILENO,
+                )
+
+                # proc2 doesn't exit until proc releases the lock,
+                # by which time .ref contains "hello\n"
+
+                os.close(write_end)
+                proc2.wait()
+                self.assertEqual(proc2.returncode, 0)
+                stdout = proc2.stdout
+                assert stdout is not None
+                self.assertEqual(stdout.read(), b'hello\n')
+                stdout.close()
+            finally:
+                proc.wait()
+                self.assertEqual(proc.returncode, 0)
+
     def test_wrong_options(self) -> None:
         for option in (
             '--an-unknown-option',
             '--ld-preload=/nonexistent/libfoo.so:abi=hal9000-movieos',
             '--ld-preload=/nonexistent/libfoo.so:abi=i386-linux-gnu:foo',
             '--ld-preload=/nonexistent/libfoo.so:foo=bar',
+            '--fd=-1',
+            '--fd=23',
+            '--fd=nope',
             '--pass-fd=-1',
+            '--pass-fd=23',
+            '--pass-fd=nope',
+            '--assign-fd=-1',
+            '--assign-fd=nope',
+            '--assign-fd=2',
+            '--assign-fd=2=-1',
+            '--assign-fd=2=23',
             '--shell=wrong',
             '--terminal=wrong',
         ):
@@ -326,12 +496,20 @@ class TestAdverb(BaseTest):
                     '--',
                     'sh', '-euc', 'exit 42',
                 ],
-                stdout=2,
-                stderr=2,
+                stdout=STDERR_FILENO,
+                stderr=STDERR_FILENO,
                 universal_newlines=True,
             )
             proc.wait()
-            self.assertEqual(proc.returncode, EX_USAGE)
+
+            if option in (
+                '--fd=23',
+                '--pass-fd=23',
+                '--assign-fd=2=23',
+            ):
+                self.assertEqual(proc.returncode, EX_UNAVAILABLE)
+            else:
+                self.assertEqual(proc.returncode, EX_USAGE)
 
     def tearDown(self) -> None:
         super().tearDown()

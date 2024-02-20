@@ -321,11 +321,10 @@ opt_assign_fd_cb (const char *name,
       return FALSE;
     }
 
+  /* Note that the target does not need to be a valid fd yet -
+   * we can use something like --assign-fd=9=1 to make fd 9
+   * a copy of existing fd 1 */
   pair.target = (int) i64;
-  fd_flags = fcntl (pair.target, F_GETFD);
-
-  if (fd_flags < 0)
-    return glnx_throw_errno_prefix (error, "Unable to receive --assign-fd target %d", pair.target);
 
   value = endptr + 1;
   i64 = g_ascii_strtoll (value, &endptr, 10);
@@ -1372,7 +1371,12 @@ main (int argc,
                       &child_pid,
                       &local_error))
     {
-      ret = 127;
+      if (local_error->domain == G_SPAWN_ERROR
+          && local_error->code == G_SPAWN_ERROR_NOENT)
+        ret = LAUNCH_EX_NOT_FOUND;
+      else
+        ret = LAUNCH_EX_CANNOT_INVOKE;
+
       goto out;
     }
 
@@ -1401,7 +1405,10 @@ main (int argc,
 
   /* Reap child processes until child_pid exits */
   if (!pv_wait_for_child_processes (child_pid, &wait_status, error))
-    goto out;
+    {
+      ret = LAUNCH_EX_CANNOT_REPORT;
+      goto out;
+    }
 
   child_pid = 0;
 
@@ -1420,7 +1427,7 @@ main (int argc,
     }
   else
     {
-      ret = EX_SOFTWARE;
+      ret = 255;
       g_info ("Command terminated in an unknown way (wait status %d)",
               wait_status);
     }

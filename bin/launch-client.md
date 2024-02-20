@@ -393,7 +393,7 @@ The exit status is similar to **env**(1):
 :   Reserved to indicate that the *COMMAND* was not found.
     This is not currently distinguished from exit status 125.
 
-128
+255
 :   The *COMMAND* was launched, but its exit status could not be
     determined. This happens if the wait-status was neither
     normal exit nor termination by a signal. It also happens if
@@ -401,7 +401,7 @@ The exit status is similar to **env**(1):
     session bus or the **--socket** before the exit status could be
     determined.
 
-Any value less than 128
+Any value
 :   The *COMMAND* exited unsuccessfully with the status indicated.
 
 128 + *n*
