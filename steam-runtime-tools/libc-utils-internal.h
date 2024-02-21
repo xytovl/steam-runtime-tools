@@ -8,8 +8,11 @@
 
 #pragma once
 
+#include <signal.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 void oom (void) __attribute__((noreturn));
 
@@ -34,6 +37,21 @@ void clear_with_fclose (void *pp);
  */
 #define autofree __attribute__((__cleanup__(clear_with_free)))
 
+/*
+ * clear_pointer:
+ * @p: A pointer to some sort of pointer
+ * @destroy: A function that can free `*p`
+ *
+ * If `*p` is not %NULL, free the pointer that it points to by
+ * calling @destroy on it.
+ * Set `*p` to %NULL.
+ */
+#define clear_pointer(p, destroy) \
+  do { \
+    __typeof__ (*p) clear_temp = steal_pointer ((p)); \
+    if (clear_temp != NULL) \
+      destroy (clear_temp); \
+  } while (0)
 
 /*
  * N_ELEMENTS:
@@ -82,3 +100,111 @@ xcalloc (size_t n, size_t size)
  * Returns: A newly-allocated, zero-filled `(type *)`
  */
 #define new0(type) ((type *) xcalloc (1, sizeof (type)))
+
+/*
+ * xrealloc:
+ * @buf: (transfer full): A memory buffer allocated with `malloc()` or
+ *  compatible, or %NULL
+ * @size: A nonzero size to enlarge or shrink @buf
+ *
+ * Try to reallocate @buf with space for @size bytes. If it fails, crash.
+ *
+ * Returns: The new location of @buf. Free with `free()`.
+ */
+static inline void *
+xrealloc (void *buf, size_t size)
+{
+  void *ret = realloc (buf, size);
+
+  if (ret == NULL)
+    oom ();
+
+  return ret;
+}
+
+/*
+ * xstrdup:
+ * @s: A non-null string
+ *
+ * Try to duplicate @s. If it fails, crash.
+ *
+ * Returns: A copy of @s. Free with `free()`.
+ */
+static inline char *
+xstrdup (const char *s)
+{
+  char *d = strdup (s);
+
+  if (d == NULL)
+    oom ();
+
+  return d;
+}
+
+/*
+ * strcmp0:
+ * @a: A string or %NULL
+ * @b: A string or %NULL
+ *
+ * Compare @a and @b like `strcmp()`, but treating %NULL as a distinct,
+ * valid string that compares less than non-%NULL string.
+ * This is the same as g_strcmp0().
+ *
+ * Returns: < 0 if a < b; 0 if a = b; > 0 if a > b
+ */
+static inline int
+strcmp0 (const char *a,
+         const char *b)
+{
+  if (a == b)
+    return 0;
+
+  if (a == NULL)
+    return -1;
+
+  if (b == NULL)
+    return 1;
+
+  return strcmp (a, b);
+}
+
+/*
+ * str_has_prefix:
+ * @str: A non-null string
+ * @prefix: A non-null string
+ *
+ * Returns: true if @str contains @prefix followed by 0 or more bytes.
+ */
+static inline bool
+str_has_prefix (const char *str,
+                const char *prefix)
+{
+  return strncmp (str, prefix, strlen (prefix)) == 0;
+}
+
+/*
+ * unblock_signals_single_threaded:
+ *
+ * Unblock all blockable signals.
+ * This function is async-signal safe (see signal-safety(7)).
+ *
+ * To avoid a dependency on libpthread, it is undefined behaviour to call
+ * this function in a multi-threaded process. Only call it after fork() or
+ * at the beginning of main().
+ */
+static inline void
+unblock_signals_single_threaded (void)
+{
+  struct sigaction action = { .sa_handler = SIG_DFL };
+  sigset_t new_set;
+  int sig;
+
+  sigemptyset (&new_set);
+  (void) sigprocmask (SIG_SETMASK, &new_set, NULL);
+
+  for (sig = 1; sig < NSIG; sig++)
+    {
+      if (sig != SIGKILL && sig != SIGSTOP)
+        (void) sigaction (sig, &action, NULL);
+    }
+}

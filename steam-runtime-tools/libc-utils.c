@@ -6,6 +6,7 @@
 #include "libc-utils-internal.h"
 
 #include <err.h>
+#include <signal.h>
 
 /*
  * steal_pointer:
