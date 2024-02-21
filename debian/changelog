@@ -10,6 +10,9 @@ steam-runtime-tools (0.20240219.0) UNRELEASED; urgency=medium
     - Fix pv-adverb --assign-fd=X=Y so that only Y is required to be open
       already (previously X was also required to be open)
     - Improve pv-adverb test coverage
+    - Only build pressure-vessel during development builds, or if targeting
+      Steam Runtime 1.0 'scout' (which is the source of the official
+      binary releases, for maximum cross-distro compatibility)
   * Steam Linux Runtime 1.0 (scout):
     - Remove workaround for a mid 2021 configuration change
   * steam-runtime-launcher-service --alongside-steam:
@@ -34,7 +37,7 @@ steam-runtime-tools (0.20240219.0) UNRELEASED; urgency=medium
     - Use libglnx's backport of g_fdwalk_set_cloexec() everywhere, for
       better async-signal-safety
 
- -- Simon McVittie <smcv@collabora.com>  Tue, 20 Feb 2024 19:55:40 +0000
+ -- Simon McVittie <smcv@collabora.com>  Wed, 21 Feb 2024 12:24:55 +0000
 
 steam-runtime-tools (0.20240212.0) steamrt; urgency=medium
 
