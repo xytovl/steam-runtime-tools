@@ -33,6 +33,7 @@ import sys
 
 try:
     import typing
+    typing  # noqa
 except ImportError:
     pass
 

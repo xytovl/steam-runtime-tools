@@ -172,7 +172,7 @@ class TestPvVerify(BaseTest):
                 ]
             )
 
-            stderr = self.assert_verify_fails(tree)
+            stderr = self.assert_verify_fails(Path(tree))
             self.assertRegex(
                 stderr,
                 (r'"should-be-symlink" in ".*" is not a symlink to '
@@ -192,7 +192,7 @@ class TestPvVerify(BaseTest):
                 ]
             )
 
-            stderr = self.assert_verify_fails(tree)
+            stderr = self.assert_verify_fails(Path(tree))
             self.assertRegex(
                 stderr,
                 r'"file" in ".*" should be executable, not mode 0640',
@@ -210,7 +210,7 @@ class TestPvVerify(BaseTest):
                 ]
             )
 
-            stderr = self.assert_verify_fails(tree)
+            stderr = self.assert_verify_fails(Path(tree))
             self.assertRegex(
                 stderr,
                 r'Unable to open regular file "should-be-file" in ".*":',
@@ -223,7 +223,7 @@ class TestPvVerify(BaseTest):
             (Path(tree) / 'rogue').mkdir()
             self.write_mtree(Path(tree), 'mtree.txt.gz', [])
 
-            stderr = self.assert_verify_fails(tree)
+            stderr = self.assert_verify_fails(Path(tree))
             self.assertRegex(
                 stderr,
                 r'directory "rogue" in ".*" not found in manifest',
@@ -236,7 +236,7 @@ class TestPvVerify(BaseTest):
             (Path(tree) / 'rogue').touch()
             self.write_mtree(Path(tree), 'mtree.txt.gz', [])
 
-            stderr = self.assert_verify_fails(tree)
+            stderr = self.assert_verify_fails(Path(tree))
             self.assertRegex(
                 stderr,
                 r'regular file "rogue" in ".*" not found in manifest',
@@ -249,7 +249,7 @@ class TestPvVerify(BaseTest):
             (Path(tree) / 'rogue').symlink_to('/')
             self.write_mtree(Path(tree), 'mtree.txt.gz', [])
 
-            stderr = self.assert_verify_fails(tree)
+            stderr = self.assert_verify_fails(Path(tree))
             self.assertRegex(
                 stderr,
                 r'symbolic link "rogue" in ".*" not found in manifest',
@@ -267,7 +267,7 @@ class TestPvVerify(BaseTest):
                 ]
             )
 
-            stderr = self.assert_verify_fails(tree)
+            stderr = self.assert_verify_fails(Path(tree))
             self.assertRegex(
                 stderr,
                 r'"file" in ".*" did not have expected contents',
@@ -285,7 +285,7 @@ class TestPvVerify(BaseTest):
                 ]
             )
 
-            stderr = self.assert_verify_fails(tree)
+            stderr = self.assert_verify_fails(Path(tree))
             self.assertRegex(
                 stderr,
                 r'"file" in ".*" should have size 1, not 0',
@@ -305,7 +305,7 @@ class TestPvVerify(BaseTest):
                 ]
             )
 
-            stderr = self.assert_verify_fails(tree)
+            stderr = self.assert_verify_fails(Path(tree))
             self.assertRegex(
                 stderr,
                 (r'"bin/env" in ".*" points to "/nonexistent", '

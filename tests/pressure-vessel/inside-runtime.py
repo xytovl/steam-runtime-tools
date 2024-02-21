@@ -27,6 +27,7 @@ to assert that everything is as it should be.
 """
 
 logger = logging.getLogger('test-inside-runtime')
+typing  # noqa
 
 
 class HostInfo:
