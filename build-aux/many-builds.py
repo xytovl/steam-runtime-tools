@@ -249,6 +249,7 @@ class Environment:
                 '-Dlibcurl_compat=true',
                 '-Doptimization=g',
                 '-Dprefix=/usr',
+                '-Dpressure_vessel=true',
                 ('-Dtest_containers_dir='
                  + str(self.abs_builddir_parent / 'containers')),
                 '-Dwarning_level=3',
@@ -269,6 +270,7 @@ class Environment:
                 '-Dmultiarch_tuple=i386-linux-gnu',
                 '-Doptimization=g',
                 '-Dprefix=/usr',
+                '-Dpressure_vessel=true',
                 '-Dwarning_level=3',
                 '-Dwerror=true',
                 '--cross-file=build-aux/meson/i386.txt',
@@ -287,6 +289,7 @@ class Environment:
                 '-Dlibcurl_compat=true',
                 '-Doptimization=g',
                 '-Dprefix=/usr',
+                '-Dpressure_vessel=true',
                 ('-Dtest_containers_dir='
                  + str(self.abs_builddir_parent / 'containers')),
                 '-Dwarning_level=3',
@@ -319,6 +322,7 @@ class Environment:
                 str(self.abs_builddir_parent / 'doc'),
                 '-Dgtk_doc=enabled',
                 '-Dman=enabled',
+                '-Dpressure_vessel=true',
             ] + args,
             check=True,
         )
@@ -335,6 +339,7 @@ class Environment:
                 '-Dlibcurl_compat=true',
                 '-Doptimization=g',
                 '-Dprefix=/usr',
+                '-Dpressure_vessel=true',
                 '-Dwarning_level=3',
                 '-Dwerror=true',
             ] + args,

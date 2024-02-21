@@ -53,7 +53,7 @@ option(
 option(
   'pressure_vessel',
   type : 'boolean',
-  value : true,
+  value : false,
   description : 'Build pressure-vessel container tool',
 )
 
