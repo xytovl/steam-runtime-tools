@@ -38,6 +38,7 @@
 #include "steam-runtime-tools/file-lock-internal.h"
 #include "steam-runtime-tools/launcher-internal.h"
 #include "steam-runtime-tools/log-internal.h"
+#include "steam-runtime-tools/process-manager-internal.h"
 #include "steam-runtime-tools/profiling-internal.h"
 #include "steam-runtime-tools/steam-runtime-tools.h"
 #include "steam-runtime-tools/utils-internal.h"
@@ -51,10 +52,8 @@
 #include "wrap-interactive.h"
 
 static const char * const *global_original_environ = NULL;
-static GPtrArray *global_locks = NULL;
 static GPtrArray *global_ld_so_conf_entries = NULL;
-static GArray *global_assign_fds = NULL;
-static GArray *global_pass_fds = NULL;
+static SrtProcessManagerOptions *global_options = NULL;
 static gboolean opt_batch = FALSE;
 static gboolean opt_create = FALSE;
 static gboolean opt_exit_with_parent = FALSE;
@@ -71,27 +70,12 @@ static gboolean opt_verbose = FALSE;
 static gboolean opt_version = FALSE;
 static gboolean opt_wait = FALSE;
 static gboolean opt_write = FALSE;
-static GPid child_pid;
-
-typedef struct
-{
-  int target;
-  int source;
-} AssignFd;
-
-typedef struct
-{
-  size_t n_assign_fds;
-  const AssignFd *assign_fds;
-  size_t n_pass_fds;
-  const int *pass_fds;
-} ChildSetupData;
 
 /* (element-type PvAdverbPreloadModule) */
 static GArray *opt_preload_modules = NULL;
 
 static void
-base_child_setup_cb (gpointer nil)
+helper_child_setup_cb (gpointer nil)
 {
   /* The adverb should wait for its child before it exits, but if it
    * gets terminated prematurely, we want the child to terminate too.
@@ -110,93 +94,14 @@ base_child_setup_cb (gpointer nil)
   _srt_child_setup_unblock_signals (NULL);
 }
 
-static void
-child_setup_cb (gpointer user_data)
-{
-  ChildSetupData *data = user_data;
-  size_t j;
-
-  base_child_setup_cb (NULL);
-
-  /* Make the fds we pass through *not* be close-on-exec */
-  if (data != NULL)
-    {
-      /* Make all other file descriptors close-on-exec */
-      g_fdwalk_set_cloexec (3);
-
-      for (j = 0; j < data->n_pass_fds; j++)
-        {
-          int fd = data->pass_fds[j];
-          int fd_flags;
-
-          fd_flags = fcntl (fd, F_GETFD);
-
-          if (fd_flags < 0)
-            _srt_async_signal_safe_error ("pressure-vessel-adverb",
-                                          "Invalid fd?",
-                                          LAUNCH_EX_FAILED);
-
-          if ((fd_flags & FD_CLOEXEC) != 0
-              && fcntl (fd, F_SETFD, fd_flags & ~FD_CLOEXEC) != 0)
-            _srt_async_signal_safe_error ("pressure-vessel-adverb",
-                                          "Unable to clear close-on-exec",
-                                          LAUNCH_EX_FAILED);
-        }
-
-      for (j = 0; j < data->n_assign_fds; j++)
-        {
-          int target = data->assign_fds[j].target;
-          int source = data->assign_fds[j].source;
-
-          if (dup2 (source, target) != target)
-            _srt_async_signal_safe_error ("pressure-vessel-adverb",
-                                          "Unable to assign file descriptors",
-                                          LAUNCH_EX_FAILED);
-        }
-    }
-}
-
 static gboolean
 opt_fd_cb (const char *name,
            const char *value,
            gpointer data,
            GError **error)
 {
-  char *endptr;
-  gint64 i64 = g_ascii_strtoll (value, &endptr, 10);
-  int fd;
-  int fd_flags;
-
-  g_return_val_if_fail (global_locks != NULL, FALSE);
-  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
-  g_return_val_if_fail (value != NULL, FALSE);
-
-  if (i64 < 0 || i64 > G_MAXINT || endptr == value || *endptr != '\0')
-    {
-      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
-                   "Integer out of range or invalid: %s", value);
-      return FALSE;
-    }
-
-  fd = (int) i64;
-
-  fd_flags = fcntl (fd, F_GETFD);
-
-  if (fd_flags < 0)
-    return glnx_throw_errno_prefix (error, "Unable to receive --fd %d", fd);
-
-  if ((fd_flags & FD_CLOEXEC) == 0
-      && fcntl (fd, F_SETFD, fd_flags | FD_CLOEXEC) != 0)
-    return glnx_throw_errno_prefix (error,
-                                    "Unable to configure --fd %d for "
-                                    "close-on-exec",
-                                    fd);
-
-  /* We don't know whether this is an OFD lock or not. Assume it is:
-   * it won't change our behaviour either way, and if it was passed
-   * to us across a fork(), it had better be an OFD. */
-  g_ptr_array_add (global_locks, srt_file_lock_new_take (fd, TRUE));
-  return TRUE;
+  return _srt_process_manager_options_lock_fd_cli (global_options,
+                                                   name, value, error);
 }
 
 static gboolean
@@ -305,45 +210,8 @@ opt_assign_fd_cb (const char *name,
                   gpointer data,
                   GError **error)
 {
-  char *endptr;
-  gint64 i64 = g_ascii_strtoll (value, &endptr, 10);
-  AssignFd pair;
-  int fd_flags;
-
-  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
-  g_return_val_if_fail (value != NULL, FALSE);
-  g_return_val_if_fail (global_assign_fds != NULL, FALSE);
-
-  if (i64 < 0 || i64 > G_MAXINT || endptr == value || *endptr != '=')
-    {
-      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
-                   "Target fd out of range or invalid: %s", value);
-      return FALSE;
-    }
-
-  /* Note that the target does not need to be a valid fd yet -
-   * we can use something like --assign-fd=9=1 to make fd 9
-   * a copy of existing fd 1 */
-  pair.target = (int) i64;
-
-  value = endptr + 1;
-  i64 = g_ascii_strtoll (value, &endptr, 10);
-
-  if (i64 < 0 || i64 > G_MAXINT || endptr == value || *endptr != '\0')
-    {
-      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
-                   "Source fd out of range or invalid: %s", value);
-      return FALSE;
-    }
-
-  pair.source = (int) i64;
-  fd_flags = fcntl (pair.source, F_GETFD);
-
-  if (fd_flags < 0)
-    return glnx_throw_errno_prefix (error, "Unable to receive --assign-fd source %d", pair.source);
-
-  g_array_append_val (global_assign_fds, pair);
-  return TRUE;
+  return _srt_process_manager_options_assign_fd_cli (global_options,
+                                                     name, value, error);
 }
 
 static gboolean
@@ -352,31 +220,8 @@ opt_pass_fd_cb (const char *name,
                 gpointer data,
                 GError **error)
 {
-  char *endptr;
-  gint64 i64 = g_ascii_strtoll (value, &endptr, 10);
-  int fd;
-  int fd_flags;
-
-  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
-  g_return_val_if_fail (value != NULL, FALSE);
-  g_return_val_if_fail (global_pass_fds != NULL, FALSE);
-
-  if (i64 < 0 || i64 > G_MAXINT || endptr == value || *endptr != '\0')
-    {
-      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
-                   "Integer out of range or invalid: %s", value);
-      return FALSE;
-    }
-
-  fd = (int) i64;
-
-  fd_flags = fcntl (fd, F_GETFD);
-
-  if (fd_flags < 0)
-    return glnx_throw_errno_prefix (error, "Unable to receive --fd %d", fd);
-
-  g_array_append_val (global_pass_fds, fd);
-  return TRUE;
+  return _srt_process_manager_options_pass_fd_cli (global_options,
+                                                   name, value, error);
 }
 
 static gboolean
@@ -500,7 +345,6 @@ opt_lock_file_cb (const char *name,
   SrtFileLock *lock;
   SrtFileLockFlags flags = SRT_FILE_LOCK_FLAGS_NONE;
 
-  g_return_val_if_fail (global_locks != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
   g_return_val_if_fail (value != NULL, FALSE);
 
@@ -518,7 +362,8 @@ opt_lock_file_cb (const char *name,
   if (lock == NULL)
     return FALSE;
 
-  g_ptr_array_add (global_locks, lock);
+  _srt_process_manager_options_take_lock (global_options,
+                                          g_steal_pointer (&lock));
   return TRUE;
 }
 
@@ -559,7 +404,7 @@ run_helper_sync (const char *cwd,
                       (gchar **) argv,
                       (gchar **) envp,
                       G_SPAWN_LEAVE_DESCRIPTORS_OPEN,
-                      base_child_setup_cb, NULL,
+                      helper_child_setup_cb, NULL,
                       child_stdout,
                       child_stderr,
                       wait_status,
@@ -825,23 +670,6 @@ out:
   return ret;
 }
 
-/* Only do async-signal-safe things here: see signal-safety(7) */
-static void
-terminate_child_cb (int signum)
-{
-  if (child_pid != 0)
-    {
-      /* pass it on to the child we're going to wait for */
-      kill (child_pid, signum);
-    }
-  else
-    {
-      /* guess I'll just die, then */
-      signal (signum, SIG_DFL);
-      raise (signum);
-    }
-}
-
 static GOptionEntry options[] =
 {
   { "assign-fd", '\0',
@@ -1001,43 +829,29 @@ int
 main (int argc,
       char *argv[])
 {
+  g_auto(SrtProcessManagerOptions) process_manager_options = SRT_PROCESS_MANAGER_OPTIONS_INIT;
   g_auto(GStrv) original_environ = NULL;
   g_autoptr(GPtrArray) ld_so_conf_entries = NULL;
-  g_autoptr(GPtrArray) locks = NULL;
-  g_autoptr(GArray) assign_fds = NULL;
-  g_autoptr(GArray) pass_fds = NULL;
   g_autoptr(GOptionContext) context = NULL;
   g_autoptr(GError) local_error = NULL;
+  g_autoptr(SrtProcessManager) process_manager = NULL;
   GError **error = &local_error;
   int ret = EX_USAGE;
-  int wait_status = -1;
   g_autofree gchar *locales_temp_dir = NULL;
   glnx_autofd int original_stdout = -1;
   glnx_autofd int original_stderr = -1;
-  ChildSetupData child_setup_data = { 0, NULL, 0, NULL };
-  sigset_t mask;
-  struct sigaction terminate_child_action = {};
   g_autoptr(FlatpakBwrap) wrapped_command = NULL;
   g_autoptr(PvPerArchDirs) lib_temp_dirs = NULL;
-  AssignFd pair;
-  gsize i;
 
   setlocale (LC_ALL, "");
+
+  global_options = &process_manager_options;
 
   original_environ = g_get_environ ();
   global_original_environ = (const char * const *) original_environ;
 
   ld_so_conf_entries = g_ptr_array_new_with_free_func (g_free);
   global_ld_so_conf_entries = ld_so_conf_entries;
-
-  locks = g_ptr_array_new_with_free_func ((GDestroyNotify) srt_file_lock_free);
-  global_locks = locks;
-
-  pass_fds = g_array_new (FALSE, FALSE, sizeof (int));
-  global_pass_fds = pass_fds;
-
-  assign_fds = g_array_new (FALSE, FALSE, sizeof (AssignFd));
-  global_assign_fds = assign_fds;
 
   /* Set up the initial base logging */
   if (!_srt_util_set_glib_log_handler ("pressure-vessel-adverb",
@@ -1048,15 +862,6 @@ main (int argc,
       ret = EX_UNAVAILABLE;
       goto out;
     }
-
-  /* Before parsing arguments, the default is like shell redirection
-   * 1>&original_stdout 2>&original_stderr */
-  pair.target = STDOUT_FILENO;
-  pair.source = glnx_steal_fd (&original_stdout);
-  g_array_append_val (assign_fds, pair);
-  pair.target = STDERR_FILENO;
-  pair.source = glnx_steal_fd (&original_stderr);
-  g_array_append_val (assign_fds, pair);
 
   context = g_option_context_new (
       "COMMAND [ARG...]\n"
@@ -1099,18 +904,11 @@ main (int argc,
       goto out;
     }
 
-  _srt_unblock_signals ();
-
-  sigemptyset (&mask);
-  sigaddset (&mask, SIGCHLD);
-
-  /* Must be called before we start any threads, but after
-   * _srt_unblock_signals(), which in turn should be after we set up
+  /* Must be called before we start any threads, but after we set up
    * logging */
-  if ((errno = pthread_sigmask (SIG_BLOCK, &mask, NULL)) != 0)
+  if (!_srt_process_manager_init_single_threaded (error))
     {
       ret = EX_UNAVAILABLE;
-      glnx_throw_errno_prefix (error, "pthread_sigmask");
       goto out;
     }
 
@@ -1132,21 +930,29 @@ main (int argc,
 
   ret = EX_UNAVAILABLE;
 
-  if (opt_exit_with_parent)
-    {
-      g_debug ("Setting up to exit when parent does");
+  process_manager_options.close_fds = TRUE;
+  process_manager_options.dump_parameters = TRUE;
+  process_manager_options.exit_with_parent = !!opt_exit_with_parent;
+  process_manager_options.forward_signals = TRUE;
+  process_manager_options.subreaper = (opt_subreaper || opt_terminate_timeout >= 0.0);
 
-      if (!_srt_raise_on_parent_death (SIGTERM, error))
-        goto out;
-    }
+  if (opt_terminate_idle_timeout > 0.0)
+    process_manager_options.terminate_wait_usec = opt_terminate_idle_timeout * G_TIME_SPAN_SECOND;
 
-  if ((opt_subreaper || opt_terminate_timeout >= 0)
-      && prctl (PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0) != 0)
-    {
-      glnx_throw_errno_prefix (error,
-                               "Unable to manage background processes");
-      goto out;
-    }
+  if (opt_terminate_timeout >= 0.0)
+    process_manager_options.terminate_grace_usec = opt_terminate_timeout * G_TIME_SPAN_SECOND;
+
+  /* In the absence of --assign-fd arguments, the default is like shell
+   * redirection 1>&original_stdout 2>&original_stderr */
+  _srt_process_manager_options_take_original_stdout_stderr (&process_manager_options,
+                                                            glnx_steal_fd (&original_stdout),
+                                                            glnx_steal_fd (&original_stderr));
+
+  global_options = NULL;
+  process_manager = _srt_process_manager_new (&process_manager_options, error);
+
+  if (process_manager == NULL)
+    goto out;
 
   wrapped_command = flatpak_bwrap_new (original_environ);
 
@@ -1295,165 +1101,16 @@ main (int argc,
         }
     }
 
-  /* Respond to common termination signals by killing the child instead of
-   * ourselves */
-  terminate_child_action.sa_handler = terminate_child_cb;
-  sigaction (SIGHUP, &terminate_child_action, NULL);
-  sigaction (SIGINT, &terminate_child_action, NULL);
-  sigaction (SIGQUIT, &terminate_child_action, NULL);
-  sigaction (SIGTERM, &terminate_child_action, NULL);
-  sigaction (SIGUSR1, &terminate_child_action, NULL);
-  sigaction (SIGUSR2, &terminate_child_action, NULL);
-
-  g_debug ("Launching child process...");
-  child_setup_data.assign_fds = (const AssignFd *) assign_fds->data;
-  child_setup_data.n_assign_fds = assign_fds->len;
-  child_setup_data.pass_fds = (const int *) pass_fds->data;
-  child_setup_data.n_pass_fds = pass_fds->len;
-
-  if (_srt_util_is_debugging ())
-    {
-      g_debug ("Command-line:");
-
-      for (i = 0; i < wrapped_command->argv->len - 1; i++)
-        {
-          g_autofree gchar *quoted = NULL;
-
-          quoted = g_shell_quote (g_ptr_array_index (wrapped_command->argv, i));
-          g_debug ("\t%s", quoted);
-        }
-
-      g_assert (wrapped_command->argv->pdata[i] == NULL);
-
-      g_debug ("Environment:");
-
-      for (i = 0; wrapped_command->envp != NULL && wrapped_command->envp[i] != NULL; i++)
-        {
-          g_autofree gchar *quoted = NULL;
-
-          quoted = g_shell_quote (wrapped_command->envp[i]);
-          g_debug ("\t%s", quoted);
-        }
-
-      g_debug ("Inherited file descriptors:");
-
-      for (i = 0; i < pass_fds->len; i++)
-        g_debug ("\t%d", g_array_index (pass_fds, int, i));
-
-      g_debug ("Redirections:");
-
-      for (i = 0; i < assign_fds->len; i++)
-        {
-          const AssignFd *item = &g_array_index (assign_fds, AssignFd, i);
-          g_autofree gchar *description = NULL;
-
-          description = _srt_describe_fd (item->source);
-
-          if (description != NULL)
-            g_debug ("\t%d>&%d (%s)", item->target, item->source, description);
-          else
-            g_debug ("\t%d>&%d", item->target, item->source);
-        }
-    }
-
-  fflush (stdout);
-  fflush (stderr);
-
-  /* We use LEAVE_DESCRIPTORS_OPEN and set CLOEXEC in the child_setup,
-   * to work around a deadlock in GLib < 2.60 */
-  if (!g_spawn_async (NULL,   /* working directory */
-                      (char **) wrapped_command->argv->pdata,
-                      wrapped_command->envp,
-                      (G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD |
-                       G_SPAWN_LEAVE_DESCRIPTORS_OPEN |
-                       G_SPAWN_CHILD_INHERITS_STDIN),
-                      child_setup_cb, &child_setup_data,
-                      &child_pid,
-                      &local_error))
-    {
-      if (local_error->domain == G_SPAWN_ERROR
-          && local_error->code == G_SPAWN_ERROR_NOENT)
-        ret = LAUNCH_EX_NOT_FOUND;
-      else
-        ret = LAUNCH_EX_CANNOT_INVOKE;
-
-      goto out;
-    }
-
-  /* If the parent or child writes to a passed fd and closes it,
-   * don't stand in the way of that. Skip fds 0 (stdin),
-   * 1 (stdout) and 2 (stderr); we have moved our original stdout/stderr
-   * to another fd, which will be dealt with as one of the assign_fds,
-   * and we want to keep our current stdin, stdout and stderr open. */
-  for (i = 0; i < pass_fds->len; i++)
-    {
-      int fd = g_array_index (pass_fds, int, i);
-
-      if (fd > 2)
-        close (fd);
-    }
-
-  /* Same for reassigned fds, notably our original stdout and stderr */
-  for (i = 0; i < assign_fds->len; i++)
-    {
-      const AssignFd *item = &g_array_index (assign_fds, AssignFd, i);
-      int fd = item->source;
-
-      if (fd > 2)
-        close (fd);
-    }
-
-  /* Reap child processes until child_pid exits */
-  if (!pv_wait_for_child_processes (child_pid, &wait_status, error))
-    {
-      ret = LAUNCH_EX_CANNOT_REPORT;
-      goto out;
-    }
-
-  child_pid = 0;
-
-  if (WIFEXITED (wait_status))
-    {
-      ret = WEXITSTATUS (wait_status);
-      if (ret == 0)
-        g_debug ("Command exited with status %d", ret);
-      else
-        g_info ("Command exited with status %d", ret);
-    }
-  else if (WIFSIGNALED (wait_status))
-    {
-      ret = 128 + WTERMSIG (wait_status);
-      g_info ("Command killed by signal %d", ret - 128);
-    }
-  else
-    {
-      ret = 255;
-      g_info ("Command terminated in an unknown way (wait status %d)",
-              wait_status);
-    }
-
-  if (opt_terminate_idle_timeout < 0.0)
-    opt_terminate_idle_timeout = 0.0;
-
-  /* Wait for the other child processes, if any, possibly killing them */
-  if (opt_terminate_timeout >= 0.0)
-    {
-      if (!pv_terminate_all_child_processes (opt_terminate_idle_timeout * G_TIME_SPAN_SECOND,
-                                             opt_terminate_timeout * G_TIME_SPAN_SECOND,
-                                             error))
-        goto out;
-    }
-  else
-    {
-      if (!pv_wait_for_child_processes (0, NULL, error))
-        goto out;
-    }
+  /* We take the same action whether this succeeds or fails */
+  _srt_process_manager_run (process_manager,
+                            (const char * const *) wrapped_command->argv->pdata,
+                            (const char * const *) wrapped_command->envp,
+                            error);
+  ret = _srt_process_manager_get_exit_status (process_manager);
 
 out:
-  global_assign_fds = NULL;
   global_ld_so_conf_entries = NULL;
-  global_locks = NULL;
-  global_pass_fds = NULL;
+  global_options = NULL;
   g_clear_pointer (&opt_overrides, g_free);
   g_clear_pointer (&opt_regenerate_ld_so_cache, g_free);
 

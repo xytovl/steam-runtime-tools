@@ -1,5 +1,5 @@
 /*
- * Copyright © 2019-2020 Collabora Ltd.
+ * Copyright © 2019-2024 Collabora Ltd.
  *
  * SPDX-License-Identifier: MIT
  *
@@ -31,13 +31,14 @@
 
 #include <glib.h>
 #include <glib/gstdio.h>
+#include "libglnx.h"
 
 #include "steam-runtime-tools/glib-backports-internal.h"
-#include "libglnx.h"
+#include "steam-runtime-tools/missing-internal.h"
+#include "steam-runtime-tools/process-manager-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
 
 #include "tests/test-utils.h"
-#include "utils.h"
 
 typedef struct
 {
@@ -81,20 +82,25 @@ test_terminate_nothing (Fixture *f,
   g_autoptr(GError) error = NULL;
   gboolean ret;
 
-  ret = pv_terminate_all_child_processes (0, 0, &error);
+  ret = _srt_subreaper_terminate_all_child_processes (0, 0, &error);
   g_assert_no_error (error);
   g_assert_true (ret);
 
-  ret = pv_terminate_all_child_processes (0, 100 * G_TIME_SPAN_MILLISECOND, &error);
+  ret = _srt_subreaper_terminate_all_child_processes (0,
+                                                      100 * G_TIME_SPAN_MILLISECOND,
+                                                      &error);
   g_assert_no_error (error);
   g_assert_true (ret);
 
-  ret = pv_terminate_all_child_processes (100 * G_TIME_SPAN_MILLISECOND, 0, &error);
+  ret = _srt_subreaper_terminate_all_child_processes (100 * G_TIME_SPAN_MILLISECOND,
+                                                      0,
+                                                      &error);
   g_assert_no_error (error);
   g_assert_true (ret);
 
-  ret = pv_terminate_all_child_processes (100 * G_TIME_SPAN_MILLISECOND,
-                                          100 * G_TIME_SPAN_MILLISECOND, &error);
+  ret = _srt_subreaper_terminate_all_child_processes (100 * G_TIME_SPAN_MILLISECOND,
+                                                      100 * G_TIME_SPAN_MILLISECOND,
+                                                      &error);
   g_assert_no_error (error);
   g_assert_true (ret);
 }
@@ -117,7 +123,9 @@ test_terminate_sigterm (Fixture *f,
   g_assert_no_error (error);
   g_assert_true (ret);
 
-  ret = pv_terminate_all_child_processes (0, 60 * G_TIME_SPAN_SECOND, &error);
+  ret = _srt_subreaper_terminate_all_child_processes (0,
+                                                      60 * G_TIME_SPAN_SECOND,
+                                                      &error);
   g_assert_no_error (error);
   g_assert_true (ret);
 }
@@ -144,8 +152,9 @@ test_terminate_sigkill (Fixture *f,
   g_assert_true (ret);
 
   /* We give it 100ms before SIGTERM to let it put the trap in place */
-  ret = pv_terminate_all_child_processes (100 * G_TIME_SPAN_MILLISECOND,
-                                          100 * G_TIME_SPAN_MILLISECOND, &error);
+  ret = _srt_subreaper_terminate_all_child_processes (100 * G_TIME_SPAN_MILLISECOND,
+                                                      100 * G_TIME_SPAN_MILLISECOND,
+                                                      &error);
   g_assert_no_error (error);
   g_assert_true (ret);
 }
@@ -171,7 +180,7 @@ test_terminate_sigkill_immediately (Fixture *f,
   g_assert_no_error (error);
   g_assert_true (ret);
 
-  ret = pv_terminate_all_child_processes (0, 0, &error);
+  ret = _srt_subreaper_terminate_all_child_processes (0, 0, &error);
   g_assert_no_error (error);
   g_assert_true (ret);
 }
@@ -195,7 +204,7 @@ test_wait_for_all (Fixture *f,
   g_assert_no_error (error);
   g_assert_true (ret);
 
-  ret = pv_wait_for_child_processes (0, &wstat, &error);
+  ret = _srt_wait_for_child_processes (0, &wstat, &error);
   g_assert_no_error (error);
   g_assert_true (ret);
   g_assert_cmpint (wstat, ==, -1);
@@ -221,7 +230,7 @@ test_wait_for_main (Fixture *f,
   g_assert_no_error (error);
   g_assert_true (ret);
 
-  ret = pv_wait_for_child_processes (main_pid, &wstat, &error);
+  ret = _srt_wait_for_child_processes (main_pid, &wstat, &error);
   g_assert_no_error (error);
   g_assert_true (ret);
   g_assert_true (WIFEXITED (wstat));
@@ -270,14 +279,14 @@ test_wait_for_main_plus (Fixture *f,
   g_assert_no_error (error);
   g_assert_true (ret);
 
-  ret = pv_wait_for_child_processes (main_pid, &wstat, &error);
+  ret = _srt_wait_for_child_processes (main_pid, &wstat, &error);
   g_assert_no_error (error);
   g_assert_true (ret);
   g_assert_true (WIFSIGNALED (wstat));
   g_assert_cmpint (WTERMSIG (wstat), ==, SIGTERM);
 
   /* Don't leak the other processes, if any (probably after_argv) */
-  ret = pv_wait_for_child_processes (0, &wstat, &error);
+  ret = _srt_wait_for_child_processes (0, &wstat, &error);
   g_assert_no_error (error);
   g_assert_true (ret);
 }
@@ -290,7 +299,7 @@ test_wait_for_nothing (Fixture *f,
   int wstat;
   gboolean ret;
 
-  ret = pv_wait_for_child_processes (0, &wstat, &error);
+  ret = _srt_wait_for_child_processes (0, &wstat, &error);
   g_assert_no_error (error);
   g_assert_true (ret);
   g_assert_cmpint (wstat, ==, -1);
@@ -304,7 +313,7 @@ test_wait_for_wrong_main (Fixture *f,
   int wstat;
   gboolean ret;
 
-  ret = pv_wait_for_child_processes (getpid (), &wstat, &error);
+  ret = _srt_wait_for_child_processes (getpid (), &wstat, &error);
   g_assert_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND);
   g_assert_false (ret);
   g_assert_cmpint (wstat, ==, -1);

@@ -42,14 +42,6 @@ gboolean pv_run_sync (const char * const * argv,
 gpointer pv_hash_table_get_first_key (GHashTable *table,
                                       GCompareFunc cmp);
 
-gboolean pv_wait_for_child_processes (pid_t main_process,
-                                      int *wait_status_out,
-                                      GError **error);
-
-gboolean pv_terminate_all_child_processes (GTimeSpan wait_period,
-                                           GTimeSpan grace_period,
-                                           GError **error);
-
 gchar *pv_current_namespace_path_to_host_path (const gchar *current_env_path);
 
 void pv_delete_dangling_symlink (int dirfd,
