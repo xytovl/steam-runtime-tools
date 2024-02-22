@@ -94,6 +94,11 @@ EX_USAGE () {
 
 extract_archive() {
     local uncompressed_size=""
+    local dialog="${STEAM_ZENITY-}"
+
+    if [ -x ~/.steam/root/steam-dialog ]; then
+        dialog="$HOME/.steam/root/steam-dialog"
+    fi
 
     case "$2" in
     *.gz)
@@ -110,11 +115,11 @@ extract_archive() {
         # to stop slightly short than to overshoot), and emit a checkpoint
         # once per record.
         BF=$((uncompressed_size / $((512 * 98)) + 1))
-        if [ -n "${STEAM_ZENITY-}" ]; then
+        if [ -n "${dialog-}" ]; then
             # Intentionally not expanding $TAR_CHECKPOINT:
             # shellcheck disable=SC2016
             tar --blocking-factor="${BF}" --checkpoint=1 --checkpoint-action='exec=echo "$TAR_CHECKPOINT" || true' -xf "$2" -C "$3" \
-                | ( "${STEAM_ZENITY}" --progress --auto-close --no-cancel --width 400 --text="$1" || true ) >&2
+                | ( "${dialog}" --progress --auto-close --no-cancel --width 400 --text="$1" || true ) >&2
         else
             # shellcheck disable=SC2016
             tar --blocking-factor="${BF}" --checkpoint=1 --checkpoint-action='exec=echo "$TAR_CHECKPOINT%" || true' -xf "$2" -C "$3" >&2
