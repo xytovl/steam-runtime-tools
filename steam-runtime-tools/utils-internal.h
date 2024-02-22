@@ -51,7 +51,8 @@ G_GNUC_INTERNAL gboolean _srt_check_not_setuid (void);
 
 G_GNUC_INTERNAL gchar *_srt_filter_gameoverlayrenderer (const gchar *input);
 G_GNUC_INTERNAL gchar **_srt_filter_gameoverlayrenderer_from_envp (const char * const *envp);
-G_GNUC_INTERNAL const char *_srt_find_myself (const char **helpers_path_out,
+G_GNUC_INTERNAL const char *_srt_find_myself (const char **exe_path_out,
+                                              const char **helpers_path_out,
                                               GError **error);
 G_GNUC_INTERNAL gchar * _srt_find_executable (GError **error);
 G_GNUC_INTERNAL gchar *_srt_find_executable_dir (GError **error);

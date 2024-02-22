@@ -170,21 +170,28 @@ _srt_check_not_setuid (void)
   "/libexec/installed-tests/steam-runtime-tools-" _SRT_API_MAJOR
 
 G_GNUC_INTERNAL const char *
-_srt_find_myself (const char **helpers_path_out,
+_srt_find_myself (const char **exe_path_out,
+                  const char **helpers_path_out,
                   GError **error)
 {
   static gchar *saved_prefix = NULL;
+  static gchar *saved_exe_path = NULL;
   static gchar *saved_helpers_path = NULL;
   Dl_info ignored;
   struct link_map *map = NULL;
   gchar *dir = NULL;
+  g_autofree gchar *exe = NULL;
 
   g_return_val_if_fail (_srt_check_not_setuid (), NULL);
   g_return_val_if_fail (error == NULL || *error == NULL, NULL);
+  g_return_val_if_fail (exe_path_out == NULL || *exe_path_out == NULL,
+                        NULL);
   g_return_val_if_fail (helpers_path_out == NULL || *helpers_path_out == NULL,
                         NULL);
 
-  if (saved_prefix != NULL && saved_helpers_path != NULL)
+  if (saved_prefix != NULL
+      && saved_exe_path != NULL
+      && saved_helpers_path != NULL)
     goto out;
 
   if (dladdr1 (_srt_find_myself, &ignored, (void **) &map,
@@ -197,20 +204,19 @@ _srt_find_myself (const char **helpers_path_out,
       goto out;
     }
 
+  exe = realpath ("/proc/self/exe", NULL);
+
+  if (exe == NULL)
+    {
+      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
+                   "Unable to locate main executable");
+      goto out;
+    }
+
   if (map->l_name == NULL || map->l_name[0] == '\0')
     {
-      char *exe = realpath ("/proc/self/exe", NULL);
-
-      if (exe == NULL)
-        {
-          g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
-                       "Unable to locate main executable");
-          goto out;
-        }
-
       g_debug ("Found _srt_find_myself() in main executable %s", exe);
       dir = g_path_get_dirname (exe);
-      free (exe);
     }
   else
     {
@@ -244,6 +250,7 @@ _srt_find_myself (const char **helpers_path_out,
       dir = g_strdup ("/usr");
     }
 
+  saved_exe_path = g_steal_pointer (&exe);
   saved_prefix = g_steal_pointer (&dir);
   /* deliberate one-per-process leak */
   saved_helpers_path = g_build_filename (
@@ -251,6 +258,9 @@ _srt_find_myself (const char **helpers_path_out,
       NULL);
 
 out:
+  if (exe_path_out != NULL)
+    *exe_path_out = saved_exe_path;
+
   if (helpers_path_out != NULL)
     *helpers_path_out = saved_helpers_path;
 

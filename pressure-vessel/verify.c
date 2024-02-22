@@ -121,7 +121,7 @@ run (int argc,
     }
   else
     {
-      const char *prefix = _srt_find_myself (NULL, error);
+      const char *prefix = _srt_find_myself (NULL, NULL, error);
 
       if (prefix == NULL)
         return FALSE;

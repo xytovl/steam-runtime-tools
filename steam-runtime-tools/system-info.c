@@ -1191,7 +1191,7 @@ ensure_expectations (SrtSystemInfo *self)
 
       if (def == NULL)
         {
-          runtime = _srt_find_myself (NULL, NULL);
+          runtime = _srt_find_myself (NULL, NULL, NULL);
 
           if (runtime != NULL)
             def = g_build_filename (runtime, STEAMRT_EXPECTATIONS, NULL);
