@@ -1,3 +1,4 @@
+usr/bin/srt-logger
 usr/bin/steam-runtime-check-requirements
 usr/bin/steam-runtime-input-monitor
 usr/bin/steam-runtime-launch-client
@@ -5,6 +6,7 @@ usr/bin/steam-runtime-launch-options
 usr/bin/steam-runtime-launcher-interface-*
 usr/bin/steam-runtime-launcher-service
 usr/bin/steam-runtime-system-info
+usr/share/man/man1/srt-logger.1
 usr/share/man/man1/steam-runtime-check-requirements.1
 usr/share/man/man1/steam-runtime-identify-library-abi.1
 usr/share/man/man1/steam-runtime-input-monitor.1

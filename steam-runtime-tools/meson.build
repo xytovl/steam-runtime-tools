@@ -144,6 +144,8 @@ libsteamrt_internals = [
 libsteamrt_static_extras = [
     'file-lock.c',
     'file-lock-internal.h',
+    'logger.c',
+    'logger-internal.h',
     'portal-listener.c',
     'portal-listener-internal.h',
     'process-manager.c',
