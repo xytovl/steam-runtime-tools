@@ -5,4 +5,13 @@ usr/bin/steam-runtime-launch-options
 usr/bin/steam-runtime-launcher-interface-*
 usr/bin/steam-runtime-launcher-service
 usr/bin/steam-runtime-system-info
-usr/share/man/man1/steam-runtime-*
+usr/share/man/man1/steam-runtime-check-requirements.1
+usr/share/man/man1/steam-runtime-identify-library-abi.1
+usr/share/man/man1/steam-runtime-input-monitor.1
+usr/share/man/man1/steam-runtime-launch-client.1
+usr/share/man/man1/steam-runtime-launch-options.1
+usr/share/man/man1/steam-runtime-launcher-interface-*.1
+usr/share/man/man1/steam-runtime-launcher-service.1
+usr/share/man/man1/steam-runtime-steam-remote.1
+usr/share/man/man1/steam-runtime-system-info.1
+usr/share/man/man1/steam-runtime-urlopen.1
