@@ -102,6 +102,77 @@ no_sd_journal_stream_fd (const char *identifier,
   our_ ## name = (type_of_ ## name) dlsym (handle, #name);
 
 /*
+ * _srt_journal_stream_fd:
+ * @identifier: Identifier to be used in log messages
+ * @error: Used to raise an error on failure
+ *
+ * Returns: %TRUE on success
+ */
+int
+_srt_journal_stream_fd (const char *identifier,
+                        int priority,
+                        GError **error)
+{
+  glnx_autofd int fd = -1;
+
+  g_return_val_if_fail (identifier != NULL, -1);
+  g_return_val_if_fail (priority >= LOG_EMERG, -1);
+  g_return_val_if_fail (priority <= LOG_DEBUG, -1);
+  g_return_val_if_fail (error == NULL || *error == NULL, -1);
+
+  if (g_once_init_enter (&our_sd_journal_stream_fd))
+    {
+      g_auto(AutoLibraryHandle) handle = NULL;
+      type_of_sd_journal_stream_fd sym = NULL;
+      const char *message;
+
+      handle = dlopen ("libsystemd.so.0", RTLD_NOW | RTLD_LOCAL | RTLD_NODELETE);
+
+      if (handle == NULL)
+        {
+          g_once_init_leave (&our_sd_journal_stream_fd, no_sd_journal_stream_fd);
+          glnx_throw (error, "%s", dlerror ());
+          return -1;
+        }
+
+      LOAD_OPTIONAL_SYMBOL (handle, sd_journal_send);
+
+      (void) dlerror ();
+      sym = (type_of_sd_journal_stream_fd) dlsym (handle, "sd_journal_stream_fd");
+
+      message = dlerror ();
+
+      if (message != NULL)
+        {
+          g_once_init_leave (&our_sd_journal_stream_fd, no_sd_journal_stream_fd);
+          glnx_throw (error, "%s", message);
+          return -1;
+        }
+      if (sym == NULL)
+        {
+          g_once_init_leave (&our_sd_journal_stream_fd, no_sd_journal_stream_fd);
+          glnx_throw (error, "sd_journal_stream_fd resolved to NULL");
+          return -1;
+        }
+
+      g_once_init_leave (&our_sd_journal_stream_fd, sym);
+    }
+
+  fd = our_sd_journal_stream_fd (identifier, priority, FALSE);
+
+  if (fd < 0)
+    {
+      g_set_error (error, G_IO_ERROR,
+                   g_io_error_from_errno (-fd),
+                   "sd_journal_stream_fd: %s",
+                   g_strerror (-fd));
+      return -1;
+    }
+
+  return g_steal_fd (&fd);
+}
+
+/*
  * _srt_stdio_to_journal:
  * @identifier: Identifier to be used in log messages
  * @error: Used to raise an error on failure
@@ -116,57 +187,12 @@ _srt_stdio_to_journal (const char *identifier,
 {
   glnx_autofd int fd = -1;
 
-  g_return_val_if_fail (target_fd >= 0, FALSE);
-  g_return_val_if_fail (identifier != NULL, FALSE);
-  g_return_val_if_fail (priority >= LOG_EMERG, FALSE);
-  g_return_val_if_fail (priority <= LOG_DEBUG, FALSE);
-  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+  g_return_val_if_fail (target_fd >= 0, -1);
 
-  if (g_once_init_enter (&our_sd_journal_stream_fd))
-    {
-      g_auto(AutoLibraryHandle) handle = NULL;
-      type_of_sd_journal_stream_fd sym = NULL;
-      const char *message;
-
-      handle = dlopen ("libsystemd.so.0", RTLD_NOW | RTLD_LOCAL | RTLD_NODELETE);
-
-      if (handle == NULL)
-        {
-          g_once_init_leave (&our_sd_journal_stream_fd, no_sd_journal_stream_fd);
-          return glnx_throw (error, "%s", dlerror ());
-        }
-
-      LOAD_OPTIONAL_SYMBOL (handle, sd_journal_send);
-
-      (void) dlerror ();
-      sym = (type_of_sd_journal_stream_fd) dlsym (handle, "sd_journal_stream_fd");
-
-      message = dlerror ();
-
-      if (message != NULL)
-        {
-          g_once_init_leave (&our_sd_journal_stream_fd, no_sd_journal_stream_fd);
-          return glnx_throw (error, "%s", message);
-        }
-      if (sym == NULL)
-        {
-          g_once_init_leave (&our_sd_journal_stream_fd, no_sd_journal_stream_fd);
-          return glnx_throw (error, "sd_journal_stream_fd resolved to NULL");
-        }
-
-      g_once_init_leave (&our_sd_journal_stream_fd, sym);
-    }
-
-  fd = our_sd_journal_stream_fd (identifier, priority, FALSE);
+  fd = _srt_journal_stream_fd (identifier, priority, error);
 
   if (fd < 0)
-    {
-      g_set_error (error, G_IO_ERROR,
-                   g_io_error_from_errno (-fd),
-                   "sd_journal_stream_fd: %s",
-                   g_strerror (-fd));
-      return FALSE;
-    }
+    return FALSE;
 
   if (dup2 (fd, target_fd) != target_fd)
     return glnx_throw_errno_prefix (error,

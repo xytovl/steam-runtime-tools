@@ -52,6 +52,10 @@ typedef enum
 #define _srt_log_warning(...) \
   g_log (G_LOG_DOMAIN, SRT_LOG_LEVEL_WARNING, __VA_ARGS__)
 
+int _srt_journal_stream_fd (const char *identifier,
+                            int priority,
+                            GError **error);
+
 gboolean _srt_util_set_glib_log_handler (const char *prgname,
                                          const char *extra_log_domain,
                                          SrtLogFlags flags,
