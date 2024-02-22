@@ -543,3 +543,14 @@ _srt_environ_getenv (const char * const *envp,
 }
 
 gchar *_srt_describe_fd (int fd) G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
+
+/*
+ * Ignore SIGPIPE, returning -1 with errno set on failure.
+ */
+static inline int
+_srt_ignore_sigpipe (void)
+{
+  struct sigaction action = { .sa_handler = SIG_IGN };
+
+  return sigaction (SIGPIPE, &action, NULL);
+}
