@@ -66,7 +66,6 @@ _srt_tests_global_debug_log_to_stderr (void)
 {
 #if !GLIB_CHECK_VERSION(2, 68, 0)
   int original_stdout_fd;
-  int flags;
 #endif
 
   g_return_if_fail (!global_debug_log_to_stderr);
@@ -79,8 +78,7 @@ _srt_tests_global_debug_log_to_stderr (void)
   /* This is a mini version of _srt_divert_stdout_to_stderr(), with
    * more fragile error handling since this is only test code */
   g_assert_no_errno ((original_stdout_fd = dup (STDOUT_FILENO)));
-  g_assert_no_errno ((flags = fcntl (original_stdout_fd, F_GETFD, 0)));
-  g_assert_no_errno (fcntl (original_stdout_fd, F_SETFD, flags | FD_CLOEXEC));
+  g_assert_no_errno (_srt_fd_set_close_on_exec (original_stdout_fd));
   g_assert_no_errno (dup2 (STDERR_FILENO, STDOUT_FILENO));
   g_assert_no_errno ((original_stdout = fdopen (original_stdout_fd, "w")) ? 0 : -1);
 

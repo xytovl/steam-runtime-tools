@@ -390,12 +390,6 @@ typedef struct
 } ChildSetupData;
 
 static void
-drop_cloexec (int fd)
-{
-  fcntl (fd, F_SETFD, 0);
-}
-
-static void
 child_setup_func (gpointer user_data)
 {
   ChildSetupData *data = (ChildSetupData *) user_data;
@@ -426,7 +420,7 @@ child_setup_func (gpointer user_data)
         }
 
       /* Ensure we inherit the final fd value */
-      drop_cloexec (fd_map[i].final);
+      _srt_fd_unset_close_on_exec (fd_map[i].final);
     }
 
   /* We become our own session and process group, because it never makes sense
@@ -1271,7 +1265,6 @@ avoid_stdin (int fd,
     {
       glnx_autofd int old_stdin = -1;
       glnx_autofd int new_stdin = -1;
-      int fd_flags;
 
       old_stdin = dup (STDIN_FILENO);
 
@@ -1282,10 +1275,7 @@ avoid_stdin (int fd,
           return -1;
         }
 
-      fd_flags = fcntl (old_stdin, F_GETFD);
-
-      if (fd_flags < 0 ||
-          fcntl (old_stdin, F_SETFD, fd_flags | FD_CLOEXEC) != 0)
+      if (_srt_fd_set_close_on_exec (old_stdin) < 0)
         {
           glnx_throw_errno_prefix (error, "Unable to set flags on fd %d",
                                    old_stdin);
@@ -1891,7 +1881,7 @@ out:
       /* Make sure we don't leak the info file descriptor down into the
        * child process, but instead just close it */
       if (info_fh != original_stdout && info_fh != NULL)
-        _srt_fd_set_close_on_exec (fileno (info_fh), TRUE, NULL);
+        _srt_fd_set_close_on_exec (fileno (info_fh));
 
       /* Restore the original stdout */
       if (original_stdout != NULL)

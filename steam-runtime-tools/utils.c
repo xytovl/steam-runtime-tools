@@ -674,7 +674,6 @@ _srt_divert_stdout_to_stderr (GError **error)
 {
   g_autoptr(FILE) original_stdout = NULL;
   glnx_autofd int original_stdout_fd = -1;
-  int flags;
 
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
@@ -687,13 +686,9 @@ _srt_divert_stdout_to_stderr (GError **error)
                                          "Unable to duplicate fd %d",
                                          STDOUT_FILENO);
 
-  flags = fcntl (original_stdout_fd, F_GETFD, 0);
-
-  if (flags < 0)
+  if (_srt_fd_set_close_on_exec (original_stdout_fd) < 0)
     return glnx_null_throw_errno_prefix (error,
-                                         "Unable to get flags of new fd");
-
-  fcntl (original_stdout_fd, F_SETFD, flags|FD_CLOEXEC);
+                                         "Unable to set flags for new fd");
 
   /* If something like g_debug writes to stdout, make it come out of
    * our original stderr. */
@@ -1425,29 +1420,6 @@ _srt_get_steam_app_id (void)
     return value;
 
   return NULL;
-}
-
-gboolean
-_srt_fd_set_close_on_exec (int fd,
-                           gboolean close_on_exec,
-                           GError **error)
-{
-  int old_flags = fcntl (fd, F_GETFD);
-  int new_flags;
-
-  if (old_flags < 0)
-    return glnx_throw_errno_prefix (error, "Cannot get file descriptor %d flags", fd);
-
-  if (close_on_exec)
-    new_flags = old_flags | FD_CLOEXEC;
-  else
-    new_flags = old_flags & ~FD_CLOEXEC;
-
-  if (old_flags != new_flags
-      && fcntl (fd, F_SETFD, new_flags) < 0)
-    return glnx_throw_errno_prefix (error, "Cannot set file descriptor %d flags", fd);
-
-  return TRUE;
 }
 
 /*

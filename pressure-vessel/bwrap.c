@@ -93,13 +93,8 @@ pv_bwrap_execve (FlatpakBwrap *bwrap,
   for (i = 0; i < n_inherit_fds; i++)
     {
       int fd = inherit_fds[i];
-      int fd_flags;
 
-      fd_flags = fcntl (fd, F_GETFD);
-
-      if (fd_flags >= 0
-          && (fd_flags & FD_CLOEXEC) != 0
-          && fcntl (fd, F_SETFD, fd_flags & ~FD_CLOEXEC) != 0)
+      if (_srt_fd_unset_close_on_exec (fd) < 0)
         g_warning ("Unable to clear close-on-exec flag of fd %d: %s",
                    fd, g_strerror (errno));
     }

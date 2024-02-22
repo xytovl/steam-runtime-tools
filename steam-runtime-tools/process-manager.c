@@ -735,7 +735,6 @@ _srt_process_manager_options_lock_fd_cli (SrtProcessManagerOptions *self,
   char *endptr;
   gint64 i64 = g_ascii_strtoll (value, &endptr, 10);
   int fd;
-  int fd_flags;
 
   g_return_val_if_fail (self != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
@@ -750,14 +749,7 @@ _srt_process_manager_options_lock_fd_cli (SrtProcessManagerOptions *self,
 
   fd = (int) i64;
 
-  fd_flags = fcntl (fd, F_GETFD);
-
-  if (fd_flags < 0)
-    return glnx_throw_errno_prefix (error, "Unable to receive %s %d",
-                                    name, fd);
-
-  if ((fd_flags & FD_CLOEXEC) == 0
-      && fcntl (fd, F_SETFD, fd_flags | FD_CLOEXEC) != 0)
+  if (_srt_fd_set_close_on_exec (fd) < 0)
     return glnx_throw_errno_prefix (error,
                                     "Unable to configure %s %d for "
                                     "close-on-exec",
