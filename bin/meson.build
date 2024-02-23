@@ -33,6 +33,7 @@ foreach bin_name : libc_programs
     'steam-runtime-' + bin_name,
     bin_name + '.c',
     c_args : srt_c_args,
+    dependencies : [libsteamrt_libc_utils_dep],
     install : true,
   )
 endforeach

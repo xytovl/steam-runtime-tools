@@ -21,6 +21,20 @@
 # TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+srt_c_args = ['-include', 'steam-runtime-tools/_srt-config.h']
+
+libsteamrt_libc_utils = static_library(
+  'steam-runtime-tools-libc',
+  'libc-utils.c',
+  c_args : srt_c_args,
+  include_directories : project_include_dirs,
+  install : false,
+)
+libsteamrt_libc_utils_dep = declare_dependency(
+  include_directories : project_include_dirs,
+  link_with : libsteamrt_libc_utils,
+)
+
 libsteamrt_sources = [
     'architecture.c',
     'container.c',
@@ -157,8 +171,6 @@ configure_file(
   output : '_srt-config.h',
   configuration : conf_data,
 )
-
-srt_c_args = ['-include', 'steam-runtime-tools/_srt-config.h']
 
 launcher1 = gnome.gdbus_codegen(
   'launcher1',

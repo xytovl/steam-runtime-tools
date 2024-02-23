@@ -362,7 +362,7 @@ main (int argc,
                     {
                       autofree char * merged_string = NULL;
 
-                      asprintf_or_die (&merged_string, "%s@%s", symbol, version);
+                      xasprintf (&merged_string, "%s@%s", symbol, version);
                       if (has_symbol (handle, symbol))
                           argz_add_or_die (&misversioned_symbols, &misversioned_n, merged_string);
                       else

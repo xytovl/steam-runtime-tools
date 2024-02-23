@@ -51,16 +51,7 @@
 
 #include <inspect-library-utils.h>
 
-static inline void *
-malloc_or_die (size_t size)
-{
-  void *p = malloc (size);
-
-  if (size != 0 && p == NULL)
-    oom ();
-
-  return p;
-}
+#include "steam-runtime-tools/libc-utils-internal.h"
 
 static void
 clear_with_freev (void *pp)
@@ -245,7 +236,7 @@ get_versions (Elf *elf,
   if (!found_verdef)
     {
       /* The version definition table is not available */
-      versions = malloc_or_die (sizeof (char *));
+      versions = xcalloc (1, sizeof (char *));
       versions[0] = NULL;
       return steal_pointer (&versions);
     }
@@ -293,7 +284,7 @@ get_versions (Elf *elf,
   *versions_count = argz_count (versions_argz, versions_n);
 
   /* Make space for an additional %NULL terminator */
-  versions = malloc_or_die (sizeof (char *) * ((*versions_count) + 1));
+  versions = xcalloc ((*versions_count) + 1, sizeof (char *));
 
   for (i = 0; i < *versions_count; i++)
     {

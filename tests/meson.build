@@ -46,6 +46,7 @@ tests = [
       'mock-input-device.h',
     ],
   },
+  {'name': 'libc-utils', 'libc': true},
   {'name': 'json-utils', 'static': true},
   {'name': 'libdl', 'static': true},
   {'name': 'library', 'static': true},
@@ -389,7 +390,9 @@ relocatable_installed_tests = []
 foreach test_info : tests
   test_name = test_info['name']
 
-  if test_info.get('static', false)
+  if test_info.get('libc', false)
+    deps = [libsteamrt_libc_utils_dep, libsteamrt_dep, test_utils_dep]
+  elif test_info.get('static', false)
     deps = [libsteamrt_static_dep, test_utils_static_libsteamrt_dep]
   else
     deps = [libsteamrt_dep, test_utils_dep]
