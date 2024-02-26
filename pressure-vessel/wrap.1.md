@@ -51,6 +51,12 @@ pressure-vessel-wrap - run programs in a bubblewrap container
     This debugging option will make **pressure-vessel-wrap** slightly slower,
     but makes it easier to compare log files.
 
+`--devel`
+:   Run in a mode that enables experimental or developer-oriented features.
+    Please see
+    [Steam Linux Runtime - guide for game developers](https://gitlab.steamos.cloud/steamrt/steam-runtime-tools/-/blob/main/docs/slr-for-game-developers.md#developer-mode)
+    for more details of the precise meaning of this option.
+
 `--env-if-host` *VAR=VAL*
 :   If *COMMAND* is run with `/usr` from the host system, set
     environment variable *VAR* to *VAL*. If not, leave *VAR* unchanged.
@@ -312,6 +318,10 @@ The following environment variables (among others) are read by
 
 `PRESSURE_VESSEL_DETERMINISTIC` (boolean)
 :   If set to `1`, equivalent to `--deterministic`.
+    If set to `0`, no effect.
+
+`PRESSURE_VESSEL_DEVEL` (boolean)
+:   If set to `1`, equivalent to `--devel`.
     If set to `0`, no effect.
 
 `PRESSURE_VESSEL_FILESYSTEMS_RO` (`:`-separated list of paths)
@@ -642,5 +652,10 @@ or significant Steam integration.
 
 In the resulting **xterm**(1), you can explore the container interactively,
 then type `"$@"` (including the double quotes) to run the game itself.
+
+# SEE ALSO
+
+* <https://gitlab.steamos.cloud/steamrt/steam-runtime-tools/-/blob/main/docs/container-runtime.md>
+* <https://gitlab.steamos.cloud/steamrt/steam-runtime-tools/-/blob/main/docs/slr-for-game-developers.md>
 
 <!-- vim:set sw=4 sts=4 et: -->
