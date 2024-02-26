@@ -370,12 +370,14 @@ pv_bwrap_copy_tree (FlatpakBwrap *bwrap,
  * pv_bwrap_add_api_filesystems:
  * @bwrap: The #FlatpakBwrap
  * @sysfs_mode: Mode for /sys
+ * @compat_flags: Steam compatibility flags, usually from the environment
  *
  * Make basic API filesystems available.
  */
 void
 pv_bwrap_add_api_filesystems (FlatpakBwrap *bwrap,
-                              FlatpakFilesystemMode sysfs_mode)
+                              FlatpakFilesystemMode sysfs_mode,
+                              SrtSteamCompatFlags compat_flags)
 {
   g_autofree char *link = NULL;
 

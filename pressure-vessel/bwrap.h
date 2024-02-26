@@ -29,6 +29,7 @@
 #include "flatpak-exports-private.h"
 #include "steam-runtime-tools/glib-backports-internal.h"
 #include "steam-runtime-tools/resolve-in-sysroot-internal.h"
+#include "steam-runtime-tools/steam-internal.h"
 
 typedef enum
 {
@@ -54,7 +55,8 @@ void pv_bwrap_copy_tree (FlatpakBwrap *bwrap,
                          const char *source,
                          const char *dest);
 void pv_bwrap_add_api_filesystems (FlatpakBwrap *bwrap,
-                                   FlatpakFilesystemMode sysfs_mode);
+                                   FlatpakFilesystemMode sysfs_mode,
+                                   SrtSteamCompatFlags compat_flags);
 
 static inline gboolean
 pv_bwrap_was_finished (FlatpakBwrap *bwrap)
