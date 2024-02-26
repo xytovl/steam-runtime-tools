@@ -358,20 +358,20 @@ srt_steam_get_steamscript_version (SrtSteam *self)
 
 /**
  * _srt_steam_check:
- * @my_environ: (not nullable): The list of environment variables to use.
+ * @envp: (not nullable): The list of environment variables to use.
  * @more_details_out: (out) (optional) (transfer full): Used to return an
  *  #SrtSteam object representing information about the current Steam
  *  installation. Free with `g_object_unref()`.
  *
  * Please note that when checking the default desktop entry that handles
- * `steam:` URIs, @my_environ is ignored and the real environment is used
+ * `steam:` URIs, @envp is ignored and the real environment is used
  * instead.
  *
  * Returns: A bitfield containing problems, or %SRT_STEAM_ISSUES_NONE
  *  if no problems were found
  */
 SrtSteamIssues
-_srt_steam_check (const char * const *my_environ,
+_srt_steam_check (const char * const *envp,
                   SrtSteam **more_details_out)
 {
   SrtSteamIssues issues = SRT_STEAM_ISSUES_NONE;
@@ -392,18 +392,15 @@ _srt_steam_check (const char * const *my_environ,
   const char *app_id = NULL;
   const char *steam_compat_client_install_path = NULL;
   gboolean in_flatpak = FALSE;
-  GStrv env = NULL;
   GError *error = NULL;
 
-  g_return_val_if_fail (my_environ != NULL, SRT_STEAM_ISSUES_UNKNOWN);
+  g_return_val_if_fail (envp != NULL, SRT_STEAM_ISSUES_UNKNOWN);
   g_return_val_if_fail (_srt_check_not_setuid (), SRT_STEAM_ISSUES_UNKNOWN);
   g_return_val_if_fail (more_details_out == NULL || *more_details_out == NULL,
                         SRT_STEAM_ISSUES_UNKNOWN);
 
-  env = _srt_strdupv (my_environ);
-
-  home = g_environ_getenv (env, "HOME");
-  user_data = g_environ_getenv (env, "XDG_DATA_HOME");
+  home = _srt_environ_getenv (envp, "HOME");
+  user_data = _srt_environ_getenv (envp, "XDG_DATA_HOME");
 
   if (home == NULL)
     home = g_get_home_dir ();
@@ -664,7 +661,7 @@ _srt_steam_check (const char * const *my_environ,
         }
     }
 
-  steam_script = g_environ_getenv (env, "STEAMSCRIPT");
+  steam_script = _srt_environ_getenv (envp, "STEAMSCRIPT");
   if (steam_script == NULL)
     {
       g_debug ("\"STEAMSCRIPT\" environment variable is missing");
@@ -693,7 +690,7 @@ _srt_steam_check (const char * const *my_environ,
         }
     }
 
-  steam_compat_client_install_path = g_environ_getenv (env, "STEAM_COMPAT_CLIENT_INSTALL_PATH");
+  steam_compat_client_install_path = _srt_environ_getenv (envp, "STEAM_COMPAT_CLIENT_INSTALL_PATH");
   /* Is not an issue if STEAM_COMPAT_CLIENT_INSTALL_PATH is missing */
   if (steam_compat_client_install_path != NULL)
     {
@@ -711,7 +708,7 @@ _srt_steam_check (const char * const *my_environ,
         }
     }
 
-  steam_script_version = g_environ_getenv (env, "STEAMSCRIPT_VERSION");
+  steam_script_version = _srt_environ_getenv (envp, "STEAMSCRIPT_VERSION");
 
   if (more_details_out != NULL)
     *more_details_out = _srt_steam_new (issues,
@@ -728,7 +725,6 @@ _srt_steam_check (const char * const *my_environ,
   g_free (dot_steam_steam);
   g_free (dot_steam_root);
   g_free (default_steam_path);
-  g_strfreev (env);
   g_clear_object (&default_app);
   return issues;
 }
