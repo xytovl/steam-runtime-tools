@@ -732,3 +732,54 @@ _srt_steam_check (const char * const *my_environ,
   g_clear_object (&default_app);
   return issues;
 }
+
+/*
+ * _srt_steam_get_compat_flags:
+ * @envp: The environment to look at, typically `_srt_const_strv (environ)`
+ *
+ * Parse compatibility flags from $STEAM_COMPAT_FLAGS and related
+ * environment variables.
+ *
+ * Returns: zero or more boolean flags
+ */
+SrtSteamCompatFlags
+_srt_steam_get_compat_flags (const char * const *envp)
+{
+  SrtSteamCompatFlags ret = SRT_STEAM_COMPAT_FLAGS_NONE;
+  const char *value;
+  gboolean tracing = FALSE;
+
+  _srt_environ_get_boolean (envp, "STEAM_COMPAT_TRACING", &tracing, NULL);
+
+  if (tracing)
+    ret |= SRT_STEAM_COMPAT_FLAGS_SYSTEM_TRACING;
+
+  value = _srt_environ_getenv (envp, "STEAM_COMPAT_FLAGS");
+
+  if (value != NULL)
+    {
+      g_auto(GStrv) tokens = NULL;
+      size_t i;
+
+      tokens = g_strsplit (value, ",", 0);
+
+      for (i = 0; tokens[i] != NULL; i++)
+        {
+          switch (tokens[i][0])
+            {
+              case 's':
+                if (g_str_equal (tokens[i], "search-cwd"))
+                  ret |= SRT_STEAM_COMPAT_FLAGS_SEARCH_CWD;
+                else if (g_str_equal (tokens[i], "search-cwd-first"))
+                  ret |= SRT_STEAM_COMPAT_FLAGS_SEARCH_CWD_FIRST;
+
+                break;
+
+              default:
+                break;
+            }
+        }
+    }
+
+  return ret;
+}

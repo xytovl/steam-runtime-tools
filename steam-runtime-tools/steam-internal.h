@@ -66,3 +66,13 @@ _srt_steam_new (SrtSteamIssues issues,
 G_GNUC_INTERNAL
 SrtSteamIssues _srt_steam_check (const char * const *my_environ,
                                  SrtSteam **more_details_out);
+
+typedef enum
+{
+  SRT_STEAM_COMPAT_FLAGS_SEARCH_CWD = (1 << 0),
+  SRT_STEAM_COMPAT_FLAGS_SEARCH_CWD_FIRST = (1 << 1),
+  SRT_STEAM_COMPAT_FLAGS_SYSTEM_TRACING = (1 << 2),
+  SRT_STEAM_COMPAT_FLAGS_NONE = 0
+} SrtSteamCompatFlags;
+
+SrtSteamCompatFlags _srt_steam_get_compat_flags (const char * const *envp);

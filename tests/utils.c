@@ -40,6 +40,7 @@
 #include "steam-runtime-tools/glib-backports-internal.h"
 #include "steam-runtime-tools/input-device-internal.h"
 #include "steam-runtime-tools/runtime-internal.h"
+#include "steam-runtime-tools/steam-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
 #include "test-utils.h"
 
@@ -119,6 +120,43 @@ test_bits_set (Fixture *f,
 {
   g_assert_true (_srt_all_bits_set (0xff, 0x01 | 0x02 | 0x10));
   g_assert_false (_srt_all_bits_set (0x51, 0x01 | 0x02 | 0x10));
+}
+
+static void
+test_compat_flags (Fixture *f,
+                   gconstpointer context)
+{
+  static const struct
+    {
+      const char *env;
+      SrtSteamCompatFlags expected;
+    }
+  tests[] =
+    {
+        { "search-cwd,search-cwd-first,reticulate-splines,fixme",
+          (SRT_STEAM_COMPAT_FLAGS_SEARCH_CWD
+           | SRT_STEAM_COMPAT_FLAGS_SEARCH_CWD_FIRST) },
+        { "reticulate-splines,search-cwd", SRT_STEAM_COMPAT_FLAGS_SEARCH_CWD },
+        { ",,,,search-cwd-first,,,,", SRT_STEAM_COMPAT_FLAGS_SEARCH_CWD_FIRST },
+        { "", SRT_STEAM_COMPAT_FLAGS_NONE },
+        { NULL, SRT_STEAM_COMPAT_FLAGS_NONE }
+    };
+  size_t i;
+
+  g_assert_cmphex (_srt_steam_get_compat_flags (NULL), ==,
+                   SRT_STEAM_COMPAT_FLAGS_NONE);
+
+  for (i = 0; i < G_N_ELEMENTS (tests); i++)
+    {
+      gchar *envp[2] = { NULL, NULL };
+
+      if (tests[i].env != NULL)
+        envp[0] = g_strdup_printf ("STEAM_COMPAT_FLAGS=%s", tests[i].env);
+
+      g_assert_cmphex (_srt_steam_get_compat_flags (_srt_const_strv (envp)),
+                       ==, tests[i].expected);
+      g_free (envp[0]);
+    }
 }
 
 static void
@@ -1511,6 +1549,8 @@ main (int argc,
   g_test_add ("/utils/avoid-gvfs", Fixture, NULL, setup, test_avoid_gvfs, teardown);
   g_test_add ("/utils/bits-set", Fixture, NULL,
               setup, test_bits_set, teardown);
+  g_test_add ("/utils/compat-flags", Fixture, NULL,
+              setup, test_compat_flags, teardown);
   g_test_add ("/utils/describe-fd", Fixture, NULL,
               setup, test_describe_fd, teardown);
   g_test_add ("/utils/dir-iter", Fixture, NULL,
