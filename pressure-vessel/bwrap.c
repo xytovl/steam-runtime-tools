@@ -397,6 +397,22 @@ pv_bwrap_add_api_filesystems (FlatpakBwrap *bwrap,
                             "--ro-bind", "/sys", "/sys",
                             NULL);
 
+  if (compat_flags & SRT_STEAM_COMPAT_FLAGS_SYSTEM_TRACING)
+    {
+      static const char *path = "/sys/kernel/tracing";
+      glnx_autofd int fd = -1;
+
+      fd = glnx_opendirat_with_errno (AT_FDCWD, path, TRUE);
+
+      if (fd >= 0)
+        flatpak_bwrap_add_args (bwrap,
+                                "--bind", path, path,
+                                NULL);
+      else
+        g_debug ("Not providing %s for system tracing: %s",
+                 path, g_strerror (errno));
+    }
+
   link = glnx_readlinkat_malloc (AT_FDCWD, "/dev/shm", NULL, NULL);
 
   if (g_strcmp0 (link, "/run/shm") == 0)
