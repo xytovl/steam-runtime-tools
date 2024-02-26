@@ -714,6 +714,10 @@ Currently, the features enabled by this option are:
     This is useful when running an interactive shell like `bash`, or a
     game that accepts developer console commands on standard input.
 
+  * pressure-vessel doesn't call `setsid()` to create a new terminal
+    session, so that Ctrl+C and Ctrl+Z will work as expected when
+    inheriting a terminal file descriptor as standard input.
+
   * `/sys` is mounted read-write instead of read-only, so that game
     developers can use advanced profiling and debugging mechanisms that
     might require writing to `/sys/kernel` or similar pseudo-filesystems.
