@@ -406,6 +406,89 @@ test_dir_iter (Fixture *f,
     }
 }
 
+static void
+test_environ_get_boolean (Fixture *f,
+                          gconstpointer context)
+{
+  static const char * const envp[] =
+  {
+    "EMPTY=",
+    "ONE=1",
+    "ZERO=0",
+    "WRONG=whatever",
+    NULL
+  };
+  g_autoptr(GError) local_error = NULL;
+  gboolean value;
+  gboolean ok;
+  gboolean def;
+
+  for (def = FALSE; def <= TRUE; def++)
+    {
+      /* NULL environment => indeterminate (don't touch *value) */
+      value = def;
+      ok = _srt_environ_get_boolean (NULL, "anything", &value, &local_error);
+      g_test_message ("NULL environment: %s, default %d -> result %d",
+                      ok ? "success" : "error", def, value);
+      g_assert_no_error (local_error);
+      g_assert_true (ok);
+      g_assert_cmpint (value, ==, def);
+
+      /* Unset => indeterminate (don't touch *value) */
+      value = def;
+      ok = _srt_environ_get_boolean (envp, "UNSET", &value, &local_error);
+      g_test_message ("unset UNSET: %s, default %d -> result %d",
+                      ok ? "success" : "error", def, value);
+      g_assert_no_error (local_error);
+      g_assert_true (ok);
+      g_assert_cmpint (value, ==, def);
+
+      /* Set to empty value => false */
+      value = def;
+      ok = _srt_environ_get_boolean (envp, "EMPTY", &value, &local_error);
+      g_test_message ("EMPTY='': %s, default %d -> result %d",
+                      ok ? "success" : "error", def, value);
+      g_assert_no_error (local_error);
+      g_assert_true (ok);
+      g_assert_cmpint (value, ==, FALSE);
+
+      /* 0 => false */
+      value = def;
+      ok = _srt_environ_get_boolean (envp, "ZERO", &value, &local_error);
+      g_test_message ("ZERO=0: %s, default %d -> result %d",
+                      ok ? "success" : "error", def, value);
+      g_assert_no_error (local_error);
+      g_assert_true (ok);
+      g_assert_cmpint (value, ==, FALSE);
+
+      /* 1 => true */
+      value = def;
+      ok = _srt_environ_get_boolean (envp, "ONE", &value, &local_error);
+      g_test_message ("ONE=1: %s, default %d -> result %d",
+                      ok ? "success" : "error", def, value);
+      g_assert_no_error (local_error);
+      g_assert_true (ok);
+      g_assert_cmpint (value, ==, TRUE);
+
+      /* Some other value => indeterminate, with error set */
+      value = def;
+      ok = _srt_environ_get_boolean (envp, "WRONG", &value, &local_error);
+      g_test_message ("WRONG=whatever: %s, default %d -> result %d",
+                      ok ? "success" : "error", def, value);
+      g_assert_error (local_error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE);
+      g_clear_error (&local_error);
+      g_assert_false (ok);
+      g_assert_cmpint (value, ==, def);
+
+      value = def;
+      ok = _srt_environ_get_boolean (envp, "WRONG", &value, NULL);
+      g_test_message ("WRONG=whatever: %s, default %d -> result %d",
+                      ok ? "success" : "error", def, value);
+      g_assert_false (ok);
+      g_assert_cmpint (value, ==, def);
+    }
+}
+
 typedef struct
 {
   const char *name;
@@ -1434,6 +1517,8 @@ main (int argc,
               setup, test_dir_iter, teardown);
   g_test_add ("/utils/escape_steam_runtime", Fixture, NULL,
               setup, test_escape_steam_runtime, teardown);
+  g_test_add ("/utils/environ_get_boolean", Fixture, NULL,
+              setup, test_environ_get_boolean, teardown);
   g_test_add ("/utils/evdev-bits", Fixture, NULL,
               setup, test_evdev_bits, teardown);
   g_test_add ("/utils/test-file-in-sysroot", Fixture, NULL,

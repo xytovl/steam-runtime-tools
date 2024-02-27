@@ -1284,22 +1284,68 @@ _srt_find_executable_dir (GError **error)
   return g_path_get_dirname (target);
 }
 
+/*
+ * _srt_environ_get_boolean:
+ * @envp: The environment or a copy
+ * @name: Name of an environment variable
+ * @result: (out): Used to store the value of @name
+ * @error: Used to raise an error if the value is invalid
+ *
+ * If @name is set to a valid value in @envp, set @result according
+ * to the value. `1` is treated as true, `0` or empty is treated as
+ * explicitly false, and all other values are considered invalid.
+ *
+ * If @name is unset or set to an invalid value in @envp, the contents
+ * of @result are left unchanged.
+ *
+ * Returns: %TRUE if the variable was either unset or set to a valid value
+ */
+gboolean
+_srt_environ_get_boolean (const char * const *envp,
+                          const char *name,
+                          gboolean *result,
+                          GError **error)
+{
+  const gchar *value = _srt_environ_getenv (envp, name);
+
+  if (g_strcmp0 (value, "1") == 0)
+    {
+      if (result != NULL)
+        *result = TRUE;
+
+      return TRUE;
+    }
+
+  if (g_strcmp0 (value, "") == 0 || g_strcmp0 (value, "0") == 0)
+    {
+      if (result != NULL)
+        *result = FALSE;
+
+      return TRUE;
+    }
+
+  if (value != NULL)
+    {
+      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
+                   "Unrecognised value \"%s\" for $%s", value, name);
+      return FALSE;
+    }
+
+  return TRUE;
+}
+
 gboolean
 _srt_boolean_environment (const gchar *name,
                           gboolean def)
 {
-  const gchar *value = g_getenv (name);
+  g_autoptr(GError) local_error = NULL;
+  gboolean result = def;
 
-  if (g_strcmp0 (value, "1") == 0)
-    return TRUE;
+  if (!_srt_environ_get_boolean (_srt_const_strv (environ), name,
+                                 &result, &local_error))
+    g_warning ("%s", local_error->message);
 
-  if (g_strcmp0 (value, "") == 0 || g_strcmp0 (value, "0") == 0)
-    return FALSE;
-
-  if (value != NULL)
-    g_warning ("Unrecognised value \"%s\" for $%s", value, name);
-
-  return def;
+  return result;
 }
 
 /*

@@ -541,4 +541,9 @@ _srt_environ_getenv (const char * const *envp,
   return g_environ_getenv ((gchar **) envp, variable);
 }
 
+gboolean _srt_environ_get_boolean (const char * const *envp,
+                                   const char *name,
+                                   gboolean *result,
+                                   GError **error);
+
 gchar *_srt_describe_fd (int fd) G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
