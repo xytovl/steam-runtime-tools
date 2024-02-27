@@ -15,6 +15,14 @@
    Memcheck:Leak
    match-leak-kinds: reachable
    ...
+   fun:realpath
+   fun:_srt_find_myself
+}
+{
+   libsrt deliberate one-per-process leak
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
    fun:g_path_get_dirname
    fun:_srt_find_myself
 }

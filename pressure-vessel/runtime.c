@@ -1453,7 +1453,7 @@ pv_runtime_initable_init (GInitable *initable,
   g_return_val_if_fail (PV_IS_RUNTIME (self), FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
-  self->pv_prefix = _srt_find_myself (&self->helpers_path, error);
+  self->pv_prefix = _srt_find_myself (NULL, &self->helpers_path, error);
 
   if (self->pv_prefix == NULL)
     return FALSE;

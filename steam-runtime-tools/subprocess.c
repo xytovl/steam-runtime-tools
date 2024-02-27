@@ -947,7 +947,7 @@ _srt_subprocess_runner_get_helper (SrtSubprocessRunner *self,
     helpers_path = g_getenv ("SRT_HELPERS_PATH");
 
   if (helpers_path == NULL
-      && _srt_find_myself (&helpers_path, error) == NULL)
+      && _srt_find_myself (NULL, &helpers_path, error) == NULL)
     {
       g_ptr_array_unref (argv);
       return NULL;

@@ -51,7 +51,8 @@ G_GNUC_INTERNAL gboolean _srt_check_not_setuid (void);
 
 G_GNUC_INTERNAL gchar *_srt_filter_gameoverlayrenderer (const gchar *input);
 G_GNUC_INTERNAL gchar **_srt_filter_gameoverlayrenderer_from_envp (const char * const *envp);
-G_GNUC_INTERNAL const char *_srt_find_myself (const char **helpers_path_out,
+G_GNUC_INTERNAL const char *_srt_find_myself (const char **exe_path_out,
+                                              const char **helpers_path_out,
                                               GError **error);
 G_GNUC_INTERNAL gchar * _srt_find_executable (GError **error);
 G_GNUC_INTERNAL gchar *_srt_find_executable_dir (GError **error);
@@ -182,10 +183,6 @@ void _srt_get_current_dirs (gchar **cwd_p,
 gchar *_srt_get_random_uuid (GError **error);
 
 const char *_srt_get_steam_app_id (void);
-
-gboolean _srt_fd_set_close_on_exec (int fd,
-                                    gboolean close_on_exec,
-                                    GError **error);
 
 /*
  * SrtHashTableIter:
@@ -542,3 +539,56 @@ _srt_environ_getenv (const char * const *envp,
 }
 
 gchar *_srt_describe_fd (int fd) G_GNUC_MALLOC G_GNUC_WARN_UNUSED_RESULT;
+
+/*
+ * Ignore SIGPIPE, returning -1 with errno set on failure.
+ */
+static inline int
+_srt_ignore_sigpipe (void)
+{
+  struct sigaction action = { .sa_handler = SIG_IGN };
+
+  return sigaction (SIGPIPE, &action, NULL);
+}
+
+/*
+ * Set FD_CLOEXEC, returning -1 with errno set on failure.
+ * This is async-signal-safe.
+ */
+static inline int
+_srt_fd_set_close_on_exec (int fd)
+{
+  int flags = fcntl (fd, F_GETFD, 0);
+
+  if (flags < 0)
+    return -1;
+
+  if (!(flags & FD_CLOEXEC))
+    {
+      if (fcntl (fd, F_SETFD, flags | FD_CLOEXEC) < 0)
+        return -1;
+    }
+
+  return 0;
+}
+
+/*
+ * Unset FD_CLOEXEC, returning -1 with errno set on failure.
+ * This is async-signal-safe.
+ */
+static inline int
+_srt_fd_unset_close_on_exec (int fd)
+{
+  int flags = fcntl (fd, F_GETFD, 0);
+
+  if (flags < 0)
+    return -1;
+
+  if (flags & FD_CLOEXEC)
+    {
+      if (fcntl (fd, F_SETFD, flags & ~FD_CLOEXEC) < 0)
+        return -1;
+    }
+
+  return 0;
+}

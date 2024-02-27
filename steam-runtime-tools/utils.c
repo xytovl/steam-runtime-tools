@@ -170,21 +170,28 @@ _srt_check_not_setuid (void)
   "/libexec/installed-tests/steam-runtime-tools-" _SRT_API_MAJOR
 
 G_GNUC_INTERNAL const char *
-_srt_find_myself (const char **helpers_path_out,
+_srt_find_myself (const char **exe_path_out,
+                  const char **helpers_path_out,
                   GError **error)
 {
   static gchar *saved_prefix = NULL;
+  static gchar *saved_exe_path = NULL;
   static gchar *saved_helpers_path = NULL;
   Dl_info ignored;
   struct link_map *map = NULL;
   gchar *dir = NULL;
+  g_autofree gchar *exe = NULL;
 
   g_return_val_if_fail (_srt_check_not_setuid (), NULL);
   g_return_val_if_fail (error == NULL || *error == NULL, NULL);
+  g_return_val_if_fail (exe_path_out == NULL || *exe_path_out == NULL,
+                        NULL);
   g_return_val_if_fail (helpers_path_out == NULL || *helpers_path_out == NULL,
                         NULL);
 
-  if (saved_prefix != NULL && saved_helpers_path != NULL)
+  if (saved_prefix != NULL
+      && saved_exe_path != NULL
+      && saved_helpers_path != NULL)
     goto out;
 
   if (dladdr1 (_srt_find_myself, &ignored, (void **) &map,
@@ -197,20 +204,19 @@ _srt_find_myself (const char **helpers_path_out,
       goto out;
     }
 
+  exe = realpath ("/proc/self/exe", NULL);
+
+  if (exe == NULL)
+    {
+      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
+                   "Unable to locate main executable");
+      goto out;
+    }
+
   if (map->l_name == NULL || map->l_name[0] == '\0')
     {
-      char *exe = realpath ("/proc/self/exe", NULL);
-
-      if (exe == NULL)
-        {
-          g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
-                       "Unable to locate main executable");
-          goto out;
-        }
-
       g_debug ("Found _srt_find_myself() in main executable %s", exe);
       dir = g_path_get_dirname (exe);
-      free (exe);
     }
   else
     {
@@ -244,6 +250,7 @@ _srt_find_myself (const char **helpers_path_out,
       dir = g_strdup ("/usr");
     }
 
+  saved_exe_path = g_steal_pointer (&exe);
   saved_prefix = g_steal_pointer (&dir);
   /* deliberate one-per-process leak */
   saved_helpers_path = g_build_filename (
@@ -251,6 +258,9 @@ _srt_find_myself (const char **helpers_path_out,
       NULL);
 
 out:
+  if (exe_path_out != NULL)
+    *exe_path_out = saved_exe_path;
+
   if (helpers_path_out != NULL)
     *helpers_path_out = saved_helpers_path;
 
@@ -664,7 +674,6 @@ _srt_divert_stdout_to_stderr (GError **error)
 {
   g_autoptr(FILE) original_stdout = NULL;
   glnx_autofd int original_stdout_fd = -1;
-  int flags;
 
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
@@ -677,13 +686,9 @@ _srt_divert_stdout_to_stderr (GError **error)
                                          "Unable to duplicate fd %d",
                                          STDOUT_FILENO);
 
-  flags = fcntl (original_stdout_fd, F_GETFD, 0);
-
-  if (flags < 0)
+  if (_srt_fd_set_close_on_exec (original_stdout_fd) < 0)
     return glnx_null_throw_errno_prefix (error,
-                                         "Unable to get flags of new fd");
-
-  fcntl (original_stdout_fd, F_SETFD, flags|FD_CLOEXEC);
+                                         "Unable to set flags for new fd");
 
   /* If something like g_debug writes to stdout, make it come out of
    * our original stderr. */
@@ -1415,29 +1420,6 @@ _srt_get_steam_app_id (void)
     return value;
 
   return NULL;
-}
-
-gboolean
-_srt_fd_set_close_on_exec (int fd,
-                           gboolean close_on_exec,
-                           GError **error)
-{
-  int old_flags = fcntl (fd, F_GETFD);
-  int new_flags;
-
-  if (old_flags < 0)
-    return glnx_throw_errno_prefix (error, "Cannot get file descriptor %d flags", fd);
-
-  if (close_on_exec)
-    new_flags = old_flags | FD_CLOEXEC;
-  else
-    new_flags = old_flags & ~FD_CLOEXEC;
-
-  if (old_flags != new_flags
-      && fcntl (fd, F_SETFD, new_flags) < 0)
-    return glnx_throw_errno_prefix (error, "Cannot set file descriptor %d flags", fd);
-
-  return TRUE;
 }
 
 /*

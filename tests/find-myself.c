@@ -44,8 +44,9 @@ main (int argc,
       char **argv)
 {
   g_autoptr(GError) error = NULL;
+  const char *exe = NULL;
   const char *helpers = NULL;
-  const char *prefix = _srt_find_myself (&helpers, &error);
+  const char *prefix = _srt_find_myself (&exe, &helpers, &error);
 
   if (prefix == NULL)
     {
@@ -53,6 +54,7 @@ main (int argc,
       return 1;
     }
 
+  g_print ("Executable: %s\n", exe);
   g_print ("Prefix: %s\n", prefix);
   g_print ("Looking for helpers in: %s\n", helpers);
   return 0;
