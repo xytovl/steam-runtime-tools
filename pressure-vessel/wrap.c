@@ -811,6 +811,7 @@ main (int argc,
   SrtMachineType host_machine = SRT_MACHINE_TYPE_UNKNOWN;
   SrtLogFlags log_flags;
   PvWrapLogFlags pv_log_flags = PV_WRAP_LOG_FLAGS_NONE;
+  SrtSteamCompatFlags compat_flags;
 
   setlocale (LC_ALL, "");
 
@@ -1158,6 +1159,7 @@ main (int argc,
         }
     }
 
+  compat_flags = _srt_steam_get_compat_flags (_srt_const_strv (original_environ));
   _srt_get_current_dirs (&cwd_p, &cwd_l);
 
   if (_srt_util_is_debugging ())
@@ -1302,7 +1304,9 @@ main (int argc,
       if (opt_devel)
         sysfs_mode = FLATPAK_FILESYSTEM_MODE_READ_WRITE;
 
-      pv_bwrap_add_api_filesystems (bwrap_filesystem_arguments, sysfs_mode);
+      pv_bwrap_add_api_filesystems (bwrap_filesystem_arguments,
+                                    sysfs_mode,
+                                    compat_flags);
 
       if (interpreter_root != NULL)
         {

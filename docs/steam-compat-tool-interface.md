@@ -366,6 +366,11 @@ Some environment variables are set by Steam, including:
     `require_tool_appid` set, such as Proton, it is a colon-separated
     list with the "innermost" tool first and the "outermost" tool last.
 
+* `STEAM_COMPAT_TRACING`:
+
+    Set to 1 if the Steam Deck's system tracing feature, or a similar
+    system-wide tracing mechanism, is enabled.
+
 * `SteamAppId`:
 
     The same as `STEAM_COMPAT_APP_ID`, but only when running the actual

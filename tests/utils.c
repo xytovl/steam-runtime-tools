@@ -40,6 +40,7 @@
 #include "steam-runtime-tools/glib-backports-internal.h"
 #include "steam-runtime-tools/input-device-internal.h"
 #include "steam-runtime-tools/runtime-internal.h"
+#include "steam-runtime-tools/steam-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
 #include "test-utils.h"
 
@@ -119,6 +120,43 @@ test_bits_set (Fixture *f,
 {
   g_assert_true (_srt_all_bits_set (0xff, 0x01 | 0x02 | 0x10));
   g_assert_false (_srt_all_bits_set (0x51, 0x01 | 0x02 | 0x10));
+}
+
+static void
+test_compat_flags (Fixture *f,
+                   gconstpointer context)
+{
+  static const struct
+    {
+      const char *env;
+      SrtSteamCompatFlags expected;
+    }
+  tests[] =
+    {
+        { "search-cwd,search-cwd-first,reticulate-splines,fixme",
+          (SRT_STEAM_COMPAT_FLAGS_SEARCH_CWD
+           | SRT_STEAM_COMPAT_FLAGS_SEARCH_CWD_FIRST) },
+        { "reticulate-splines,search-cwd", SRT_STEAM_COMPAT_FLAGS_SEARCH_CWD },
+        { ",,,,search-cwd-first,,,,", SRT_STEAM_COMPAT_FLAGS_SEARCH_CWD_FIRST },
+        { "", SRT_STEAM_COMPAT_FLAGS_NONE },
+        { NULL, SRT_STEAM_COMPAT_FLAGS_NONE }
+    };
+  size_t i;
+
+  g_assert_cmphex (_srt_steam_get_compat_flags (NULL), ==,
+                   SRT_STEAM_COMPAT_FLAGS_NONE);
+
+  for (i = 0; i < G_N_ELEMENTS (tests); i++)
+    {
+      gchar *envp[2] = { NULL, NULL };
+
+      if (tests[i].env != NULL)
+        envp[0] = g_strdup_printf ("STEAM_COMPAT_FLAGS=%s", tests[i].env);
+
+      g_assert_cmphex (_srt_steam_get_compat_flags (_srt_const_strv (envp)),
+                       ==, tests[i].expected);
+      g_free (envp[0]);
+    }
 }
 
 static void
@@ -403,6 +441,89 @@ test_dir_iter (Fixture *f,
       g_assert_cmpstr (dent->d_name, !=, "..");
       g_test_message ("ino#%lld %s",
                       (long long) dent->d_ino, dent->d_name);
+    }
+}
+
+static void
+test_environ_get_boolean (Fixture *f,
+                          gconstpointer context)
+{
+  static const char * const envp[] =
+  {
+    "EMPTY=",
+    "ONE=1",
+    "ZERO=0",
+    "WRONG=whatever",
+    NULL
+  };
+  g_autoptr(GError) local_error = NULL;
+  gboolean value;
+  gboolean ok;
+  gboolean def;
+
+  for (def = FALSE; def <= TRUE; def++)
+    {
+      /* NULL environment => indeterminate (don't touch *value) */
+      value = def;
+      ok = _srt_environ_get_boolean (NULL, "anything", &value, &local_error);
+      g_test_message ("NULL environment: %s, default %d -> result %d",
+                      ok ? "success" : "error", def, value);
+      g_assert_no_error (local_error);
+      g_assert_true (ok);
+      g_assert_cmpint (value, ==, def);
+
+      /* Unset => indeterminate (don't touch *value) */
+      value = def;
+      ok = _srt_environ_get_boolean (envp, "UNSET", &value, &local_error);
+      g_test_message ("unset UNSET: %s, default %d -> result %d",
+                      ok ? "success" : "error", def, value);
+      g_assert_no_error (local_error);
+      g_assert_true (ok);
+      g_assert_cmpint (value, ==, def);
+
+      /* Set to empty value => false */
+      value = def;
+      ok = _srt_environ_get_boolean (envp, "EMPTY", &value, &local_error);
+      g_test_message ("EMPTY='': %s, default %d -> result %d",
+                      ok ? "success" : "error", def, value);
+      g_assert_no_error (local_error);
+      g_assert_true (ok);
+      g_assert_cmpint (value, ==, FALSE);
+
+      /* 0 => false */
+      value = def;
+      ok = _srt_environ_get_boolean (envp, "ZERO", &value, &local_error);
+      g_test_message ("ZERO=0: %s, default %d -> result %d",
+                      ok ? "success" : "error", def, value);
+      g_assert_no_error (local_error);
+      g_assert_true (ok);
+      g_assert_cmpint (value, ==, FALSE);
+
+      /* 1 => true */
+      value = def;
+      ok = _srt_environ_get_boolean (envp, "ONE", &value, &local_error);
+      g_test_message ("ONE=1: %s, default %d -> result %d",
+                      ok ? "success" : "error", def, value);
+      g_assert_no_error (local_error);
+      g_assert_true (ok);
+      g_assert_cmpint (value, ==, TRUE);
+
+      /* Some other value => indeterminate, with error set */
+      value = def;
+      ok = _srt_environ_get_boolean (envp, "WRONG", &value, &local_error);
+      g_test_message ("WRONG=whatever: %s, default %d -> result %d",
+                      ok ? "success" : "error", def, value);
+      g_assert_error (local_error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE);
+      g_clear_error (&local_error);
+      g_assert_false (ok);
+      g_assert_cmpint (value, ==, def);
+
+      value = def;
+      ok = _srt_environ_get_boolean (envp, "WRONG", &value, NULL);
+      g_test_message ("WRONG=whatever: %s, default %d -> result %d",
+                      ok ? "success" : "error", def, value);
+      g_assert_false (ok);
+      g_assert_cmpint (value, ==, def);
     }
 }
 
@@ -1428,12 +1549,16 @@ main (int argc,
   g_test_add ("/utils/avoid-gvfs", Fixture, NULL, setup, test_avoid_gvfs, teardown);
   g_test_add ("/utils/bits-set", Fixture, NULL,
               setup, test_bits_set, teardown);
+  g_test_add ("/utils/compat-flags", Fixture, NULL,
+              setup, test_compat_flags, teardown);
   g_test_add ("/utils/describe-fd", Fixture, NULL,
               setup, test_describe_fd, teardown);
   g_test_add ("/utils/dir-iter", Fixture, NULL,
               setup, test_dir_iter, teardown);
   g_test_add ("/utils/escape_steam_runtime", Fixture, NULL,
               setup, test_escape_steam_runtime, teardown);
+  g_test_add ("/utils/environ_get_boolean", Fixture, NULL,
+              setup, test_environ_get_boolean, teardown);
   g_test_add ("/utils/evdev-bits", Fixture, NULL,
               setup, test_evdev_bits, teardown);
   g_test_add ("/utils/test-file-in-sysroot", Fixture, NULL,
