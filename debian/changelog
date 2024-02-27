@@ -3,6 +3,8 @@ steam-runtime-tools (0.20240219.0) UNRELEASED; urgency=medium
   * pressure-vessel:
     - Unset STEAM_ZENITY on entry, and reset it to a path accessible inside
       the container runtime before running the game (steamrt/tasks#397)
+    - If the Steam Deck's system tracing developer option is enabled,
+      mount /sys/kernel/tracing rw (steamrt/tasks#404)
     - Change pv-adverb exit status to 126 (was 127) if the executable was
       found but could not be run
     - Change pv-adverb exit status to 255 (was 69) if we somehow lose track
@@ -36,8 +38,10 @@ steam-runtime-tools (0.20240219.0) UNRELEASED; urgency=medium
     - Update libglnx to 2024-02-09
     - Use libglnx's backport of g_fdwalk_set_cloexec() everywhere, for
       better async-signal-safety
+    - Factor out basic libc-based utility functions into a static library
+  * Documentation updates
 
- -- Simon McVittie <smcv@collabora.com>  Wed, 21 Feb 2024 12:24:55 +0000
+ -- Simon McVittie <smcv@collabora.com>  Tue, 27 Feb 2024 15:17:05 +0000
 
 steam-runtime-tools (0.20240212.0) steamrt; urgency=medium
 
