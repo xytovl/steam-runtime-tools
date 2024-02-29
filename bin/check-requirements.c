@@ -97,7 +97,6 @@ main (int argc,
   SrtX86FeatureFlags x86_features = SRT_X86_FEATURE_NONE;
   SrtX86FeatureFlags known = SRT_X86_FEATURE_NONE;
   const gchar *output = NULL;
-  gchar *version = NULL;
   int opt;
   int exit_code = EXIT_SUCCESS;
 
@@ -169,8 +168,6 @@ out:
 
   if (fclose (original_stdout) != 0)
     g_warning ("Unable to close stdout: %s", g_strerror (errno));
-
-  g_free (version);
 
   return exit_code;
 }
