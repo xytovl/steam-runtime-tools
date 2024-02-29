@@ -42,6 +42,7 @@
 #include <glib.h>
 #include <glib-object.h>
 
+#include <steam-runtime-tools/bwrap-internal.h>
 #include <steam-runtime-tools/cpu-feature-internal.h>
 #include <steam-runtime-tools/utils-internal.h>
 
@@ -88,6 +89,20 @@ check_x86_features (SrtX86FeatureFlags features)
   return ((features & X86_FEATURES_REQUIRED) == X86_FEATURES_REQUIRED);
 }
 
+static const char cannot_run_bwrap[] =
+"Steam on Linux now requires the ability to create new user namespaces.\n"
+"\n"
+"If the file /proc/sys/kernel/unprivileged_userns_clone exists, check that\n"
+"it contains value 1.\n"
+"\n"
+"If the file /proc/sys/user/max_user_namespaces exists, check that its\n"
+"value is high enough.\n"
+"\n"
+"This requirement is the same as for Flatpak, which has more detailed\n"
+"information available:\n"
+"https://github.com/flatpak/flatpak/wiki/User-namespace-requirements\n"
+;
+
 int
 main (int argc,
       char **argv)
@@ -97,6 +112,8 @@ main (int argc,
   SrtX86FeatureFlags x86_features = SRT_X86_FEATURE_NONE;
   SrtX86FeatureFlags known = SRT_X86_FEATURE_NONE;
   const gchar *output = NULL;
+  const char *prefix = NULL;
+  const char *pkglibexecdir = NULL;
   int opt;
   int exit_code = EXIT_SUCCESS;
 
@@ -154,6 +171,33 @@ main (int argc,
                "\t- SSE3 instruction support (pni in /proc/cpuinfo flags)\n";
       exit_code = EX_OSERR;
       goto out;
+    }
+
+  prefix = _srt_find_myself (NULL, &pkglibexecdir, &error);
+
+  if (prefix == NULL)
+    {
+      g_warning ("Internal error: %s", error->message);
+      g_clear_error (&error);
+    }
+  else if (g_file_test ("/run/pressure-vessel", G_FILE_TEST_IS_DIR))
+    {
+      g_info ("Already under pressure-vessel, not checking bwrap functionality.");
+    }
+  else if (g_file_test ("/.flatpak-info", G_FILE_TEST_IS_REGULAR))
+    {
+      g_info ("Running under Flatpak, not checking bwrap functionality.");
+    }
+  else
+    {
+      g_autofree gchar *bwrap = _srt_check_bwrap (pkglibexecdir, FALSE, NULL);
+
+      if (bwrap == NULL)
+        {
+          output = cannot_run_bwrap;
+          exit_code = EX_OSERR;
+          goto out;
+        }
     }
 
 out:
