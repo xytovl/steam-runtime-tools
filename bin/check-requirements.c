@@ -44,6 +44,7 @@
 
 #include <steam-runtime-tools/bwrap-internal.h>
 #include <steam-runtime-tools/cpu-feature-internal.h>
+#include <steam-runtime-tools/log-internal.h>
 #include <steam-runtime-tools/steam-internal.h>
 #include <steam-runtime-tools/utils-internal.h>
 
@@ -55,10 +56,12 @@ enum
 {
   OPTION_HELP = 1,
   OPTION_VERSION,
+  OPTION_VERBOSE = 'v',
 };
 
 struct option long_options[] =
 {
+    { "verbose", no_argument, NULL, OPTION_VERBOSE },
     { "version", no_argument, NULL, OPTION_VERSION },
     { "help", no_argument, NULL, OPTION_HELP },
     { NULL, 0, NULL, 0 }
@@ -116,6 +119,7 @@ main (int argc,
       char **argv)
 {
   FILE *original_stdout = NULL;
+  int original_stdout_fd = -1;
   GError *error = NULL;
   SrtX86FeatureFlags x86_features = SRT_X86_FEATURE_NONE;
   SrtX86FeatureFlags known = SRT_X86_FEATURE_NONE;
@@ -125,13 +129,22 @@ main (int argc,
   const char *pkglibexecdir = NULL;
   int opt;
   int exit_code = EXIT_SUCCESS;
+  SrtLogFlags log_flags;
 
   _srt_setenv_disable_gio_modules ();
+  log_flags = SRT_LOG_FLAGS_OPTIONALLY_JOURNAL | SRT_LOG_FLAGS_DIVERT_STDOUT;
 
-  while ((opt = getopt_long (argc, argv, "", long_options, NULL)) != -1)
+  while ((opt = getopt_long (argc, argv, "v", long_options, NULL)) != -1)
     {
       switch (opt)
         {
+          case OPTION_VERBOSE:
+            if (log_flags & SRT_LOG_FLAGS_INFO)
+              log_flags |= SRT_LOG_FLAGS_DEBUG;
+            else
+              log_flags |= SRT_LOG_FLAGS_INFO;
+            break;
+
           case OPTION_VERSION:
             /* Output version number as YAML for machine-readability,
              * inspired by `ostree --version` and `docker version` */
@@ -156,15 +169,26 @@ main (int argc,
   if (optind != argc)
     usage (EX_USAGE);
 
-  /* stdout is reserved for machine-readable output, so avoid having
-   * things like g_debug() pollute it. */
-  original_stdout = _srt_divert_stdout_to_stderr (&error);
-
-  if (original_stdout == NULL)
+  if (!_srt_util_set_glib_log_handler ("steam-runtime-check-requirements",
+                                       G_LOG_DOMAIN, log_flags,
+                                       &original_stdout_fd, NULL, &error))
     {
       g_warning ("%s", error->message);
       g_clear_error (&error);
       return EXIT_FAILURE;
+    }
+
+  original_stdout = fdopen (original_stdout_fd, "w");
+
+  if (original_stdout == NULL)
+    {
+      g_warning ("Unable to create a stdio wrapper for fd %d: %s",
+                 original_stdout_fd, g_strerror (errno));
+      return EXIT_FAILURE;
+    }
+  else
+    {
+      original_stdout_fd = -1;    /* ownership taken, do not close */
     }
 
   _srt_unblock_signals ();
@@ -207,6 +231,8 @@ main (int argc,
           exit_code = EX_OSERR;
           goto out;
         }
+
+      g_info ("Found working bwrap executable at %s", bwrap);
     }
 
   steam_issues = _srt_steam_check (_srt_const_strv (environ), NULL);
@@ -217,6 +243,8 @@ main (int argc,
       exit_code = EX_OSERR;
       goto out;
     }
+
+  g_info ("No problems detected");
 
 out:
   if (output != NULL)

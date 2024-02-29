@@ -20,17 +20,23 @@ steam-runtime-check-requirements - perform checks to ensure that the Steam clien
 
 # OPTIONS
 
+**--verbose**, **-v**
+:   Show more information on standard error.
+    If repeated, produce debug output.
+
 **--version**
 :   Instead of performing the checks, write in output the version number as
     YAML.
 
 # OUTPUT
 
-If all the Steam client requirements are met the output will be empty.
+If all the Steam client requirements are met the output on standard output
+will be empty.
 
-Otherwise if some of the checks fails, the output will have a human-readable
-message explaining what failed.
+Otherwise if some of the checks fails, the output on standard output
+will have a human-readable message explaining what failed.
 
+Unstructured diagnostic messages appear on standard error.
 
 # EXIT STATUS
 
