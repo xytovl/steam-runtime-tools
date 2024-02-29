@@ -226,7 +226,7 @@ class Environment:
             ] + args,
         )
 
-    def setup(self, args: List[str]) -> None:
+    def deps(self, args: List[str]) -> None:
         self.populate_depots()
 
         for suite, image in self.oci_images.items():
@@ -236,10 +236,12 @@ class Environment:
                 elif self.docker:
                     subprocess.run(self.docker + ['pull', image], check=True)
 
+    def setup(self, args: List[str]) -> None:
         subprocess.run(
             [
                 'meson',
                 'setup',
+                '--wipe',
                 str(self.abs_builddir_parent / 'host'),
                 '-Db_lundef=false',
                 '-Db_sanitize=address,undefined',
@@ -262,6 +264,7 @@ class Environment:
             [
                 'meson',
                 'setup',
+                '--wipe',
                 str(self.abs_builddir_parent / 'i386'),
                 '-Db_lundef=false',
                 '-Db_sanitize=address,undefined',
@@ -284,6 +287,7 @@ class Environment:
             [
                 'meson',
                 'setup',
+                '--wipe',
                 str(self.abs_builddir_parent / 'host-no-asan'),
                 '-Dbin=true',
                 '-Dlibcurl_compat=true',
@@ -302,6 +306,7 @@ class Environment:
             [
                 'meson',
                 'setup',
+                '--wipe',
                 str(self.abs_builddir_parent / 'coverage'),
                 '-Db_coverage=true',
                 '-Dbin=true',
@@ -319,6 +324,7 @@ class Environment:
             [
                 'meson',
                 'setup',
+                '--wipe',
                 str(self.abs_builddir_parent / 'doc'),
                 '-Dgtk_doc=enabled',
                 '-Dman=enabled',
@@ -331,6 +337,7 @@ class Environment:
             [
                 'meson',
                 'setup',
+                '--wipe',
                 str(self.abs_builddir_parent / 'clang'),
                 '--native-file=build-aux/meson/clang.txt',
                 '-Db_lundef=false',
@@ -355,6 +362,7 @@ class Environment:
                 [
                     'meson',
                     'setup',
+                    '--wipe',
                     str(self.abs_builddir_parent / f'{suite}-x86_64'),
                     '-Dbin=true',
                     '-Dlibcurl_compat=true',
@@ -518,7 +526,15 @@ def main() -> int:
     parser.add_argument('--srcdir', default='.')
     parser.add_argument(
         'command',
-        choices=('setup', 'clean', 'build', 'test', 'install', 'all'),
+        choices=(
+            'deps',
+            'setup',
+            'clean',
+            'build',
+            'test',
+            'install',
+            'all',
+        ),
     )
     parser.add_argument('args', nargs=argparse.REMAINDER)
     args = parser.parse_args()
@@ -529,7 +545,9 @@ def main() -> int:
         srcdir=args.srcdir,
     )
 
-    if args.command == 'setup':
+    if args.command == 'deps':
+        env.deps(args.args)
+    elif args.command == 'setup':
         env.setup(args.args)
     elif args.command == 'clean':
         env.clean(args.args)

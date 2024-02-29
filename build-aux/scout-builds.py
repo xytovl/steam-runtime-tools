@@ -49,6 +49,7 @@ def setup(args):
     # type: (typing.Any) -> None
 
     common_options = [
+        '--wipe',
         '-Dgtk_doc=disabled',
         '-Dlibcurl_compat=true',
         '-Dman=disabled',

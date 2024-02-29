@@ -1,6 +1,11 @@
 Subprojects built as part of steam-runtime-tools
 ================================================
 
+<!-- This document:
+Copyright 2023-2024 Collabora Ltd.
+SPDX-License-Identifier: MIT
+-->
+
 See the commit history for more detailed rationale for why components
 are vendored.
 
