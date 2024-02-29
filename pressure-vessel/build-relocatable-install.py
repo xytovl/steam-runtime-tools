@@ -103,12 +103,15 @@ EXECUTABLES = [
     'pressure-vessel-adverb',
     'pressure-vessel-try-setlocale',
     'pressure-vessel-wrap',
-    'pv-bwrap',
     'pv-verify',
     'steam-runtime-launch-client',
     'steam-runtime-launcher-interface-0',
     'steam-runtime-launcher-service',
     'steam-runtime-system-info',
+]
+LIBEXEC_EXECUTABLES = [
+    'launch-options.py',
+    'srt-bwrap',
 ]
 
 
@@ -328,10 +331,10 @@ def main():
         if not os.path.exists(path):
             path = '/usr/libexec/steam-runtime-tools-0'
 
-        for tool in ['launch-options.py']:
+        for exe in LIBEXEC_EXECUTABLES:
             install_exe(
-                os.path.join(path, tool),
-                os.path.join(inst_pkglibexecdir, tool),
+                os.path.join(path, exe),
+                os.path.join(inst_pkglibexecdir, exe),
             )
 
         for arch in architectures:

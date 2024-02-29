@@ -172,6 +172,18 @@ if build_man_pages
   endforeach
 endif
 
+bubblewrap_subproject = subproject(
+  'bubblewrap',
+  default_options : [
+    'build_rpath=' + pkglibexec_rpath,
+    'bwrapdir=' + pkglibexecdir,
+    'install_rpath=' + pkglibexec_rpath,
+    'program_prefix=srt-',
+    'tests=false',
+  ],
+)
+srt_bin += bubblewrap_subproject.get_variable('bwrap')
+
 test_depends += srt_bin
 
 # vim:set sw=2 sts=2 et:

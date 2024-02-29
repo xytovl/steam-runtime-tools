@@ -283,18 +283,6 @@ if build_man_pages
   endforeach
 endif
 
-bubblewrap_subproject = subproject(
-  'bubblewrap',
-  default_options : [
-    'build_rpath=' + pv_rpath,
-    'bwrapdir=' + pv_bindir,
-    'install_rpath=' + pv_rpath,
-    'program_prefix=pv-',
-    'tests=false',
-  ],
-)
-pv_bin += bubblewrap_subproject.get_variable('bwrap')
-
 test_depends += pv_bin
 
 # vim:set sw=2 sts=2 et:

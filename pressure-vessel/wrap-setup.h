@@ -33,7 +33,7 @@
 #include "wrap-discord.h"
 #include "wrap-pipewire.h"
 
-gchar *pv_wrap_check_bwrap (const char *tools_dir,
+gchar *pv_wrap_check_bwrap (const char *pkglibexecdir,
                             gboolean only_prepare,
                             PvBwrapFlags *flags_out);
 

@@ -273,7 +273,7 @@ class TestPressureVessel(unittest.TestCase):
                 )
 
         for exe in (
-            'pv-bwrap',
+            'srt-bwrap',
             'i386-linux-gnu-capsule-capture-libs',
             'x86_64-linux-gnu-capsule-capture-libs',
             'pressure-vessel-wrap',
@@ -283,18 +283,22 @@ class TestPressureVessel(unittest.TestCase):
                 exe_path = os.path.join('pressure-vessel', 'bin', exe)
 
                 if (
-                    exe.endswith('capsule-capture-libs')
+                    (
+                        exe == 'srt-bwrap'
+                        or exe.endswith('capsule-capture-libs')
+                    )
                     and not os.path.exists(os.path.join(self.depot, exe_path))
                 ):
                     exe_path = os.path.join(
                         'pressure-vessel', 'libexec', 'steam-runtime-tools-0',
                         exe,
                     )
-                elif (
-                    exe == 'pv-bwrap'
+
+                if (
+                    exe == 'srt-bwrap'
                     and not os.path.exists(os.path.join(self.depot, exe_path))
                 ):
-                    exe = 'bwrap'
+                    exe = 'pv-bwrap'
                     exe_path = os.path.join('pressure-vessel', 'bin', exe)
 
                 completed = self.run_subprocess(

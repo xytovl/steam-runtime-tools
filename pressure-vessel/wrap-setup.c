@@ -136,7 +136,7 @@ test_bwrap_executable (const char *bwrap_executable,
 }
 
 static gchar *
-check_bwrap (const char *tools_dir,
+check_bwrap (const char *pkglibexecdir,
              gboolean only_prepare,
              PvBwrapFlags *flags_out)
 {
@@ -144,7 +144,7 @@ check_bwrap (const char *tools_dir,
   g_autofree gchar *system_bwrap = NULL;
   const char *tmp;
 
-  g_return_val_if_fail (tools_dir != NULL, NULL);
+  g_return_val_if_fail (pkglibexecdir != NULL, NULL);
 
   tmp = g_getenv ("PRESSURE_VESSEL_BWRAP");
 
@@ -165,7 +165,7 @@ check_bwrap (const char *tools_dir,
       return g_strdup (tmp);
     }
 
-  local_bwrap = g_build_filename (tools_dir, "pv-bwrap", NULL);
+  local_bwrap = g_build_filename (pkglibexecdir, "srt-bwrap", NULL);
 
   /* If our local copy works, use it. If not, keep relatively quiet
    * about it for now - we might need to use a setuid system copy, for
@@ -206,12 +206,12 @@ check_bwrap (const char *tools_dir,
 }
 
 gchar *
-pv_wrap_check_bwrap (const char *tools_dir,
+pv_wrap_check_bwrap (const char *pkglibexecdir,
                      gboolean only_prepare,
                      PvBwrapFlags *flags_out)
 {
   PvBwrapFlags flags = PV_BWRAP_FLAGS_NONE;
-  g_autofree gchar *bwrap = check_bwrap (tools_dir, only_prepare, &flags);
+  g_autofree gchar *bwrap = check_bwrap (pkglibexecdir, only_prepare, &flags);
   const char *argv[] = { NULL, "--version", NULL };
   struct stat statbuf;
 
