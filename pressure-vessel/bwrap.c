@@ -477,7 +477,7 @@ pv_bwrap_append_adjusted_exports (FlatpakBwrap *to,
                                   FlatpakBwrap *from,
                                   const char *home,
                                   SrtSysroot *interpreter_root,
-                                  PvBwrapFlags bwrap_flags,
+                                  SrtBwrapFlags bwrap_flags,
                                   GError **error)
 {
   g_autofree int *fds = NULL;
@@ -645,7 +645,7 @@ pv_bwrap_append_adjusted_exports (FlatpakBwrap *to,
            * (Debian 11 or older) won't support --perms. Fall back to
            * creating mount-points with the default permissions if
            * necessary. */
-          if (bwrap_flags & PV_BWRAP_FLAGS_HAS_PERMS)
+          if (bwrap_flags & SRT_BWRAP_FLAGS_HAS_PERMS)
             flatpak_bwrap_add_args (to, opt, perms, NULL);
           else
             g_debug ("Ignoring \"--perms %s\" because bwrap is too old",

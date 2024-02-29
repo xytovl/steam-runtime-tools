@@ -792,7 +792,7 @@ main (int argc,
   g_autoptr(FlatpakExports) exports = NULL;
   g_autoptr(SrtSysroot) interpreter_root = NULL;
   g_autofree gchar *bwrap_executable = NULL;
-  PvBwrapFlags bwrap_flags = PV_BWRAP_FLAGS_NONE;
+  SrtBwrapFlags bwrap_flags = SRT_BWRAP_FLAGS_NONE;
   g_autofree gchar *cwd_p = NULL;
   g_autofree gchar *cwd_l = NULL;
   g_autofree gchar *cwd_p_host = NULL;
