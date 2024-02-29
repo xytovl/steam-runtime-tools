@@ -231,7 +231,7 @@ libcap_dep = dependency(
 if not libcap_dep.found()
   libcap_dep = c_compiler.find_library(
     'cap',
-    required : get_option('pressure_vessel') and get_option('bin'),
+    required : get_option('bin'),
   )
 endif
 

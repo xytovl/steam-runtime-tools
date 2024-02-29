@@ -42,7 +42,10 @@
 #include <glib.h>
 #include <glib-object.h>
 
+#include <steam-runtime-tools/bwrap-internal.h>
 #include <steam-runtime-tools/cpu-feature-internal.h>
+#include <steam-runtime-tools/log-internal.h>
+#include <steam-runtime-tools/steam-internal.h>
 #include <steam-runtime-tools/utils-internal.h>
 
 #define X86_FEATURES_REQUIRED (SRT_X86_FEATURE_X86_64 \
@@ -53,10 +56,12 @@ enum
 {
   OPTION_HELP = 1,
   OPTION_VERSION,
+  OPTION_VERBOSE = 'v',
 };
 
 struct option long_options[] =
 {
+    { "verbose", no_argument, NULL, OPTION_VERBOSE },
     { "version", no_argument, NULL, OPTION_VERSION },
     { "help", no_argument, NULL, OPTION_HELP },
     { NULL, 0, NULL, 0 }
@@ -88,25 +93,58 @@ check_x86_features (SrtX86FeatureFlags features)
   return ((features & X86_FEATURES_REQUIRED) == X86_FEATURES_REQUIRED);
 }
 
+static const char cannot_run_bwrap[] =
+"Steam on Linux now requires the ability to create new user namespaces.\n"
+"\n"
+"If the file /proc/sys/kernel/unprivileged_userns_clone exists, check that\n"
+"it contains value 1.\n"
+"\n"
+"If the file /proc/sys/user/max_user_namespaces exists, check that its\n"
+"value is high enough.\n"
+"\n"
+"This requirement is the same as for Flatpak, which has more detailed\n"
+"information available:\n"
+"https://github.com/flatpak/flatpak/wiki/User-namespace-requirements\n"
+;
+
+static const char installed_in_usr[] =
+"Steam on Linux is intended to install into the home directory of a user,\n"
+"typically ~/.local/share/Steam.\n"
+"\n"
+"It cannot be installed below /usr.\n"
+;
+
 int
 main (int argc,
       char **argv)
 {
   FILE *original_stdout = NULL;
+  int original_stdout_fd = -1;
   GError *error = NULL;
   SrtX86FeatureFlags x86_features = SRT_X86_FEATURE_NONE;
   SrtX86FeatureFlags known = SRT_X86_FEATURE_NONE;
+  SrtSteamIssues steam_issues;
   const gchar *output = NULL;
-  gchar *version = NULL;
+  const char *prefix = NULL;
+  const char *pkglibexecdir = NULL;
   int opt;
   int exit_code = EXIT_SUCCESS;
+  SrtLogFlags log_flags;
 
   _srt_setenv_disable_gio_modules ();
+  log_flags = SRT_LOG_FLAGS_OPTIONALLY_JOURNAL | SRT_LOG_FLAGS_DIVERT_STDOUT;
 
-  while ((opt = getopt_long (argc, argv, "", long_options, NULL)) != -1)
+  while ((opt = getopt_long (argc, argv, "v", long_options, NULL)) != -1)
     {
       switch (opt)
         {
+          case OPTION_VERBOSE:
+            if (log_flags & SRT_LOG_FLAGS_INFO)
+              log_flags |= SRT_LOG_FLAGS_DEBUG;
+            else
+              log_flags |= SRT_LOG_FLAGS_INFO;
+            break;
+
           case OPTION_VERSION:
             /* Output version number as YAML for machine-readability,
              * inspired by `ostree --version` and `docker version` */
@@ -131,15 +169,26 @@ main (int argc,
   if (optind != argc)
     usage (EX_USAGE);
 
-  /* stdout is reserved for machine-readable output, so avoid having
-   * things like g_debug() pollute it. */
-  original_stdout = _srt_divert_stdout_to_stderr (&error);
-
-  if (original_stdout == NULL)
+  if (!_srt_util_set_glib_log_handler ("steam-runtime-check-requirements",
+                                       G_LOG_DOMAIN, log_flags,
+                                       &original_stdout_fd, NULL, &error))
     {
       g_warning ("%s", error->message);
       g_clear_error (&error);
       return EXIT_FAILURE;
+    }
+
+  original_stdout = fdopen (original_stdout_fd, "w");
+
+  if (original_stdout == NULL)
+    {
+      g_warning ("Unable to create a stdio wrapper for fd %d: %s",
+                 original_stdout_fd, g_strerror (errno));
+      return EXIT_FAILURE;
+    }
+  else
+    {
+      original_stdout_fd = -1;    /* ownership taken, do not close */
     }
 
   _srt_unblock_signals ();
@@ -157,6 +206,46 @@ main (int argc,
       goto out;
     }
 
+  prefix = _srt_find_myself (NULL, &pkglibexecdir, &error);
+
+  if (prefix == NULL)
+    {
+      g_warning ("Internal error: %s", error->message);
+      g_clear_error (&error);
+    }
+  else if (g_file_test ("/run/pressure-vessel", G_FILE_TEST_IS_DIR))
+    {
+      g_info ("Already under pressure-vessel, not checking bwrap functionality.");
+    }
+  else if (g_file_test ("/.flatpak-info", G_FILE_TEST_IS_REGULAR))
+    {
+      g_info ("Running under Flatpak, not checking bwrap functionality.");
+    }
+  else
+    {
+      g_autofree gchar *bwrap = _srt_check_bwrap (pkglibexecdir, FALSE, NULL);
+
+      if (bwrap == NULL)
+        {
+          output = cannot_run_bwrap;
+          exit_code = EX_OSERR;
+          goto out;
+        }
+
+      g_info ("Found working bwrap executable at %s", bwrap);
+    }
+
+  steam_issues = _srt_steam_check (_srt_const_strv (environ), NULL);
+
+  if (steam_issues & SRT_STEAM_ISSUES_INSTALLED_IN_USR)
+    {
+      output = installed_in_usr;
+      exit_code = EX_OSERR;
+      goto out;
+    }
+
+  g_info ("No problems detected");
+
 out:
   if (output != NULL)
     {
@@ -169,8 +258,6 @@ out:
 
   if (fclose (original_stdout) != 0)
     g_warning ("Unable to close stdout: %s", g_strerror (errno));
-
-  g_free (version);
 
   return exit_code;
 }

@@ -792,7 +792,7 @@ main (int argc,
   g_autoptr(FlatpakExports) exports = NULL;
   g_autoptr(SrtSysroot) interpreter_root = NULL;
   g_autofree gchar *bwrap_executable = NULL;
-  PvBwrapFlags bwrap_flags = PV_BWRAP_FLAGS_NONE;
+  SrtBwrapFlags bwrap_flags = SRT_BWRAP_FLAGS_NONE;
   g_autofree gchar *cwd_p = NULL;
   g_autofree gchar *cwd_l = NULL;
   g_autofree gchar *cwd_p_host = NULL;
@@ -812,6 +812,8 @@ main (int argc,
   SrtLogFlags log_flags;
   PvWrapLogFlags pv_log_flags = PV_WRAP_LOG_FLAGS_NONE;
   SrtSteamCompatFlags compat_flags;
+  const char *pkglibexecdir = NULL;
+  const char *prefix = NULL;
 
   setlocale (LC_ALL, "");
 
@@ -1210,6 +1212,13 @@ main (int argc,
 
   g_debug ("Found executable directory: %s", tools_dir);
 
+  prefix = _srt_find_myself (NULL, &pkglibexecdir, error);
+
+  if (prefix == NULL)
+    goto out;
+
+  g_debug ("Found helpers directory: %s", pkglibexecdir);
+
   /* If we are in a Flatpak environment we can't use bwrap directly */
   if (is_flatpak_env)
     {
@@ -1221,7 +1230,8 @@ main (int argc,
       g_debug ("Checking for bwrap...");
 
       /* if this fails, it will warn */
-      bwrap_executable = pv_wrap_check_bwrap (tools_dir, opt_only_prepare,
+      bwrap_executable = pv_wrap_check_bwrap (pkglibexecdir,
+                                              opt_only_prepare,
                                               &bwrap_flags);
 
       if (bwrap_executable == NULL)

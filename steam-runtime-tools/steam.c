@@ -710,6 +710,11 @@ _srt_steam_check (const char * const *envp,
 
   steam_script_version = _srt_environ_getenv (envp, "STEAMSCRIPT_VERSION");
 
+  if ((bin32 != NULL && g_str_has_prefix (bin32, "/usr/"))
+      || (data_path != NULL && g_str_has_prefix (data_path, "/usr/"))
+      || (install_path != NULL && g_str_has_prefix (install_path, "/usr/")))
+    issues |= SRT_STEAM_ISSUES_INSTALLED_IN_USR;
+
   if (more_details_out != NULL)
     *more_details_out = _srt_steam_new (issues,
                                         install_path,

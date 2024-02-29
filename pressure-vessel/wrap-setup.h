@@ -24,6 +24,7 @@
 
 #include "environ.h"
 
+#include "steam-runtime-tools/bwrap-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
 
 #include "bwrap.h"
@@ -33,9 +34,9 @@
 #include "wrap-discord.h"
 #include "wrap-pipewire.h"
 
-gchar *pv_wrap_check_bwrap (const char *tools_dir,
+gchar *pv_wrap_check_bwrap (const char *pkglibexecdir,
                             gboolean only_prepare,
-                            PvBwrapFlags *flags_out);
+                            SrtBwrapFlags *flags_out);
 
 FlatpakBwrap *pv_wrap_share_sockets (PvEnviron *container_env,
                                      const char * const *original_environ,

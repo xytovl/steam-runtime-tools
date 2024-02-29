@@ -80,7 +80,9 @@ class TapTest:
 EXES = [
     'pressure-vessel-adverb',
     'pressure-vessel-wrap',
-    'pv-bwrap',
+]
+PKGLIBEXEC = [
+    'srt-bwrap',
 ]
 HELPERS = [
     'capsule-capture-libs',
@@ -181,8 +183,21 @@ def main():
         else:
             test.not_ok('{} --help'.format(path))
 
-    for exe in EXES:
-        path = os.path.join(relocatable_install, 'bin', exe)
+        check_dependencies(test, relocatable_install, path)
+
+    for exe in PKGLIBEXEC:
+        path = os.path.join(
+            relocatable_install,
+            'libexec',
+            'steam-runtime-tools-0',
+            exe,
+        )
+
+        if subprocess.call([path, '--help'], stdout=2) == 0:
+            test.ok('{} --help'.format(path))
+        else:
+            test.not_ok('{} --help'.format(path))
+
         check_dependencies(test, relocatable_install, path)
 
     for basename in HELPERS:

@@ -223,11 +223,23 @@ class TestContainers(BaseTest):
 
             for exe in (
                 'pressure-vessel/pressure-vessel-wrap',
-                'subprojects/bubblewrap/pv-bwrap',
             ):
                 cls.copy2(
                     os.path.join(cls.top_builddir, exe),
                     os.path.join(cls.pv_dir, 'bin', os.path.basename(exe)),
+                )
+
+            for exe in (
+                'subprojects/bubblewrap/srt-bwrap',
+            ):
+                cls.copy2(
+                    os.path.join(cls.top_builddir, exe),
+                    os.path.join(
+                        cls.pv_dir,
+                        'libexec',
+                        'steam-runtime-tools-0',
+                        os.path.basename(exe),
+                    ),
                 )
 
             for exe in (

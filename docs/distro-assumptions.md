@@ -93,7 +93,7 @@ The container runtime framework has the same
 as Flatpak, as a result of using much of the same code to start its
 containers.
 The container runtime framework will use its own included copy of the
-[bubblewrap][] tool, `pv-bwrap`, if possible.
+[bubblewrap][] tool, `srt-bwrap`, if possible.
 In operating systems where a setuid version of the bubblewrap executable
 is required, it is assumed to be available in the `PATH` as `bwrap`, or
 installed at `/usr/local/libexec/flatpak-bwrap`, `/usr/libexec/flatpak-bwrap`
