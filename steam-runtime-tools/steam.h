@@ -91,6 +91,10 @@ GType srt_steam_get_type (void);
  * @SRT_STEAM_ISSUES_UNEXPECTED_STEAM_COMPAT_CLIENT_INSTALL_PATH: If the
  *  environment `STEAM_COMPAT_CLIENT_INSTALL_PATH` is set, its realpath() is
  *  not the equivalent of `~/.steam/root`.
+ * @SRT_STEAM_ISSUES_INSTALLED_IN_USR: The Steam installation must be
+ *  outside `/usr` for the container runtime to work as intended.
+ *  It is normally in the home directory of each user who will run it,
+ *  at `~/.local/share/Steam` or`~/.steam/debian-installation`.
  *
  * A bitfield with flags representing problems with the Steam
  * installation, or %SRT_STEAM_ISSUES_NONE (which is numerically zero)
@@ -112,6 +116,7 @@ typedef enum
   SRT_STEAM_ISSUES_UNEXPECTED_STEAM_URI_HANDLER = (1 << 9),
   SRT_STEAM_ISSUES_UNEXPECTED_STEAM_DESKTOP_ID = (1 << 10),
   SRT_STEAM_ISSUES_UNEXPECTED_STEAM_COMPAT_CLIENT_INSTALL_PATH = (1 << 11),
+  SRT_STEAM_ISSUES_INSTALLED_IN_USR = (1 << 12),
   SRT_STEAM_ISSUES_NONE = 0
 } SrtSteamIssues;
 
