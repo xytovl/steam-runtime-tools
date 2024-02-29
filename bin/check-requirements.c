@@ -44,6 +44,7 @@
 
 #include <steam-runtime-tools/bwrap-internal.h>
 #include <steam-runtime-tools/cpu-feature-internal.h>
+#include <steam-runtime-tools/steam-internal.h>
 #include <steam-runtime-tools/utils-internal.h>
 
 #define X86_FEATURES_REQUIRED (SRT_X86_FEATURE_X86_64 \
@@ -103,6 +104,13 @@ static const char cannot_run_bwrap[] =
 "https://github.com/flatpak/flatpak/wiki/User-namespace-requirements\n"
 ;
 
+static const char installed_in_usr[] =
+"Steam on Linux is intended to install into the home directory of a user,\n"
+"typically ~/.local/share/Steam.\n"
+"\n"
+"It cannot be installed below /usr.\n"
+;
+
 int
 main (int argc,
       char **argv)
@@ -111,6 +119,7 @@ main (int argc,
   GError *error = NULL;
   SrtX86FeatureFlags x86_features = SRT_X86_FEATURE_NONE;
   SrtX86FeatureFlags known = SRT_X86_FEATURE_NONE;
+  SrtSteamIssues steam_issues;
   const gchar *output = NULL;
   const char *prefix = NULL;
   const char *pkglibexecdir = NULL;
@@ -198,6 +207,15 @@ main (int argc,
           exit_code = EX_OSERR;
           goto out;
         }
+    }
+
+  steam_issues = _srt_steam_check (_srt_const_strv (environ), NULL);
+
+  if (steam_issues & SRT_STEAM_ISSUES_INSTALLED_IN_USR)
+    {
+      output = installed_in_usr;
+      exit_code = EX_OSERR;
+      goto out;
     }
 
 out:
