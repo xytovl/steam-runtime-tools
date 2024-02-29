@@ -226,7 +226,7 @@ class Environment:
             ] + args,
         )
 
-    def setup(self, args: List[str]) -> None:
+    def deps(self, args: List[str]) -> None:
         self.populate_depots()
 
         for suite, image in self.oci_images.items():
@@ -236,6 +236,7 @@ class Environment:
                 elif self.docker:
                     subprocess.run(self.docker + ['pull', image], check=True)
 
+    def setup(self, args: List[str]) -> None:
         subprocess.run(
             [
                 'meson',
@@ -518,7 +519,15 @@ def main() -> int:
     parser.add_argument('--srcdir', default='.')
     parser.add_argument(
         'command',
-        choices=('setup', 'clean', 'build', 'test', 'install', 'all'),
+        choices=(
+            'deps',
+            'setup',
+            'clean',
+            'build',
+            'test',
+            'install',
+            'all',
+        ),
     )
     parser.add_argument('args', nargs=argparse.REMAINDER)
     args = parser.parse_args()
@@ -529,7 +538,9 @@ def main() -> int:
         srcdir=args.srcdir,
     )
 
-    if args.command == 'setup':
+    if args.command == 'deps':
+        env.deps(args.args)
+    elif args.command == 'setup':
         env.setup(args.args)
     elif args.command == 'clean':
         env.clean(args.args)
