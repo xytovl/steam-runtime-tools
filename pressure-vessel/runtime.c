@@ -140,6 +140,7 @@ G_DEFINE_TYPE_WITH_CODE (PvRuntime, pv_runtime, G_TYPE_OBJECT,
                          G_IMPLEMENT_INTERFACE (G_TYPE_INITABLE,
                                                 pv_runtime_initable_iface_init))
 
+static gchar *pv_runtime_get_ld_library_path (PvRuntime *self);
 static gboolean pv_runtime_symlinkat (const gchar *target,
                                       int destination_dirfd,
                                       const gchar *destination,
@@ -7888,18 +7889,12 @@ pv_runtime_bind (PvRuntime *self,
   return TRUE;
 }
 
-void
-pv_runtime_set_search_paths (PvRuntime *self,
-                             PvEnviron *container_env)
+static gchar *
+pv_runtime_get_ld_library_path (PvRuntime *self)
 {
   g_autoptr(GString) ld_library_path = g_string_new ("");
-  g_autofree char *terminfo_path = NULL;
   gsize i;
 
-  /* We need to set LD_LIBRARY_PATH here so that we can run
-   * pressure-vessel-adverb, even if it is going to regenerate
-   * the ld.so.cache for better robustness before launching the
-   * actual game */
   g_assert (pv_multiarch_tuples[PV_N_SUPPORTED_ARCHITECTURES] == NULL);
 
   for (i = 0; i < PV_N_SUPPORTED_ARCHITECTURES; i++)
@@ -7917,6 +7912,16 @@ pv_runtime_set_search_paths (PvRuntime *self,
       pv_search_path_append (ld_library_path, aliases);
     }
 
+  return g_string_free (g_steal_pointer (&ld_library_path), FALSE);
+}
+
+void
+pv_runtime_set_search_paths (PvRuntime *self,
+                             PvEnviron *container_env)
+{
+  g_autofree char *terminfo_path = NULL;
+  g_autofree char *ld_library_path = pv_runtime_get_ld_library_path (self);
+
   /* If the runtime is Debian-based, make sure we search where ncurses-base
    * puts terminfo, even if we're using a non-Debian-based libtinfo.so.6. */
   terminfo_path = g_build_filename (self->source_files, "lib", "terminfo",
@@ -7928,7 +7933,12 @@ pv_runtime_set_search_paths (PvRuntime *self,
   /* The PATH from outside the container doesn't really make sense inside the
    * container: in principle the layout could be totally different. */
   pv_environ_setenv (container_env, "PATH", "/usr/bin:/bin");
-  pv_environ_setenv (container_env, "LD_LIBRARY_PATH", ld_library_path->str);
+
+  /* We need to set LD_LIBRARY_PATH here so that we can run
+   * pressure-vessel-adverb, even if it is going to regenerate
+   * the ld.so.cache for better robustness before launching the
+   * actual game */
+  pv_environ_setenv (container_env, "LD_LIBRARY_PATH", ld_library_path);
 }
 
 gboolean
