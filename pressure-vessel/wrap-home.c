@@ -263,6 +263,55 @@ expose_steam (FlatpakExports *exports,
   return TRUE;
 }
 
+/* Paths that go along with the home directory: if we are sharing $HOME
+ * between host and container, then we also thare these, but if we are
+ * not sharing $HOME, then we do not. */
+static const char * const shared_like_home_absolute[] =
+{
+  /* Common FHS or FHS-adjacent mount points for removable media */
+  "/media",
+  "/mnt",
+  "/run/media",
+
+  /* Typical FHS directories that do not have any other mapping */
+  "/home",
+  "/opt",
+  "/srv",
+
+  /* We always export /tmp for now (see pv_bwrap_use_host_os() and
+   * pv_share_temp_dir()) and it seems odd
+   * to share /tmp with the host, but not /var/tmp.
+   * We don't do this when not sharing the home directory, since
+   * in that case the replacement home directory provides /var/tmp
+   * as a symlink or bind-mount pointing to its .cache/tmp,
+   * consistent with Flatpak. */
+  "/var/tmp",
+};
+
+/* Relative paths in the home directory that are somewhat likely
+ * to be symbolic links to some other location, like
+ * /home/me/.config -> /ssd/me/.config.
+ * To avoid weird issues where the container has a dangling symlink,
+ * we explicitly add these to the FlatpakExports. */
+static const char * const shared_like_home_relative[] =
+{
+  /* Generic, mostly the defaults for XDG base directories.
+   * See also pv_bind_and_propagate_from_environ(), which
+   * handles their values from the environment if overridden.
+   * We handle .config even if XDG_DATA_HOME is different, and so on,
+   * because it's common (albeit wrong) for applications to ignore the
+   * environment variable and hard-code its default. */
+  ".cache",
+  ".config",
+  ".local/share",
+  ".local/state",
+  ".var",
+
+  /* Steam-specific */
+  ".config/cef_user_data",
+  ".local/share/Steam",
+};
+
 gboolean
 pv_wrap_use_home (PvHomeMode mode,
                   const char *real_home,
@@ -272,6 +321,8 @@ pv_wrap_use_home (PvHomeMode mode,
                   PvEnviron *container_env,
                   GError **error)
 {
+  size_t i;
+
   g_return_val_if_fail (real_home != NULL, FALSE);
   g_return_val_if_fail (exports != NULL, FALSE);
   g_return_val_if_fail (bwrap_home_arguments != NULL, FALSE);
@@ -285,39 +336,21 @@ pv_wrap_use_home (PvHomeMode mode,
                                          FLATPAK_FILESYSTEM_MODE_READ_WRITE,
                                          real_home);
 
-        /* If we are sharing the home directory with the host, also share
-         * common mount points for removable media. */
-        flatpak_exports_add_path_expose (exports,
-                                         FLATPAK_FILESYSTEM_MODE_READ_WRITE,
-                                         "/media");
-        flatpak_exports_add_path_expose (exports,
-                                         FLATPAK_FILESYSTEM_MODE_READ_WRITE,
-                                         "/mnt");
-        flatpak_exports_add_path_expose (exports,
-                                         FLATPAK_FILESYSTEM_MODE_READ_WRITE,
-                                         "/run/media");
+        for (i = 0; i < G_N_ELEMENTS (shared_like_home_absolute); i++)
+          flatpak_exports_add_path_expose (exports,
+                                           FLATPAK_FILESYSTEM_MODE_READ_WRITE,
+                                           shared_like_home_absolute[i]);
 
-        /* If we are sharing the home directory with the host, also share
-         * typical FHS directories that do not have any other mapping. */
-        flatpak_exports_add_path_expose (exports,
-                                         FLATPAK_FILESYSTEM_MODE_READ_WRITE,
-                                         "/home");
-        flatpak_exports_add_path_expose (exports,
-                                         FLATPAK_FILESYSTEM_MODE_READ_WRITE,
-                                         "/opt");
-        flatpak_exports_add_path_expose (exports,
-                                         FLATPAK_FILESYSTEM_MODE_READ_WRITE,
-                                         "/srv");
+        for (i = 0; i < G_N_ELEMENTS (shared_like_home_relative); i++)
+          {
+            g_autofree gchar *path = NULL;
 
-        /* We always export /tmp for now (see below) and it seems odd
-         * to share /tmp with the host, but not /var/tmp.
-         * We don't do this when not sharing the home directory, since
-         * in that case the replacement home directory provides /var/tmp
-         * as a symlink or bind-mount pointing to its .cache/tmp,
-         * consistent with Flatpak. */
-        flatpak_exports_add_path_expose (exports,
-                                         FLATPAK_FILESYSTEM_MODE_READ_WRITE,
-                                         "/var/tmp");
+            path = g_build_filename (real_home, shared_like_home_relative[i],
+                                     NULL);
+            flatpak_exports_add_path_expose (exports,
+                                             FLATPAK_FILESYSTEM_MODE_READ_WRITE,
+                                             path);
+          }
 
         /* TODO: All of ~/.steam has traditionally been read/write when not
          * using a per-game home directory, but does it need to be? Maybe we
