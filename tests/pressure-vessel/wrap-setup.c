@@ -1266,7 +1266,8 @@ test_use_home_shared (Fixture *f,
     "srv/data/",
     "sys/",
     "tmp/",
-    "usr/local/",
+    "usr/local/share/",
+    "usr/share/",
     "var/tmp/",
   };
   static const char * const mock_environ[] =
@@ -1275,6 +1276,8 @@ test_use_home_shared (Fixture *f,
     "STEAM_COMPAT_MOUNTS=/overrides/forbidden",
     "PRESSURE_VESSEL_FILESYSTEMS_RO=/ro",
     "PRESSURE_VESSEL_FILESYSTEMS_RW=:/rw:/rw2:/nonexistent:::::",
+    "XDG_DATA_DIRS=/offload/user/data:/usr/local/share:/usr/share",
+    "XDG_STATE_HOME=/offload/user/state",
     NULL
   };
   g_autoptr(FlatpakBwrap) env_bwrap = NULL;
@@ -1363,6 +1366,12 @@ test_use_home_shared (Fixture *f,
   assert_bwrap_contains (env_bwrap, "--bind", "/rw", "/rw");
   assert_bwrap_contains (env_bwrap, "--symlink", "offload/rw2", "/rw2");
   assert_bwrap_contains (env_bwrap, "--bind", "/offload/rw2", "/offload/rw2");
+  assert_bwrap_contains (env_bwrap, "--bind", "/offload/user/data",
+                         "/offload/user/data");
+  assert_bwrap_contains (env_bwrap, "--bind", "/offload/user/state",
+                         "/offload/user/state");
+  assert_bwrap_does_not_contain (env_bwrap, "/usr/local/share");
+  assert_bwrap_does_not_contain (env_bwrap, "/usr/share");
   /* These are in PRESSURE_VESSEL_FILESYSTEMS_RW but don't actually exist. */
   assert_bwrap_does_not_contain (env_bwrap, "/nonexistent");
   assert_bwrap_does_not_contain (env_bwrap, "/dangling");
