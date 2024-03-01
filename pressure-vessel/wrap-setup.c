@@ -1103,7 +1103,9 @@ static const EnvMount known_required_env[] =
 };
 
 static void
-bind_and_propagate_from_environ (FlatpakExports *exports,
+bind_and_propagate_from_environ (SrtSysroot *sysroot,
+                                 const char * const *current_env,
+                                 FlatpakExports *exports,
                                  PvEnviron *container_env,
                                  const char *variable,
                                  EnvMountFlags flags)
@@ -1119,7 +1121,7 @@ bind_and_propagate_from_environ (FlatpakExports *exports,
   g_return_if_fail (exports != NULL);
   g_return_if_fail (variable != NULL);
 
-  value = g_getenv (variable);
+  value = _srt_environ_getenv (current_env, variable);
 
   if (value == NULL)
     return;
@@ -1153,7 +1155,7 @@ bind_and_propagate_from_environ (FlatpakExports *exports,
       if (values[i][0] == '\0')
         continue;
 
-      if (!g_file_test (values[i], G_FILE_TEST_EXISTS))
+      if (!_srt_sysroot_test (sysroot, values[i], SRT_RESOLVE_FLAGS_NONE, NULL))
         {
           g_info ("Not bind-mounting %s=\"%s%s%s\" because it does not exist",
                   variable, before, values[i], after);
@@ -1185,7 +1187,9 @@ bind_and_propagate_from_environ (FlatpakExports *exports,
         }
     }
 
-  if (changed || g_file_test ("/.flatpak-info", G_FILE_TEST_IS_REGULAR))
+  if (changed
+      || _srt_sysroot_test (sysroot, "/.flatpak-info",
+                            SRT_RESOLVE_FLAGS_NONE, NULL))
     {
       g_autofree gchar *joined = g_strjoinv (":", values);
 
@@ -1198,7 +1202,9 @@ bind_and_propagate_from_environ (FlatpakExports *exports,
  *  a Flatpak subsandbox
  */
 void
-pv_bind_and_propagate_from_environ (FlatpakExports *exports,
+pv_bind_and_propagate_from_environ (SrtSysroot *sysroot,
+                                    const char * const *current_env,
+                                    FlatpakExports *exports,
                                     PvEnviron *container_env)
 {
   gsize i;
@@ -1213,7 +1219,8 @@ pv_bind_and_propagate_from_environ (FlatpakExports *exports,
         {
           /* If we're using bubblewrap directly, we can and must make
            * sure that all required directories are bind-mounted */
-          bind_and_propagate_from_environ (exports, container_env,
+          bind_and_propagate_from_environ (sysroot, current_env,
+                                           exports, container_env,
                                            known_required_env[i].name,
                                            known_required_env[i].flags);
         }
@@ -1224,7 +1231,8 @@ pv_bind_and_propagate_from_environ (FlatpakExports *exports,
            * is also going to be available to the subsandbox */
           pv_environ_setenv (container_env,
                              known_required_env[i].name,
-                             g_getenv (known_required_env[i].name));
+                             _srt_environ_getenv (current_env,
+                                                  known_required_env[i].name));
         }
     }
 }
