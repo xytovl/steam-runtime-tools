@@ -1,5 +1,19 @@
-steam-runtime-tools (0.20240219.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20240301.0) UNRELEASED; urgency=medium
 
+  * steam-runtime-check-requirements:
+    - Diagnose some common situations that will break steamwebhelper
+      now that it runs under a sniper container (steamrt/tasks#406)
+      + Check for a working version of bubblewrap (either our bundled copy
+        srt-bwrap if unprivileged processes can create new user namespaces
+        or a setuid-root system copy if they cannot), reporting an error
+        message if none can be found
+      + Check whether ~/.steam/root is below /usr, reporting an error
+        message if it is
+    - Add repeatable -v option to show more info, similar to flatpak -vv
+  * steam-runtime-system-info:
+    - Add a diagnostic flag for running Steam from below /usr (just for
+      completeness, since Steam will no longer launch successfully in this
+      situation)
   * pressure-vessel:
     - Unset STEAM_ZENITY on entry, and reset it to a path accessible inside
       the container runtime before running the game (steamrt/tasks#397)
@@ -15,6 +29,7 @@ steam-runtime-tools (0.20240219.0) UNRELEASED; urgency=medium
     - Only build pressure-vessel during development builds, or if targeting
       Steam Runtime 1.0 'scout' (which is the source of the official
       binary releases, for maximum cross-distro compatibility)
+    - Adjust for rename of pv-bwrap to srt-bwrap
   * Steam Linux Runtime 1.0 (scout):
     - Remove workaround for a mid 2021 configuration change
   * steam-runtime-launcher-service --alongside-steam:
@@ -41,7 +56,7 @@ steam-runtime-tools (0.20240219.0) UNRELEASED; urgency=medium
     - Factor out basic libc-based utility functions into a static library
   * Documentation updates
 
- -- Simon McVittie <smcv@collabora.com>  Tue, 27 Feb 2024 15:17:05 +0000
+ -- Simon McVittie <smcv@collabora.com>  Fri, 01 Mar 2024 13:14:27 +0000
 
 steam-runtime-tools (0.20240212.0) steamrt; urgency=medium
 
