@@ -790,6 +790,7 @@ main (int argc,
   g_autoptr(FlatpakBwrap) argv_in_container = NULL;
   g_autoptr(FlatpakBwrap) final_argv = NULL;
   g_autoptr(FlatpakExports) exports = NULL;
+  g_autoptr(SrtSysroot) real_root = NULL;
   g_autoptr(SrtSysroot) interpreter_root = NULL;
   g_autofree gchar *bwrap_executable = NULL;
   SrtBwrapFlags bwrap_flags = SRT_BWRAP_FLAGS_NONE;
@@ -807,7 +808,6 @@ main (int argc,
   g_autoptr(GPtrArray) adverb_preload_argv = NULL;
   int result;
   PvAppendPreloadFlags append_preload_flags = PV_APPEND_PRELOAD_FLAGS_NONE;
-  glnx_autofd int root_fd = -1;
   SrtMachineType host_machine = SRT_MACHINE_TYPE_UNKNOWN;
   SrtLogFlags log_flags;
   PvWrapLogFlags pv_log_flags = PV_WRAP_LOG_FLAGS_NONE;
@@ -1252,7 +1252,9 @@ main (int argc,
    * this, because we're inspecting paths in order to pass them to bwrap,
    * which will use them to set up bind-mounts, which are not subject to
    * FEX-Emu's rewriting; so bypass it here. */
-  if (!glnx_opendirat (-1, "/proc/self/root", TRUE, &root_fd, error))
+  real_root = _srt_sysroot_new_real_root (error);
+
+  if (real_root == NULL)
     return FALSE;
 
   /* Invariant: we are in exactly one of these two modes */
@@ -1341,7 +1343,9 @@ main (int argc,
                                   "--ro-bind", "/etc", "/run/interpreter-host/etc",
                                   NULL);
 
-          if (!pv_bwrap_bind_usr (bwrap, "/", root_fd, "/run/interpreter-host",
+          if (!pv_bwrap_bind_usr (bwrap, "/",
+                                  _srt_sysroot_get_fd (real_root),
+                                  "/run/interpreter-host",
                                   error))
             goto out;
 
@@ -1353,7 +1357,9 @@ main (int argc,
           flatpak_bwrap_add_args (bwrap_filesystem_arguments,
                                   "--ro-bind", "/etc", "/run/host/etc", NULL);
 
-          if (!pv_bwrap_bind_usr (bwrap, "/", root_fd, "/run/host", error))
+          if (!pv_bwrap_bind_usr (bwrap, "/",
+                                  _srt_sysroot_get_fd (real_root),
+                                  "/run/host", error))
             goto out;
         }
 
@@ -1521,7 +1527,8 @@ main (int argc,
       g_assert (bwrap_filesystem_arguments != NULL);
       g_assert (exports != NULL);
 
-      if (!pv_wrap_use_host_os (root_fd, exports, bwrap_filesystem_arguments,
+      if (!pv_wrap_use_host_os (_srt_sysroot_get_fd (real_root),
+                                exports, bwrap_filesystem_arguments,
                                 cmp, error))
         goto out;
     }
