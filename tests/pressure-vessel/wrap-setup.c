@@ -59,14 +59,13 @@
 typedef struct
 {
   TestsOpenFdSet old_fds;
+  SrtSysroot *mock_host;
   FlatpakBwrap *bwrap;
   gchar *tmpdir;
-  gchar *mock_host;
   gchar *mock_runtime;
   gchar *var;
   GStrv env;
   int tmpdir_fd;
-  int mock_host_fd;
   int mock_runtime_fd;
   int var_fd;
 } Fixture;
@@ -153,7 +152,7 @@ static FlatpakExports *
 fixture_create_exports (Fixture *f)
 {
   g_autoptr(FlatpakExports) exports = flatpak_exports_new ();
-  glnx_autofd int fd = open_or_die (f->mock_host, O_RDONLY | O_DIRECTORY, 0755);
+  glnx_autofd int fd = open_or_die (f->mock_host->path, O_RDONLY | O_DIRECTORY, 0755);
 
   flatpak_exports_take_host_fd (exports, g_steal_fd (&fd));
   return g_steal_pointer (&exports);
@@ -198,6 +197,7 @@ setup (Fixture *f,
        gconstpointer context)
 {
   g_autoptr(GError) local_error = NULL;
+  g_autofree gchar *mock_host = NULL;
 
   f->old_fds = tests_check_fd_leaks_enter ();
   f->tmpdir = g_dir_make_tmp ("pressure-vessel-tests.XXXXXX", &local_error);
@@ -205,13 +205,13 @@ setup (Fixture *f,
   glnx_opendirat (AT_FDCWD, f->tmpdir, TRUE, &f->tmpdir_fd, &local_error);
   g_assert_no_error (local_error);
 
-  f->mock_host = g_build_filename (f->tmpdir, "host", NULL);
+  mock_host = g_build_filename (f->tmpdir, "host", NULL);
   f->mock_runtime = g_build_filename (f->tmpdir, "runtime", NULL);
   f->var = g_build_filename (f->tmpdir, "var", NULL);
-  g_assert_no_errno (g_mkdir (f->mock_host, 0755));
+  g_assert_no_errno (g_mkdir (mock_host, 0755));
   g_assert_no_errno (g_mkdir (f->mock_runtime, 0755));
   g_assert_no_errno (g_mkdir (f->var, 0755));
-  glnx_opendirat (AT_FDCWD, f->mock_host, TRUE, &f->mock_host_fd, &local_error);
+  f->mock_host = _srt_sysroot_new (mock_host, &local_error);
   g_assert_no_error (local_error);
   glnx_opendirat (AT_FDCWD, f->mock_runtime, TRUE, &f->mock_runtime_fd, &local_error);
   g_assert_no_error (local_error);
@@ -249,7 +249,7 @@ setup_ld_preload (Fixture *f,
   };
 
   setup (f, context);
-  fixture_populate_dir (f, f->mock_host_fd, touch, G_N_ELEMENTS (touch));
+  fixture_populate_dir (f, f->mock_host->fd, touch, G_N_ELEMENTS (touch));
   f->env = g_environ_setenv (f->env, "STEAM_COMPAT_CLIENT_INSTALL_PATH",
                              "/steam", TRUE);
 }
@@ -261,7 +261,6 @@ teardown (Fixture *f,
   g_autoptr(GError) local_error = NULL;
 
   glnx_close_fd (&f->tmpdir_fd);
-  glnx_close_fd (&f->mock_host_fd);
   glnx_close_fd (&f->mock_runtime_fd);
   glnx_close_fd (&f->var_fd);
 
@@ -271,7 +270,7 @@ teardown (Fixture *f,
       g_assert_no_error (local_error);
     }
 
-  g_clear_pointer (&f->mock_host, g_free);
+  g_clear_object (&f->mock_host);
   g_clear_pointer (&f->mock_runtime, g_free);
   g_clear_pointer (&f->tmpdir, g_free);
   g_clear_pointer (&f->var, g_free);
@@ -446,8 +445,8 @@ test_bind_merged_usr (Fixture *f,
   g_autoptr(GError) local_error = NULL;
   gboolean ret;
 
-  fixture_populate_dir (f, f->mock_host_fd, paths, G_N_ELEMENTS (paths));
-  ret = pv_bwrap_bind_usr (f->bwrap, "/provider", f->mock_host_fd, "/run/gfx",
+  fixture_populate_dir (f, f->mock_host->fd, paths, G_N_ELEMENTS (paths));
+  ret = pv_bwrap_bind_usr (f->bwrap, "/provider", f->mock_host->fd, "/run/gfx",
                            &local_error);
   g_assert_no_error (local_error);
   g_assert_true (ret);
@@ -488,8 +487,8 @@ test_bind_unmerged_usr (Fixture *f,
   g_autoptr(GError) local_error = NULL;
   gboolean ret;
 
-  fixture_populate_dir (f, f->mock_host_fd, paths, G_N_ELEMENTS (paths));
-  ret = pv_bwrap_bind_usr (f->bwrap, "/provider", f->mock_host_fd, "/run/gfx",
+  fixture_populate_dir (f, f->mock_host->fd, paths, G_N_ELEMENTS (paths));
+  ret = pv_bwrap_bind_usr (f->bwrap, "/provider", f->mock_host->fd, "/run/gfx",
                            &local_error);
   g_assert_no_error (local_error);
   g_assert_true (ret);
@@ -527,8 +526,8 @@ test_bind_usr (Fixture *f,
   g_autoptr(GError) local_error = NULL;
   gboolean ret;
 
-  fixture_populate_dir (f, f->mock_host_fd, paths, G_N_ELEMENTS (paths));
-  ret = pv_bwrap_bind_usr (f->bwrap, "/provider", f->mock_host_fd, "/run/gfx",
+  fixture_populate_dir (f, f->mock_host->fd, paths, G_N_ELEMENTS (paths));
+  ret = pv_bwrap_bind_usr (f->bwrap, "/provider", f->mock_host->fd, "/run/gfx",
                            &local_error);
   g_assert_no_error (local_error);
   g_assert_true (ret);
@@ -585,8 +584,8 @@ test_export_root_dirs (Fixture *f,
   g_autoptr(GError) local_error = NULL;
   gboolean ret;
 
-  fixture_populate_dir (f, f->mock_host_fd, paths, G_N_ELEMENTS (paths));
-  ret = pv_export_root_dirs_like_filesystem_host (f->mock_host_fd, exports,
+  fixture_populate_dir (f, f->mock_host->fd, paths, G_N_ELEMENTS (paths));
+  ret = pv_export_root_dirs_like_filesystem_host (f->mock_host->fd, exports,
                                                   FLATPAK_FILESYSTEM_MODE_READ_WRITE,
                                                   _srt_dirent_strcmp,
                                                   &local_error);
@@ -1266,7 +1265,7 @@ test_use_home_shared (Fixture *f,
   g_autoptr(PvEnviron) container_env = pv_environ_new ();
   gboolean ret;
 
-  fixture_populate_dir (f, f->mock_host_fd, paths, G_N_ELEMENTS (paths));
+  fixture_populate_dir (f, f->mock_host->fd, paths, G_N_ELEMENTS (paths));
   ret = pv_wrap_use_home (PV_HOME_MODE_SHARED, "/home/user", NULL, exports,
                           f->bwrap, container_env, &local_error);
   g_assert_no_error (local_error);
@@ -1369,8 +1368,8 @@ test_use_host_os (Fixture *f,
   g_autoptr(GError) local_error = NULL;
   gboolean ret;
 
-  fixture_populate_dir (f, f->mock_host_fd, paths, G_N_ELEMENTS (paths));
-  ret = pv_wrap_use_host_os (f->mock_host_fd, exports, f->bwrap,
+  fixture_populate_dir (f, f->mock_host->fd, paths, G_N_ELEMENTS (paths));
+  ret = pv_wrap_use_host_os (f->mock_host->fd, exports, f->bwrap,
                              _srt_dirent_strcmp, &local_error);
   g_assert_no_error (local_error);
   g_assert_true (ret);
