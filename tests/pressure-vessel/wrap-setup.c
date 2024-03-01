@@ -1231,6 +1231,7 @@ test_use_home_shared (Fixture *f,
     "app/",
     "bin>usr/bin",
     "config/",
+    "dangling>nonexistent",
     "data/",
     "dev/pts/",
     "etc/hosts",
@@ -1246,23 +1247,42 @@ test_use_home_shared (Fixture *f,
     "libexec>usr/libexec",
     "media/",
     "mnt/",
+    "offload/user/data/",
+    "offload/user/state/",
+    "offload/rw2/",
+    "overrides/forbidden/",
     "proc/1/fd/",
+    "ro/",
     "root/",
     "run/dbus/",
     "run/gfx/",
     "run/host/",
     "run/pressure-vessel/",
     "run/systemd/",
+    "rw/",
+    "rw2>offload/rw2",
     "sbin>usr/bin",
+    "single:/dir:/and:/deprecated/",
     "srv/data/",
     "sys/",
     "tmp/",
     "usr/local/",
     "var/tmp/",
   };
+  static const char * const mock_environ[] =
+  {
+    "STEAM_COMPAT_TOOL_PATH=/single:/dir:/and:/deprecated",
+    "STEAM_COMPAT_MOUNTS=/overrides/forbidden",
+    "PRESSURE_VESSEL_FILESYSTEMS_RO=/ro",
+    "PRESSURE_VESSEL_FILESYSTEMS_RW=:/rw:/rw2:/nonexistent:::::",
+    NULL
+  };
+  g_autoptr(FlatpakBwrap) env_bwrap = NULL;
   g_autoptr(FlatpakExports) exports = fixture_create_exports (f);
+  g_autoptr(FlatpakExports) env_exports = fixture_create_exports (f);
   g_autoptr(GError) local_error = NULL;
   g_autoptr(PvEnviron) container_env = pv_environ_new ();
+  GLogLevelFlags was_fatal;
   gboolean ret;
 
   fixture_populate_dir (f, f->mock_host->fd, paths, G_N_ELEMENTS (paths));
@@ -1325,6 +1345,35 @@ test_use_home_shared (Fixture *f,
   /* We would export these if they existed, but they don't */
   assert_bwrap_does_not_contain (f->bwrap, "/opt");
   assert_bwrap_does_not_contain (f->bwrap, "/run/media");
+
+  env_bwrap = flatpak_bwrap_new (flatpak_bwrap_empty_env);
+
+  /* Don't crash on warnings here */
+  was_fatal = g_log_set_always_fatal (G_LOG_LEVEL_ERROR | G_LOG_LEVEL_CRITICAL);
+  pv_bind_and_propagate_from_environ (f->mock_host,
+                                      mock_environ,
+                                      env_exports,
+                                      container_env);
+  g_log_set_always_fatal (was_fatal);
+
+  flatpak_exports_append_bwrap_args (env_exports, env_bwrap);
+  dump_bwrap (env_bwrap);
+  assert_bwrap_contains (env_bwrap, "--ro-bind", "/ro", "/ro");
+  assert_bwrap_contains (env_bwrap, "--bind", "/rw", "/rw");
+  assert_bwrap_contains (env_bwrap, "--symlink", "offload/rw2", "/rw2");
+  assert_bwrap_contains (env_bwrap, "--bind", "/offload/rw2", "/offload/rw2");
+  /* These are in PRESSURE_VESSEL_FILESYSTEMS_RW but don't actually exist. */
+  assert_bwrap_does_not_contain (env_bwrap, "/nonexistent");
+  assert_bwrap_does_not_contain (env_bwrap, "/dangling");
+  /* STEAM_COMPAT_TOOL_PATH is deprecated (not explicitly tested, but
+   * you'll see a warning in the test log), and because it doesn't have
+   * the COLON_DELIMITED flag, it's parsed as a single oddly-named
+   * directory. */
+  assert_bwrap_contains (env_bwrap, "--bind",
+                         "/single:/dir:/and:/deprecated",
+                         "/single:/dir:/and:/deprecated");
+  /* Paths below /overrides are not used, with a warning. */
+  assert_bwrap_does_not_contain (env_bwrap, "/overrides/forbidden");
 }
 
 /*
