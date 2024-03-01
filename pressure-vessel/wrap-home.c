@@ -288,6 +288,30 @@ static const char * const shared_like_home_absolute[] =
   "/var/tmp",
 };
 
+/* Relative paths in the home directory that are somewhat likely
+ * to be symbolic links to some other location, like
+ * /home/me/.config -> /ssd/me/.config.
+ * To avoid weird issues where the container has a dangling symlink,
+ * we explicitly add these to the FlatpakExports. */
+static const char * const shared_like_home_relative[] =
+{
+  /* Generic, mostly the defaults for XDG base directories.
+   * See also pv_bind_and_propagate_from_environ(), which
+   * handles their values from the environment if overridden.
+   * We handle .config even if XDG_DATA_HOME is different, and so on,
+   * because it's common (albeit wrong) for applications to ignore the
+   * environment variable and hard-code its default. */
+  ".cache",
+  ".config",
+  ".local/share",
+  ".local/state",
+  ".var",
+
+  /* Steam-specific */
+  ".config/cef_user_data",
+  ".local/share/Steam",
+};
+
 gboolean
 pv_wrap_use_home (PvHomeMode mode,
                   const char *real_home,
@@ -316,6 +340,17 @@ pv_wrap_use_home (PvHomeMode mode,
           flatpak_exports_add_path_expose (exports,
                                            FLATPAK_FILESYSTEM_MODE_READ_WRITE,
                                            shared_like_home_absolute[i]);
+
+        for (i = 0; i < G_N_ELEMENTS (shared_like_home_relative); i++)
+          {
+            g_autofree gchar *path = NULL;
+
+            path = g_build_filename (real_home, shared_like_home_relative[i],
+                                     NULL);
+            flatpak_exports_add_path_expose (exports,
+                                             FLATPAK_FILESYSTEM_MODE_READ_WRITE,
+                                             path);
+          }
 
         /* TODO: All of ~/.steam has traditionally been read/write when not
          * using a per-game home directory, but does it need to be? Maybe we
