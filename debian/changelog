@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20240301.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20240301.0) steamrt; urgency=medium
 
   * steam-runtime-check-requirements:
     - Diagnose some common situations that will break steamwebhelper
@@ -68,7 +68,7 @@ steam-runtime-tools (0.20240301.0) UNRELEASED; urgency=medium
     - Better automated test coverage
   * Documentation updates
 
- -- Simon McVittie <smcv@collabora.com>  Fri, 01 Mar 2024 18:42:58 +0000
+ -- Simon McVittie <smcv@collabora.com>  Fri, 01 Mar 2024 19:20:01 +0000
 
 steam-runtime-tools (0.20240212.0) steamrt; urgency=medium
 
