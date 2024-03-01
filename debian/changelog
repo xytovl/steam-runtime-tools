@@ -15,6 +15,17 @@ steam-runtime-tools (0.20240301.0) UNRELEASED; urgency=medium
       completeness, since Steam will no longer launch successfully in this
       situation)
   * pressure-vessel:
+    - Work around several important paths being symlinks to a non-shared
+      filesystem by automatically sharing their symlink targets:
+      - ~/.config/cef_user_data, fixing a steamwebhelper crash
+        (steamrt/tasks#411)
+      - ~/.cache, $XDG_CACHE_HOME
+      - ~/.config, $XDG_CONFIG_HOME
+      - ~/.local/share, $XDG_DATA_HOME
+      - ~/.local/state, $XDG_STATE_HOME
+      - $XDG_CONFIG_DIRS
+      - $XDG_DATA_DIRS
+      - ~/.local/share/Steam
     - Unset STEAM_ZENITY on entry, and reset it to a path accessible inside
       the container runtime before running the game (steamrt/tasks#397)
     - If the Steam Deck's system tracing developer option is enabled,
@@ -54,9 +65,10 @@ steam-runtime-tools (0.20240301.0) UNRELEASED; urgency=medium
     - Use libglnx's backport of g_fdwalk_set_cloexec() everywhere, for
       better async-signal-safety
     - Factor out basic libc-based utility functions into a static library
+    - Better automated test coverage
   * Documentation updates
 
- -- Simon McVittie <smcv@collabora.com>  Fri, 01 Mar 2024 13:14:27 +0000
+ -- Simon McVittie <smcv@collabora.com>  Fri, 01 Mar 2024 18:42:58 +0000
 
 steam-runtime-tools (0.20240212.0) steamrt; urgency=medium
 
