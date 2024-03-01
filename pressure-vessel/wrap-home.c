@@ -264,7 +264,7 @@ expose_steam (FlatpakExports *exports,
 }
 
 /* Paths that go along with the home directory: if we are sharing $HOME
- * between host and container, then we also thare these, but if we are
+ * between host and container, then we also share these, but if we are
  * not sharing $HOME, then we do not. */
 static const char * const shared_like_home_absolute[] =
 {
