@@ -1654,6 +1654,7 @@ main (int argc,
 
   pv_bind_and_propagate_from_environ (real_root,
                                       _srt_const_strv (original_environ),
+                                      home_mode,
                                       exports, container_env);
 
   if (flatpak_subsandbox == NULL)

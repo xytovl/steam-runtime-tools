@@ -32,6 +32,7 @@
 #include "flatpak-exports-private.h"
 #include "runtime.h"
 #include "wrap-discord.h"
+#include "wrap-home.h"
 #include "wrap-pipewire.h"
 
 gchar *pv_wrap_check_bwrap (const char *pkglibexecdir,
@@ -95,5 +96,6 @@ void pv_share_temp_dir (FlatpakExports *exports,
                         PvEnviron *container_env);
 void pv_bind_and_propagate_from_environ (SrtSysroot *sysroot,
                                          const char * const *current_env,
+                                         PvHomeMode home_mode,
                                          FlatpakExports *exports,
                                          PvEnviron *container_env);

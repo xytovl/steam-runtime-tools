@@ -1071,6 +1071,8 @@ typedef enum
   ENV_MOUNT_FLAGS_COLON_DELIMITED = (1 << 0),
   ENV_MOUNT_FLAGS_DEPRECATED = (1 << 1),
   ENV_MOUNT_FLAGS_READ_ONLY = (1 << 2),
+  ENV_MOUNT_FLAGS_IF_HOME_SHARED = (1 << 3),
+  ENV_MOUNT_FLAGS_USR_QUIET = (1 << 4),
   ENV_MOUNT_FLAGS_NONE = 0
 } EnvMountFlags;
 
@@ -1100,11 +1102,24 @@ static const EnvMount known_required_env[] =
     { "STEAM_COMPAT_TOOL_PATH", ENV_MOUNT_FLAGS_DEPRECATED },
     { "STEAM_COMPAT_TOOL_PATHS", ENV_MOUNT_FLAGS_COLON_DELIMITED },
     { "STEAM_EXTRA_COMPAT_TOOLS_PATHS", ENV_MOUNT_FLAGS_COLON_DELIMITED },
+    { "XDG_CACHE_HOME", ENV_MOUNT_FLAGS_IF_HOME_SHARED },
+    { "XDG_CONFIG_HOME", ENV_MOUNT_FLAGS_IF_HOME_SHARED },
+    { "XDG_CONFIG_DIRS",
+      ENV_MOUNT_FLAGS_IF_HOME_SHARED
+      | ENV_MOUNT_FLAGS_COLON_DELIMITED
+      | ENV_MOUNT_FLAGS_USR_QUIET },
+    { "XDG_DATA_HOME", ENV_MOUNT_FLAGS_IF_HOME_SHARED },
+    { "XDG_DATA_DIRS",
+      ENV_MOUNT_FLAGS_IF_HOME_SHARED
+      | ENV_MOUNT_FLAGS_COLON_DELIMITED
+      | ENV_MOUNT_FLAGS_USR_QUIET },
+    { "XDG_STATE_HOME", ENV_MOUNT_FLAGS_IF_HOME_SHARED },
 };
 
 static void
 bind_and_propagate_from_environ (SrtSysroot *sysroot,
                                  const char * const *current_env,
+                                 PvHomeMode home_mode,
                                  FlatpakExports *exports,
                                  PvEnviron *container_env,
                                  const char *variable,
@@ -1120,6 +1135,10 @@ bind_and_propagate_from_environ (SrtSysroot *sysroot,
 
   g_return_if_fail (exports != NULL);
   g_return_if_fail (variable != NULL);
+
+  if (home_mode != PV_HOME_MODE_SHARED
+      && (flags & ENV_MOUNT_FLAGS_IF_HOME_SHARED))
+    return;
 
   value = _srt_environ_getenv (current_env, variable);
 
@@ -1172,7 +1191,15 @@ bind_and_propagate_from_environ (SrtSysroot *sysroot,
         }
 
       if (flatpak_has_path_prefix (canon, "/usr"))
-        g_warning_once ("Binding directories that are located under \"/usr/\" is not supported!");
+        {
+          if (!(flags & ENV_MOUNT_FLAGS_USR_QUIET))
+            g_warning_once ("Binding directories that are located under \"/usr/\" is not supported!");
+          else
+            g_debug ("Ignoring %s=\"%s%s%s\" because it is below /usr",
+                     variable, before, values[i], after);
+
+          continue;
+        }
 
       g_info ("Bind-mounting %s=\"%s%s%s\" from the current env as %s=\"%s%s%s\" in the host",
               variable, before, values[i], after,
@@ -1204,6 +1231,7 @@ bind_and_propagate_from_environ (SrtSysroot *sysroot,
 void
 pv_bind_and_propagate_from_environ (SrtSysroot *sysroot,
                                     const char * const *current_env,
+                                    PvHomeMode home_mode,
                                     FlatpakExports *exports,
                                     PvEnviron *container_env)
 {
@@ -1219,7 +1247,7 @@ pv_bind_and_propagate_from_environ (SrtSysroot *sysroot,
         {
           /* If we're using bubblewrap directly, we can and must make
            * sure that all required directories are bind-mounted */
-          bind_and_propagate_from_environ (sysroot, current_env,
+          bind_and_propagate_from_environ (sysroot, current_env, home_mode,
                                            exports, container_env,
                                            known_required_env[i].name,
                                            known_required_env[i].flags);
@@ -1229,6 +1257,7 @@ pv_bind_and_propagate_from_environ (SrtSysroot *sysroot,
           /* If we're using a Flatpak subsandbox, we have no choice but to
            * rely on the fact that any directory available to the parent app
            * is also going to be available to the subsandbox */
+          g_return_if_fail (home_mode == PV_HOME_MODE_SHARED);
           pv_environ_setenv (container_env,
                              known_required_env[i].name,
                              _srt_environ_getenv (current_env,

@@ -1352,6 +1352,7 @@ test_use_home_shared (Fixture *f,
   was_fatal = g_log_set_always_fatal (G_LOG_LEVEL_ERROR | G_LOG_LEVEL_CRITICAL);
   pv_bind_and_propagate_from_environ (f->mock_host,
                                       mock_environ,
+                                      PV_HOME_MODE_SHARED,
                                       env_exports,
                                       container_env);
   g_log_set_always_fatal (was_fatal);
