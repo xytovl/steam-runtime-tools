@@ -1231,9 +1231,15 @@ test_use_home_shared (Fixture *f,
   {
     "app/",
     "bin>usr/bin",
+    "config/",
+    "data/",
     "dev/pts/",
     "etc/hosts",
     "games/SteamLibrary/",
+    "home/user/.config/",
+    "home/user/.config/cef_user_data>../../config/cef_user_data",
+    "home/user/.local/",
+    "home/user/.local/share>../../../data",
     "home/user/.steam",
     "lib>usr/lib",
     "lib32>usr/lib32",
@@ -1284,6 +1290,10 @@ test_use_home_shared (Fixture *f,
   assert_bwrap_contains (f->bwrap, "--bind", "/mnt", "/mnt");
   assert_bwrap_contains (f->bwrap, "--bind", "/srv", "/srv");
   assert_bwrap_contains (f->bwrap, "--bind", "/var/tmp", "/var/tmp");
+
+  /* Some directories that are commonly symlinks get handled, by
+   * mounting the target of a symlink if any */
+  assert_bwrap_contains (f->bwrap, "--bind", "/data", "/data");
 
   /* Mutable OS state is not tied to the home directory */
   assert_bwrap_does_not_contain (f->bwrap, "/etc");
