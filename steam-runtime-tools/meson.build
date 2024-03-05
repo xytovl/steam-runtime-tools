@@ -63,6 +63,7 @@ libsteamrt_sources = [
 
 libsteamrt_public_headers = [
     'architecture.h',
+    'bwrap.h',
     'container.h',
     'cpu-feature.h',
     'desktop-entry.h',
