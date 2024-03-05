@@ -19,4 +19,5 @@ typedef enum
 
 gchar *_srt_check_bwrap (const char *pkglibexecdir,
                          gboolean skip_testing,
-                         SrtBwrapFlags *flags_out);
+                         SrtBwrapFlags *flags_out,
+                         GError **error);

@@ -61,7 +61,6 @@ child_setup_cb (gpointer user_data)
  * test_bwrap_executable:
  *
  * Test whether the given @bwrap_executable works.
- * If it does not, log a message at level @log_level.
  *
  * If a feature flag is present in @test_features, only return true
  * if @bwrap_executable works *and* has the desired features.
@@ -73,14 +72,13 @@ child_setup_cb (gpointer user_data)
 static gboolean
 test_bwrap_executable (const char *bwrap_executable,
                        SrtBwrapFlags test_features,
-                       GLogLevelFlags log_level)
+                       GError **error)
 {
   g_autoptr(GPtrArray) argv = g_ptr_array_sized_new (10);
   int wait_status;
   g_autofree gchar *child_stdout = NULL;
   g_autofree gchar *child_stderr = NULL;
   g_autoptr(GError) local_error = NULL;
-  GError **error = &local_error;
 
   g_ptr_array_add (argv, (char *) bwrap_executable);
 
@@ -109,24 +107,35 @@ test_bwrap_executable (const char *bwrap_executable,
                      &child_stdout,
                      &child_stderr,
                      &wait_status,
-                     error))
+                     &local_error))
     {
-      g_log (G_LOG_DOMAIN, log_level, "Cannot run %s: %s",
-             bwrap_executable, local_error->message);
-      g_clear_error (&local_error);
+      g_debug ("Cannot run %s: %s",
+               bwrap_executable, local_error->message);
+      g_propagate_error (error, g_steal_pointer (&local_error));
       return FALSE;
     }
   else if (wait_status != 0)
     {
-      g_log (G_LOG_DOMAIN, log_level, "Cannot run %s: wait status %d",
-             bwrap_executable, wait_status);
+      const char *diag_prefix = "";
+      const char *diag_stderr = "";
+
+      g_debug ("Cannot run %s: wait status %d",
+               bwrap_executable, wait_status);
 
       if (child_stdout != NULL && child_stdout[0] != '\0')
-        g_log (G_LOG_DOMAIN, log_level, "Output:\n%s", child_stdout);
+        g_debug ("Output:\n%s", child_stdout);
 
       if (child_stderr != NULL && child_stderr[0] != '\0')
-        g_log (G_LOG_DOMAIN, log_level, "Diagnostic output:\n%s", child_stderr);
+        {
+          g_debug ("Diagnostic output:\n%s", child_stderr);
+          g_strchomp (child_stderr);
+          diag_prefix = ": ";
+          diag_stderr = child_stderr;
+        }
 
+      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
+                   "Cannot run %s: wait status %d%s%s",
+                   bwrap_executable, wait_status, diag_prefix, diag_stderr);
       return FALSE;
     }
   else
@@ -144,17 +153,19 @@ test_bwrap_executable (const char *bwrap_executable,
  * @flags_out: (out): Used to return %SRT_BWRAP_FLAGS_SYSTEM if appropriate
  *
  * Attempt to find a working bwrap executable in the environment,
- * @pkglibexecdir or a system location. Log messages via _srt_log_failure()
+ * @pkglibexecdir or a system location. Return %NULL with @error set
  * if none can be found.
  *
  * Flags other than %SRT_BWRAP_FLAGS_SYSTEM are not checked here.
  *
  * Returns: (transfer full): Path to bwrap(1), or %NULL if not found
+ *  or non-functional
  */
 static gchar *
 check_bwrap (const char *pkglibexecdir,
              gboolean skip_testing,
-             SrtBwrapFlags *flags_out)
+             SrtBwrapFlags *flags_out,
+             GError **error)
 {
   g_autofree gchar *local_bwrap = NULL;
   g_autofree gchar *system_bwrap = NULL;
@@ -174,8 +185,7 @@ check_bwrap (const char *pkglibexecdir,
       g_info ("Using bubblewrap from environment: %s", tmp);
 
       if (!skip_testing
-          && !test_bwrap_executable (tmp, SRT_BWRAP_FLAGS_NONE,
-                                     SRT_LOG_LEVEL_FAILURE))
+          && !test_bwrap_executable (tmp, SRT_BWRAP_FLAGS_NONE, error))
         return NULL;
 
       return g_strdup (tmp);
@@ -187,18 +197,15 @@ check_bwrap (const char *pkglibexecdir,
    * about it for now - we might need to use a setuid system copy, for
    * example on Debian 10, RHEL 7, Arch linux-hardened kernel. */
   if (skip_testing
-      || test_bwrap_executable (local_bwrap, SRT_BWRAP_FLAGS_NONE,
-                                G_LOG_LEVEL_DEBUG))
+      || test_bwrap_executable (local_bwrap, SRT_BWRAP_FLAGS_NONE, NULL))
     return g_steal_pointer (&local_bwrap);
 
   g_assert (!skip_testing);
   system_bwrap = find_system_bwrap ();
 
-  /* Try the system copy: if it exists, then it should work, so print failure
-   * messages if it doesn't work. */
+  /* Try the system copy */
   if (system_bwrap != NULL
-      && test_bwrap_executable (system_bwrap, SRT_BWRAP_FLAGS_NONE,
-                                SRT_LOG_LEVEL_FAILURE))
+      && test_bwrap_executable (system_bwrap, SRT_BWRAP_FLAGS_NONE, NULL))
     {
       if (flags_out != NULL)
         *flags_out |= SRT_BWRAP_FLAGS_SYSTEM;
@@ -207,11 +214,9 @@ check_bwrap (const char *pkglibexecdir,
     }
 
   /* If there was no system copy, try the local copy again. We expect
-   * this to fail, and are really just doing this to print error messages
-   * at the appropriate severity - but if it somehow works, great,
-   * I suppose? */
-  if (test_bwrap_executable (local_bwrap, SRT_BWRAP_FLAGS_NONE,
-                             SRT_LOG_LEVEL_FAILURE))
+   * this to fail, and are really just doing this to populate @error -
+   * but if it somehow works, great, I suppose? */
+  if (test_bwrap_executable (local_bwrap, SRT_BWRAP_FLAGS_NONE, error))
     {
       g_warning ("Local bwrap executable didn't work first time but "
                  "worked second time?");
@@ -237,10 +242,14 @@ check_bwrap (const char *pkglibexecdir,
 gchar *
 _srt_check_bwrap (const char *pkglibexecdir,
                   gboolean skip_testing,
-                  SrtBwrapFlags *flags_out)
+                  SrtBwrapFlags *flags_out,
+                  GError **error)
 {
   SrtBwrapFlags flags = SRT_BWRAP_FLAGS_NONE;
-  g_autofree gchar *bwrap = check_bwrap (pkglibexecdir, skip_testing, &flags);
+  g_autofree gchar *bwrap = check_bwrap (pkglibexecdir,
+                                         skip_testing,
+                                         &flags,
+                                         error);
   struct stat statbuf;
 
   if (bwrap == NULL)
@@ -248,7 +257,7 @@ _srt_check_bwrap (const char *pkglibexecdir,
 
   if (stat (bwrap, &statbuf) < 0)
     {
-      g_warning ("stat(%s): %s", bwrap, g_strerror (errno));
+      g_info ("stat(%s): %s", bwrap, g_strerror (errno));
     }
   else if (statbuf.st_mode & S_ISUID)
     {
@@ -257,8 +266,7 @@ _srt_check_bwrap (const char *pkglibexecdir,
       flags |= SRT_BWRAP_FLAGS_SETUID;
     }
 
-  if (test_bwrap_executable (bwrap, SRT_BWRAP_FLAGS_HAS_PERMS,
-                             G_LOG_LEVEL_DEBUG))
+  if (test_bwrap_executable (bwrap, SRT_BWRAP_FLAGS_HAS_PERMS, NULL))
     flags |= SRT_BWRAP_FLAGS_HAS_PERMS;
 
   if (flags_out != NULL)

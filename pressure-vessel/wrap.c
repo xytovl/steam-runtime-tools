@@ -1229,10 +1229,10 @@ main (int argc,
     {
       g_debug ("Checking for bwrap...");
 
-      /* if this fails, it will warn */
       bwrap_executable = pv_wrap_check_bwrap (pkglibexecdir,
                                               opt_only_prepare,
-                                              &bwrap_flags);
+                                              &bwrap_flags,
+                                              error);
 
       if (bwrap_executable == NULL)
         goto out;

@@ -336,7 +336,8 @@ main (int argc,
       default:
         if (pkglibexecdir != NULL)
           {
-            g_autofree gchar *bwrap = _srt_check_bwrap (pkglibexecdir, FALSE, NULL);
+            g_autofree gchar *bwrap = _srt_check_bwrap (pkglibexecdir, FALSE,
+                                                        NULL, NULL);
 
             if (bwrap == NULL)
               {

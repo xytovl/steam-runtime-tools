@@ -37,7 +37,8 @@
 
 gchar *pv_wrap_check_bwrap (const char *pkglibexecdir,
                             gboolean only_prepare,
-                            SrtBwrapFlags *flags_out);
+                            SrtBwrapFlags *flags_out,
+                            GError **error);
 
 FlatpakBwrap *pv_wrap_share_sockets (PvEnviron *container_env,
                                      const char * const *original_environ,

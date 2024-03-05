@@ -41,12 +41,13 @@
 gchar *
 pv_wrap_check_bwrap (const char *pkglibexecdir,
                      gboolean only_prepare,
-                     SrtBwrapFlags *flags_out)
+                     SrtBwrapFlags *flags_out,
+                     GError **error)
 {
   g_autofree gchar *bwrap = NULL;
   const char *argv[] = { NULL, "--version", NULL };
 
-  bwrap = _srt_check_bwrap (pkglibexecdir, only_prepare, flags_out);
+  bwrap = _srt_check_bwrap (pkglibexecdir, only_prepare, flags_out, error);
 
   if (bwrap == NULL)
     return NULL;
