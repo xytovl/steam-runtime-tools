@@ -59,11 +59,13 @@ _srt_subprocess_runner_new (void)
 
 static inline SrtSubprocessRunner *
 _srt_subprocess_runner_new_full (const char * const *envp,
+                                 const char *bin_path,
                                  const char *helpers_path,
                                  SrtTestFlags flags)
 {
   return g_object_new (SRT_TYPE_SUBPROCESS_RUNNER,
                        "environ", envp,
+                       "bin-path", bin_path,
                        "helpers-path", helpers_path,
                        "test-flags", flags,
                        NULL);
@@ -71,6 +73,7 @@ _srt_subprocess_runner_new_full (const char * const *envp,
 
 const char * const *_srt_subprocess_runner_get_environ (SrtSubprocessRunner *self);
 const char *_srt_subprocess_runner_getenv (SrtSubprocessRunner *self, const char *var);
+const char *_srt_subprocess_runner_get_bin_path (SrtSubprocessRunner *self);
 const char *_srt_subprocess_runner_get_helpers_path (SrtSubprocessRunner *self);
 SrtTestFlags _srt_subprocess_runner_get_test_flags (SrtSubprocessRunner *self);
 
@@ -80,6 +83,7 @@ typedef enum
   SRT_HELPER_FLAGS_TIME_OUT = (1 << 1),
   SRT_HELPER_FLAGS_LIBGL_VERBOSE = (1 << 2),
   SRT_HELPER_FLAGS_SHELL_EXIT_STATUS = (1 << 3),
+  SRT_HELPER_FLAGS_IN_BIN_DIR = (1 << 4),
   SRT_HELPER_FLAGS_NONE = 0
 } SrtHelperFlags;
 

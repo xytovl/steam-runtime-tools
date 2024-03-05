@@ -2145,6 +2145,7 @@ srt_system_info_set_environ (SrtSystemInfo *self,
   g_return_if_fail (self->from_report == NULL);
 
   runner = _srt_subprocess_runner_new_full (_srt_const_strv (env),
+                                            _srt_subprocess_runner_get_bin_path (self->runner),
                                             _srt_subprocess_runner_get_helpers_path (self->runner),
                                             _srt_subprocess_runner_get_test_flags (self->runner));
   _srt_system_info_set_subprocess_runner (self, runner);
@@ -2848,6 +2849,7 @@ srt_system_info_set_helpers_path (SrtSystemInfo *self,
   g_return_if_fail (self->from_report == NULL);
 
   runner = _srt_subprocess_runner_new_full (_srt_subprocess_runner_get_environ (self->runner),
+                                            _srt_subprocess_runner_get_bin_path (self->runner),
                                             path,
                                             _srt_subprocess_runner_get_test_flags (self->runner));
   _srt_system_info_set_subprocess_runner (self, runner);
@@ -3230,6 +3232,7 @@ srt_system_info_set_test_flags (SrtSystemInfo *self,
   g_return_if_fail (SRT_IS_SYSTEM_INFO (self));
 
   runner = _srt_subprocess_runner_new_full (_srt_subprocess_runner_get_environ (self->runner),
+                                            _srt_subprocess_runner_get_bin_path (self->runner),
                                             _srt_subprocess_runner_get_helpers_path (self->runner),
                                             flags);
   _srt_system_info_set_subprocess_runner (self, runner);
