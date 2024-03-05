@@ -67,8 +67,8 @@ int main (int argc, char **argv)
 {
     const char *libname;
     const char *prefix = NULL;
-    char *message = NULL;
-    ld_libs ldlibs = {};
+    _capsule_autofree char *message = NULL;
+    _capsule_cleanup(ld_libs_clear_pointer) ld_libs *ldlibs = new0( ld_libs, 1 );
     int error = 0;
     int e = 0;
 
@@ -106,14 +106,14 @@ int main (int argc, char **argv)
     if( argc > optind + 1 )
         prefix = argv[optind + 1];
 
-    if( !ld_libs_init( &ldlibs, NULL, prefix, 0, &error, &message ) )
+    if( !ld_libs_init( ldlibs, NULL, prefix, 0, &error, &message ) )
     {
         fprintf( stderr, "%s: failed to initialize for prefix %s (%d: %s)\n",
                  program_invocation_short_name, prefix, error, message );
         exit( error ? error : ENOENT );
     }
 
-    if( ld_libs_set_target( &ldlibs, argv[optind], &error, &message ) )
+    if( ld_libs_set_target( ldlibs, argv[optind], &error, &message ) )
     {
         const char *path;
         const char *buf;
@@ -123,7 +123,7 @@ int main (int argc, char **argv)
         else
             libname = argv[optind];
 
-        path = &ldlibs.needed[0].path[0];
+        path = ldlibs->needed[0].path;
 
         while( (buf = strstr( path + 1, libname )) )
             path = buf;
@@ -141,7 +141,7 @@ int main (int argc, char **argv)
         fprintf( stdout, "%s %s %s %s\n",
                  prefix, libname,
                  (path && *path) ?  path : "1", // wild guess if we failed
-                 &ldlibs.needed[0].path[0] );
+                 ldlibs->needed[0].path );
     }
     else
     {
@@ -150,6 +150,5 @@ int main (int argc, char **argv)
         exit( error ? error : ENOENT );
     }
 
-    ld_libs_finish( &ldlibs );
     exit(e);
 }

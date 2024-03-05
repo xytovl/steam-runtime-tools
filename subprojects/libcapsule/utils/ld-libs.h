@@ -25,6 +25,7 @@
 #include <gelf.h>
 
 #include "ld-cache.h"
+#include "utils.h"
 
 // we only handle up to this many library dependencies -
 // yes, hardwired limits are bad but there's already enough complexity
@@ -109,3 +110,9 @@ int   ld_libs_load_cache        (ld_libs *libs, int *code, char **message);
 void *ld_libs_load (ld_libs *ldlibs, Lmid_t *namespace, int flag, int *error,
                     char **message);
 
+static inline void
+ld_libs_clear_pointer ( ld_libs **ldlibs )
+{
+    ld_libs_finish( *ldlibs );
+    free( _capsule_steal_pointer( ldlibs ) );
+}
