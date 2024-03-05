@@ -29,6 +29,8 @@
  * meet every requirement.
  */
 
+#include <steam-runtime-tools/glib-backports-internal.h>
+
 #include <steam-runtime-tools/steam-runtime-tools.h>
 
 #include <errno.h>
@@ -116,9 +118,9 @@ int
 main (int argc,
       char **argv)
 {
-  FILE *original_stdout = NULL;
-  int original_stdout_fd = -1;
-  GError *error = NULL;
+  g_autoptr(FILE) original_stdout = NULL;
+  g_autoptr(GError) error = NULL;
+  glnx_autofd int original_stdout_fd = -1;
   SrtX86FeatureFlags x86_features = SRT_X86_FEATURE_NONE;
   SrtX86FeatureFlags known = SRT_X86_FEATURE_NONE;
   SrtSteamIssues steam_issues;
@@ -256,7 +258,7 @@ out:
         g_warning ("Unable to write final newline: %s", g_strerror (errno));
     }
 
-  if (fclose (original_stdout) != 0)
+  if (fclose (g_steal_pointer (&original_stdout)) != 0)
     g_warning ("Unable to close stdout: %s", g_strerror (errno));
 
   return exit_code;
