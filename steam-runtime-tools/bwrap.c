@@ -274,3 +274,81 @@ _srt_check_bwrap (const char *pkglibexecdir,
 
   return g_steal_pointer (&bwrap);
 }
+
+/*
+ * _srt_check_bwrap_issues:
+ * @sysroot: A system root used to look up kernel parameters
+ * @runner: A subprocess execution environment (not actually used yet)
+ * @pkglibexecdir: Directory containing srt-bwrap
+ * @bwrap_out: (out): Path to a bwrap executable, if found
+ * @message: (out): A diagnostic message if appropriate
+ */
+SrtBwrapIssues
+_srt_check_bwrap_issues (SrtSysroot *sysroot,
+                         SrtSubprocessRunner *runner,
+                         const char *pkglibexecdir,
+                         gchar **bwrap_out,
+                         gchar **message_out)
+{
+  g_autoptr(GError) local_error = NULL;
+  g_autofree gchar *bwrap = NULL;
+  SrtBwrapIssues issues = SRT_BWRAP_ISSUES_NONE;
+  SrtBwrapFlags flags = SRT_BWRAP_FLAGS_NONE;
+
+  if (message_out != NULL)
+    *message_out = NULL;
+
+  if (bwrap_out != NULL)
+    *bwrap_out = NULL;
+
+  bwrap = _srt_check_bwrap (pkglibexecdir, FALSE, &flags, &local_error);
+
+  if (bwrap != NULL)
+    {
+      if (bwrap_out != NULL)
+        *bwrap_out = g_steal_pointer (&bwrap);
+
+      if (flags & SRT_BWRAP_FLAGS_SETUID)
+        issues |= SRT_BWRAP_ISSUES_SETUID;
+
+      if (flags & SRT_BWRAP_FLAGS_SYSTEM)
+        issues |= SRT_BWRAP_ISSUES_SYSTEM;
+    }
+  else
+    {
+      if (message_out != NULL)
+        *message_out = g_strdup (local_error->message);
+
+      issues |= SRT_BWRAP_ISSUES_CANNOT_RUN;
+    }
+
+  /* As a minor optimization, if our bundled bwrap works, don't go looking
+   * at why it might not work. */
+  if (issues != SRT_BWRAP_ISSUES_NONE)
+    {
+      g_autofree gchar *contents = NULL;
+      gsize len = 0;
+
+      if (_srt_sysroot_load (sysroot, "/proc/sys/kernel/unprivileged_userns_clone",
+                             SRT_RESOLVE_FLAGS_NONE, NULL,
+                             &contents, &len, NULL))
+        {
+          if (g_strcmp0 (contents, "0\n") == 0)
+            issues |= SRT_BWRAP_ISSUES_NO_UNPRIVILEGED_USERNS_CLONE;
+
+          g_clear_pointer (&contents, g_free);
+        }
+
+      if (_srt_sysroot_load (sysroot, "/proc/sys/user/max_user_namespaces",
+                             SRT_RESOLVE_FLAGS_NONE, NULL,
+                             &contents, &len, NULL))
+        {
+          if (g_strcmp0 (contents, "0\n") == 0)
+            issues |= SRT_BWRAP_ISSUES_MAX_USER_NAMESPACES_ZERO;
+
+          g_clear_pointer (&contents, g_free);
+        }
+    }
+
+  return issues;
+}

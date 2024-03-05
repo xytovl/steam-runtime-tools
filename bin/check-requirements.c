@@ -97,14 +97,28 @@ check_x86_features (SrtX86FeatureFlags features)
   return ((features & X86_FEATURES_REQUIRED) == X86_FEATURES_REQUIRED);
 }
 
-static const char cannot_run_bwrap[] =
+static const char need_unprivileged_userns_clone[] =
 "Steam now requires user namespaces to be enabled.\n"
 "\n"
-"If the file /proc/sys/kernel/unprivileged_userns_clone exists, check that\n"
-"it contains value 1.\n"
+"The sysctl /proc/sys/kernel/unprivileged_userns_clone should be set to 1.\n"
 "\n"
-"If the file /proc/sys/user/max_user_namespaces exists, check that its\n"
-"value is at least 100.\n"
+"This requirement is the same as for Flatpak, which has more detailed\n"
+"information available:\n"
+"https://github.com/flatpak/flatpak/wiki/User-namespace-requirements\n"
+;
+
+static const char need_max_user_namespaces[] =
+"Steam now requires user namespaces to be enabled.\n"
+"\n"
+"The sysctl /proc/sys/user/max_user_namespaces should be set to at least 100.\n"
+"\n"
+"This requirement is the same as for Flatpak, which has more detailed\n"
+"information available:\n"
+"https://github.com/flatpak/flatpak/wiki/User-namespace-requirements\n"
+;
+
+static const char cannot_run_bwrap[] =
+"Steam now requires user namespaces to be enabled.\n"
 "\n"
 "This requirement is the same as for Flatpak, which has more detailed\n"
 "information available:\n"
@@ -187,6 +201,7 @@ main (int argc,
   int opt;
   int exit_code = EXIT_SUCCESS;
   SrtLogFlags log_flags;
+  SrtBwrapIssues bwrap_issues;
   SrtFlatpakIssues flatpak_issues;
 
   _srt_setenv_disable_gio_modules ();
@@ -272,6 +287,7 @@ main (int argc,
       g_clear_error (&error);
     }
 
+  runner = _srt_subprocess_runner_new ();
   sysroot = _srt_sysroot_new_direct (&error);
 
   if (sysroot == NULL)
@@ -293,7 +309,6 @@ main (int argc,
         break;
 
       case SRT_CONTAINER_TYPE_FLATPAK:
-        runner = _srt_subprocess_runner_new ();
         _srt_container_info_check_issues (container_info, runner);
         flatpak_issues = srt_container_info_get_flatpak_issues (container_info);
 
@@ -334,24 +349,52 @@ main (int argc,
       case SRT_CONTAINER_TYPE_UNKNOWN:
       case SRT_CONTAINER_TYPE_NONE:
       default:
-        if (pkglibexecdir != NULL)
+        if (sysroot != NULL && pkglibexecdir != NULL)
           {
-            g_autofree gchar *bwrap = _srt_check_bwrap (pkglibexecdir, FALSE,
-                                                        NULL, NULL);
+            g_autofree gchar *bwrap = NULL;
+            g_autofree gchar *message = NULL;
 
-            if (bwrap == NULL)
+            bwrap_issues = _srt_check_bwrap_issues (sysroot, runner, pkglibexecdir,
+                                                    &bwrap, &message);
+
+            if (bwrap != NULL)
               {
+                g_info ("Found bwrap at \"%s\"", bwrap);
+                g_warn_if_fail (!(bwrap_issues & SRT_BWRAP_ISSUES_CANNOT_RUN));
+
+                if (bwrap_issues & SRT_BWRAP_ISSUES_SETUID)
+                  g_info ("\"%s\" is setuid root", bwrap);
+
+                if (bwrap_issues & SRT_BWRAP_ISSUES_SYSTEM)
+                  g_info ("\"%s\" is a system copy", bwrap);
+              }
+            else
+              {
+                if (bwrap_issues & SRT_BWRAP_ISSUES_NO_UNPRIVILEGED_USERNS_CLONE)
+                  {
+                    output = need_unprivileged_userns_clone;
+                    exit_code = EX_OSERR;
+                    goto out;
+                  }
+
+                if (bwrap_issues & SRT_BWRAP_ISSUES_MAX_USER_NAMESPACES_ZERO)
+                  {
+                    output = need_max_user_namespaces;
+                    exit_code = EX_OSERR;
+                    goto out;
+                  }
+
+                g_warn_if_fail (bwrap_issues & SRT_BWRAP_ISSUES_CANNOT_RUN);
+                g_warning ("%s", message);
                 output = cannot_run_bwrap;
                 exit_code = EX_OSERR;
-               goto out;
+                goto out;
               }
-
-            g_info ("Found working bwrap executable at %s", bwrap);
           }
        else
           {
-            _srt_log_warning ("Unable to locate srt-bwrap, not checking "
-                              "functionality.");
+            _srt_log_warning ("Unable to locate srt-bwrap or open root "
+                              "directory, not checking functionality.");
           }
      }
 
