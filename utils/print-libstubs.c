@@ -330,7 +330,7 @@ int main (int argc, char **argv)
 {
     const char *libname;
     const char *prefix = NULL;
-    char *message = NULL;
+    _capsule_autofree char *message = NULL;
     _capsule_cleanup(ld_libs_clear_pointer) ld_libs *ldlibs = new0( ld_libs, 1 );
     int error = 0;
     Lmid_t ns = LM_ID_BASE;

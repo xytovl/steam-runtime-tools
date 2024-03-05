@@ -1308,7 +1308,7 @@ main (int argc, char **argv)
     const char *option_compare_by = "name,provider";
     const char *option_library_knowledge = NULL;
     int code = 0;
-    char *message = NULL;
+    _capsule_autofree char *message = NULL;
     // Arbitrary initialization size
     ptr_list *remap_list = ptr_list_alloc( 4 );
 
