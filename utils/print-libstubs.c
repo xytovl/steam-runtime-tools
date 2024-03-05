@@ -331,7 +331,7 @@ int main (int argc, char **argv)
     const char *libname;
     const char *prefix = NULL;
     char *message = NULL;
-    ld_libs ldlibs = {};
+    _capsule_cleanup(ld_libs_clear_pointer) ld_libs *ldlibs = new0( ld_libs, 1 );
     int error = 0;
     Lmid_t ns = LM_ID_BASE;
     void *handle;
@@ -370,22 +370,22 @@ int main (int argc, char **argv)
 
     set_debug_flags( getenv("CAPSULE_DEBUG") );
 
-    if( !ld_libs_init( &ldlibs, NULL, prefix, 0, &error, &message ) )
+    if( !ld_libs_init( ldlibs, NULL, prefix, 0, &error, &message ) )
     {
         fprintf( stderr, "%s: failed to initialize for prefix %s (%d: %s)\n",
                  program_invocation_short_name, prefix, error, message );
         exit( error ? error : ENOENT );
     }
 
-    if( !ld_libs_set_target( &ldlibs, argv[optind], &error, &message ) ||
-        !ld_libs_find_dependencies( &ldlibs, &error, &message ) )
+    if( !ld_libs_set_target( ldlibs, argv[optind], &error, &message ) ||
+        !ld_libs_find_dependencies( ldlibs, &error, &message ) )
     {
         fprintf( stderr, "%s: failed to open [%s]%s (%d: %s)\n",
                  program_invocation_short_name, prefix, argv[optind], error, message );
         exit( error ? error : ENOENT );
     }
 
-    if( ( handle = ld_libs_load( &ldlibs, &ns, 0, &error, &message ) ) )
+    if( ( handle = ld_libs_load( ldlibs, &ns, 0, &error, &message ) ) )
     {
         if( (libname = strrchr( argv[optind], '/' )) )
             libname = libname + 1;

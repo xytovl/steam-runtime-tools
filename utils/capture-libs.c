@@ -393,11 +393,11 @@ capture_one( const char *soname, const capture_options *options,
 {
     unsigned int i;
     unsigned int j;
-    _capsule_cleanup(ld_libs_finish) ld_libs provider = {};
+    _capsule_cleanup(ld_libs_clear_pointer) ld_libs *provider = new0( ld_libs, 1 );
     int local_code = 0;
     _capsule_autofree char *local_message = NULL;
 
-    if( !init_with_target( &provider, option_provider, soname,
+    if( !init_with_target( provider, option_provider, soname,
                            &local_code, &local_message ) )
     {
         if( ( options->flags & CAPTURE_FLAG_IF_EXISTS ) && local_code == ENOENT )
@@ -424,7 +424,7 @@ capture_one( const char *soname, const capture_options *options,
         const char *dt_soname = NULL;
         Elf_Scn *scn = NULL;
 
-        while( ( scn = elf_nextscn( provider.needed[0].dso, scn ) ) != NULL &&
+        while( ( scn = elf_nextscn( provider->needed[0].dso, scn ) ) != NULL &&
                dt_soname == NULL )
         {
             Elf_Data *edata = NULL;
@@ -443,7 +443,7 @@ capture_one( const char *soname, const capture_options *options,
             {
                 if( dyn.d_tag == DT_SONAME )
                 {
-                    dt_soname = elf_strptr( provider.needed[0].dso, shdr.sh_link,
+                    dt_soname = elf_strptr( provider->needed[0].dso, shdr.sh_link,
                                             dyn.d_un.d_val );
                     break;
                 }
@@ -483,7 +483,7 @@ capture_one( const char *soname, const capture_options *options,
         }
     }
 
-    if( !ld_libs_find_dependencies( &provider, &local_code, &local_message ) )
+    if( !ld_libs_find_dependencies( provider, &local_code, &local_message ) )
     {
         if( ( options->flags & CAPTURE_FLAG_IF_EXISTS ) && local_code == ENOENT )
         {
@@ -498,12 +498,12 @@ capture_one( const char *soname, const capture_options *options,
         return false;
     }
 
-    for( i = 0; i < N_ELEMENTS( provider.needed ); i++ )
+    for( i = 0; i < N_ELEMENTS( provider->needed ); i++ )
     {
         _capsule_autofree char *target = NULL;
         struct stat statbuf;
-        const char *needed_name = provider.needed[i].name;
-        const char *needed_path_in_provider = provider.needed[i].path;
+        const char *needed_name = provider->needed[i].name;
+        const char *needed_path_in_provider = provider->needed[i].path;
         const char *needed_basename;
         bool remapped_prefix = false;
 
@@ -586,12 +586,13 @@ capture_one( const char *soname, const capture_options *options,
         }
         else
         {
-            _capsule_cleanup(ld_libs_finish) ld_libs container = {};
-            if( init_with_target( &container, option_container,
+            _capsule_cleanup(ld_libs_clear_pointer) ld_libs *container = new0( ld_libs, 1 );
+
+            if( init_with_target( container, option_container,
                                   needed_name,
                                   &local_code, &local_message ) )
             {
-                const char *needed_path_in_container = container.needed[0].path;
+                const char *needed_path_in_container = container->needed[0].path;
                 int decision;
                 library_details details = {};
                 const library_details *known = NULL;
