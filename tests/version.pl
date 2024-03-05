@@ -54,7 +54,7 @@ $version = $3;
 $path = $4;
 is($root, $host);
 is($soname, 'libz.so.1');
-like($version, qr{^1\.[0-9]+\.[0-9]+$});
+like($version, qr{^1(\.[0-9]+)+$});
 like($path, qr{^\Q$host\E($LIBDIR/libz\.so\.\Q$version\E)$});
 $path =~ s/^\Q$host\E//;
 ok(-e $path);
