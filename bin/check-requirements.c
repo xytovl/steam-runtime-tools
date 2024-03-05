@@ -116,6 +116,57 @@ static const char installed_in_usr[] =
 "~/.local/share/Steam. It cannot be installed below /usr.\n"
 ;
 
+static const char flatpak_needs_unprivileged_bwrap[] =
+"The unofficial Steam Flatpak app now requires user namespaces to be\n"
+"enabled.\n"
+"\n"
+"Check that the bubblewrap executable used by Flatpak, usually\n"
+"/usr/bin/bwrap or /usr/libexec/flatpak-bwrap, is not setuid root.\n"
+"\n"
+"If the file /proc/sys/kernel/unprivileged_userns_clone exists, check that\n"
+"it contains value 1.\n"
+"\n"
+"If the file /proc/sys/user/max_user_namespaces exists, check that its\n"
+"value is at least 100.\n"
+"\n"
+"For more details, please see:\n"
+"https://github.com/flatpak/flatpak/wiki/User-namespace-requirements\n"
+;
+
+static const char flatpak_too_old[] =
+"The unofficial Steam Flatpak app requires Flatpak 1.12.0 or later.\n"
+"Using the latest stable release of Flatpak is recommended.\n"
+;
+
+static const char flatpak_needs_display[] =
+"The unofficial Steam Flatpak app requires a correctly-configured desktop\n"
+"session, which must provide the DISPLAY environment variable to the\n"
+"D-Bus session bus activation environment.\n"
+"\n"
+"On systems that use systemd --user, the DISPLAY environment variable must\n"
+"also be present in the systemd --user activation environment.\n"
+"\n"
+"This is usually achieved by running:\n"
+"\n"
+"    dbus-update-activation-environment DISPLAY\n"
+"\n"
+"during desktop environment startup.\n"
+"\n"
+"For more details, please see:\n"
+"https://github.com/ValveSoftware/steam-for-linux/issues/10554\n"
+;
+
+/* This one is the generic "something went wrong" message for Flatpak,
+ * so we can't be particularly specific here. */
+static const char flatpak_needs_subsandbox[] =
+"The unofficial Steam Flatpak app requires a working D-Bus session bus\n"
+"and flatpak-portal service.\n"
+"\n"
+"Running this command might provide more diagnostic information:\n"
+"\n"
+"    flatpak run --command=bash com.valvesoftware.Steam -c 'flatpak-spawn -vv true'\n"
+;
+
 int
 main (int argc,
       char **argv)
@@ -123,6 +174,7 @@ main (int argc,
   g_autoptr(FILE) original_stdout = NULL;
   g_autoptr(GError) error = NULL;
   g_autoptr(SrtContainerInfo) container_info = NULL;
+  g_autoptr(SrtSubprocessRunner) runner = NULL;
   g_autoptr(SrtSysroot) sysroot = NULL;
   SrtContainerType container_type;
   glnx_autofd int original_stdout_fd = -1;
@@ -135,6 +187,7 @@ main (int argc,
   int opt;
   int exit_code = EXIT_SUCCESS;
   SrtLogFlags log_flags;
+  SrtFlatpakIssues flatpak_issues;
 
   _srt_setenv_disable_gio_modules ();
   log_flags = SRT_LOG_FLAGS_OPTIONALLY_JOURNAL | SRT_LOG_FLAGS_DIVERT_STDOUT;
@@ -240,7 +293,39 @@ main (int argc,
         break;
 
       case SRT_CONTAINER_TYPE_FLATPAK:
-        g_info ("Running under Flatpak, not checking bwrap functionality.");
+        runner = _srt_subprocess_runner_new ();
+        _srt_container_info_check_issues (container_info, runner);
+        flatpak_issues = srt_container_info_get_flatpak_issues (container_info);
+
+        if (flatpak_issues & SRT_FLATPAK_ISSUES_SUBSANDBOX_LIMITED_BY_SETUID_BWRAP)
+          {
+            output = flatpak_needs_unprivileged_bwrap;
+            exit_code = EX_OSERR;
+            goto out;
+          }
+
+        if (flatpak_issues & SRT_FLATPAK_ISSUES_TOO_OLD)
+          {
+            output = flatpak_too_old;
+            exit_code = EX_OSERR;
+            goto out;
+          }
+
+        if (flatpak_issues & SRT_FLATPAK_ISSUES_SUBSANDBOX_DID_NOT_INHERIT_DISPLAY)
+          {
+            output = flatpak_needs_display;
+            exit_code = EX_OSERR;
+            goto out;
+          }
+
+        if (flatpak_issues & (SRT_FLATPAK_ISSUES_SUBSANDBOX_UNAVAILABLE
+                              | SRT_FLATPAK_ISSUES_SUBSANDBOX_TIMED_OUT))
+          {
+            output = flatpak_needs_subsandbox;
+            exit_code = EX_OSERR;
+            goto out;
+          }
+
         break;
 
       case SRT_CONTAINER_TYPE_DOCKER:
