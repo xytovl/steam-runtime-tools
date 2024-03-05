@@ -94,13 +94,13 @@ check_x86_features (SrtX86FeatureFlags features)
 }
 
 static const char cannot_run_bwrap[] =
-"Steam on Linux now requires the ability to create new user namespaces.\n"
+"Steam now requires user namespaces to be enabled.\n"
 "\n"
 "If the file /proc/sys/kernel/unprivileged_userns_clone exists, check that\n"
 "it contains value 1.\n"
 "\n"
 "If the file /proc/sys/user/max_user_namespaces exists, check that its\n"
-"value is high enough.\n"
+"value is at least 100.\n"
 "\n"
 "This requirement is the same as for Flatpak, which has more detailed\n"
 "information available:\n"
@@ -108,10 +108,8 @@ static const char cannot_run_bwrap[] =
 ;
 
 static const char installed_in_usr[] =
-"Steam on Linux is intended to install into the home directory of a user,\n"
-"typically ~/.local/share/Steam.\n"
-"\n"
-"It cannot be installed below /usr.\n"
+"Steam is intended to install into your home directory, typically\n"
+"~/.local/share/Steam. It cannot be installed below /usr.\n"
 ;
 
 int
