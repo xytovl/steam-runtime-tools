@@ -45,8 +45,10 @@
 #include <glib-object.h>
 
 #include <steam-runtime-tools/bwrap-internal.h>
+#include <steam-runtime-tools/container-internal.h>
 #include <steam-runtime-tools/cpu-feature-internal.h>
 #include <steam-runtime-tools/log-internal.h>
+#include <steam-runtime-tools/resolve-in-sysroot-internal.h>
 #include <steam-runtime-tools/steam-internal.h>
 #include <steam-runtime-tools/utils-internal.h>
 
@@ -120,6 +122,9 @@ main (int argc,
 {
   g_autoptr(FILE) original_stdout = NULL;
   g_autoptr(GError) error = NULL;
+  g_autoptr(SrtContainerInfo) container_info = NULL;
+  g_autoptr(SrtSysroot) sysroot = NULL;
+  SrtContainerType container_type;
   glnx_autofd int original_stdout_fd = -1;
   SrtX86FeatureFlags x86_features = SRT_X86_FEATURE_NONE;
   SrtX86FeatureFlags known = SRT_X86_FEATURE_NONE;
@@ -213,27 +218,56 @@ main (int argc,
       g_warning ("Internal error: %s", error->message);
       g_clear_error (&error);
     }
-  else if (g_file_test ("/run/pressure-vessel", G_FILE_TEST_IS_DIR))
+
+  sysroot = _srt_sysroot_new_direct (&error);
+
+  if (sysroot == NULL)
     {
-      g_info ("Already under pressure-vessel, not checking bwrap functionality.");
-    }
-  else if (g_file_test ("/.flatpak-info", G_FILE_TEST_IS_REGULAR))
-    {
-      g_info ("Running under Flatpak, not checking bwrap functionality.");
+      g_warning ("Internal error: %s", error->message);
+      g_clear_error (&error);
+      container_type = SRT_CONTAINER_TYPE_UNKNOWN;
     }
   else
     {
-      g_autofree gchar *bwrap = _srt_check_bwrap (pkglibexecdir, FALSE, NULL);
-
-      if (bwrap == NULL)
-        {
-          output = cannot_run_bwrap;
-          exit_code = EX_OSERR;
-          goto out;
-        }
-
-      g_info ("Found working bwrap executable at %s", bwrap);
+      container_info = _srt_check_container (sysroot);
+      container_type = srt_container_info_get_container_type (container_info);
     }
+
+  switch (container_type)
+    {
+      case SRT_CONTAINER_TYPE_PRESSURE_VESSEL:
+        g_info ("Already under pressure-vessel, not checking bwrap functionality.");
+        break;
+
+      case SRT_CONTAINER_TYPE_FLATPAK:
+        g_info ("Running under Flatpak, not checking bwrap functionality.");
+        break;
+
+      case SRT_CONTAINER_TYPE_DOCKER:
+      case SRT_CONTAINER_TYPE_PODMAN:
+      case SRT_CONTAINER_TYPE_SNAP:
+      case SRT_CONTAINER_TYPE_UNKNOWN:
+      case SRT_CONTAINER_TYPE_NONE:
+      default:
+        if (pkglibexecdir != NULL)
+          {
+            g_autofree gchar *bwrap = _srt_check_bwrap (pkglibexecdir, FALSE, NULL);
+
+            if (bwrap == NULL)
+              {
+                output = cannot_run_bwrap;
+                exit_code = EX_OSERR;
+               goto out;
+              }
+
+            g_info ("Found working bwrap executable at %s", bwrap);
+          }
+       else
+          {
+            _srt_log_warning ("Unable to locate srt-bwrap, not checking "
+                              "functionality.");
+          }
+     }
 
   steam_issues = _srt_steam_check (_srt_const_strv (environ),
                                    ~SRT_STEAM_ISSUES_DESKTOP_FILE_RELATED,
