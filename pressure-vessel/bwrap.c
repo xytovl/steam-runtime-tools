@@ -484,6 +484,7 @@ pv_bwrap_append_adjusted_exports (FlatpakBwrap *to,
   /* Bypass FEX-Emu transparent rewrite by using
    * "/proc/self/root" as the root path. */
   g_autoptr(SrtSysroot) root = NULL;
+  gboolean is_snap_env;
   gsize n_fds;
   gsize i;
 
@@ -491,6 +492,10 @@ pv_bwrap_append_adjusted_exports (FlatpakBwrap *to,
   g_return_val_if_fail (from != NULL, FALSE);
   g_return_val_if_fail (home != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+
+  is_snap_env = (g_getenv ("SNAP") != NULL
+                 && g_getenv ("SNAP_NAME") != NULL
+                 && g_getenv ("SNAP_REVISION") != NULL);
 
   fds = flatpak_bwrap_steal_fds (from, &n_fds);
   for (i = 0; i < n_fds; i++)
@@ -549,6 +554,17 @@ pv_bwrap_append_adjusted_exports (FlatpakBwrap *to,
                    opt,
                    (const char *) from->argv->pdata[i + 1]);
 
+          if (is_snap_env
+              && g_str_equal (opt, "--tmpfs")
+              && g_str_has_prefix (from->argv->pdata[i + 1], "/snap/steam"))
+            {
+              g_warning ("Filtering out %s %s to work around "
+                         "https://github.com/canonical/steam-snap/issues/370",
+                         opt, (const char *) from->argv->pdata[i + 1]);
+              i += 2;
+              continue;
+            }
+
           flatpak_bwrap_add_args (to, opt, from->argv->pdata[i + 1], NULL);
 
           i += 2;
@@ -564,6 +580,16 @@ pv_bwrap_append_adjusted_exports (FlatpakBwrap *to,
           const char *from_src = from->argv->pdata[i + 1];
           const char *from_dest = from->argv->pdata[i + 2];
           gboolean skip_real_root = FALSE;
+
+          if (is_snap_env
+              && g_str_equal (from_src, "/var/lib/snapd/desktop"))
+            {
+              g_warning ("Filtering out %s %s %s to work around "
+                         "https://github.com/canonical/steam-snap/issues/369",
+                         opt, from_src, from_dest);
+              i += 3;
+              continue;
+            }
 
           /* If we're using FEX-Emu or similar, Flatpak code might think it
            * has found a particular file either because it's in the rootfs,
