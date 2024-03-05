@@ -1,3 +1,13 @@
+steam-runtime-tools (0.20240305.0) UNRELEASED; urgency=medium
+
+  * steam-runtime-check-requirements:
+    - Adjust wording of messages (steamrt/tasks#406)
+  * pressure-vessel:
+    - Update libcapsule to a version that works around smaller-than-default
+      stack limits by using heap allocation (steam-runtime#653)
+
+ -- Simon McVittie <smcv@collabora.com>  Tue, 05 Mar 2024 14:24:07 +0000
+
 steam-runtime-tools (0.20240301.0) steamrt; urgency=medium
 
   * steam-runtime-check-requirements:
