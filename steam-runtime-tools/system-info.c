@@ -2106,6 +2106,7 @@ _srt_system_info_set_subprocess_runner (SrtSystemInfo *self,
   g_return_if_fail (self->from_report == NULL);
   g_return_if_fail (SRT_IS_SUBPROCESS_RUNNER (runner));
 
+  forget_container_info (self);
   forget_display_info (self);
   forget_drivers (self);
   forget_graphics_modules (self);
@@ -3982,9 +3983,18 @@ ensure_container_info (SrtSystemInfo *self)
   if (self->container_info == NULL)
     {
       if (self->sysroot != NULL && self->from_report == NULL)
-        self->container_info = _srt_check_container (self->sysroot);
+        {
+          self->container_info = _srt_check_container (self->sysroot);
+
+          if (self->check_flags & SRT_CHECK_FLAGS_NO_HELPERS)
+            _srt_container_info_check_issues (self->container_info, NULL);
+          else
+            _srt_container_info_check_issues (self->container_info, self->runner);
+        }
       else
-        self->container_info = _srt_container_info_new_empty ();
+        {
+          self->container_info = _srt_container_info_new_empty ();
+        }
     }
 }
 

@@ -2733,6 +2733,7 @@ typedef struct
   SrtContainerType type;
   const gchar *host_path;
   const gchar *flatpak_version;
+  SrtFlatpakIssues flatpak_issues;
 } ContTest;
 
 typedef struct
@@ -2957,6 +2958,7 @@ static JsonTest json_test[] =
     {
       .type = SRT_CONTAINER_TYPE_DOCKER,
       .host_path = "/the/host/path",
+      .flatpak_issues = SRT_FLATPAK_ISSUES_NONE,
     },
 
     .architecture =
@@ -3252,6 +3254,8 @@ static JsonTest json_test[] =
     {
       .type = SRT_CONTAINER_TYPE_FLATPAK,
       .flatpak_version = "1.10.2",
+      .flatpak_issues = (SRT_FLATPAK_ISSUES_TOO_OLD
+                         | SRT_FLATPAK_ISSUES_SUBSANDBOX_NOT_CHECKED),
     },
     .driver_environment =
     {
@@ -3402,6 +3406,7 @@ static JsonTest json_test[] =
     .container =
     {
       .type = SRT_CONTAINER_TYPE_DOCKER,
+      .flatpak_issues = SRT_FLATPAK_ISSUES_NONE,
     },
     .architecture =
     {
@@ -3461,6 +3466,7 @@ static JsonTest json_test[] =
     .container =
     {
       .type = SRT_CONTAINER_TYPE_UNKNOWN,
+      .flatpak_issues = SRT_FLATPAK_ISSUES_NONE,
     },
     .architecture =
     {
@@ -3507,6 +3513,7 @@ static JsonTest json_test[] =
     .container =
     {
       .type = SRT_CONTAINER_TYPE_UNKNOWN,
+      .flatpak_issues = SRT_FLATPAK_ISSUES_NONE,
     },
     .architecture =
     {
@@ -3922,6 +3929,8 @@ json_parsing (Fixture *f,
       g_assert_cmpstr (t->container.host_path, ==, host_directory);
       g_assert_cmpstr (t->container.flatpak_version, ==,
                        srt_container_info_get_flatpak_version (container));
+      g_assert_cmpuint (t->container.flatpak_issues, ==,
+                        srt_container_info_get_flatpak_issues (container));
 
       virt = srt_system_info_check_virtualization (info);
       g_assert_cmpint (t->virt.type, ==,

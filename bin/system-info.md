@@ -417,6 +417,10 @@ keys:
         **unknown** (if we appear to be in a container but the type is
         unknown), or **none** (if we do not appear to be in a container).
 
+    **flatpak_issues**
+    :   An array of flags describing potential problems with Flatpak,
+        such as a version that is too old or cannot create subsandboxes.
+
     **flatpak_version**
     :   The version string describing the Flatpak container. This key is
         optional and is not provided if it could not be determined or if the

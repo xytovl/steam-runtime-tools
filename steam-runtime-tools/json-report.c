@@ -76,6 +76,7 @@ _srt_container_info_get_from_report (JsonObject *json_obj)
   const gchar *flatpak_version = NULL;
   const gchar *host_path = NULL;
   int type = SRT_CONTAINER_TYPE_UNKNOWN;
+  SrtFlatpakIssues flatpak_issues = SRT_FLATPAK_ISSUES_UNKNOWN;
 
   g_return_val_if_fail (json_obj != NULL, NULL);
 
@@ -88,9 +89,28 @@ _srt_container_info_get_from_report (JsonObject *json_obj)
 
       _srt_json_object_get_enum_member (json_sub_obj, "type",
                                         SRT_TYPE_CONTAINER_TYPE, &type);
-      flatpak_version = json_object_get_string_member_with_default (json_sub_obj,
-                                                                    "flatpak_version",
-                                                                    NULL);
+
+      switch (type)
+        {
+          case SRT_CONTAINER_TYPE_FLATPAK:
+            flatpak_issues = srt_get_flags_from_json_array (SRT_TYPE_FLATPAK_ISSUES,
+                                                            json_sub_obj,
+                                                            "flatpak_issues",
+                                                            SRT_FLATPAK_ISSUES_UNKNOWN);
+            flatpak_version = json_object_get_string_member_with_default (json_sub_obj,
+                                                                          "flatpak_version",
+                                                                          NULL);
+            break;
+
+          case SRT_CONTAINER_TYPE_DOCKER:
+          case SRT_CONTAINER_TYPE_PODMAN:
+          case SRT_CONTAINER_TYPE_PRESSURE_VESSEL:
+          case SRT_CONTAINER_TYPE_SNAP:
+          case SRT_CONTAINER_TYPE_UNKNOWN:
+          case SRT_CONTAINER_TYPE_NONE:
+          default:
+            break;
+        }
 
       if (json_object_has_member (json_sub_obj, "host"))
         {
@@ -105,6 +125,7 @@ _srt_container_info_get_from_report (JsonObject *json_obj)
 
 out:
   return _srt_container_info_new (type,
+                                  flatpak_issues,
                                   flatpak_version,
                                   host_path,
                                   host_os_info);

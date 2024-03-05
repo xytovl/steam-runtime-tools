@@ -71,6 +71,45 @@ typedef enum
   SRT_CONTAINER_TYPE_UNKNOWN = -1
 } SrtContainerType;
 
+/**
+ * SrtFlatpakIssues:
+ * @SRT_FLATPAK_ISSUES_UNKNOWN: An internal error occurred while checking
+ *  Flatpak sandbox capabilities, or an unknown issue flag was encountered
+ *  in a JSON report, or no Flatpak container was detected
+ * @SRT_FLATPAK_ISSUES_TOO_OLD: The version of Flatpak is too old for
+ *  full functionality.
+ * @SRT_FLATPAK_ISSUES_SUBSANDBOX_NOT_CHECKED: The diagnostic tool was
+ *  unable to check for the ability to create a Flatpak subsandbox.
+ * @SRT_FLATPAK_ISSUES_SUBSANDBOX_UNAVAILABLE: The diagnostic tool was unable
+ *  to create a Flatpak subsandbox by using the equivalent of `flatpak-spawn(1)`.
+ * @SRT_FLATPAK_ISSUES_SUBSANDBOX_TIMED_OUT: A timeout was encountered
+ *  while trying to launch a Flatpak subsandbox.
+ * @SRT_FLATPAK_ISSUES_SUBSANDBOX_LIMITED_BY_SETUID_BWRAP: The ability
+ *  to create a Flatpak subsandbox was limited by a setuid `bwrap(1)`
+ *  on the host system.
+ * @SRT_FLATPAK_ISSUES_SUBSANDBOX_DID_NOT_INHERIT_DISPLAY: The ability
+ *  to create a Flatpak subsandbox was limited by misconfiguration of
+ *  the D-Bus or systemd activation environment.
+ * @SRT_FLATPAK_ISSUES_SUBSANDBOX_OUTPUT_CORRUPTED: The Flatpak subsandbox
+ *  adds unwanted text on standard output.
+ * @SRT_FLATPAK_ISSUES_NONE: None of the above
+ *
+ * Flags describing problems with the Flatpak sandboxing framework and its
+ * ability to create new "sub-sandboxes" for the Steam Linux Runtime.
+ */
+typedef enum
+{
+  SRT_FLATPAK_ISSUES_UNKNOWN = (1 << 0),
+  SRT_FLATPAK_ISSUES_TOO_OLD = (1 << 1),
+  SRT_FLATPAK_ISSUES_SUBSANDBOX_NOT_CHECKED = (1 << 2),
+  SRT_FLATPAK_ISSUES_SUBSANDBOX_UNAVAILABLE = (1 << 3),
+  SRT_FLATPAK_ISSUES_SUBSANDBOX_TIMED_OUT = (1 << 4),
+  SRT_FLATPAK_ISSUES_SUBSANDBOX_LIMITED_BY_SETUID_BWRAP = (1 << 5),
+  SRT_FLATPAK_ISSUES_SUBSANDBOX_DID_NOT_INHERIT_DISPLAY = (1 << 6),
+  SRT_FLATPAK_ISSUES_SUBSANDBOX_OUTPUT_CORRUPTED = (1 << 7),
+  SRT_FLATPAK_ISSUES_NONE = 0
+} SrtFlatpakIssues;
+
 #ifdef G_DEFINE_AUTOPTR_CLEANUP_FUNC
 G_DEFINE_AUTOPTR_CLEANUP_FUNC (SrtContainerInfo, g_object_unref)
 #endif
@@ -81,5 +120,7 @@ _SRT_PUBLIC
 const gchar *srt_container_info_get_container_host_directory (SrtContainerInfo *self);
 _SRT_PUBLIC
 SrtOsInfo *srt_container_info_get_container_host_os_info (SrtContainerInfo *self);
+_SRT_PUBLIC
+SrtFlatpakIssues srt_container_info_get_flatpak_issues (SrtContainerInfo *self);
 _SRT_PUBLIC
 const gchar *srt_container_info_get_flatpak_version (SrtContainerInfo *self);

@@ -31,7 +31,7 @@ no_activation_session_conf = files('session.conf')
 tests = [
   {'name': 'architecture'},
   {'name': 'architecture-internals', 'static': true},
-  {'name': 'container'},
+  {'name': 'container', 'static': true},
   {'name': 'cpu-feature', 'static': true},
   {'name': 'desktop-entry'},
   {'name': 'display', 'static': true},
@@ -112,14 +112,19 @@ test_utils_static_libsteamrt_dep = declare_dependency(
   link_with : test_utils,
 )
 
-install_subdir('expectations', install_dir : tests_dir)
-install_subdir('expectations_with_missings', install_dir : tests_dir)
-# To avoid being dependent on readdir() order, don't include more
-# than one *.json file in any directory that we are going to scan for
-# Vulkan *.json files. (The order of EGL *.json files is well-defined.)
-install_subdir('fake-icds', install_dir : tests_dir)
-install_subdir('input-monitor-outputs', install_dir : tests_dir)
-install_subdir('json-report', install_dir : tests_dir)
+foreach sub : [
+  'expectations',
+  'expectations_with_missings',
+  # To avoid being dependent on readdir() order, don't include more
+  # than one *.json file in any directory that we are going to scan for
+  # Vulkan *.json files. (The order of EGL *.json files is well-defined.)
+  'fake-icds',
+  'input-monitor-outputs',
+  'json-report',
+  'mock-flatpak',
+]
+  install_subdir(sub, install_dir : tests_dir)
+endforeach
 
 install_data('generate-sysroots.py', install_dir : tests_dir)
 

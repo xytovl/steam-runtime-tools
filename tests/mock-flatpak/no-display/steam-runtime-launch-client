@@ -1,0 +1,15 @@
+#!/bin/sh
+# Copyright 2024 Collabora Ltd.
+# SPDX-License-Identifier: MIT
+
+set -eu
+
+for arg in "$@"; do
+    case "$arg" in
+        (*DISPLAY*)
+            echo ""
+            ;;
+    esac
+done
+
+exit 0

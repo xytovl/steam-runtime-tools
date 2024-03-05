@@ -347,7 +347,7 @@ runtime=runtime/org.freedesktop.Platform/x86_64/20.08
 [Instance]
 branch=stable
 arch=x86_64
-flatpak-version=1.10.2
+flatpak-version=1.14.0
 session-bus-proxy=true
 system-bus-proxy=true
 devel=true''')

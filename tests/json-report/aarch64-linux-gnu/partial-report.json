@@ -4,6 +4,10 @@
   },
   "container" : {
     "type" : "flatpak",
+    "flatpak_issues" : [
+      "too-old",
+      "subsandbox-not-checked"
+    ],
     "flatpak_version" : "1.10.2",
     "host" : {
       "path" : null

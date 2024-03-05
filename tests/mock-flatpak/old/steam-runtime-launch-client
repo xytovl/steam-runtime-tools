@@ -1,0 +1,20 @@
+#!/bin/sh
+# Copyright 2024 Collabora Ltd.
+# SPDX-License-Identifier: MIT
+
+set -eu
+
+for arg in "$@"; do
+    case "$arg" in
+        (--app-path | --share-pids)
+            echo "$0: emulating old version of flatpak" >&2
+            exit 1
+            ;;
+
+        (*DISPLAY*)
+            echo "DISPLAY_is_set"
+            ;;
+    esac
+done
+
+exit 0

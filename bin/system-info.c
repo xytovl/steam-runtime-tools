@@ -759,14 +759,34 @@ jsonify_container (JsonBuilder *builder,
       json_builder_set_member_name (builder, "type");
       jsonify_enum (builder, SRT_TYPE_CONTAINER_TYPE, type);
 
+      switch (type)
+        {
+          case SRT_CONTAINER_TYPE_FLATPAK:
+            json_builder_set_member_name (builder, "flatpak_issues");
+            json_builder_begin_array (builder);
+            jsonify_flags (builder, SRT_TYPE_FLATPAK_ISSUES,
+                           srt_container_info_get_flatpak_issues (container_info));
+            json_builder_end_array (builder);
+
+            if (flatpak_version != NULL)
+              {
+                json_builder_set_member_name (builder, "flatpak_version");
+                json_builder_add_string_value (builder, flatpak_version);
+              }
+            break;
+
+          case SRT_CONTAINER_TYPE_DOCKER:
+          case SRT_CONTAINER_TYPE_PODMAN:
+          case SRT_CONTAINER_TYPE_PRESSURE_VESSEL:
+          case SRT_CONTAINER_TYPE_SNAP:
+          case SRT_CONTAINER_TYPE_UNKNOWN:
+          case SRT_CONTAINER_TYPE_NONE:
+          default:
+            break;
+        }
+
       if (type != SRT_CONTAINER_TYPE_NONE)
         {
-          if (flatpak_version != NULL)
-            {
-              json_builder_set_member_name (builder, "flatpak_version");
-              json_builder_add_string_value (builder, flatpak_version);
-            }
-
           json_builder_set_member_name (builder, "host");
           json_builder_begin_object (builder);
             {
