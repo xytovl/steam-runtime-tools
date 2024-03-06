@@ -1,12 +1,14 @@
-steam-runtime-tools (0.20240305.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20240306.0) UNRELEASED; urgency=medium
 
   * steam-runtime-check-requirements:
     - Adjust wording of messages (steamrt/tasks#406)
   * pressure-vessel:
     - Update libcapsule to a version that works around smaller-than-default
       stack limits by using heap allocation (steam-runtime#653)
+    - Work around more AppArmor profile issues in snapd
+      (steamrt/tasks#408, canonical/steam-snap#369, canonical/steam-snap#370)
 
- -- Simon McVittie <smcv@collabora.com>  Tue, 05 Mar 2024 14:24:07 +0000
+ -- Simon McVittie <smcv@collabora.com>  Wed, 06 Mar 2024 17:45:28 +0000
 
 steam-runtime-tools (0.20240301.0) steamrt; urgency=medium
 
