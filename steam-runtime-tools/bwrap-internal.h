@@ -21,7 +21,8 @@ typedef enum
   SRT_BWRAP_FLAGS_NONE = 0
 } SrtBwrapFlags;
 
-gchar *_srt_check_bwrap (const char *pkglibexecdir,
+gchar *_srt_check_bwrap (SrtSubprocessRunner *runner,
+                         const char *pkglibexecdir,
                          gboolean skip_testing,
                          SrtBwrapFlags *flags_out,
                          GError **error);
