@@ -14,6 +14,7 @@
 
 /*
  * find_system_bwrap:
+ * @runner: A subprocess execution environment
  *
  * Attempt to find a system copy of bubblewrap, either in the PATH
  * or in the libexecdir used by some version of Flatpak.
@@ -21,7 +22,7 @@
  * Returns: (transfer full): The path to bwrap(1), or %NULL if not found
  */
 static gchar *
-find_system_bwrap (void)
+find_system_bwrap (SrtSubprocessRunner *runner)
 {
   static const char * const flatpak_libexecdirs[] =
   {
@@ -29,8 +30,14 @@ find_system_bwrap (void)
     "/usr/libexec",
     "/usr/lib/flatpak"
   };
+  const char *from_env;
   g_autofree gchar *candidate = NULL;
   gsize i;
+
+  from_env = _srt_subprocess_runner_getenv (runner, "BWRAP");
+
+  if (from_env != NULL)
+    return g_strdup (from_env);
 
   candidate = g_find_program_in_path ("bwrap");
 
@@ -148,9 +155,6 @@ check_bwrap (SrtSubprocessRunner *runner,
 
   tmp = _srt_subprocess_runner_getenv (runner, "PRESSURE_VESSEL_BWRAP");
 
-  if (tmp == NULL)
-    tmp = _srt_subprocess_runner_getenv (runner, "BWRAP");
-
   if (tmp != NULL)
     {
       /* If the user specified an environment variable, then we don't
@@ -174,7 +178,7 @@ check_bwrap (SrtSubprocessRunner *runner,
     return g_steal_pointer (&local_bwrap);
 
   g_assert (!skip_testing);
-  system_bwrap = find_system_bwrap ();
+  system_bwrap = find_system_bwrap (runner);
 
   /* Try the system copy */
   if (system_bwrap != NULL
