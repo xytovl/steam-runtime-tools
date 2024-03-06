@@ -146,10 +146,10 @@ check_bwrap (SrtSubprocessRunner *runner,
 
   g_return_val_if_fail (pkglibexecdir != NULL, NULL);
 
-  tmp = g_getenv ("PRESSURE_VESSEL_BWRAP");
+  tmp = _srt_subprocess_runner_getenv (runner, "PRESSURE_VESSEL_BWRAP");
 
   if (tmp == NULL)
-    tmp = g_getenv ("BWRAP");
+    tmp = _srt_subprocess_runner_getenv (runner, "BWRAP");
 
   if (tmp != NULL)
     {
