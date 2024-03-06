@@ -35,6 +35,7 @@
 #include <glib.h>
 #include <glib/gstdio.h>
 
+#include "steam-runtime-tools/bwrap-internal.h"
 #include "steam-runtime-tools/container-internal.h"
 #include "steam-runtime-tools/system-info-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
@@ -358,6 +359,112 @@ test_flatpak_issues (Fixture *f,
     }
 }
 
+typedef struct
+{
+  const char *sysroot;
+  const char *dir;
+  SrtBwrapIssues expected;
+} BwrapIssuesTest;
+
+static const BwrapIssuesTest bwrap_issues_tests[] =
+{
+  {
+    .sysroot = "debian-unstable",
+    .dir = "mock-bwrap/good",
+    .expected = SRT_BWRAP_ISSUES_NONE,
+  },
+  {
+    .sysroot = "debian-unstable",
+    .dir = "mock-bwrap/old",
+    /* We don't currently diagnose lack of --perms as a serious problem */
+    .expected = SRT_BWRAP_ISSUES_NONE,
+  },
+  {
+    .sysroot = "debian-unstable",
+    .dir = "mock-bwrap/system",
+    .expected = SRT_BWRAP_ISSUES_SYSTEM,
+  },
+  {
+    .sysroot = "debian10",
+    .dir = "mock-bwrap/broken",
+    .expected = (SRT_BWRAP_ISSUES_CANNOT_RUN
+                 | SRT_BWRAP_ISSUES_NO_UNPRIVILEGED_USERNS_CLONE),
+  },
+  {
+    .sysroot = "fedora",
+    .dir = "mock-bwrap/setuid",
+    .expected = (SRT_BWRAP_ISSUES_SETUID
+                 | SRT_BWRAP_ISSUES_SYSTEM
+                 | SRT_BWRAP_ISSUES_MAX_USER_NAMESPACES_ZERO),
+  },
+};
+
+static void
+test_bwrap_issues (Fixture *f,
+                   gconstpointer context)
+{
+  g_autoptr(GError) local_error = NULL;
+  size_t i;
+
+  for (i = 0; i < G_N_ELEMENTS (bwrap_issues_tests); i++)
+    {
+      const BwrapIssuesTest *test = &bwrap_issues_tests[i];
+      g_auto(GStrv) envp = NULL;
+      g_autoptr(SrtSubprocessRunner) runner = NULL;
+      g_autoptr(SrtSysroot) sysroot = NULL;
+      g_autofree gchar *sysroot_path = NULL;
+      g_autofree gchar *pkglibexecdir = NULL;
+      g_autofree gchar *system_bwrap = NULL;
+      g_autofree gchar *bundled_bwrap = NULL;
+      g_autofree gchar *bwrap = NULL;
+      g_autofree gchar *message = NULL;
+      SrtBwrapIssues actual;
+
+      g_test_message ("sysroot=%s, dir=%s...", test->sysroot, test->dir);
+
+      sysroot_path = g_build_filename (global_sysroots, test->sysroot, NULL);
+      sysroot = _srt_sysroot_new (sysroot_path, &local_error);
+      g_assert_no_error (local_error);
+      g_assert_nonnull (sysroot);
+
+      envp = g_get_environ ();
+      envp = g_environ_unsetenv (envp, "BWRAP");
+      envp = g_environ_unsetenv (envp, "PRESSURE_VESSEL_BWRAP");
+
+      /* Use a mock ${pkglibexecdir} to present various results */
+      pkglibexecdir = g_build_filename (f->srcdir, test->dir, NULL);
+      bundled_bwrap = g_build_filename (pkglibexecdir, "srt-bwrap", NULL);
+      system_bwrap = g_build_filename (pkglibexecdir, "bwrap", NULL);
+
+      if (g_file_test (system_bwrap, G_FILE_TEST_IS_EXECUTABLE))
+        envp = g_environ_setenv (envp, "BWRAP", system_bwrap, TRUE);
+      else
+        envp = g_environ_setenv (envp, "BWRAP", "/bin/false", TRUE);
+
+      runner = _srt_subprocess_runner_new_full (_srt_const_strv (envp),
+                                                NULL,
+                                                pkglibexecdir,
+                                                SRT_TEST_FLAGS_NONE);
+      actual = _srt_check_bwrap_issues (sysroot, runner, pkglibexecdir,
+                                        &bwrap, &message);
+
+      if (actual & SRT_BWRAP_ISSUES_CANNOT_RUN)
+        {
+          g_test_message ("-> cannot run: %s (issues: %u)", message, actual);
+          g_assert_null (bwrap);
+          g_assert_nonnull (message);
+        }
+      else
+        {
+          g_test_message ("-> can run: %s (issues: %u)", bwrap, actual);
+          g_assert_nonnull (bwrap);
+          g_assert_null (message);
+        }
+
+      g_assert_cmpuint (actual, ==, test->expected);
+    }
+};
+
 int
 main (int argc,
       char **argv)
@@ -370,6 +477,8 @@ main (int argc,
               setup, test_object, teardown);
   g_test_add ("/container/containers", Fixture, NULL,
               setup, test_containers, teardown);
+  g_test_add ("/container/bwrap-issues", Fixture, NULL,
+              setup, test_bwrap_issues, teardown);
   g_test_add ("/container/flatpak-issues", Fixture, NULL,
               setup, test_flatpak_issues, teardown);
 

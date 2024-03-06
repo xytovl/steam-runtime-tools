@@ -78,7 +78,11 @@ debian10/home/debian/.local/share/vulkan/implicit_layer.d
 debian10/usr/local/etc/vulkan/explicit_layer.d
 debian10/usr/share/vulkan/implicit_layer.d
 debian10/run/systemd
+debian10/proc/sys/kernel
+debian10/proc/sys/user
 debian-unstable/etc
+debian-unstable/proc/sys/kernel
+debian-unstable/proc/sys/user
 fake-icds/home/.config/vulkan/icd.d
 fake-icds/home/.local/share/vulkan/icd.d
 fake-icds/egl2
@@ -120,6 +124,7 @@ fake-icds-flatpak/usr/share/vulkan/icd.d
 fedora/custom_path
 fedora/custom_path2
 fedora/custom_path3
+fedora/proc/sys/user
 fedora/usr/lib/dri
 fedora/usr/lib/vdpau
 fedora/usr/lib64/dri
@@ -1252,3 +1257,39 @@ with open('steamrt-unofficial/proc/1/cgroup', 'w') as writer:
 
 with open('ubuntu16/sys/class/dmi/id/sys_vendor', 'w') as writer:
     writer.write('QEMU\n')
+
+# debian10 represents a default-configured Debian 10 system:
+# unprivileged creation of user namespaces is disabled via
+# /proc/sys/kernel/unprivileged_userns_clone.
+with open(
+    'debian10/proc/sys/kernel/unprivileged_userns_clone', 'w'
+) as writer:
+    writer.write('0\n')
+
+with open(
+    'debian10/proc/sys/user/max_user_namespaces', 'w'
+) as writer:
+    # In the grim darkness of 2024, there is only containerization
+    writer.write('40000\n')
+
+# debian-unstable represents a default-configured Debian 11+ system:
+# unprivileged creation of user namespaces is allowed.
+with open(
+    'debian-unstable/proc/sys/kernel/unprivileged_userns_clone', 'w'
+) as writer:
+    writer.write('1\n')
+
+with open(
+    'debian-unstable/proc/sys/user/max_user_namespaces', 'w'
+) as writer:
+    writer.write('40000\n')
+
+# fedora borrows a configuration that was used in RHEL in the past:
+# unprivileged creation of user namespaces is disabled via
+# setting the maximum to zero.
+# We don't create unprivileged_userns_clone here to make it a realistic
+# depiction of Fedora/RHEL, which never had that kernel patch.
+with open(
+    'fedora/proc/sys/user/max_user_namespaces', 'w'
+) as writer:
+    writer.write('0\n')

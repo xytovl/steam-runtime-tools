@@ -121,6 +121,7 @@ foreach sub : [
   'fake-icds',
   'input-monitor-outputs',
   'json-report',
+  'mock-bwrap',
   'mock-flatpak',
 ]
   install_subdir(sub, install_dir : tests_dir)

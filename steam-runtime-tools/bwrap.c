@@ -239,7 +239,9 @@ _srt_check_bwrap (SrtSubprocessRunner *runner,
     {
       g_info ("stat(%s): %s", bwrap, g_strerror (errno));
     }
-  else if (statbuf.st_mode & S_ISUID)
+  else if ((statbuf.st_mode & S_ISUID)
+           /* For unit tests: pretend this one is really setuid */
+           || strstr (bwrap, "mock-bwrap/setuid/") != NULL)
     {
       g_info ("Using setuid bubblewrap executable %s (permissions: %o)",
               bwrap, _srt_stat_get_permissions (&statbuf));
