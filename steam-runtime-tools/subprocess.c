@@ -927,6 +927,34 @@ _srt_subprocess_runner_get_helpers_path (SrtSubprocessRunner *self)
 }
 
 /*
+ * Returns: The path to `x86_64-linux-gnu-check-gl` and so on,
+ *  or %NULL if unable to find a suitable path.
+ */
+const char *
+_srt_subprocess_runner_resolve_helpers_path (SrtSubprocessRunner *self,
+                                             GError **error)
+{
+  const char *helpers_path;
+
+  g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (self), NULL);
+
+  /* Prefer a helper from ${SRT_HELPERS_PATH} or
+   * ${libexecdir}/steam-runtime-tools-${_SRT_API_MAJOR}
+   * if it exists */
+  helpers_path = self->helpers_path;
+
+  if (helpers_path == NULL)
+    helpers_path = g_getenv ("SRT_HELPERS_PATH");
+
+  if (helpers_path == NULL
+      && _srt_find_myself (NULL, &helpers_path, error) == NULL)
+    return NULL;
+
+  g_return_val_if_fail (helpers_path != NULL, NULL);
+  return helpers_path;
+}
+
+/*
  * Returns: Test flags
  */
 SrtTestFlags
@@ -996,16 +1024,9 @@ _srt_subprocess_runner_get_helper (SrtSubprocessRunner *self,
     }
   else
     {
-      /* Prefer a helper from ${SRT_HELPERS_PATH} or
-       * ${libexecdir}/steam-runtime-tools-${_SRT_API_MAJOR}
-       * if it exists */
-      helpers_path = self->helpers_path;
+      helpers_path = _srt_subprocess_runner_resolve_helpers_path (self, error);
 
       if (helpers_path == NULL)
-        helpers_path = g_getenv ("SRT_HELPERS_PATH");
-
-      if (helpers_path == NULL
-          && _srt_find_myself (NULL, &helpers_path, error) == NULL)
         {
           g_ptr_array_unref (argv);
           return NULL;

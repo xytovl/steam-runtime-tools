@@ -95,6 +95,8 @@ typedef enum
   SRT_SUBPROCESS_OUTPUT_SILENCE
 } SrtSubprocessOutput;
 
+const char *_srt_subprocess_runner_resolve_helpers_path (SrtSubprocessRunner *self,
+                                                         GError **error);
 GPtrArray *_srt_subprocess_runner_get_helper (SrtSubprocessRunner *self,
                                               const char *multiarch,
                                               const char *base,
