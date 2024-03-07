@@ -354,8 +354,7 @@ main (int argc,
             g_autofree gchar *bwrap = NULL;
             g_autofree gchar *message = NULL;
 
-            bwrap_issues = _srt_check_bwrap_issues (sysroot, runner, pkglibexecdir,
-                                                    &bwrap, &message);
+            bwrap_issues = _srt_check_bwrap_issues (sysroot, runner, &bwrap, &message);
 
             if (bwrap != NULL)
               {

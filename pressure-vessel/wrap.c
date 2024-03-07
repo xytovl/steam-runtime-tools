@@ -812,7 +812,6 @@ main (int argc,
   SrtLogFlags log_flags;
   PvWrapLogFlags pv_log_flags = PV_WRAP_LOG_FLAGS_NONE;
   SrtSteamCompatFlags compat_flags;
-  const char *pkglibexecdir = NULL;
   const char *prefix = NULL;
 
   setlocale (LC_ALL, "");
@@ -1212,12 +1211,10 @@ main (int argc,
 
   g_debug ("Found executable directory: %s", tools_dir);
 
-  prefix = _srt_find_myself (NULL, &pkglibexecdir, error);
+  prefix = _srt_find_myself (NULL, NULL, error);
 
   if (prefix == NULL)
     goto out;
-
-  g_debug ("Found helpers directory: %s", pkglibexecdir);
 
   /* If we are in a Flatpak environment we can't use bwrap directly */
   if (is_flatpak_env)
@@ -1229,8 +1226,7 @@ main (int argc,
     {
       g_debug ("Checking for bwrap...");
 
-      bwrap_executable = pv_wrap_check_bwrap (pkglibexecdir,
-                                              opt_only_prepare,
+      bwrap_executable = pv_wrap_check_bwrap (opt_only_prepare,
                                               &bwrap_flags,
                                               error);
 

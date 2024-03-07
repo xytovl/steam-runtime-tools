@@ -22,13 +22,11 @@ typedef enum
 } SrtBwrapFlags;
 
 gchar *_srt_check_bwrap (SrtSubprocessRunner *runner,
-                         const char *pkglibexecdir,
                          gboolean skip_testing,
                          SrtBwrapFlags *flags_out,
                          GError **error);
 
 SrtBwrapIssues _srt_check_bwrap_issues (SrtSysroot *sysroot,
                                         SrtSubprocessRunner *runner,
-                                        const char *pkglibexecdir,
                                         gchar **bwrap_out,
                                         gchar **message_out);

@@ -40,8 +40,7 @@
 #include "utils.h"
 
 gchar *
-pv_wrap_check_bwrap (const char *pkglibexecdir,
-                     gboolean only_prepare,
+pv_wrap_check_bwrap (gboolean only_prepare,
                      SrtBwrapFlags *flags_out,
                      GError **error)
 {
@@ -50,8 +49,7 @@ pv_wrap_check_bwrap (const char *pkglibexecdir,
   const char *argv[] = { NULL, "--version", NULL };
 
   runner = _srt_subprocess_runner_new ();
-  bwrap = _srt_check_bwrap (runner, pkglibexecdir, only_prepare,
-                            flags_out, error);
+  bwrap = _srt_check_bwrap (runner, only_prepare, flags_out, error);
 
   if (bwrap == NULL)
     return NULL;

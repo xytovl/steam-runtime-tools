@@ -445,8 +445,7 @@ test_bwrap_issues (Fixture *f,
                                                 NULL,
                                                 pkglibexecdir,
                                                 SRT_TEST_FLAGS_NONE);
-      actual = _srt_check_bwrap_issues (sysroot, runner, pkglibexecdir,
-                                        &bwrap, &message);
+      actual = _srt_check_bwrap_issues (sysroot, runner, &bwrap, &message);
 
       if (actual & SRT_BWRAP_ISSUES_CANNOT_RUN)
         {

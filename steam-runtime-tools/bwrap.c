@@ -142,16 +142,14 @@ test_bwrap_executable (SrtSubprocessRunner *runner,
  */
 static gchar *
 check_bwrap (SrtSubprocessRunner *runner,
-             const char *pkglibexecdir,
              gboolean skip_testing,
              SrtBwrapFlags *flags_out,
              GError **error)
 {
   g_autofree gchar *local_bwrap = NULL;
   g_autofree gchar *system_bwrap = NULL;
+  const char *pkglibexecdir;
   const char *tmp;
-
-  g_return_val_if_fail (pkglibexecdir != NULL, NULL);
 
   tmp = _srt_subprocess_runner_getenv (runner, "PRESSURE_VESSEL_BWRAP");
 
@@ -167,6 +165,11 @@ check_bwrap (SrtSubprocessRunner *runner,
 
       return g_strdup (tmp);
     }
+
+  pkglibexecdir = _srt_subprocess_runner_resolve_helpers_path (runner, error);
+
+  if (pkglibexecdir == NULL)
+    return NULL;
 
   local_bwrap = g_build_filename (pkglibexecdir, "srt-bwrap", NULL);
 
@@ -206,27 +209,24 @@ check_bwrap (SrtSubprocessRunner *runner,
 /*
  * _srt_check_bwrap:
  * @runner: A subprocess execution environment
- * @pkglibexecdir: Path to libexec/steam-runtime-tools-0
  * @skip_testing: If true, do not test the bwrap executable, but instead
  *  assume that it will work
  * @flags_out: (out): Properties of the returned executable
  *
  * Attempt to find a working bwrap executable in the environment,
- * @pkglibexecdir or a system location. Log messages via _srt_log_failure()
+ * `${pkglibexecdir}` or a system location. Log messages via _srt_log_failure()
  * if none can be found.
  *
  * Returns: (transfer full): Path to bwrap(1), or %NULL if not found
  */
 gchar *
 _srt_check_bwrap (SrtSubprocessRunner *runner,
-                  const char *pkglibexecdir,
                   gboolean skip_testing,
                   SrtBwrapFlags *flags_out,
                   GError **error)
 {
   SrtBwrapFlags flags = SRT_BWRAP_FLAGS_NONE;
   g_autofree gchar *bwrap = check_bwrap (runner,
-                                         pkglibexecdir,
                                          skip_testing,
                                          &flags,
                                          error);
@@ -261,14 +261,12 @@ _srt_check_bwrap (SrtSubprocessRunner *runner,
  * _srt_check_bwrap_issues:
  * @sysroot: A system root used to look up kernel parameters
  * @runner: A subprocess execution environment
- * @pkglibexecdir: Directory containing srt-bwrap
  * @bwrap_out: (out): Path to a bwrap executable, if found
  * @message: (out): A diagnostic message if appropriate
  */
 SrtBwrapIssues
 _srt_check_bwrap_issues (SrtSysroot *sysroot,
                          SrtSubprocessRunner *runner,
-                         const char *pkglibexecdir,
                          gchar **bwrap_out,
                          gchar **message_out)
 {
@@ -283,7 +281,7 @@ _srt_check_bwrap_issues (SrtSysroot *sysroot,
   if (bwrap_out != NULL)
     *bwrap_out = NULL;
 
-  bwrap = _srt_check_bwrap (runner, pkglibexecdir, FALSE, &flags, &local_error);
+  bwrap = _srt_check_bwrap (runner, FALSE, &flags, &local_error);
 
   if (bwrap != NULL)
     {
