@@ -88,14 +88,21 @@ static void
 test_object (Fixture *f,
              gconstpointer context)
 {
+  g_autoptr(GError) local_error = NULL;
   g_autoptr(SrtContainerInfo) container = NULL;
   g_autoptr(SrtOsInfo) host_os_info = NULL;
+  g_autoptr(SrtSysroot) sysroot = NULL;
   SrtContainerType type;
+  g_autofree gchar *bwrap_messages = NULL;
+  g_autofree gchar *bwrap_path = NULL;
   g_autofree gchar *flatpak_version = NULL;
+  g_autofree gchar *sysroot_path = NULL;
+  SrtBwrapIssues bwrap_issues = SRT_BWRAP_ISSUES_UNKNOWN;
   SrtFlatpakIssues flatpak_issues = SRT_FLATPAK_ISSUES_UNKNOWN;
   g_autofree gchar *host_directory = NULL;
 
   container = _srt_container_info_new (SRT_CONTAINER_TYPE_FLATPAK,
+                                       SRT_BWRAP_ISSUES_UNKNOWN, NULL, NULL,
                                        SRT_FLATPAK_ISSUES_SUBSANDBOX_OUTPUT_CORRUPTED,
                                        "1.10.2",
                                        "/run/host",
@@ -103,6 +110,9 @@ test_object (Fixture *f,
 
   g_assert_cmpint (srt_container_info_get_container_type (container), ==,
                    SRT_CONTAINER_TYPE_FLATPAK);
+  g_assert_cmpuint (srt_container_info_get_bwrap_issues (container),
+                    ==, (SRT_BWRAP_ISSUES_CANNOT_RUN
+                         | SRT_BWRAP_ISSUES_NOT_TESTED));
   g_assert_cmpstr (srt_container_info_get_flatpak_version (container), ==, "1.10.2");
   g_assert_cmpuint (srt_container_info_get_flatpak_issues (container),
                     ==, SRT_FLATPAK_ISSUES_SUBSANDBOX_OUTPUT_CORRUPTED);
@@ -111,23 +121,61 @@ test_object (Fixture *f,
   g_assert_null (srt_container_info_get_container_host_os_info (container));
   g_object_get (container,
                 "type", &type,
+                "bwrap-issues", &bwrap_issues,
                 "flatpak-issues", &flatpak_issues,
                 "flatpak-version", &flatpak_version,
                 "host-directory", &host_directory,
                 "host-os-info", &host_os_info,
                 NULL);
   g_assert_cmpint (type, ==, SRT_CONTAINER_TYPE_FLATPAK);
+  g_assert_cmpuint (bwrap_issues, ==, (SRT_BWRAP_ISSUES_CANNOT_RUN
+                                       | SRT_BWRAP_ISSUES_NOT_TESTED));
   g_assert_cmpuint (flatpak_issues, ==, SRT_FLATPAK_ISSUES_SUBSANDBOX_OUTPUT_CORRUPTED);
   g_assert_cmpstr (flatpak_version, ==, "1.10.2");
   g_assert_cmpstr (host_directory, ==, "/run/host");
   g_assert_null (host_os_info);
 
+  sysroot_path = g_build_filename (global_sysroots, "debian-unstable", NULL);
+  sysroot = _srt_sysroot_new (sysroot_path, &local_error);
+  g_assert_no_error (local_error);
+  g_assert_nonnull (sysroot);
+
   /* With a NULL runner, no helper programs are actually run, but we do
    * check the version number */
-  _srt_container_info_check_issues (container, NULL);
+  _srt_container_info_check_issues (container, sysroot, NULL);
   g_assert_cmpuint (srt_container_info_get_flatpak_issues (container),
                     ==, (SRT_FLATPAK_ISSUES_SUBSANDBOX_NOT_CHECKED
                          | SRT_FLATPAK_ISSUES_TOO_OLD));
+
+  /* Some properties only work when not under Flatpak */
+  g_clear_object (&container);
+  container = _srt_container_info_new (SRT_CONTAINER_TYPE_NONE,
+                                       SRT_BWRAP_ISSUES_CANNOT_RUN,
+                                       "bwrap: This is not going to work",
+                                       "/usr/bin/bwrap",
+                                       SRT_FLATPAK_ISSUES_UNKNOWN, NULL, NULL,
+                                       NULL);
+  g_assert_cmpuint (srt_container_info_get_bwrap_issues (container),
+                    ==, SRT_BWRAP_ISSUES_CANNOT_RUN);
+  g_assert_cmpstr (srt_container_info_get_bwrap_messages (container),
+                   ==, "bwrap: This is not going to work");
+  g_assert_cmpstr (srt_container_info_get_bwrap_path (container),
+                   ==, "/usr/bin/bwrap");
+  g_object_get (container,
+                "type", &type,
+                "bwrap-issues", &bwrap_issues,
+                "bwrap-messages", &bwrap_messages,
+                "bwrap-path", &bwrap_path,
+                NULL);
+  g_assert_cmpuint (bwrap_issues, ==, SRT_BWRAP_ISSUES_CANNOT_RUN);
+  g_assert_cmpstr (bwrap_messages, ==, "bwrap: This is not going to work");
+  g_assert_cmpstr (bwrap_path, ==, "/usr/bin/bwrap");
+
+  _srt_container_info_check_issues (container, sysroot, NULL);
+  g_assert_cmpuint (srt_container_info_get_bwrap_issues (container),
+                    ==, SRT_BWRAP_ISSUES_NOT_TESTED);
+  g_assert_cmpuint (srt_container_info_get_flatpak_issues (container),
+                    ==, SRT_BWRAP_ISSUES_NONE);
 }
 
 typedef struct
@@ -353,7 +401,7 @@ test_flatpak_issues (Fixture *f,
                                                 NULL,
                                                 test_flags);
       g_assert_nonnull (runner);
-      _srt_container_info_check_issues (container, runner);
+      _srt_container_info_check_issues (container, sysroot, runner);
       g_assert_cmpuint (srt_container_info_get_flatpak_issues (container),
                         ==, test->expected);
     }

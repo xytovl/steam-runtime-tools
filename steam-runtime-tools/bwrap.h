@@ -16,6 +16,8 @@
  * @SRT_BWRAP_ISSUES_UNKNOWN: An internal error occurred while checking
  *  whether `bwrap(1)` can work, or an unknown issue flag was encountered
  *  in a JSON report
+ * @SRT_BWRAP_ISSUES_NOT_TESTED: The diagnostic tool did not test whether
+ *  it was possible to run `bwrap(1)`.
  * @SRT_BWRAP_ISSUES_CANNOT_RUN: The diagnostic tool was unable
  *  to run `bwrap(1)`, either a copy included with the Steam Runtime or
  *  a copy provided by the host system.
@@ -40,10 +42,11 @@
 typedef enum
 {
   SRT_BWRAP_ISSUES_UNKNOWN = (1 << 0),
-  SRT_BWRAP_ISSUES_CANNOT_RUN = (1 << 1),
-  SRT_BWRAP_ISSUES_SETUID = (1 << 2),
-  SRT_BWRAP_ISSUES_SYSTEM = (1 << 3),
-  SRT_BWRAP_ISSUES_NO_UNPRIVILEGED_USERNS_CLONE = (1 << 4),
-  SRT_BWRAP_ISSUES_MAX_USER_NAMESPACES_ZERO = (1 << 5),
+  SRT_BWRAP_ISSUES_NOT_TESTED = (1 << 1),
+  SRT_BWRAP_ISSUES_CANNOT_RUN = (1 << 2),
+  SRT_BWRAP_ISSUES_SETUID = (1 << 3),
+  SRT_BWRAP_ISSUES_SYSTEM = (1 << 4),
+  SRT_BWRAP_ISSUES_NO_UNPRIVILEGED_USERNS_CLONE = (1 << 5),
+  SRT_BWRAP_ISSUES_MAX_USER_NAMESPACES_ZERO = (1 << 6),
   SRT_BWRAP_ISSUES_NONE = 0
 } SrtBwrapIssues;

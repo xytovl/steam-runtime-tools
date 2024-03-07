@@ -71,11 +71,14 @@ SrtContainerInfo *
 _srt_container_info_get_from_report (JsonObject *json_obj)
 {
   g_autoptr(SrtOsInfo) host_os_info = NULL;
+  g_autofree gchar *bwrap_messages = NULL;
   JsonObject *json_sub_obj;
   JsonObject *json_host_obj = NULL;
+  const char *bwrap_path = NULL;
   const gchar *flatpak_version = NULL;
   const gchar *host_path = NULL;
   int type = SRT_CONTAINER_TYPE_UNKNOWN;
+  SrtBwrapIssues bwrap_issues = SRT_BWRAP_ISSUES_UNKNOWN;
   SrtFlatpakIssues flatpak_issues = SRT_FLATPAK_ISSUES_UNKNOWN;
 
   g_return_val_if_fail (json_obj != NULL, NULL);
@@ -109,6 +112,15 @@ _srt_container_info_get_from_report (JsonObject *json_obj)
           case SRT_CONTAINER_TYPE_UNKNOWN:
           case SRT_CONTAINER_TYPE_NONE:
           default:
+            bwrap_issues = srt_get_flags_from_json_array (SRT_TYPE_BWRAP_ISSUES,
+                                                          json_sub_obj,
+                                                          "bubblewrap_issues",
+                                                          SRT_BWRAP_ISSUES_UNKNOWN);
+            bwrap_messages = _srt_json_object_dup_array_of_lines_member (json_sub_obj,
+                                                                         "bubblewrap_messages");
+            bwrap_path = json_object_get_string_member_with_default (json_sub_obj,
+                                                                     "bubblewrap_path",
+                                                                     NULL);
             break;
         }
 
@@ -125,6 +137,9 @@ _srt_container_info_get_from_report (JsonObject *json_obj)
 
 out:
   return _srt_container_info_new (type,
+                                  bwrap_issues,
+                                  bwrap_messages,
+                                  bwrap_path,
                                   flatpak_issues,
                                   flatpak_version,
                                   host_path,

@@ -34,6 +34,9 @@
 /*
  * _srt_container_info_new:
  * @type: Type of container
+ * @bwrap_issues: Issues that reduce Steam functionality involving bubblewrap
+ * @bwrap_messages: Diagnostic messages produced when checking bubblewrap
+ * @bwrap_path: Path to `bwrap(1)` executable
  * @flatpak_issues: Issues that reduce Steam functionality under Flatpak.
  *  This value is relevant only if @type is %SRT_CONTAINER_TYPE_FLATPAK.
  * @flatpak_version: (nullable): Flatpak container version, this value is
@@ -49,6 +52,9 @@
  * Returns: (transfer full): A new #SrtContainerInfo
  */
 static inline SrtContainerInfo *_srt_container_info_new (SrtContainerType type,
+                                                         SrtBwrapIssues bwrap_issues,
+                                                         const char *bwrap_messages,
+                                                         const char *bwrap_path,
                                                          SrtFlatpakIssues flatpak_issues,
                                                          const gchar *flatpak_version,
                                                          const gchar *host_directory,
@@ -57,6 +63,9 @@ static inline SrtContainerInfo *_srt_container_info_new (SrtContainerType type,
 #ifndef __GTK_DOC_IGNORE__
 static inline SrtContainerInfo *
 _srt_container_info_new (SrtContainerType type,
+                         SrtBwrapIssues bwrap_issues,
+                         const char *bwrap_messages,
+                         const char *bwrap_path,
                          SrtFlatpakIssues flatpak_issues,
                          const gchar *flatpak_version,
                          const gchar *host_directory,
@@ -64,6 +73,9 @@ _srt_container_info_new (SrtContainerType type,
 {
   return g_object_new (SRT_TYPE_CONTAINER_INFO,
                        "type", type,
+                       "bwrap-issues", bwrap_issues,
+                       "bwrap-messages", bwrap_messages,
+                       "bwrap-path", bwrap_path,
                        "flatpak-issues", flatpak_issues,
                        "flatpak-version", flatpak_version,
                        "host-directory", host_directory,
@@ -75,6 +87,7 @@ static inline SrtContainerInfo *
 _srt_container_info_new_empty (void)
 {
   return _srt_container_info_new (SRT_CONTAINER_TYPE_UNKNOWN,
+                                  SRT_BWRAP_ISSUES_UNKNOWN, NULL, NULL,
                                   SRT_FLATPAK_ISSUES_UNKNOWN,
                                   NULL, NULL, NULL);
 }
@@ -87,4 +100,5 @@ _srt_container_info_new_empty (void)
 SrtContainerInfo *_srt_check_container (SrtSysroot *sysroot);
 
 void _srt_container_info_check_issues (SrtContainerInfo *self,
+                                       SrtSysroot *sysroot,
                                        SrtSubprocessRunner *runner);

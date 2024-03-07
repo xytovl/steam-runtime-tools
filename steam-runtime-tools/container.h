@@ -32,6 +32,7 @@
 #include <glib.h>
 #include <glib-object.h>
 
+#include <steam-runtime-tools/bwrap.h>
 #include <steam-runtime-tools/macros.h>
 #include <steam-runtime-tools/types.h>
 
@@ -120,6 +121,12 @@ _SRT_PUBLIC
 const gchar *srt_container_info_get_container_host_directory (SrtContainerInfo *self);
 _SRT_PUBLIC
 SrtOsInfo *srt_container_info_get_container_host_os_info (SrtContainerInfo *self);
+_SRT_PUBLIC
+SrtBwrapIssues srt_container_info_get_bwrap_issues (SrtContainerInfo *self);
+_SRT_PUBLIC
+const char *srt_container_info_get_bwrap_messages (SrtContainerInfo *self);
+_SRT_PUBLIC
+const char *srt_container_info_get_bwrap_path (SrtContainerInfo *self);
 _SRT_PUBLIC
 SrtFlatpakIssues srt_container_info_get_flatpak_issues (SrtContainerInfo *self);
 _SRT_PUBLIC

@@ -746,12 +746,18 @@ jsonify_container (JsonBuilder *builder,
 {
   g_autoptr(SrtContainerInfo) container_info = srt_system_info_check_container (info);
   SrtContainerType type = SRT_CONTAINER_TYPE_UNKNOWN;
+  SrtBwrapIssues bwrap_issues;
+  const char *bwrap_messages;
+  const char *bwrap_path;
   const gchar *flatpak_version = NULL;
   const gchar *host_directory = NULL;
 
   type = srt_container_info_get_container_type (container_info);
   flatpak_version = srt_container_info_get_flatpak_version (container_info);
   host_directory = srt_container_info_get_container_host_directory (container_info);
+  bwrap_issues = srt_container_info_get_bwrap_issues (container_info);
+  bwrap_path = srt_container_info_get_bwrap_path (container_info);
+  bwrap_messages = srt_container_info_get_bwrap_messages (container_info);
 
   json_builder_set_member_name (builder, "container");
   json_builder_begin_object (builder);
@@ -782,6 +788,23 @@ jsonify_container (JsonBuilder *builder,
           case SRT_CONTAINER_TYPE_UNKNOWN:
           case SRT_CONTAINER_TYPE_NONE:
           default:
+            json_builder_set_member_name (builder, "bubblewrap_issues");
+            json_builder_begin_array (builder);
+            jsonify_flags (builder, SRT_TYPE_BWRAP_ISSUES, bwrap_issues);
+            json_builder_end_array (builder);
+
+            /* Don't log the path to bwrap in the common case that it's
+             * our bundled one and it worked successfully */
+            if (bwrap_path != NULL
+                && (verbose || bwrap_issues != SRT_BWRAP_ISSUES_NONE))
+              {
+                json_builder_set_member_name (builder, "bubblewrap_path");
+                json_builder_add_string_value (builder, bwrap_path);
+              }
+
+            if (bwrap_messages != NULL)
+              _srt_json_builder_add_array_of_lines (builder, "bubblewrap_messages", bwrap_messages);
+
             break;
         }
 

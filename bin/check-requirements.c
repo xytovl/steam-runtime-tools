@@ -309,7 +309,7 @@ main (int argc,
         break;
 
       case SRT_CONTAINER_TYPE_FLATPAK:
-        _srt_container_info_check_issues (container_info, runner);
+        _srt_container_info_check_issues (container_info, sysroot, runner);
         flatpak_issues = srt_container_info_get_flatpak_issues (container_info);
 
         if (flatpak_issues & SRT_FLATPAK_ISSUES_SUBSANDBOX_LIMITED_BY_SETUID_BWRAP)

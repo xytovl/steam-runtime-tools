@@ -3987,9 +3987,11 @@ ensure_container_info (SrtSystemInfo *self)
           self->container_info = _srt_check_container (self->sysroot);
 
           if (self->check_flags & SRT_CHECK_FLAGS_NO_HELPERS)
-            _srt_container_info_check_issues (self->container_info, NULL);
+            _srt_container_info_check_issues (self->container_info,
+                                              self->sysroot, NULL);
           else
-            _srt_container_info_check_issues (self->container_info, self->runner);
+            _srt_container_info_check_issues (self->container_info,
+                                              self->sysroot, self->runner);
         }
       else
         {
