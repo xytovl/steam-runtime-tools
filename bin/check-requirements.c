@@ -233,7 +233,9 @@ main (int argc,
       g_info ("Found working bwrap executable at %s", bwrap);
     }
 
-  steam_issues = _srt_steam_check (_srt_const_strv (environ), NULL);
+  steam_issues = _srt_steam_check (_srt_const_strv (environ),
+                                   ~SRT_STEAM_ISSUES_DESKTOP_FILE_RELATED,
+                                   NULL);
 
   if (steam_issues & SRT_STEAM_ISSUES_INSTALLED_IN_USR)
     {

@@ -359,6 +359,7 @@ srt_steam_get_steamscript_version (SrtSteam *self)
 /**
  * _srt_steam_check:
  * @envp: (not nullable): The list of environment variables to use.
+ * @only_check: Only check these issues (`~0` to check all)
  * @more_details_out: (out) (optional) (transfer full): Used to return an
  *  #SrtSteam object representing information about the current Steam
  *  installation. Free with `g_object_unref()`.
@@ -372,6 +373,7 @@ srt_steam_get_steamscript_version (SrtSteam *self)
  */
 SrtSteamIssues
 _srt_steam_check (const char * const *envp,
+                  SrtSteamIssues only_check,
                   SrtSteam **more_details_out)
 {
   SrtSteamIssues issues = SRT_STEAM_ISSUES_NONE;
@@ -568,96 +570,99 @@ _srt_steam_check (const char * const *envp,
       g_debug ("Found Steam data at %s", data_path);
     }
 
-  default_app = g_app_info_get_default_for_uri_scheme ("steam");
-
-  if (default_app == NULL)
+  if (only_check & SRT_STEAM_ISSUES_DESKTOP_FILE_RELATED)
     {
-      GList *desktop_entries = _srt_list_steam_desktop_entries ();
-      /* If we are running from the Flatpak version of Steam we can't tell
-       * which one is the default `steam` URI handler.
-       * So we just list them all and check if we have the known
-       * "com.valvesoftware.Steam.desktop" that is used in the Flathub's
-       * version of Steam */
-      for (GList *iter = desktop_entries; iter != NULL; iter = iter->next)
-        {
-          if (g_strcmp0 (srt_desktop_entry_get_id (iter->data), "com.valvesoftware.Steam.desktop") != 0)
-            continue;
+      default_app = g_app_info_get_default_for_uri_scheme ("steam");
 
-          /* If we have the desktop entry "com.valvesoftware.Steam.desktop"
-           * with a commandline that starts with "/app/bin/" we are fairly
-           * sure to be inside a Flatpak environment. Otherwise report the
-           * issues about the missing and unexpected Steam URI handler */
-          commandline = srt_desktop_entry_get_commandline (iter->data);
-          if (g_str_has_prefix (commandline, "/app/bin/")
-              && g_str_has_suffix (commandline, "%U"))
-            {
-              g_debug ("It seems like this is a Flatpak environment. The missing default app for `steam:` URLs is not an issue");
-              in_flatpak = TRUE;
-            }
-          else
-            {
-              issues |= SRT_STEAM_ISSUES_UNEXPECTED_STEAM_URI_HANDLER;
-            }
-        }
-
-      if (!in_flatpak)
+      if (default_app == NULL)
         {
-          g_debug ("There isn't a default app that can handle `steam:` URLs");
-          issues |= SRT_STEAM_ISSUES_MISSING_STEAM_URI_HANDLER;
-        }
-    }
-  else
-    {
-      executable = g_app_info_get_executable (default_app);
-      commandline = g_app_info_get_commandline (default_app);
-      app_id = g_app_info_get_id (default_app);
-      gboolean found_expected_steam_uri_handler = FALSE;
-
-      if (commandline != NULL)
-        {
-          gchar **argvp;
-          if (g_shell_parse_argv (commandline, NULL, &argvp, &error))
+          GList *desktop_entries = _srt_list_steam_desktop_entries ();
+          /* If we are running from the Flatpak version of Steam we can't tell
+           * which one is the default `steam` URI handler.
+           * So we just list them all and check if we have the known
+           * "com.valvesoftware.Steam.desktop" that is used in the Flathub's
+           * version of Steam */
+          for (GList *iter = desktop_entries; iter != NULL; iter = iter->next)
             {
-              const char *const expectations[] = { executable, "%U", NULL };
-              gsize i;
-              for (i = 0; argvp[i] != NULL && expectations[i] != NULL; i++)
+              if (g_strcmp0 (srt_desktop_entry_get_id (iter->data), "com.valvesoftware.Steam.desktop") != 0)
+                continue;
+
+              /* If we have the desktop entry "com.valvesoftware.Steam.desktop"
+               * with a commandline that starts with "/app/bin/" we are fairly
+               * sure to be inside a Flatpak environment. Otherwise report the
+               * issues about the missing and unexpected Steam URI handler */
+              commandline = srt_desktop_entry_get_commandline (iter->data);
+              if (g_str_has_prefix (commandline, "/app/bin/")
+                  && g_str_has_suffix (commandline, "%U"))
                 {
-                  if (g_strcmp0 (argvp[i], expectations[i]) != 0)
-                    break;
+                  g_debug ("It seems like this is a Flatpak environment. The missing default app for `steam:` URLs is not an issue");
+                  in_flatpak = TRUE;
                 }
-
-              if (argvp[i] == NULL && expectations[i] == NULL)
-                found_expected_steam_uri_handler = TRUE;
-
-              g_strfreev (argvp);
-            }
-          else
-            {
-              g_debug ("Cannot parse \"Exec=%s\" like a shell would: %s", commandline, error->message);
-              g_clear_error (&error);
-            }
-
-          if (!found_expected_steam_uri_handler)
-            {
-              /* If we are running from the host system, do not flag the Flatpak
-               * version of Steam as unexpected URI handler */
-              if (g_str_has_prefix (commandline, executable)
-                  && g_str_has_suffix (commandline, "com.valvesoftware.Steam @@u %U @@")
-                  && g_pattern_match_simple ("* --command=/app/bin/*", commandline))
+              else
                 {
-                  found_expected_steam_uri_handler = TRUE;
+                  issues |= SRT_STEAM_ISSUES_UNEXPECTED_STEAM_URI_HANDLER;
                 }
             }
+
+          if (!in_flatpak)
+            {
+              g_debug ("There isn't a default app that can handle `steam:` URLs");
+              issues |= SRT_STEAM_ISSUES_MISSING_STEAM_URI_HANDLER;
+            }
         }
-
-      /* Exclude the special case `/usr/bin/env steam %U` that we use in our unit tests */
-      if (!found_expected_steam_uri_handler && (g_strcmp0 (commandline, "/usr/bin/env steam %U") != 0))
-        issues |= SRT_STEAM_ISSUES_UNEXPECTED_STEAM_URI_HANDLER;
-
-      if (g_strcmp0 (app_id, "steam.desktop") != 0 && g_strcmp0 (app_id, "com.valvesoftware.Steam.desktop") != 0)
+      else
         {
-          g_debug ("The default Steam app handler id is not what we expected: %s", app_id ? app_id : "NULL");
-          issues |= SRT_STEAM_ISSUES_UNEXPECTED_STEAM_DESKTOP_ID;
+          executable = g_app_info_get_executable (default_app);
+          commandline = g_app_info_get_commandline (default_app);
+          app_id = g_app_info_get_id (default_app);
+          gboolean found_expected_steam_uri_handler = FALSE;
+
+          if (commandline != NULL)
+            {
+              gchar **argvp;
+              if (g_shell_parse_argv (commandline, NULL, &argvp, &error))
+                {
+                  const char *const expectations[] = { executable, "%U", NULL };
+                  gsize i;
+                  for (i = 0; argvp[i] != NULL && expectations[i] != NULL; i++)
+                    {
+                      if (g_strcmp0 (argvp[i], expectations[i]) != 0)
+                        break;
+                    }
+
+                  if (argvp[i] == NULL && expectations[i] == NULL)
+                    found_expected_steam_uri_handler = TRUE;
+
+                  g_strfreev (argvp);
+                }
+              else
+                {
+                  g_debug ("Cannot parse \"Exec=%s\" like a shell would: %s", commandline, error->message);
+                  g_clear_error (&error);
+                }
+
+              if (!found_expected_steam_uri_handler)
+                {
+                  /* If we are running from the host system, do not flag the Flatpak
+                   * version of Steam as unexpected URI handler */
+                  if (g_str_has_prefix (commandline, executable)
+                      && g_str_has_suffix (commandline, "com.valvesoftware.Steam @@u %U @@")
+                      && g_pattern_match_simple ("* --command=/app/bin/*", commandline))
+                    {
+                      found_expected_steam_uri_handler = TRUE;
+                    }
+                }
+            }
+
+          /* Exclude the special case `/usr/bin/env steam %U` that we use in our unit tests */
+          if (!found_expected_steam_uri_handler && (g_strcmp0 (commandline, "/usr/bin/env steam %U") != 0))
+            issues |= SRT_STEAM_ISSUES_UNEXPECTED_STEAM_URI_HANDLER;
+
+          if (g_strcmp0 (app_id, "steam.desktop") != 0 && g_strcmp0 (app_id, "com.valvesoftware.Steam.desktop") != 0)
+            {
+              g_debug ("The default Steam app handler id is not what we expected: %s", app_id ? app_id : "NULL");
+              issues |= SRT_STEAM_ISSUES_UNEXPECTED_STEAM_DESKTOP_ID;
+            }
         }
     }
 

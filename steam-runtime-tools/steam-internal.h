@@ -63,8 +63,14 @@ _srt_steam_new (SrtSteamIssues issues,
 }
 #endif
 
+#define SRT_STEAM_ISSUES_DESKTOP_FILE_RELATED \
+  (SRT_STEAM_ISSUES_MISSING_STEAM_URI_HANDLER \
+   | SRT_STEAM_ISSUES_UNEXPECTED_STEAM_URI_HANDLER \
+   | SRT_STEAM_ISSUES_UNEXPECTED_STEAM_DESKTOP_ID)
+
 G_GNUC_INTERNAL
 SrtSteamIssues _srt_steam_check (const char * const *my_environ,
+                                 SrtSteamIssues only_check,
                                  SrtSteam **more_details_out);
 
 typedef enum

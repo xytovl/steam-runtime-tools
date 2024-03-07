@@ -2233,7 +2233,7 @@ ensure_steam_cached (SrtSystemInfo *self)
     {
       const char * const *envp = _srt_subprocess_runner_get_environ (self->runner);
 
-      _srt_steam_check (envp, &self->steam_data);
+      _srt_steam_check (envp, ~0, &self->steam_data);
     }
 }
 
