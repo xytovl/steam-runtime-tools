@@ -8,14 +8,85 @@
 
 #include "steam-runtime-tools/glib-backports-internal.h"
 
+#include "steam-runtime-tools/resolve-in-sysroot-internal.h"
+#include "steam-runtime-tools/utils-internal.h"
+
+#include "pressure-vessel/wrap-interactive.h"
+
 typedef struct _PvWrapContext PvWrapContext;
 typedef struct _PvWrapContextClass PvWrapContextClass;
+
+typedef enum
+{
+  TRISTATE_NO = 0,
+  TRISTATE_YES,
+  TRISTATE_MAYBE
+} Tristate;
+
+typedef enum
+{
+  PRELOAD_VARIABLE_INDEX_LD_AUDIT,
+  PRELOAD_VARIABLE_INDEX_LD_PRELOAD,
+} PreloadVariableIndex;
+
+typedef struct
+{
+  PreloadVariableIndex which;
+  gchar *preload;
+} WrapPreloadModule;
+
+typedef struct
+{
+  GStrv env_if_host;
+  GStrv filesystems;
+  gchar *freedesktop_app_id;
+  gchar *graphics_provider;
+  gchar *home;
+  GArray *pass_fds;
+  GArray *preload_modules;
+  gchar *runtime;
+  gchar *runtime_base;
+  gchar *steam_app_id;
+  gchar *variable_dir;
+  gchar *write_final_argv;
+
+  double terminate_idle_timeout;
+  double terminate_timeout;
+
+  PvShell shell;
+  PvTerminal terminal;
+  Tristate share_home;
+
+  gboolean batch;
+  gboolean copy_runtime;
+  gboolean deterministic;
+  gboolean devel;
+  gboolean gc_runtimes;
+  gboolean generate_locales;
+  gboolean import_vulkan_layers;
+  gboolean launcher;
+  gboolean only_prepare;
+  gboolean remove_game_overlay;
+  gboolean share_pid;
+  gboolean single_thread;
+  gboolean systemd_scope;
+  gboolean test;
+  gboolean verbose;
+  gboolean version;
+  gboolean version_only;
+} PvWrapOptions;
 
 struct _PvWrapContext
 {
   GObject parent_instance;
 
+  gchar **original_argv;
   gchar **original_environ;
+
+  PvWrapOptions options;
+
+  gboolean is_flatpak_env;
+  int original_argc;
 };
 
 #define PV_TYPE_WRAP_CONTEXT \
@@ -35,3 +106,20 @@ GType pv_wrap_context_get_type (void);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC (PvWrapContext, g_object_unref)
 
 PvWrapContext *pv_wrap_context_new (GError **error);
+
+gboolean pv_wrap_options_parse_environment (PvWrapOptions *self,
+                                            GError **error);
+
+gboolean pv_wrap_context_parse_argv (PvWrapContext *self,
+                                     int *argcp,
+                                     char ***argvp,
+                                     GError **error);
+
+gboolean pv_wrap_options_parse_argv (PvWrapOptions *self,
+                                     int *argcp,
+                                     char ***argvp,
+                                     GError **error);
+
+gboolean pv_wrap_options_parse_environment_after_argv (PvWrapOptions *self,
+                                                       SrtSysroot *interpreter_root,
+                                                       GError **error);

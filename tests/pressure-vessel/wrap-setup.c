@@ -37,6 +37,7 @@
 
 #include "bwrap.h"
 #include "supported-architectures.h"
+#include "wrap-context.h"
 #include "wrap-home.h"
 #include "wrap-setup.h"
 #include "utils.h"
