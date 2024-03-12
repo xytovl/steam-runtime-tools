@@ -771,6 +771,7 @@ int
 main (int argc,
       char *argv[])
 {
+  g_autoptr(PvWrapContext) self = NULL;
   g_autoptr(GArray) inherit_fds = g_array_new (FALSE, FALSE, sizeof (int));
   g_autoptr(GOptionContext) context = NULL;
   g_autoptr(GError) local_error = NULL;
@@ -778,7 +779,6 @@ main (int argc,
   int ret = 2;
   gsize i;
   g_auto(GStrv) original_argv = NULL;
-  g_auto(GStrv) original_environ = NULL;
   int original_argc = argc;
   gboolean is_flatpak_env = g_file_test ("/.flatpak-info", G_FILE_TEST_IS_REGULAR);
   PvHomeMode home_mode;
@@ -837,7 +837,10 @@ main (int argc,
       goto out;
     }
 
-  original_environ = g_get_environ ();
+  self = pv_wrap_context_new (error);
+
+  if (self == NULL)
+    goto out;
 
   /* Set defaults */
   opt_batch = _srt_boolean_environment ("PRESSURE_VESSEL_BATCH", FALSE);
@@ -1160,12 +1163,12 @@ main (int argc,
         }
     }
 
-  compat_flags = _srt_steam_get_compat_flags (_srt_const_strv (original_environ));
+  compat_flags = _srt_steam_get_compat_flags (_srt_const_strv (self->original_environ));
   _srt_get_current_dirs (&cwd_p, &cwd_l);
 
   if (_srt_util_is_debugging ())
     {
-      g_auto(GStrv) env = g_strdupv (original_environ);
+      g_auto(GStrv) env = g_strdupv (self->original_environ);
 
       g_debug ("Original argv:");
 
@@ -1479,7 +1482,7 @@ main (int argc,
                                 bwrap_executable,
                                 graphics_provider,
                                 interpreter_host_provider,
-                                _srt_const_strv (original_environ),
+                                _srt_const_strv (self->original_environ),
                                 flags,
                                 error);
 
@@ -1649,7 +1652,7 @@ main (int argc,
     }
 
   pv_bind_and_propagate_from_environ (real_root,
-                                      _srt_const_strv (original_environ),
+                                      _srt_const_strv (self->original_environ),
                                       home_mode,
                                       exports, container_env);
 
@@ -1830,7 +1833,7 @@ main (int argc,
       g_autoptr(FlatpakBwrap) sharing_bwrap = NULL;
 
       sharing_bwrap = pv_wrap_share_sockets (container_env,
-                                             _srt_const_strv (original_environ),
+                                             _srt_const_strv (self->original_environ),
                                              (runtime != NULL),
                                              is_flatpak_env);
       g_warn_if_fail (g_strv_length (sharing_bwrap->envp) == 0);
@@ -1842,7 +1845,7 @@ main (int argc,
     }
   else if (flatpak_subsandbox != NULL)
     {
-      pv_wrap_set_icons_env_vars (container_env, _srt_const_strv (original_environ));
+      pv_wrap_set_icons_env_vars (container_env, _srt_const_strv (self->original_environ));
     }
 
   if (runtime != NULL)
@@ -1873,7 +1876,7 @@ main (int argc,
         pv_bwrap_container_env_to_bwrap_argv (bwrap, container_env);
     }
 
-  final_argv = flatpak_bwrap_new (original_environ);
+  final_argv = flatpak_bwrap_new (self->original_environ);
 
   /* Populate final_argv->envp, overwriting its copy of original_environ.
    * We skip this if we are in a Flatpak environment, because in that case

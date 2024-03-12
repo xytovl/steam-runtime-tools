@@ -59,6 +59,7 @@
 typedef struct
 {
   TestsOpenFdSet old_fds;
+  PvWrapContext *context;
   SrtSysroot *mock_host;
   FlatpakBwrap *bwrap;
   gchar *tmpdir;
@@ -218,6 +219,8 @@ setup (Fixture *f,
   glnx_opendirat (AT_FDCWD, f->var, TRUE, &f->var_fd, &local_error);
   g_assert_no_error (local_error);
 
+  f->context = pv_wrap_context_new (&local_error);
+  g_assert_no_error (local_error);
   f->bwrap = flatpak_bwrap_new (flatpak_bwrap_empty_env);
   f->env = g_get_environ ();
 }
@@ -270,6 +273,7 @@ teardown (Fixture *f,
       g_assert_no_error (local_error);
     }
 
+  g_clear_object (&f->context);
   g_clear_object (&f->mock_host);
   g_clear_pointer (&f->mock_runtime, g_free);
   g_clear_pointer (&f->tmpdir, g_free);

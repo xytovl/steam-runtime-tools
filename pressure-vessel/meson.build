@@ -167,6 +167,8 @@ pressure_vessel_wrap_lib = static_library(
     'graphics-provider.h',
     'runtime.c',
     'runtime.h',
+    'wrap-context.c',
+    'wrap-context.h',
     'wrap-discord.c',
     'wrap-discord.h',
     'wrap-flatpak.c',
