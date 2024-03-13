@@ -417,6 +417,29 @@ keys:
         **unknown** (if we appear to be in a container but the type is
         unknown), or **none** (if we do not appear to be in a container).
 
+    **bubblewrap_issues**
+    :   An array of flags describing potential problems with **bwrap**(1),
+        such as not having the necessary system configuration to be able
+        to create new user namespaces as an unprivileged user.
+        This key is not provided if the container **type** is **flatpak**,
+        because we do not expect to be able to run **bwrap**(1)
+        successfully inside a Flatpak sandbox.
+
+    **bubblewrap_path**
+    :   The path to the **bwrap**(1) executable that was used.
+        This key is not provided unless either **--verbose** was
+        used, or a problem was detected.
+
+    **bubblewrap_messages**
+    :   Human-readable array of lines with diagnostic messages related
+        to **bwrap**(1), if any.
+        This key is not provided if the array would be empty.
+
+    **flatpak_issues**
+    :   An array of flags describing potential problems with Flatpak,
+        such as a version that is too old or cannot create subsandboxes.
+        This key is not provided if the container **type** is not **flatpak**.
+
     **flatpak_version**
     :   The version string describing the Flatpak container. This key is
         optional and is not provided if it could not be determined or if the

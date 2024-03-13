@@ -286,7 +286,7 @@ _srt_runtime_check_filesystem (const char *path)
 }
 
 /*
- * _srt_runtime_check:
+ * _srt_runtime_check_ldlp:
  * @bin32: (nullable): The absolute path to `ubuntu12_32`
  * @expected_version: (nullable): The expected version number of the
  *  Steam Runtime
@@ -300,11 +300,11 @@ _srt_runtime_check_filesystem (const char *path)
  * problems with it.
  */
 static SrtRuntimeIssues
-_srt_runtime_check (const char *bin32,
-                    const char *expected_version,
-                    const char * const *envp,
-                    gchar **version_out,
-                    gchar **path_out)
+_srt_runtime_check_ldlp (const char *bin32,
+                         const char *expected_version,
+                         const char * const *envp,
+                         gchar **version_out,
+                         gchar **path_out)
 {
   SrtRuntimeIssues issues = SRT_RUNTIME_ISSUES_NONE;
   GStatBuf zeroed_stat = {};
@@ -709,8 +709,8 @@ _srt_runtime_check_execution_environment (SrtRuntime *self,
    * it is as expected */
   if (runtime != NULL && runtime[0] == '/' && runtime[1] != '\0')
     {
-      self->issues = _srt_runtime_check (bin32, self->expected_version, env,
-                                         &self->version, &self->path);
+      self->issues = _srt_runtime_check_ldlp (bin32, self->expected_version, env,
+                                              &self->version, &self->path);
       return;
     }
 
@@ -722,8 +722,8 @@ _srt_runtime_check_execution_environment (SrtRuntime *self,
   /* If we are not currently running in a container runtime, check that
    * the default LD_LIBRARY_PATH runtime in
    * ~/.steam/root/ubuntu12_32/steam-runtime is as expected */
-  self->issues = _srt_runtime_check (bin32, self->expected_version, env,
-                                     &self->version, &self->path);
+  self->issues = _srt_runtime_check_ldlp (bin32, self->expected_version, env,
+                                          &self->version, &self->path);
 }
 
 /*

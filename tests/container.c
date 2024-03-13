@@ -35,7 +35,9 @@
 #include <glib.h>
 #include <glib/gstdio.h>
 
+#include "steam-runtime-tools/bwrap-internal.h"
 #include "steam-runtime-tools/container-internal.h"
+#include "steam-runtime-tools/system-info-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
 #include "test-utils.h"
 
@@ -45,6 +47,7 @@ static gchar *global_sysroots;
 typedef struct
 {
   gchar *builddir;
+  gchar *srcdir;
 } Fixture;
 
 typedef struct
@@ -57,10 +60,15 @@ setup (Fixture *f,
        gconstpointer context)
 {
   G_GNUC_UNUSED const Config *config = context;
+
   f->builddir = g_strdup (g_getenv ("G_TEST_BUILDDIR"));
+  f->srcdir = g_strdup (g_getenv ("G_TEST_SRCDIR"));
 
   if (f->builddir == NULL)
     f->builddir = g_path_get_dirname (argv0);
+
+  if (f->srcdir == NULL)
+    f->srcdir = g_path_get_dirname (argv0);
 }
 
 static void
@@ -70,6 +78,7 @@ teardown (Fixture *f,
   G_GNUC_UNUSED const Config *config = context;
 
   g_free (f->builddir);
+  g_free (f->srcdir);
 }
 
 /*
@@ -79,33 +88,94 @@ static void
 test_object (Fixture *f,
              gconstpointer context)
 {
+  g_autoptr(GError) local_error = NULL;
   g_autoptr(SrtContainerInfo) container = NULL;
   g_autoptr(SrtOsInfo) host_os_info = NULL;
+  g_autoptr(SrtSysroot) sysroot = NULL;
   SrtContainerType type;
+  g_autofree gchar *bwrap_messages = NULL;
+  g_autofree gchar *bwrap_path = NULL;
   g_autofree gchar *flatpak_version = NULL;
+  g_autofree gchar *sysroot_path = NULL;
+  SrtBwrapIssues bwrap_issues = SRT_BWRAP_ISSUES_UNKNOWN;
+  SrtFlatpakIssues flatpak_issues = SRT_FLATPAK_ISSUES_UNKNOWN;
   g_autofree gchar *host_directory = NULL;
 
   container = _srt_container_info_new (SRT_CONTAINER_TYPE_FLATPAK,
+                                       SRT_BWRAP_ISSUES_UNKNOWN, NULL, NULL,
+                                       SRT_FLATPAK_ISSUES_SUBSANDBOX_OUTPUT_CORRUPTED,
                                        "1.10.2",
                                        "/run/host",
                                        NULL);
 
   g_assert_cmpint (srt_container_info_get_container_type (container), ==,
                    SRT_CONTAINER_TYPE_FLATPAK);
+  g_assert_cmpuint (srt_container_info_get_bwrap_issues (container),
+                    ==, (SRT_BWRAP_ISSUES_CANNOT_RUN
+                         | SRT_BWRAP_ISSUES_NOT_TESTED));
   g_assert_cmpstr (srt_container_info_get_flatpak_version (container), ==, "1.10.2");
+  g_assert_cmpuint (srt_container_info_get_flatpak_issues (container),
+                    ==, SRT_FLATPAK_ISSUES_SUBSANDBOX_OUTPUT_CORRUPTED);
   g_assert_cmpstr (srt_container_info_get_container_host_directory (container), ==,
                    "/run/host");
   g_assert_null (srt_container_info_get_container_host_os_info (container));
   g_object_get (container,
                 "type", &type,
+                "bwrap-issues", &bwrap_issues,
+                "flatpak-issues", &flatpak_issues,
                 "flatpak-version", &flatpak_version,
                 "host-directory", &host_directory,
                 "host-os-info", &host_os_info,
                 NULL);
   g_assert_cmpint (type, ==, SRT_CONTAINER_TYPE_FLATPAK);
+  g_assert_cmpuint (bwrap_issues, ==, (SRT_BWRAP_ISSUES_CANNOT_RUN
+                                       | SRT_BWRAP_ISSUES_NOT_TESTED));
+  g_assert_cmpuint (flatpak_issues, ==, SRT_FLATPAK_ISSUES_SUBSANDBOX_OUTPUT_CORRUPTED);
   g_assert_cmpstr (flatpak_version, ==, "1.10.2");
   g_assert_cmpstr (host_directory, ==, "/run/host");
   g_assert_null (host_os_info);
+
+  sysroot_path = g_build_filename (global_sysroots, "debian-unstable", NULL);
+  sysroot = _srt_sysroot_new (sysroot_path, &local_error);
+  g_assert_no_error (local_error);
+  g_assert_nonnull (sysroot);
+
+  /* With a NULL runner, no helper programs are actually run, but we do
+   * check the version number */
+  _srt_container_info_check_issues (container, sysroot, NULL);
+  g_assert_cmpuint (srt_container_info_get_flatpak_issues (container),
+                    ==, (SRT_FLATPAK_ISSUES_SUBSANDBOX_NOT_CHECKED
+                         | SRT_FLATPAK_ISSUES_TOO_OLD));
+
+  /* Some properties only work when not under Flatpak */
+  g_clear_object (&container);
+  container = _srt_container_info_new (SRT_CONTAINER_TYPE_NONE,
+                                       SRT_BWRAP_ISSUES_CANNOT_RUN,
+                                       "bwrap: This is not going to work",
+                                       "/usr/bin/bwrap",
+                                       SRT_FLATPAK_ISSUES_UNKNOWN, NULL, NULL,
+                                       NULL);
+  g_assert_cmpuint (srt_container_info_get_bwrap_issues (container),
+                    ==, SRT_BWRAP_ISSUES_CANNOT_RUN);
+  g_assert_cmpstr (srt_container_info_get_bwrap_messages (container),
+                   ==, "bwrap: This is not going to work");
+  g_assert_cmpstr (srt_container_info_get_bwrap_path (container),
+                   ==, "/usr/bin/bwrap");
+  g_object_get (container,
+                "type", &type,
+                "bwrap-issues", &bwrap_issues,
+                "bwrap-messages", &bwrap_messages,
+                "bwrap-path", &bwrap_path,
+                NULL);
+  g_assert_cmpuint (bwrap_issues, ==, SRT_BWRAP_ISSUES_CANNOT_RUN);
+  g_assert_cmpstr (bwrap_messages, ==, "bwrap: This is not going to work");
+  g_assert_cmpstr (bwrap_path, ==, "/usr/bin/bwrap");
+
+  _srt_container_info_check_issues (container, sysroot, NULL);
+  g_assert_cmpuint (srt_container_info_get_bwrap_issues (container),
+                    ==, SRT_BWRAP_ISSUES_NOT_TESTED);
+  g_assert_cmpuint (srt_container_info_get_flatpak_issues (container),
+                    ==, SRT_BWRAP_ISSUES_NONE);
 }
 
 typedef struct
@@ -140,7 +210,7 @@ static const ContainerTest container_tests[] =
     .sysroot = "flatpak-example",
     .type = SRT_CONTAINER_TYPE_FLATPAK,
     .host_directory = "/run/host",
-    .flatpak_version = "1.10.2",
+    .flatpak_version = "1.14.0",
     .host_os_id = "debian",
   },
   {
@@ -194,6 +264,11 @@ test_containers (Fixture *f,
       info = srt_system_info_new (NULL);
       g_assert_nonnull (info);
       srt_system_info_set_sysroot (info, sysroot);
+      /* Skip the detailed check for Flatpak issues - we don't expect this
+       * to pass when we're not really in a Flatpak app. This is tested
+       * using mock steam-runtime-launch-client executables in
+       * test_flatpak_issues(). */
+      _srt_system_info_set_check_flags (info, SRT_CHECK_FLAGS_NO_HELPERS);
 
       if (test->host_directory == NULL)
         expected_host = NULL;
@@ -214,6 +289,13 @@ test_containers (Fixture *f,
                            test->type);
           g_assert_cmpint (srt_container_info_get_container_type (container), ==,
                            test->type);
+
+          if (test->type == SRT_CONTAINER_TYPE_FLATPAK)
+            g_assert_cmpuint (srt_container_info_get_flatpak_issues (container),
+                              ==, SRT_FLATPAK_ISSUES_SUBSANDBOX_NOT_CHECKED);
+          else
+            g_assert_cmpuint (srt_container_info_get_flatpak_issues (container),
+                              ==, SRT_FLATPAK_ISSUES_NONE);
 
           host_os_info = srt_container_info_get_container_host_os_info (container);
           g_object_get (container,
@@ -242,6 +324,194 @@ test_containers (Fixture *f,
     }
 }
 
+typedef struct
+{
+  const char *dir;
+  SrtFlatpakIssues expected;
+} FlatpakIssuesTest;
+
+static const FlatpakIssuesTest flatpak_issues_tests[] =
+{
+  {
+    .dir = "mock-flatpak/good",
+    .expected = SRT_FLATPAK_ISSUES_NONE,
+  },
+  {
+    .dir = "mock-flatpak/broken",
+    .expected = SRT_FLATPAK_ISSUES_SUBSANDBOX_UNAVAILABLE,
+  },
+  {
+    .dir = "mock-flatpak/no-display",
+    .expected = SRT_FLATPAK_ISSUES_SUBSANDBOX_DID_NOT_INHERIT_DISPLAY,
+  },
+  {
+    .dir = "mock-flatpak/suid",
+    .expected = SRT_FLATPAK_ISSUES_SUBSANDBOX_LIMITED_BY_SETUID_BWRAP,
+  },
+  {
+    .dir = "mock-flatpak/old",
+    .expected = SRT_FLATPAK_ISSUES_TOO_OLD,
+  },
+  {
+    .dir = "mock-flatpak/stdout",
+    .expected = SRT_FLATPAK_ISSUES_SUBSANDBOX_OUTPUT_CORRUPTED,
+  },
+  {
+    .dir = "mock-flatpak/timeout",
+    .expected = SRT_FLATPAK_ISSUES_SUBSANDBOX_TIMED_OUT,
+  },
+};
+
+static void
+test_flatpak_issues (Fixture *f,
+                     gconstpointer context)
+{
+  g_autoptr(GError) local_error = NULL;
+  g_autoptr(SrtContainerInfo) container = NULL;
+  g_autoptr(SrtSysroot) sysroot = NULL;
+  g_autofree gchar *sysroot_path = NULL;
+  gsize i;
+
+  sysroot_path = g_build_filename (global_sysroots, "flatpak-example", NULL);
+  sysroot = _srt_sysroot_new (sysroot_path, &local_error);
+  g_assert_no_error (local_error);
+  g_assert_nonnull (sysroot);
+  container = _srt_check_container (sysroot);
+  g_assert_nonnull (container);
+
+  /* Without calling _srt_container_info_check_issues(), we cannot know
+   * whether there were any issues or not */
+  g_assert_cmpuint (srt_container_info_get_flatpak_issues (container),
+                    ==, SRT_FLATPAK_ISSUES_UNKNOWN);
+
+  for (i = 0; i < G_N_ELEMENTS (flatpak_issues_tests); i++)
+    {
+      const FlatpakIssuesTest *test = &flatpak_issues_tests[i];
+      g_autoptr(SrtSubprocessRunner) runner = NULL;
+      g_autofree gchar *path = NULL;
+      SrtTestFlags test_flags = SRT_TEST_FLAGS_NONE;
+
+      if (test->expected & SRT_FLATPAK_ISSUES_SUBSANDBOX_TIMED_OUT)
+        test_flags |= SRT_TEST_FLAGS_TIME_OUT_SOONER;
+
+      /* Use a mock ${bindir} to present various results */
+      path = g_build_filename (f->srcdir, test->dir, NULL);
+      runner = _srt_subprocess_runner_new_full (_srt_const_strv (environ),
+                                                path,
+                                                NULL,
+                                                test_flags);
+      g_assert_nonnull (runner);
+      _srt_container_info_check_issues (container, sysroot, runner);
+      g_assert_cmpuint (srt_container_info_get_flatpak_issues (container),
+                        ==, test->expected);
+    }
+}
+
+typedef struct
+{
+  const char *sysroot;
+  const char *dir;
+  SrtBwrapIssues expected;
+} BwrapIssuesTest;
+
+static const BwrapIssuesTest bwrap_issues_tests[] =
+{
+  {
+    .sysroot = "debian-unstable",
+    .dir = "mock-bwrap/good",
+    .expected = SRT_BWRAP_ISSUES_NONE,
+  },
+  {
+    .sysroot = "debian-unstable",
+    .dir = "mock-bwrap/old",
+    /* We don't currently diagnose lack of --perms as a serious problem */
+    .expected = SRT_BWRAP_ISSUES_NONE,
+  },
+  {
+    .sysroot = "debian-unstable",
+    .dir = "mock-bwrap/system",
+    .expected = SRT_BWRAP_ISSUES_SYSTEM,
+  },
+  {
+    .sysroot = "debian10",
+    .dir = "mock-bwrap/broken",
+    .expected = (SRT_BWRAP_ISSUES_CANNOT_RUN
+                 | SRT_BWRAP_ISSUES_NO_UNPRIVILEGED_USERNS_CLONE),
+  },
+  {
+    .sysroot = "fedora",
+    .dir = "mock-bwrap/setuid",
+    .expected = (SRT_BWRAP_ISSUES_SETUID
+                 | SRT_BWRAP_ISSUES_SYSTEM
+                 | SRT_BWRAP_ISSUES_MAX_USER_NAMESPACES_ZERO),
+  },
+};
+
+static void
+test_bwrap_issues (Fixture *f,
+                   gconstpointer context)
+{
+  g_autoptr(GError) local_error = NULL;
+  size_t i;
+
+  for (i = 0; i < G_N_ELEMENTS (bwrap_issues_tests); i++)
+    {
+      const BwrapIssuesTest *test = &bwrap_issues_tests[i];
+      g_auto(GStrv) envp = NULL;
+      g_autoptr(SrtSubprocessRunner) runner = NULL;
+      g_autoptr(SrtSysroot) sysroot = NULL;
+      g_autofree gchar *sysroot_path = NULL;
+      g_autofree gchar *pkglibexecdir = NULL;
+      g_autofree gchar *system_bwrap = NULL;
+      g_autofree gchar *bundled_bwrap = NULL;
+      g_autofree gchar *bwrap = NULL;
+      g_autofree gchar *message = NULL;
+      SrtBwrapIssues actual;
+
+      g_test_message ("sysroot=%s, dir=%s...", test->sysroot, test->dir);
+
+      sysroot_path = g_build_filename (global_sysroots, test->sysroot, NULL);
+      sysroot = _srt_sysroot_new (sysroot_path, &local_error);
+      g_assert_no_error (local_error);
+      g_assert_nonnull (sysroot);
+
+      envp = g_get_environ ();
+      envp = g_environ_unsetenv (envp, "BWRAP");
+      envp = g_environ_unsetenv (envp, "PRESSURE_VESSEL_BWRAP");
+
+      /* Use a mock ${pkglibexecdir} to present various results */
+      pkglibexecdir = g_build_filename (f->srcdir, test->dir, NULL);
+      bundled_bwrap = g_build_filename (pkglibexecdir, "srt-bwrap", NULL);
+      system_bwrap = g_build_filename (pkglibexecdir, "bwrap", NULL);
+
+      if (g_file_test (system_bwrap, G_FILE_TEST_IS_EXECUTABLE))
+        envp = g_environ_setenv (envp, "BWRAP", system_bwrap, TRUE);
+      else
+        envp = g_environ_setenv (envp, "BWRAP", "/bin/false", TRUE);
+
+      runner = _srt_subprocess_runner_new_full (_srt_const_strv (envp),
+                                                NULL,
+                                                pkglibexecdir,
+                                                SRT_TEST_FLAGS_NONE);
+      actual = _srt_check_bwrap_issues (sysroot, runner, &bwrap, &message);
+
+      if (actual & SRT_BWRAP_ISSUES_CANNOT_RUN)
+        {
+          g_test_message ("-> cannot run: %s (issues: %u)", message, actual);
+          g_assert_null (bwrap);
+          g_assert_nonnull (message);
+        }
+      else
+        {
+          g_test_message ("-> can run: %s (issues: %u)", bwrap, actual);
+          g_assert_nonnull (bwrap);
+          g_assert_null (message);
+        }
+
+      g_assert_cmpuint (actual, ==, test->expected);
+    }
+};
+
 int
 main (int argc,
       char **argv)
@@ -254,6 +524,10 @@ main (int argc,
               setup, test_object, teardown);
   g_test_add ("/container/containers", Fixture, NULL,
               setup, test_containers, teardown);
+  g_test_add ("/container/bwrap-issues", Fixture, NULL,
+              setup, test_bwrap_issues, teardown);
+  g_test_add ("/container/flatpak-issues", Fixture, NULL,
+              setup, test_flatpak_issues, teardown);
 
   return g_test_run ();
 }

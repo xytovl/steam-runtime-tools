@@ -14,6 +14,7 @@
 
 /*
  * find_system_bwrap:
+ * @runner: A subprocess execution environment
  *
  * Attempt to find a system copy of bubblewrap, either in the PATH
  * or in the libexecdir used by some version of Flatpak.
@@ -21,7 +22,7 @@
  * Returns: (transfer full): The path to bwrap(1), or %NULL if not found
  */
 static gchar *
-find_system_bwrap (void)
+find_system_bwrap (SrtSubprocessRunner *runner)
 {
   static const char * const flatpak_libexecdirs[] =
   {
@@ -29,8 +30,14 @@ find_system_bwrap (void)
     "/usr/libexec",
     "/usr/lib/flatpak"
   };
+  const char *from_env;
   g_autofree gchar *candidate = NULL;
   gsize i;
+
+  from_env = _srt_subprocess_runner_getenv (runner, "BWRAP");
+
+  if (from_env != NULL)
+    return g_strdup (from_env);
 
   candidate = g_find_program_in_path ("bwrap");
 
@@ -51,17 +58,10 @@ find_system_bwrap (void)
   return NULL;
 }
 
-static void
-child_setup_cb (gpointer user_data)
-{
-  g_fdwalk_set_cloexec (3);
-}
-
 /*
  * test_bwrap_executable:
  *
  * Test whether the given @bwrap_executable works.
- * If it does not, log a message at level @log_level.
  *
  * If a feature flag is present in @test_features, only return true
  * if @bwrap_executable works *and* has the desired features.
@@ -71,16 +71,14 @@ child_setup_cb (gpointer user_data)
  * Returns: %TRUE if all of the requested features are present
  */
 static gboolean
-test_bwrap_executable (const char *bwrap_executable,
+test_bwrap_executable (SrtSubprocessRunner *runner,
+                       const char *bwrap_executable,
                        SrtBwrapFlags test_features,
-                       GLogLevelFlags log_level)
+                       GError **error)
 {
   g_autoptr(GPtrArray) argv = g_ptr_array_sized_new (10);
-  int wait_status;
-  g_autofree gchar *child_stdout = NULL;
-  g_autofree gchar *child_stderr = NULL;
+  g_autoptr(SrtCompletedSubprocess) completed = NULL;
   g_autoptr(GError) local_error = NULL;
-  GError **error = &local_error;
 
   g_ptr_array_add (argv, (char *) bwrap_executable);
 
@@ -99,34 +97,23 @@ test_bwrap_executable (const char *bwrap_executable,
   g_ptr_array_add (argv, (char *) "true");
   g_ptr_array_add (argv, NULL);
 
-  /* We use LEAVE_DESCRIPTORS_OPEN and set CLOEXEC in the child_setup,
-   * to work around a deadlock in GLib < 2.60 */
-  if (!g_spawn_sync (NULL,  /* cwd */
-                     (gchar **) argv->pdata,
-                     NULL,  /* environ */
-                     G_SPAWN_LEAVE_DESCRIPTORS_OPEN,
-                     child_setup_cb, NULL,
-                     &child_stdout,
-                     &child_stderr,
-                     &wait_status,
-                     error))
+  completed = _srt_subprocess_runner_run_sync (runner,
+                                               SRT_HELPER_FLAGS_TIME_OUT,
+                                               (const char * const *) argv->pdata,
+                                               SRT_SUBPROCESS_OUTPUT_CAPTURE_DEBUG,
+                                               SRT_SUBPROCESS_OUTPUT_CAPTURE_DEBUG,
+                                               &local_error);
+
+  if (completed == NULL)
     {
-      g_log (G_LOG_DOMAIN, log_level, "Cannot run %s: %s",
-             bwrap_executable, local_error->message);
-      g_clear_error (&local_error);
+      g_debug ("Cannot run %s: %s",
+               bwrap_executable, local_error->message);
+      g_propagate_error (error, g_steal_pointer (&local_error));
       return FALSE;
     }
-  else if (wait_status != 0)
+  else if (!_srt_completed_subprocess_check (completed, &local_error))
     {
-      g_log (G_LOG_DOMAIN, log_level, "Cannot run %s: wait status %d",
-             bwrap_executable, wait_status);
-
-      if (child_stdout != NULL && child_stdout[0] != '\0')
-        g_log (G_LOG_DOMAIN, log_level, "Output:\n%s", child_stdout);
-
-      if (child_stderr != NULL && child_stderr[0] != '\0')
-        g_log (G_LOG_DOMAIN, log_level, "Diagnostic output:\n%s", child_stderr);
-
+      g_propagate_error (error, g_steal_pointer (&local_error));
       return FALSE;
     }
   else
@@ -138,34 +125,33 @@ test_bwrap_executable (const char *bwrap_executable,
 
 /*
  * check_bwrap:
+ * @runner: A subprocess execution environment
  * @pkglibexecdir: Path to libexec/steam-runtime-tools-0
  * @skip_testing: If true, do not test the bwrap executable, but instead
  *  assume that it will work
  * @flags_out: (out): Used to return %SRT_BWRAP_FLAGS_SYSTEM if appropriate
  *
  * Attempt to find a working bwrap executable in the environment,
- * @pkglibexecdir or a system location. Log messages via _srt_log_failure()
+ * @pkglibexecdir or a system location. Return %NULL with @error set
  * if none can be found.
  *
  * Flags other than %SRT_BWRAP_FLAGS_SYSTEM are not checked here.
  *
  * Returns: (transfer full): Path to bwrap(1), or %NULL if not found
+ *  or non-functional
  */
 static gchar *
-check_bwrap (const char *pkglibexecdir,
+check_bwrap (SrtSubprocessRunner *runner,
              gboolean skip_testing,
-             SrtBwrapFlags *flags_out)
+             SrtBwrapFlags *flags_out,
+             GError **error)
 {
   g_autofree gchar *local_bwrap = NULL;
   g_autofree gchar *system_bwrap = NULL;
+  const char *pkglibexecdir;
   const char *tmp;
 
-  g_return_val_if_fail (pkglibexecdir != NULL, NULL);
-
-  tmp = g_getenv ("PRESSURE_VESSEL_BWRAP");
-
-  if (tmp == NULL)
-    tmp = g_getenv ("BWRAP");
+  tmp = _srt_subprocess_runner_getenv (runner, "PRESSURE_VESSEL_BWRAP");
 
   if (tmp != NULL)
     {
@@ -174,12 +160,16 @@ check_bwrap (const char *pkglibexecdir,
       g_info ("Using bubblewrap from environment: %s", tmp);
 
       if (!skip_testing
-          && !test_bwrap_executable (tmp, SRT_BWRAP_FLAGS_NONE,
-                                     SRT_LOG_LEVEL_FAILURE))
+          && !test_bwrap_executable (runner, tmp, SRT_BWRAP_FLAGS_NONE, error))
         return NULL;
 
       return g_strdup (tmp);
     }
+
+  pkglibexecdir = _srt_subprocess_runner_resolve_helpers_path (runner, error);
+
+  if (pkglibexecdir == NULL)
+    return NULL;
 
   local_bwrap = g_build_filename (pkglibexecdir, "srt-bwrap", NULL);
 
@@ -187,18 +177,15 @@ check_bwrap (const char *pkglibexecdir,
    * about it for now - we might need to use a setuid system copy, for
    * example on Debian 10, RHEL 7, Arch linux-hardened kernel. */
   if (skip_testing
-      || test_bwrap_executable (local_bwrap, SRT_BWRAP_FLAGS_NONE,
-                                G_LOG_LEVEL_DEBUG))
+      || test_bwrap_executable (runner, local_bwrap, SRT_BWRAP_FLAGS_NONE, NULL))
     return g_steal_pointer (&local_bwrap);
 
   g_assert (!skip_testing);
-  system_bwrap = find_system_bwrap ();
+  system_bwrap = find_system_bwrap (runner);
 
-  /* Try the system copy: if it exists, then it should work, so print failure
-   * messages if it doesn't work. */
+  /* Try the system copy */
   if (system_bwrap != NULL
-      && test_bwrap_executable (system_bwrap, SRT_BWRAP_FLAGS_NONE,
-                                SRT_LOG_LEVEL_FAILURE))
+      && test_bwrap_executable (runner, system_bwrap, SRT_BWRAP_FLAGS_NONE, NULL))
     {
       if (flags_out != NULL)
         *flags_out |= SRT_BWRAP_FLAGS_SYSTEM;
@@ -207,11 +194,9 @@ check_bwrap (const char *pkglibexecdir,
     }
 
   /* If there was no system copy, try the local copy again. We expect
-   * this to fail, and are really just doing this to print error messages
-   * at the appropriate severity - but if it somehow works, great,
-   * I suppose? */
-  if (test_bwrap_executable (local_bwrap, SRT_BWRAP_FLAGS_NONE,
-                             SRT_LOG_LEVEL_FAILURE))
+   * this to fail, and are really just doing this to populate @error -
+   * but if it somehow works, great, I suppose? */
+  if (test_bwrap_executable (runner, local_bwrap, SRT_BWRAP_FLAGS_NONE, error))
     {
       g_warning ("Local bwrap executable didn't work first time but "
                  "worked second time?");
@@ -223,24 +208,28 @@ check_bwrap (const char *pkglibexecdir,
 
 /*
  * _srt_check_bwrap:
- * @pkglibexecdir: Path to libexec/steam-runtime-tools-0
+ * @runner: A subprocess execution environment
  * @skip_testing: If true, do not test the bwrap executable, but instead
  *  assume that it will work
  * @flags_out: (out): Properties of the returned executable
  *
  * Attempt to find a working bwrap executable in the environment,
- * @pkglibexecdir or a system location. Log messages via _srt_log_failure()
+ * `${pkglibexecdir}` or a system location. Log messages via _srt_log_failure()
  * if none can be found.
  *
  * Returns: (transfer full): Path to bwrap(1), or %NULL if not found
  */
 gchar *
-_srt_check_bwrap (const char *pkglibexecdir,
+_srt_check_bwrap (SrtSubprocessRunner *runner,
                   gboolean skip_testing,
-                  SrtBwrapFlags *flags_out)
+                  SrtBwrapFlags *flags_out,
+                  GError **error)
 {
   SrtBwrapFlags flags = SRT_BWRAP_FLAGS_NONE;
-  g_autofree gchar *bwrap = check_bwrap (pkglibexecdir, skip_testing, &flags);
+  g_autofree gchar *bwrap = check_bwrap (runner,
+                                         skip_testing,
+                                         &flags,
+                                         error);
   struct stat statbuf;
 
   if (bwrap == NULL)
@@ -248,21 +237,98 @@ _srt_check_bwrap (const char *pkglibexecdir,
 
   if (stat (bwrap, &statbuf) < 0)
     {
-      g_warning ("stat(%s): %s", bwrap, g_strerror (errno));
+      g_info ("stat(%s): %s", bwrap, g_strerror (errno));
     }
-  else if (statbuf.st_mode & S_ISUID)
+  else if ((statbuf.st_mode & S_ISUID)
+           /* For unit tests: pretend this one is really setuid */
+           || strstr (bwrap, "mock-bwrap/setuid/") != NULL)
     {
       g_info ("Using setuid bubblewrap executable %s (permissions: %o)",
               bwrap, _srt_stat_get_permissions (&statbuf));
       flags |= SRT_BWRAP_FLAGS_SETUID;
     }
 
-  if (test_bwrap_executable (bwrap, SRT_BWRAP_FLAGS_HAS_PERMS,
-                             G_LOG_LEVEL_DEBUG))
+  if (test_bwrap_executable (runner, bwrap, SRT_BWRAP_FLAGS_HAS_PERMS, NULL))
     flags |= SRT_BWRAP_FLAGS_HAS_PERMS;
 
   if (flags_out != NULL)
     *flags_out = flags;
 
   return g_steal_pointer (&bwrap);
+}
+
+/*
+ * _srt_check_bwrap_issues:
+ * @sysroot: A system root used to look up kernel parameters
+ * @runner: A subprocess execution environment
+ * @bwrap_out: (out): Path to a bwrap executable, if found
+ * @message: (out): A diagnostic message if appropriate
+ */
+SrtBwrapIssues
+_srt_check_bwrap_issues (SrtSysroot *sysroot,
+                         SrtSubprocessRunner *runner,
+                         gchar **bwrap_out,
+                         gchar **message_out)
+{
+  g_autoptr(GError) local_error = NULL;
+  g_autofree gchar *bwrap = NULL;
+  SrtBwrapIssues issues = SRT_BWRAP_ISSUES_NONE;
+  SrtBwrapFlags flags = SRT_BWRAP_FLAGS_NONE;
+
+  if (message_out != NULL)
+    *message_out = NULL;
+
+  if (bwrap_out != NULL)
+    *bwrap_out = NULL;
+
+  bwrap = _srt_check_bwrap (runner, FALSE, &flags, &local_error);
+
+  if (bwrap != NULL)
+    {
+      if (bwrap_out != NULL)
+        *bwrap_out = g_steal_pointer (&bwrap);
+
+      if (flags & SRT_BWRAP_FLAGS_SETUID)
+        issues |= SRT_BWRAP_ISSUES_SETUID;
+
+      if (flags & SRT_BWRAP_FLAGS_SYSTEM)
+        issues |= SRT_BWRAP_ISSUES_SYSTEM;
+    }
+  else
+    {
+      if (message_out != NULL)
+        *message_out = g_strdup (local_error->message);
+
+      issues |= SRT_BWRAP_ISSUES_CANNOT_RUN;
+    }
+
+  /* As a minor optimization, if our bundled bwrap works, don't go looking
+   * at why it might not work. */
+  if (issues != SRT_BWRAP_ISSUES_NONE)
+    {
+      g_autofree gchar *contents = NULL;
+      gsize len = 0;
+
+      if (_srt_sysroot_load (sysroot, "/proc/sys/kernel/unprivileged_userns_clone",
+                             SRT_RESOLVE_FLAGS_NONE, NULL,
+                             &contents, &len, NULL))
+        {
+          if (g_strcmp0 (contents, "0\n") == 0)
+            issues |= SRT_BWRAP_ISSUES_NO_UNPRIVILEGED_USERNS_CLONE;
+
+          g_clear_pointer (&contents, g_free);
+        }
+
+      if (_srt_sysroot_load (sysroot, "/proc/sys/user/max_user_namespaces",
+                             SRT_RESOLVE_FLAGS_NONE, NULL,
+                             &contents, &len, NULL))
+        {
+          if (g_strcmp0 (contents, "0\n") == 0)
+            issues |= SRT_BWRAP_ISSUES_MAX_USER_NAMESPACES_ZERO;
+
+          g_clear_pointer (&contents, g_free);
+        }
+    }
+
+  return issues;
 }

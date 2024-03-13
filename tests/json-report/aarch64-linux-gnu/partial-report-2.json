@@ -22,7 +22,17 @@
     "type" : "none"
   },
   "container" : {
-    "type" : "docker"
+    "type" : "docker",
+    "bubblewrap_path" : "/usr/bin/bwrap",
+    "bubblewrap_issues" : [
+      "setuid",
+      "system",
+      "no-unprivileged-userns-clone",
+      "max-user-namespaces-zero"
+    ],
+    "bubblewrap_messages" : [
+      "bwrap: warning: this is not going to work"
+    ]
   },
   "architectures" : {
     "aarch64-linux-gnu" : {

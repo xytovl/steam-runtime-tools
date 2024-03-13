@@ -1,0 +1,18 @@
+#!/bin/sh
+# Copyright 2024 Collabora Ltd.
+# SPDX-License-Identifier: MIT
+
+set -eu
+
+echo "$0: unwanted noise on stdout"
+
+for arg in "$@"; do
+    case "$arg" in
+        (*DISPLAY*)
+            echo "DISPLAY_is_set"
+            ;;
+    esac
+done
+
+echo "$0: more unwanted noise on stdout"
+exit 0

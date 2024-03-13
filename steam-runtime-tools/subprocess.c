@@ -708,6 +708,8 @@ struct _SrtSubprocessRunner
   GObject parent;
   /* Environment */
   GStrv envp;
+  /* Path to find steam-runtime-launch-client etc., or %NULL */
+  gchar *bin_path;
   /* Path to find helper executables, or %NULL to use $SRT_HELPERS_PATH
    * or the installed helpers */
   gchar *helpers_path;
@@ -725,6 +727,7 @@ G_DEFINE_TYPE (SrtSubprocessRunner, _srt_subprocess_runner, G_TYPE_OBJECT)
 enum
 {
   PROP_0,
+  PROP_BIN_PATH,
   PROP_ENVIRON,
   PROP_HELPERS_PATH,
   PROP_TEST_FLAGS,
@@ -772,6 +775,10 @@ _srt_subprocess_runner_get_property (GObject *object,
 
   switch (prop_id)
     {
+      case PROP_BIN_PATH:
+        g_value_set_string (value, self->bin_path);
+        break;
+
       case PROP_ENVIRON:
         g_value_set_boxed (value, self->envp);
         break;
@@ -800,6 +807,12 @@ _srt_subprocess_runner_set_property (GObject *object,
 
   switch (prop_id)
     {
+      case PROP_BIN_PATH:
+        /* Construct-only */
+        g_return_if_fail (self->bin_path == NULL);
+        self->bin_path = g_value_dup_string (value);
+        break;
+
       case PROP_ENVIRON:
         /* Construct-only */
         g_return_if_fail (self->envp == NULL);
@@ -833,6 +846,7 @@ _srt_subprocess_runner_finalize (GObject *object)
   SrtSubprocessRunner *self = SRT_SUBPROCESS_RUNNER (object);
 
   g_strfreev (self->envp);
+  g_free (self->bin_path);
   g_free (self->helpers_path);
 
   G_OBJECT_CLASS (_srt_subprocess_runner_parent_class)->finalize (object);
@@ -848,6 +862,10 @@ _srt_subprocess_runner_class_init (SrtSubprocessRunnerClass *cls)
   object_class->set_property = _srt_subprocess_runner_set_property;
   object_class->finalize = _srt_subprocess_runner_finalize;
 
+  properties[PROP_BIN_PATH] =
+    g_param_spec_string ("bin-path", NULL, NULL, NULL,
+                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+                         G_PARAM_STATIC_STRINGS);
   properties[PROP_ENVIRON] =
     g_param_spec_boxed ("environ", NULL, NULL, G_TYPE_STRV,
                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
@@ -887,6 +905,17 @@ _srt_subprocess_runner_getenv (SrtSubprocessRunner *self,
 }
 
 /*
+ * Returns: The path to `steam-runtime-launch-client` and so on,
+ *  or %NULL to use a default.
+ */
+const char *
+_srt_subprocess_runner_get_bin_path (SrtSubprocessRunner *self)
+{
+  g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (self), NULL);
+  return self->bin_path;
+}
+
+/*
  * Returns: The path to `x86_64-linux-gnu-check-gl` and so on,
  *  or %NULL to use a default.
  */
@@ -895,6 +924,34 @@ _srt_subprocess_runner_get_helpers_path (SrtSubprocessRunner *self)
 {
   g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (self), NULL);
   return self->helpers_path;
+}
+
+/*
+ * Returns: The path to `x86_64-linux-gnu-check-gl` and so on,
+ *  or %NULL if unable to find a suitable path.
+ */
+const char *
+_srt_subprocess_runner_resolve_helpers_path (SrtSubprocessRunner *self,
+                                             GError **error)
+{
+  const char *helpers_path;
+
+  g_return_val_if_fail (SRT_IS_SUBPROCESS_RUNNER (self), NULL);
+
+  /* Prefer a helper from ${SRT_HELPERS_PATH} or
+   * ${libexecdir}/steam-runtime-tools-${_SRT_API_MAJOR}
+   * if it exists */
+  helpers_path = self->helpers_path;
+
+  if (helpers_path == NULL)
+    helpers_path = g_getenv ("SRT_HELPERS_PATH");
+
+  if (helpers_path == NULL
+      && _srt_find_myself (NULL, &helpers_path, error) == NULL)
+    return NULL;
+
+  g_return_val_if_fail (helpers_path != NULL, NULL);
+  return helpers_path;
 }
 
 /*
@@ -931,6 +988,7 @@ _srt_subprocess_runner_get_helper (SrtSubprocessRunner *self,
                                    SrtHelperFlags flags,
                                    GError **error)
 {
+  g_autofree gchar *bin_path = NULL;
   const char *helpers_path;
   GPtrArray *argv = NULL;
   gchar *path;
@@ -941,21 +999,40 @@ _srt_subprocess_runner_get_helper (SrtSubprocessRunner *self,
   g_return_val_if_fail (error == NULL || *error == NULL, NULL);
 
   argv = g_ptr_array_new_with_free_func (g_free);
-  helpers_path = self->helpers_path;
 
-  if (helpers_path == NULL)
-    helpers_path = g_getenv ("SRT_HELPERS_PATH");
-
-  if (helpers_path == NULL
-      && _srt_find_myself (NULL, &helpers_path, error) == NULL)
+  if (flags & SRT_HELPER_FLAGS_IN_BIN_DIR)
     {
-      g_ptr_array_unref (argv);
-      return NULL;
+      /* Prefer a program from ${SRT_BIN_PATH} or ${bindir} if it exists */
+      helpers_path = self->bin_path;
+
+      if (helpers_path == NULL)
+        helpers_path = g_getenv ("SRT_BIN_PATH");
+
+      if (helpers_path == NULL)
+        {
+          const char *prefix = _srt_find_myself (NULL, NULL, error);
+
+          if (prefix == NULL)
+            {
+              g_ptr_array_unref (argv);
+              return NULL;
+            }
+
+          bin_path = g_build_filename (prefix, "bin", NULL);
+          helpers_path = bin_path;
+        }
+    }
+  else
+    {
+      helpers_path = _srt_subprocess_runner_resolve_helpers_path (self, error);
+
+      if (helpers_path == NULL)
+        {
+          g_ptr_array_unref (argv);
+          return NULL;
+        }
     }
 
-  /* Prefer a helper from ${SRT_HELPERS_PATH} or
-   * ${libexecdir}/steam-runtime-tools-${_SRT_API_MAJOR}
-   * if it exists */
   path = g_strdup_printf ("%s/%s%s%s",
                           helpers_path,
                           multiarch == NULL ? "" : multiarch,

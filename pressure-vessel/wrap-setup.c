@@ -26,6 +26,7 @@
 #include "steam-runtime-tools/glib-backports-internal.h"
 #include "steam-runtime-tools/libdl-internal.h"
 #include "steam-runtime-tools/log-internal.h"
+#include "steam-runtime-tools/subprocess-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
 #include "steam-runtime-tools/virtualization-internal.h"
 #include "libglnx.h"
@@ -39,14 +40,16 @@
 #include "utils.h"
 
 gchar *
-pv_wrap_check_bwrap (const char *pkglibexecdir,
-                     gboolean only_prepare,
-                     SrtBwrapFlags *flags_out)
+pv_wrap_check_bwrap (gboolean only_prepare,
+                     SrtBwrapFlags *flags_out,
+                     GError **error)
 {
+  g_autoptr(SrtSubprocessRunner) runner = NULL;
   g_autofree gchar *bwrap = NULL;
   const char *argv[] = { NULL, "--version", NULL };
 
-  bwrap = _srt_check_bwrap (pkglibexecdir, only_prepare, flags_out);
+  runner = _srt_subprocess_runner_new ();
+  bwrap = _srt_check_bwrap (runner, only_prepare, flags_out, error);
 
   if (bwrap == NULL)
     return NULL;

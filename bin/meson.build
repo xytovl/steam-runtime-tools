@@ -22,6 +22,7 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 srt_bin = []
+uninstalled_env_vars += {'SRT_BIN_PATH': meson.current_build_dir()}
 
 # Programs that only need glibc
 libc_programs = [

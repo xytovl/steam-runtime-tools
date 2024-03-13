@@ -29,6 +29,8 @@
  * meet every requirement.
  */
 
+#include <steam-runtime-tools/glib-backports-internal.h>
+
 #include <steam-runtime-tools/steam-runtime-tools.h>
 
 #include <errno.h>
@@ -43,8 +45,10 @@
 #include <glib-object.h>
 
 #include <steam-runtime-tools/bwrap-internal.h>
+#include <steam-runtime-tools/container-internal.h>
 #include <steam-runtime-tools/cpu-feature-internal.h>
 #include <steam-runtime-tools/log-internal.h>
+#include <steam-runtime-tools/resolve-in-sysroot-internal.h>
 #include <steam-runtime-tools/steam-internal.h>
 #include <steam-runtime-tools/utils-internal.h>
 
@@ -93,14 +97,28 @@ check_x86_features (SrtX86FeatureFlags features)
   return ((features & X86_FEATURES_REQUIRED) == X86_FEATURES_REQUIRED);
 }
 
-static const char cannot_run_bwrap[] =
+static const char need_unprivileged_userns_clone[] =
 "Steam now requires user namespaces to be enabled.\n"
 "\n"
-"If the file /proc/sys/kernel/unprivileged_userns_clone exists, check that\n"
-"it contains value 1.\n"
+"The sysctl /proc/sys/kernel/unprivileged_userns_clone should be set to 1.\n"
 "\n"
-"If the file /proc/sys/user/max_user_namespaces exists, check that its\n"
-"value is at least 100.\n"
+"This requirement is the same as for Flatpak, which has more detailed\n"
+"information available:\n"
+"https://github.com/flatpak/flatpak/wiki/User-namespace-requirements\n"
+;
+
+static const char need_max_user_namespaces[] =
+"Steam now requires user namespaces to be enabled.\n"
+"\n"
+"The sysctl /proc/sys/user/max_user_namespaces should be set to at least 100.\n"
+"\n"
+"This requirement is the same as for Flatpak, which has more detailed\n"
+"information available:\n"
+"https://github.com/flatpak/flatpak/wiki/User-namespace-requirements\n"
+;
+
+static const char cannot_run_bwrap[] =
+"Steam now requires user namespaces to be enabled.\n"
 "\n"
 "This requirement is the same as for Flatpak, which has more detailed\n"
 "information available:\n"
@@ -112,13 +130,68 @@ static const char installed_in_usr[] =
 "~/.local/share/Steam. It cannot be installed below /usr.\n"
 ;
 
+static const char flatpak_needs_unprivileged_bwrap[] =
+"The unofficial Steam Flatpak app now requires user namespaces to be\n"
+"enabled.\n"
+"\n"
+"Check that the bubblewrap executable used by Flatpak, usually\n"
+"/usr/bin/bwrap or /usr/libexec/flatpak-bwrap, is not setuid root.\n"
+"\n"
+"If the file /proc/sys/kernel/unprivileged_userns_clone exists, check that\n"
+"it contains value 1.\n"
+"\n"
+"If the file /proc/sys/user/max_user_namespaces exists, check that its\n"
+"value is at least 100.\n"
+"\n"
+"For more details, please see:\n"
+"https://github.com/flatpak/flatpak/wiki/User-namespace-requirements\n"
+;
+
+static const char flatpak_too_old[] =
+"The unofficial Steam Flatpak app requires Flatpak 1.12.0 or later.\n"
+"Using the latest stable release of Flatpak is recommended.\n"
+;
+
+static const char flatpak_needs_display[] =
+"The unofficial Steam Flatpak app requires a correctly-configured desktop\n"
+"session, which must provide the DISPLAY environment variable to the\n"
+"D-Bus session bus activation environment.\n"
+"\n"
+"On systems that use systemd --user, the DISPLAY environment variable must\n"
+"also be present in the systemd --user activation environment.\n"
+"\n"
+"This is usually achieved by running:\n"
+"\n"
+"    dbus-update-activation-environment DISPLAY\n"
+"\n"
+"during desktop environment startup.\n"
+"\n"
+"For more details, please see:\n"
+"https://github.com/ValveSoftware/steam-for-linux/issues/10554\n"
+;
+
+/* This one is the generic "something went wrong" message for Flatpak,
+ * so we can't be particularly specific here. */
+static const char flatpak_needs_subsandbox[] =
+"The unofficial Steam Flatpak app requires a working D-Bus session bus\n"
+"and flatpak-portal service.\n"
+"\n"
+"Running this command might provide more diagnostic information:\n"
+"\n"
+"    flatpak run --command=bash com.valvesoftware.Steam -c 'flatpak-spawn -vv true'\n"
+;
+
 int
 main (int argc,
       char **argv)
 {
-  FILE *original_stdout = NULL;
-  int original_stdout_fd = -1;
-  GError *error = NULL;
+  g_autoptr(FILE) original_stdout = NULL;
+  g_autoptr(GError) error = NULL;
+  g_autoptr(SrtContainerInfo) container_info = NULL;
+  g_autoptr(SrtSubprocessRunner) runner = NULL;
+  g_autoptr(SrtSysroot) sysroot = NULL;
+  SrtContainerType container_type;
+  glnx_autofd int original_stdout_fd = -1;
   SrtX86FeatureFlags x86_features = SRT_X86_FEATURE_NONE;
   SrtX86FeatureFlags known = SRT_X86_FEATURE_NONE;
   SrtSteamIssues steam_issues;
@@ -128,6 +201,8 @@ main (int argc,
   int opt;
   int exit_code = EXIT_SUCCESS;
   SrtLogFlags log_flags;
+  SrtBwrapIssues bwrap_issues;
+  SrtFlatpakIssues flatpak_issues;
 
   _srt_setenv_disable_gio_modules ();
   log_flags = SRT_LOG_FLAGS_OPTIONALLY_JOURNAL | SRT_LOG_FLAGS_DIVERT_STDOUT;
@@ -211,29 +286,120 @@ main (int argc,
       g_warning ("Internal error: %s", error->message);
       g_clear_error (&error);
     }
-  else if (g_file_test ("/run/pressure-vessel", G_FILE_TEST_IS_DIR))
+
+  runner = _srt_subprocess_runner_new ();
+  sysroot = _srt_sysroot_new_direct (&error);
+
+  if (sysroot == NULL)
     {
-      g_info ("Already under pressure-vessel, not checking bwrap functionality.");
-    }
-  else if (g_file_test ("/.flatpak-info", G_FILE_TEST_IS_REGULAR))
-    {
-      g_info ("Running under Flatpak, not checking bwrap functionality.");
+      g_warning ("Internal error: %s", error->message);
+      g_clear_error (&error);
+      container_type = SRT_CONTAINER_TYPE_UNKNOWN;
     }
   else
     {
-      g_autofree gchar *bwrap = _srt_check_bwrap (pkglibexecdir, FALSE, NULL);
-
-      if (bwrap == NULL)
-        {
-          output = cannot_run_bwrap;
-          exit_code = EX_OSERR;
-          goto out;
-        }
-
-      g_info ("Found working bwrap executable at %s", bwrap);
+      container_info = _srt_check_container (sysroot);
+      container_type = srt_container_info_get_container_type (container_info);
     }
 
-  steam_issues = _srt_steam_check (_srt_const_strv (environ), NULL);
+  switch (container_type)
+    {
+      case SRT_CONTAINER_TYPE_PRESSURE_VESSEL:
+        g_info ("Already under pressure-vessel, not checking bwrap functionality.");
+        break;
+
+      case SRT_CONTAINER_TYPE_FLATPAK:
+        _srt_container_info_check_issues (container_info, sysroot, runner);
+        flatpak_issues = srt_container_info_get_flatpak_issues (container_info);
+
+        if (flatpak_issues & SRT_FLATPAK_ISSUES_SUBSANDBOX_LIMITED_BY_SETUID_BWRAP)
+          {
+            output = flatpak_needs_unprivileged_bwrap;
+            exit_code = EX_OSERR;
+            goto out;
+          }
+
+        if (flatpak_issues & SRT_FLATPAK_ISSUES_TOO_OLD)
+          {
+            output = flatpak_too_old;
+            exit_code = EX_OSERR;
+            goto out;
+          }
+
+        if (flatpak_issues & SRT_FLATPAK_ISSUES_SUBSANDBOX_DID_NOT_INHERIT_DISPLAY)
+          {
+            output = flatpak_needs_display;
+            exit_code = EX_OSERR;
+            goto out;
+          }
+
+        if (flatpak_issues & (SRT_FLATPAK_ISSUES_SUBSANDBOX_UNAVAILABLE
+                              | SRT_FLATPAK_ISSUES_SUBSANDBOX_TIMED_OUT))
+          {
+            output = flatpak_needs_subsandbox;
+            exit_code = EX_OSERR;
+            goto out;
+          }
+
+        break;
+
+      case SRT_CONTAINER_TYPE_DOCKER:
+      case SRT_CONTAINER_TYPE_PODMAN:
+      case SRT_CONTAINER_TYPE_SNAP:
+      case SRT_CONTAINER_TYPE_UNKNOWN:
+      case SRT_CONTAINER_TYPE_NONE:
+      default:
+        if (sysroot != NULL && pkglibexecdir != NULL)
+          {
+            g_autofree gchar *bwrap = NULL;
+            g_autofree gchar *message = NULL;
+
+            bwrap_issues = _srt_check_bwrap_issues (sysroot, runner, &bwrap, &message);
+
+            if (bwrap != NULL)
+              {
+                g_info ("Found bwrap at \"%s\"", bwrap);
+                g_warn_if_fail (!(bwrap_issues & SRT_BWRAP_ISSUES_CANNOT_RUN));
+
+                if (bwrap_issues & SRT_BWRAP_ISSUES_SETUID)
+                  g_info ("\"%s\" is setuid root", bwrap);
+
+                if (bwrap_issues & SRT_BWRAP_ISSUES_SYSTEM)
+                  g_info ("\"%s\" is a system copy", bwrap);
+              }
+            else
+              {
+                if (bwrap_issues & SRT_BWRAP_ISSUES_NO_UNPRIVILEGED_USERNS_CLONE)
+                  {
+                    output = need_unprivileged_userns_clone;
+                    exit_code = EX_OSERR;
+                    goto out;
+                  }
+
+                if (bwrap_issues & SRT_BWRAP_ISSUES_MAX_USER_NAMESPACES_ZERO)
+                  {
+                    output = need_max_user_namespaces;
+                    exit_code = EX_OSERR;
+                    goto out;
+                  }
+
+                g_warn_if_fail (bwrap_issues & SRT_BWRAP_ISSUES_CANNOT_RUN);
+                g_warning ("%s", message);
+                output = cannot_run_bwrap;
+                exit_code = EX_OSERR;
+                goto out;
+              }
+          }
+       else
+          {
+            _srt_log_warning ("Unable to locate srt-bwrap or open root "
+                              "directory, not checking functionality.");
+          }
+     }
+
+  steam_issues = _srt_steam_check (_srt_const_strv (environ),
+                                   ~SRT_STEAM_ISSUES_DESKTOP_FILE_RELATED,
+                                   NULL);
 
   if (steam_issues & SRT_STEAM_ISSUES_INSTALLED_IN_USR)
     {
@@ -254,7 +420,7 @@ out:
         g_warning ("Unable to write final newline: %s", g_strerror (errno));
     }
 
-  if (fclose (original_stdout) != 0)
+  if (fclose (g_steal_pointer (&original_stdout)) != 0)
     g_warning ("Unable to close stdout: %s", g_strerror (errno));
 
   return exit_code;

@@ -2106,6 +2106,7 @@ _srt_system_info_set_subprocess_runner (SrtSystemInfo *self,
   g_return_if_fail (self->from_report == NULL);
   g_return_if_fail (SRT_IS_SUBPROCESS_RUNNER (runner));
 
+  forget_container_info (self);
   forget_display_info (self);
   forget_drivers (self);
   forget_graphics_modules (self);
@@ -2145,6 +2146,7 @@ srt_system_info_set_environ (SrtSystemInfo *self,
   g_return_if_fail (self->from_report == NULL);
 
   runner = _srt_subprocess_runner_new_full (_srt_const_strv (env),
+                                            _srt_subprocess_runner_get_bin_path (self->runner),
                                             _srt_subprocess_runner_get_helpers_path (self->runner),
                                             _srt_subprocess_runner_get_test_flags (self->runner));
   _srt_system_info_set_subprocess_runner (self, runner);
@@ -2233,7 +2235,7 @@ ensure_steam_cached (SrtSystemInfo *self)
     {
       const char * const *envp = _srt_subprocess_runner_get_environ (self->runner);
 
-      _srt_steam_check (envp, &self->steam_data);
+      _srt_steam_check (envp, ~0, &self->steam_data);
     }
 }
 
@@ -2848,6 +2850,7 @@ srt_system_info_set_helpers_path (SrtSystemInfo *self,
   g_return_if_fail (self->from_report == NULL);
 
   runner = _srt_subprocess_runner_new_full (_srt_subprocess_runner_get_environ (self->runner),
+                                            _srt_subprocess_runner_get_bin_path (self->runner),
                                             path,
                                             _srt_subprocess_runner_get_test_flags (self->runner));
   _srt_system_info_set_subprocess_runner (self, runner);
@@ -3230,6 +3233,7 @@ srt_system_info_set_test_flags (SrtSystemInfo *self,
   g_return_if_fail (SRT_IS_SYSTEM_INFO (self));
 
   runner = _srt_subprocess_runner_new_full (_srt_subprocess_runner_get_environ (self->runner),
+                                            _srt_subprocess_runner_get_bin_path (self->runner),
                                             _srt_subprocess_runner_get_helpers_path (self->runner),
                                             flags);
   _srt_system_info_set_subprocess_runner (self, runner);
@@ -3979,9 +3983,20 @@ ensure_container_info (SrtSystemInfo *self)
   if (self->container_info == NULL)
     {
       if (self->sysroot != NULL && self->from_report == NULL)
-        self->container_info = _srt_check_container (self->sysroot);
+        {
+          self->container_info = _srt_check_container (self->sysroot);
+
+          if (self->check_flags & SRT_CHECK_FLAGS_NO_HELPERS)
+            _srt_container_info_check_issues (self->container_info,
+                                              self->sysroot, NULL);
+          else
+            _srt_container_info_check_issues (self->container_info,
+                                              self->sysroot, self->runner);
+        }
       else
-        self->container_info = _srt_container_info_new_empty ();
+        {
+          self->container_info = _srt_container_info_new_empty ();
+        }
     }
 }
 

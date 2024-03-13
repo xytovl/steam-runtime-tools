@@ -9,6 +9,10 @@
 
 #include "steam-runtime-tools/glib-backports-internal.h"
 
+#include "steam-runtime-tools/bwrap.h"
+#include "steam-runtime-tools/resolve-in-sysroot-internal.h"
+#include "steam-runtime-tools/subprocess-internal.h"
+
 typedef enum
 {
   SRT_BWRAP_FLAGS_SYSTEM = (1 << 0),
@@ -17,6 +21,12 @@ typedef enum
   SRT_BWRAP_FLAGS_NONE = 0
 } SrtBwrapFlags;
 
-gchar *_srt_check_bwrap (const char *pkglibexecdir,
+gchar *_srt_check_bwrap (SrtSubprocessRunner *runner,
                          gboolean skip_testing,
-                         SrtBwrapFlags *flags_out);
+                         SrtBwrapFlags *flags_out,
+                         GError **error);
+
+SrtBwrapIssues _srt_check_bwrap_issues (SrtSysroot *sysroot,
+                                        SrtSubprocessRunner *runner,
+                                        gchar **bwrap_out,
+                                        gchar **message_out);

@@ -37,6 +37,7 @@ libsteamrt_libc_utils_dep = declare_dependency(
 
 libsteamrt_sources = [
     'architecture.c',
+    'bwrap.c',
     'container.c',
     'cpu-feature.c',
     'desktop-entry.c',
@@ -63,6 +64,7 @@ libsteamrt_sources = [
 
 libsteamrt_public_headers = [
     'architecture.h',
+    'bwrap.h',
     'container.h',
     'cpu-feature.h',
     'desktop-entry.h',
@@ -92,6 +94,7 @@ libsteamrt_public_headers = [
 # Modules that are needed by parts of the public API
 libsteamrt_internals = [
     'architecture-internal.h',
+    'bwrap-internal.h',
     'cpu-feature-internal.h',
     'desktop-entry-internal.h',
     'direct-input-device-internal.h',
@@ -139,8 +142,6 @@ libsteamrt_internals = [
 # Modules that are needed by bin/ or pressure-vessel/ but not by the
 # library API
 libsteamrt_static_extras = [
-    'bwrap.c',
-    'bwrap-internal.h',
     'file-lock.c',
     'file-lock-internal.h',
     'portal-listener.c',
