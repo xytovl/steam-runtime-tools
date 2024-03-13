@@ -56,6 +56,7 @@ pv_get_workarounds (SrtBwrapFlags bwrap_flags,
     { PV_WORKAROUND_FLAGS_ALL, { "all" } },
     { PV_WORKAROUND_FLAGS_BWRAP_NO_PERMS, { "bwrap-no-perms", "old-bwrap" } },
     { PV_WORKAROUND_FLAGS_STEAMSNAP_356, { "steam-snap#356", "steamsnap356" } },
+    { PV_WORKAROUND_FLAGS_STEAMSNAP_359, { "steam-snap#359", "steamsnap359" } },
     { PV_WORKAROUND_FLAGS_STEAMSNAP_369, { "steam-snap#369", "steamsnap369" } },
     { PV_WORKAROUND_FLAGS_STEAMSNAP_370, { "steam-snap#370", "steamsnap370" } },
   };
