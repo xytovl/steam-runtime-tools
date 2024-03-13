@@ -1,3 +1,23 @@
+steam-runtime-tools (0.20240313.0) UNRELEASED; urgency=medium
+
+  * steam-runtime-system-info:
+    - Do the same functional tests on bwrap that were previously only
+      done in s-r-check-requirements (steamrt/tasks#406)
+    - Do a functional test on flatpak-portal subsandboxes
+      (steamrt/tasks#406)
+  * steam-runtime-check-requirements:
+    - Emit more specific messages for several common bwrap problems
+      (steamrt/tasks#406)
+    - Detect several common Flatpak problems (steamrt/tasks#406)
+  * pressure-vessel:
+    - Treat $BWRAP as less-preferred than pv-bwrap. The order we try is now:
+      $PRESSURE_VESSEL_BWRAP > pv-bwrap > $BWRAP > system bwrap
+      instead of the previous:
+      $PRESSURE_VESSEL_BWRAP > $BWRAP > pv-bwrap > system bwrap
+  * tests: Improve unit test coverage
+
+ -- Simon McVittie <smcv@collabora.com>  Wed, 13 Mar 2024 15:02:02 +0000
+
 steam-runtime-tools (0.20240306.0) steamrt; urgency=medium
 
   * steam-runtime-check-requirements:
