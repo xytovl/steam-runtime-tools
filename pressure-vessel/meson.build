@@ -60,6 +60,7 @@ endforeach
 headers = [
   'mtree.h',
   'runtime.h',
+  'utils.h',
 ]
 
 enums = gnome.mkenums_simple(

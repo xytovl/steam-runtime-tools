@@ -477,14 +477,13 @@ pv_bwrap_append_adjusted_exports (FlatpakBwrap *to,
                                   FlatpakBwrap *from,
                                   const char *home,
                                   SrtSysroot *interpreter_root,
-                                  SrtBwrapFlags bwrap_flags,
+                                  PvWorkaroundFlags workarounds,
                                   GError **error)
 {
   g_autofree int *fds = NULL;
   /* Bypass FEX-Emu transparent rewrite by using
    * "/proc/self/root" as the root path. */
   g_autoptr(SrtSysroot) root = NULL;
-  gboolean is_snap_env;
   gsize n_fds;
   gsize i;
 
@@ -492,10 +491,6 @@ pv_bwrap_append_adjusted_exports (FlatpakBwrap *to,
   g_return_val_if_fail (from != NULL, FALSE);
   g_return_val_if_fail (home != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
-
-  is_snap_env = (g_getenv ("SNAP") != NULL
-                 && g_getenv ("SNAP_NAME") != NULL
-                 && g_getenv ("SNAP_REVISION") != NULL);
 
   fds = flatpak_bwrap_steal_fds (from, &n_fds);
   for (i = 0; i < n_fds; i++)
@@ -554,7 +549,7 @@ pv_bwrap_append_adjusted_exports (FlatpakBwrap *to,
                    opt,
                    (const char *) from->argv->pdata[i + 1]);
 
-          if (is_snap_env
+          if ((workarounds & PV_WORKAROUND_FLAGS_STEAMSNAP_370)
               && g_str_equal (opt, "--tmpfs")
               && g_str_has_prefix (from->argv->pdata[i + 1], "/snap/steam"))
             {
@@ -581,7 +576,7 @@ pv_bwrap_append_adjusted_exports (FlatpakBwrap *to,
           const char *from_dest = from->argv->pdata[i + 2];
           gboolean skip_real_root = FALSE;
 
-          if (is_snap_env
+          if ((workarounds & PV_WORKAROUND_FLAGS_STEAMSNAP_369)
               && g_str_equal (from_src, "/var/lib/snapd/desktop"))
             {
               g_warning ("Filtering out %s %s %s to work around "
@@ -671,7 +666,7 @@ pv_bwrap_append_adjusted_exports (FlatpakBwrap *to,
            * (Debian 11 or older) won't support --perms. Fall back to
            * creating mount-points with the default permissions if
            * necessary. */
-          if (bwrap_flags & SRT_BWRAP_FLAGS_HAS_PERMS)
+          if (!(workarounds & PV_WORKAROUND_FLAGS_BWRAP_NO_PERMS))
             flatpak_bwrap_add_args (to, opt, perms, NULL);
           else
             g_debug ("Ignoring \"--perms %s\" because bwrap is too old",

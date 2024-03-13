@@ -100,6 +100,7 @@ struct _PvRuntime
   GCompareFunc arbitrary_str_order;
 
   PvRuntimeFlags flags;
+  PvWorkaroundFlags workarounds;
   int overrides_fd;
   int runtime_files_fd;
   int variable_dir_fd;
@@ -109,7 +110,6 @@ struct _PvRuntime
   unsigned is_steamrt : 1;
   unsigned is_scout : 1;
   unsigned is_flatpak_env : 1;
-  unsigned is_snap_env : 1;
   unsigned any_vdpau_drivers : 1;
 };
 
@@ -127,6 +127,7 @@ enum {
   PROP_ORIGINAL_ENVIRON,
   PROP_FLAGS,
   PROP_VARIABLE_DIR,
+  PROP_WORKAROUNDS,
   N_PROPERTIES
 };
 
@@ -228,7 +229,7 @@ pv_runtime_path_belongs_in_interpreter_root (PvRuntime *self,
    * allowed. We don't expect to be running FEX-Emu under Snap,
    * so it doesn't matter that this would break FEX-Emu. */
   if (self != NULL
-      && self->is_snap_env
+      && (self->workarounds & PV_WORKAROUND_FLAGS_STEAMSNAP_356)
       && _srt_get_path_after (path, "run/pressure-vessel/ldso") != NULL)
     return TRUE;
 
@@ -678,9 +679,6 @@ pv_runtime_init (PvRuntime *self)
   self->variable_dir_fd = -1;
   self->is_flatpak_env = g_file_test ("/.flatpak-info",
                                       G_FILE_TEST_IS_REGULAR);
-  self->is_snap_env = (g_getenv ("SNAP") != NULL
-                       && g_getenv ("SNAP_NAME") != NULL
-                       && g_getenv ("SNAP_REVISION") != NULL);
 }
 
 static void
@@ -719,6 +717,10 @@ pv_runtime_get_property (GObject *object,
 
       case PROP_SOURCE:
         g_value_set_string (value, self->source);
+        break;
+
+      case PROP_WORKAROUNDS:
+        g_value_set_flags (value, self->workarounds);
         break;
 
       default:
@@ -802,6 +804,10 @@ pv_runtime_set_property (GObject *object,
               }
           }
 
+        break;
+
+      case PROP_WORKAROUNDS:
+        self->workarounds = g_value_get_flags (value);
         break;
 
       default:
@@ -1911,6 +1917,13 @@ pv_runtime_class_init (PvRuntimeClass *cls)
                          (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
                           G_PARAM_STATIC_STRINGS));
 
+  properties[PROP_WORKAROUNDS] =
+    g_param_spec_flags ("workarounds", "Workarounds",
+                        "Workarounds for external components",
+                        PV_TYPE_WORKAROUND_FLAGS, PV_WORKAROUND_FLAGS_NONE,
+                        (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+                         G_PARAM_STATIC_STRINGS));
+
   g_object_class_install_properties (object_class, N_PROPERTIES, properties);
 }
 
@@ -1922,6 +1935,7 @@ pv_runtime_new (const char *source,
                 PvGraphicsProvider *interpreter_host_provider,
                 const char * const *original_environ,
                 PvRuntimeFlags flags,
+                PvWorkaroundFlags workarounds,
                 GError **error)
 {
   g_return_val_if_fail (source != NULL, NULL);
@@ -1937,6 +1951,7 @@ pv_runtime_new (const char *source,
                          "variable-dir", variable_dir,
                          "source", source,
                          "flags", flags,
+                         "workarounds", workarounds,
                          NULL);
 }
 
@@ -1980,7 +1995,7 @@ pv_runtime_adverb_regenerate_ld_so_cache (PvRuntime *self,
 
       regen_dir = g_build_filename (xrd, "pressure-vessel", "ldso", NULL);
     }
-  else if (self->is_snap_env)
+  else if (self->workarounds & PV_WORKAROUND_FLAGS_STEAMSNAP_356)
     {
       regen_dir = g_strdup (MUTABLE_LDSO_DIR_SNAP);
     }
@@ -3482,7 +3497,7 @@ bind_runtime_ld_so (PvRuntime *self,
       g_autofree gchar *ld_so_cache_on_host = NULL;
       g_autofree gchar *ld_so_conf_on_host = NULL;
 
-      if (self->is_snap_env)
+      if (self->workarounds & PV_WORKAROUND_FLAGS_STEAMSNAP_356)
         mutable_ldso_dir = MUTABLE_LDSO_DIR_SNAP;
       else
         mutable_ldso_dir = MUTABLE_LDSO_DIR_NORMAL;

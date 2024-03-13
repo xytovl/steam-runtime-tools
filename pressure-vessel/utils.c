@@ -42,6 +42,107 @@
 #include "flatpak-utils-base-private.h"
 #include "flatpak-utils-private.h"
 
+PvWorkaroundFlags
+pv_get_workarounds (SrtBwrapFlags bwrap_flags,
+                    const char * const *envp)
+{
+  static const struct
+  {
+    PvWorkaroundFlags flag;
+    /* Arbitrary length, extend as necessary */
+    const char * const names[2];
+  } workarounds[] =
+  {
+    { PV_WORKAROUND_FLAGS_ALL, { "all" } },
+    { PV_WORKAROUND_FLAGS_BWRAP_NO_PERMS, { "bwrap-no-perms", "old-bwrap" } },
+    { PV_WORKAROUND_FLAGS_STEAMSNAP_356, { "steam-snap#356", "steamsnap356" } },
+    { PV_WORKAROUND_FLAGS_STEAMSNAP_369, { "steam-snap#369", "steamsnap369" } },
+    { PV_WORKAROUND_FLAGS_STEAMSNAP_370, { "steam-snap#370", "steamsnap370" } },
+  };
+  PvWorkaroundFlags flags = PV_WORKAROUND_FLAGS_NONE;
+  const char *value;
+
+  value = _srt_environ_getenv (envp, "PRESSURE_VESSEL_WORKAROUNDS");
+
+  if (!(bwrap_flags & SRT_BWRAP_FLAGS_HAS_PERMS))
+    flags |= PV_WORKAROUND_FLAGS_BWRAP_NO_PERMS;
+
+  if (_srt_environ_getenv (envp, "SNAP") != NULL
+      && _srt_environ_getenv (envp, "SNAP_NAME") != NULL
+      && _srt_environ_getenv (envp, "SNAP_REVISION") != NULL)
+    flags |= PV_WORKAROUND_FLAGS_SNAP;
+
+  if (value != NULL)
+    {
+      g_auto(GStrv) tokens = NULL;
+      size_t i, j, k;
+
+      g_info ("Workarounds overridden by environment: %s", value);
+
+      tokens = g_strsplit_set (value, " \t,", 0);
+
+      for (i = 0; tokens[i] != NULL; i++)
+        {
+          const char *token = tokens[i];
+          gboolean found = FALSE;
+          gboolean negative = FALSE;
+
+          if (g_str_equal (tokens[i], "none"))
+            {
+              negative = TRUE;
+              token = "all";
+            }
+          else if (token[0] == '+')
+            {
+              token++;
+            }
+          else if (token[0] == '-' || token[0] == '!')
+            {
+              negative = TRUE;
+              token++;
+            }
+
+          for (j = 0; j < G_N_ELEMENTS (workarounds); j++)
+            {
+              for (k = 0; k < G_N_ELEMENTS (workarounds[j].names); k++)
+                {
+                  if (g_strcmp0 (workarounds[j].names[k], token) == 0)
+                    {
+                      found = TRUE;
+
+                      if (negative)
+                        flags &= ~workarounds[j].flag;
+                      else
+                        flags |= workarounds[j].flag;
+                    }
+                }
+            }
+
+          if (!found)
+            g_warning ("Workaround token not understood: %s", tokens[i]);
+        }
+    }
+
+  if (flags == 0)
+    {
+      g_debug ("No workarounds enabled");
+    }
+  else
+    {
+      size_t i;
+
+      g_info ("Workarounds enabled: 0x%x", flags);
+
+      for (i = 0; i < G_N_ELEMENTS (workarounds); i++)
+        {
+          if (_srt_all_bits_set (flags, workarounds[i].flag))
+            g_info ("- %s", workarounds[i].names[0]);
+        }
+    }
+
+  return flags;
+}
+
 void
 pv_search_path_append (GString *search_path,
                        const gchar *item)

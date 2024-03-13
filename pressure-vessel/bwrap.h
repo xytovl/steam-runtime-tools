@@ -31,6 +31,7 @@
 #include "steam-runtime-tools/glib-backports-internal.h"
 #include "steam-runtime-tools/resolve-in-sysroot-internal.h"
 #include "steam-runtime-tools/steam-internal.h"
+#include "utils.h"
 
 gboolean pv_bwrap_run_sync (FlatpakBwrap *bwrap,
                             int *exit_status_out,
@@ -68,7 +69,7 @@ gboolean pv_bwrap_append_adjusted_exports (FlatpakBwrap *to,
                                            FlatpakBwrap *from,
                                            const char *home,
                                            SrtSysroot *interpreter_root,
-                                           SrtBwrapFlags bwrap_flags,
+                                           PvWorkaroundFlags workarounds,
                                            GError **error);
 
 void pv_bwrap_container_env_to_subsandbox_argv (FlatpakBwrap *flatpak_subsandbox,
