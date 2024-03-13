@@ -46,6 +46,7 @@
 #include "runtime.h"
 #include "supported-architectures.h"
 #include "utils.h"
+#include "wrap-context.h"
 #include "wrap-flatpak.h"
 #include "wrap-home.h"
 #include "wrap-interactive.h"
@@ -64,64 +65,6 @@ static const GDebugKey pv_debug_keys[] =
   { "container", PV_WRAP_LOG_FLAGS_CONTAINER },
 };
 
-typedef enum
-{
-  TRISTATE_NO = 0,
-  TRISTATE_YES,
-  TRISTATE_MAYBE
-} Tristate;
-
-static gboolean opt_batch = FALSE;
-static gboolean opt_copy_runtime = FALSE;
-static gboolean opt_deterministic = FALSE;
-static gboolean opt_devel = FALSE;
-static char **opt_env_if_host = NULL;
-static char **opt_filesystems = NULL;
-static char *opt_freedesktop_app_id = NULL;
-static char *opt_steam_app_id = NULL;
-static gboolean opt_gc_runtimes = TRUE;
-static gboolean opt_generate_locales = TRUE;
-static char *opt_home = NULL;
-static char *opt_graphics_provider = NULL;
-static gboolean opt_launcher = FALSE;
-static gboolean opt_only_prepare = FALSE;
-static gboolean opt_remove_game_overlay = FALSE;
-static gboolean opt_import_vulkan_layers = TRUE;
-static PvShell opt_shell = PV_SHELL_NONE;
-static GArray *opt_pass_fds = NULL;
-static GArray *opt_preload_modules = NULL;
-static char *opt_runtime = NULL;
-static char *opt_runtime_base = NULL;
-static Tristate opt_share_home = TRISTATE_MAYBE;
-static gboolean opt_share_pid = TRUE;
-static gboolean opt_single_thread = FALSE;
-static gboolean opt_systemd_scope = FALSE;
-static double opt_terminate_idle_timeout = 0.0;
-static double opt_terminate_timeout = -1.0;
-static char *opt_variable_dir = NULL;
-static gboolean opt_verbose = FALSE;
-static gboolean opt_version = FALSE;
-static gboolean opt_version_only = FALSE;
-static gboolean opt_test = FALSE;
-static PvTerminal opt_terminal = PV_TERMINAL_AUTO;
-static char *opt_write_final_argv = NULL;
-
-static gboolean
-opt_ignored_cb (const gchar *option_name,
-                const gchar *value,
-                gpointer data,
-                GError **error)
-{
-  g_warning ("%s is deprecated and no longer has any effect", option_name);
-  return TRUE;
-}
-
-typedef enum
-{
-  PRELOAD_VARIABLE_INDEX_LD_AUDIT,
-  PRELOAD_VARIABLE_INDEX_LD_PRELOAD,
-} PreloadVariableIndex;
-
 static const struct
 {
   const char *variable;
@@ -132,655 +75,18 @@ static const struct
   [PRELOAD_VARIABLE_INDEX_LD_PRELOAD] = { "LD_PRELOAD", "--ld-preload" },
 };
 
-typedef struct
-{
-  PreloadVariableIndex which;
-  gchar *preload;
-} WrapPreloadModule;
-
-static void
-wrap_preload_module_clear (gpointer p)
-{
-  WrapPreloadModule *self = p;
-
-  g_clear_pointer (&self->preload, g_free);
-}
-
-static gboolean
-opt_ld_something (PreloadVariableIndex which,
-                  const char *value,
-                  const char *separators,
-                  GError **error)
-{
-  g_auto(GStrv) tokens = NULL;
-  size_t i;
-
-  if (separators != NULL)
-    {
-      tokens = g_strsplit_set (value, separators, 0);
-    }
-  else
-    {
-      tokens = g_new0 (char *, 2);
-      tokens[0] = g_strdup (value);
-      tokens[1] = NULL;
-    }
-
-  if (opt_preload_modules == NULL)
-    {
-      opt_preload_modules = g_array_new (FALSE, FALSE, sizeof (WrapPreloadModule));
-      g_array_set_clear_func (opt_preload_modules, wrap_preload_module_clear);
-    }
-
-  for (i = 0; tokens[i] != NULL; i++)
-    {
-      WrapPreloadModule module = { which, g_steal_pointer (&tokens[i]) };
-
-      if (module.preload[0] == '\0')
-        wrap_preload_module_clear (&module);
-      else
-        g_array_append_val (opt_preload_modules, module);
-    }
-
-  return TRUE;
-}
-
-static gboolean
-opt_ld_audit_cb (const gchar *option_name,
-                 const gchar *value,
-                 gpointer data,
-                 GError **error)
-{
-  return opt_ld_something (PRELOAD_VARIABLE_INDEX_LD_AUDIT, value, NULL, error);
-}
-
-static gboolean
-opt_ld_audits_cb (const gchar *option_name,
-                  const gchar *value,
-                  gpointer data,
-                  GError **error)
-{
-  /* "The items in the list are colon-separated, and there is no support
-   * for escaping the separator." —ld.so(8) */
-  return opt_ld_something (PRELOAD_VARIABLE_INDEX_LD_AUDIT, value, ":", error);
-}
-
-static gboolean
-opt_ld_preload_cb (const gchar *option_name,
-                   const gchar *value,
-                   gpointer data,
-                   GError **error)
-{
-  return opt_ld_something (PRELOAD_VARIABLE_INDEX_LD_PRELOAD, value, NULL, error);
-}
-
-static gboolean
-opt_ld_preloads_cb (const gchar *option_name,
-                    const gchar *value,
-                    gpointer data,
-                    GError **error)
-{
-  /* "The items of the list can be separated by spaces or colons, and
-   * there is no support for escaping either separator." —ld.so(8) */
-  return opt_ld_something (PRELOAD_VARIABLE_INDEX_LD_PRELOAD, value, ": ", error);
-}
-
-static gboolean
-opt_host_ld_preload_cb (const gchar *option_name,
-                        const gchar *value,
-                        gpointer data,
-                        GError **error)
-{
-  g_warning ("%s is deprecated, use --ld-preload=%s instead",
-             option_name, value);
-  return opt_ld_preload_cb (option_name, value, data, error);
-}
-
-static gboolean
-opt_copy_runtime_into_cb (const gchar *option_name,
-                          const gchar *value,
-                          gpointer data,
-                          GError **error)
-{
-  if (value == NULL)
-    {
-      /* Do nothing, keep previous setting */
-    }
-  else if (value[0] == '\0')
-    {
-      g_warning ("%s is deprecated, disable with --no-copy-runtime instead",
-                 option_name);
-      opt_copy_runtime = FALSE;
-    }
-  else
-    {
-      g_warning ("%s is deprecated, use --copy-runtime and "
-                 "--variable-dir instead",
-                 option_name);
-      opt_copy_runtime = TRUE;
-      g_free (opt_variable_dir);
-      opt_variable_dir = g_strdup (value);
-    }
-
-  return TRUE;
-}
-
-static gboolean
-opt_pass_fd_cb (const char *name,
-                const char *value,
-                gpointer data,
-                GError **error)
-{
-  char *endptr;
-  gint64 i64 = g_ascii_strtoll (value, &endptr, 10);
-  int fd;
-  int fd_flags;
-
-  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
-  g_return_val_if_fail (value != NULL, FALSE);
-
-  if (i64 < 0 || i64 > G_MAXINT || endptr == value || *endptr != '\0')
-    {
-      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
-                   "Integer out of range or invalid: %s", value);
-      return FALSE;
-    }
-
-  fd = (int) i64;
-
-  fd_flags = fcntl (fd, F_GETFD);
-
-  if (fd_flags < 0)
-    return glnx_throw_errno_prefix (error, "Unable to receive --fd %d", fd);
-
-  if (opt_pass_fds == NULL)
-    opt_pass_fds = g_array_new (FALSE, FALSE, sizeof (int));
-
-  g_array_append_val (opt_pass_fds, fd);
-  return TRUE;
-}
-
-static gboolean
-opt_shell_cb (const gchar *option_name,
-              const gchar *value,
-              gpointer data,
-              GError **error)
-{
-  if (g_strcmp0 (option_name, "--shell-after") == 0)
-    value = "after";
-  else if (g_strcmp0 (option_name, "--shell-fail") == 0)
-    value = "fail";
-  else if (g_strcmp0 (option_name, "--shell-instead") == 0)
-    value = "instead";
-
-  if (value == NULL || *value == '\0')
-    {
-      opt_shell = PV_SHELL_NONE;
-      return TRUE;
-    }
-
-  switch (value[0])
-    {
-      case 'a':
-        if (g_strcmp0 (value, "after") == 0)
-          {
-            opt_shell = PV_SHELL_AFTER;
-            return TRUE;
-          }
-        break;
-
-      case 'f':
-        if (g_strcmp0 (value, "fail") == 0)
-          {
-            opt_shell = PV_SHELL_FAIL;
-            return TRUE;
-          }
-        break;
-
-      case 'i':
-        if (g_strcmp0 (value, "instead") == 0)
-          {
-            opt_shell = PV_SHELL_INSTEAD;
-            return TRUE;
-          }
-        break;
-
-      case 'n':
-        if (g_strcmp0 (value, "none") == 0 || g_strcmp0 (value, "no") == 0)
-          {
-            opt_shell = PV_SHELL_NONE;
-            return TRUE;
-          }
-        break;
-
-      default:
-        /* fall through to error */
-        break;
-    }
-
-  g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_FAILED,
-               "Unknown choice \"%s\" for %s", value, option_name);
-  return FALSE;
-}
-
-static gboolean
-opt_terminal_cb (const gchar *option_name,
-                 const gchar *value,
-                 gpointer data,
-                 GError **error)
-{
-  if (g_strcmp0 (option_name, "--tty") == 0)
-    value = "tty";
-  else if (g_strcmp0 (option_name, "--xterm") == 0)
-    value = "xterm";
-
-  if (value == NULL || *value == '\0')
-    {
-      opt_terminal = PV_TERMINAL_AUTO;
-      return TRUE;
-    }
-
-  switch (value[0])
-    {
-      case 'a':
-        if (g_strcmp0 (value, "auto") == 0)
-          {
-            opt_terminal = PV_TERMINAL_AUTO;
-            return TRUE;
-          }
-        break;
-
-      case 'n':
-        if (g_strcmp0 (value, "none") == 0 || g_strcmp0 (value, "no") == 0)
-          {
-            opt_terminal = PV_TERMINAL_NONE;
-            return TRUE;
-          }
-        break;
-
-      case 't':
-        if (g_strcmp0 (value, "tty") == 0)
-          {
-            opt_terminal = PV_TERMINAL_TTY;
-            return TRUE;
-          }
-        break;
-
-      case 'x':
-        if (g_strcmp0 (value, "xterm") == 0)
-          {
-            opt_terminal = PV_TERMINAL_XTERM;
-            return TRUE;
-          }
-        break;
-
-      default:
-        /* fall through to error */
-        break;
-    }
-
-  g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_FAILED,
-               "Unknown choice \"%s\" for %s", value, option_name);
-  return FALSE;
-}
-
-static gboolean
-opt_share_home_cb (const gchar *option_name,
-                   const gchar *value,
-                   gpointer data,
-                   GError **error)
-{
-  if (g_strcmp0 (option_name, "--share-home") == 0)
-    opt_share_home = TRISTATE_YES;
-  else if (g_strcmp0 (option_name, "--unshare-home") == 0)
-    opt_share_home = TRISTATE_NO;
-  else
-    g_return_val_if_reached (FALSE);
-
-  return TRUE;
-}
-
-static gboolean
-opt_with_host_graphics_cb (const gchar *option_name,
-                           const gchar *value,
-                           gpointer data,
-                           GError **error)
-{
-  /* This is the old way to get the graphics from the host system */
-  if (g_strcmp0 (option_name, "--with-host-graphics") == 0)
-    {
-      if (g_file_test ("/run/host/usr", G_FILE_TEST_IS_DIR)
-          && g_file_test ("/run/host/etc", G_FILE_TEST_IS_DIR))
-        opt_graphics_provider = g_strdup ("/run/host");
-      else
-        opt_graphics_provider = g_strdup ("/");
-    }
-  /* This is the old way to avoid using graphics from the host */
-  else if (g_strcmp0 (option_name, "--without-host-graphics") == 0)
-    {
-      opt_graphics_provider = g_strdup ("");
-    }
-  else
-    {
-      g_return_val_if_reached (FALSE);
-    }
-
-  g_warning ("\"--with-host-graphics\" and \"--without-host-graphics\" have "
-             "been deprecated and could be removed in future releases. Please use "
-             "use \"--graphics-provider=/\", \"--graphics-provider=/run/host\" or "
-             "\"--graphics-provider=\" instead.");
-
-  return TRUE;
-}
-
-static GOptionEntry options[] =
-{
-  { "batch", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_batch,
-    "Disable all interactivity and redirection: ignore --shell*, "
-    "--terminal, --xterm, --tty. [Default: if $PRESSURE_VESSEL_BATCH]", NULL },
-  { "copy-runtime", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_copy_runtime,
-    "If a --runtime is used, copy it into --variable-dir and edit the "
-    "copy in-place.",
-    NULL },
-  { "no-copy-runtime", '\0',
-    G_OPTION_FLAG_REVERSE, G_OPTION_ARG_NONE, &opt_copy_runtime,
-    "Don't behave as described for --copy-runtime. "
-    "[Default unless $PRESSURE_VESSEL_COPY_RUNTIME is 1 or running in Flatpak]",
-    NULL },
-  { "copy-runtime-into", '\0',
-    G_OPTION_FLAG_FILENAME|G_OPTION_FLAG_HIDDEN, G_OPTION_ARG_CALLBACK,
-    &opt_copy_runtime_into_cb,
-    "Deprecated alias for --copy-runtime and --variable-dir", "DIR" },
-  { "deterministic", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_deterministic,
-    "Enforce a deterministic sort order on arbitrarily-ordered things, "
-    "even if that's slower. [Default if $PRESSURE_VESSEL_DETERMINISTIC is 1]",
-    NULL },
-  { "devel", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_devel,
-    "Use a more permissive configuration that is helpful during development "
-    "but not intended for production use. "
-    "[Default if $PRESSURE_VESSEL_DEVEL is 1]",
-    NULL },
-  { "env-if-host", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_FILENAME_ARRAY, &opt_env_if_host,
-    "Set VAR=VAL if COMMAND is run with /usr from the host system, "
-    "but not if it is run with /usr from RUNTIME.", "VAR=VAL" },
-  { "filesystem", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_FILENAME_ARRAY, &opt_filesystems,
-    "Share filesystem directories with the container. "
-    "They must currently be given as absolute paths.",
-    "PATH" },
-  { "freedesktop-app-id", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_STRING, &opt_freedesktop_app_id,
-    "Make --unshare-home use ~/.var/app/ID as home directory, where ID "
-    "is com.example.MyApp or similar. This interoperates with Flatpak. "
-    "[Default: $PRESSURE_VESSEL_FDO_APP_ID if set]",
-    "ID" },
-  { "steam-app-id", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_STRING, &opt_steam_app_id,
-    "Make --unshare-home use ~/.var/app/com.steampowered.AppN "
-    "as home directory. [Default: $STEAM_COMPAT_APP_ID or $SteamAppId]",
-    "N" },
-  { "gc-legacy-runtimes", '\0',
-    G_OPTION_FLAG_HIDDEN, G_OPTION_ARG_CALLBACK, &opt_ignored_cb,
-    NULL, NULL },
-  { "no-gc-legacy-runtimes", '\0',
-    G_OPTION_FLAG_HIDDEN, G_OPTION_ARG_CALLBACK, &opt_ignored_cb,
-    NULL, NULL },
-  { "gc-runtimes", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_gc_runtimes,
-    "If using --variable-dir, garbage-collect old temporary "
-    "runtimes. [Default, unless $PRESSURE_VESSEL_GC_RUNTIMES is 0]",
-    NULL },
-  { "no-gc-runtimes", '\0',
-    G_OPTION_FLAG_REVERSE, G_OPTION_ARG_NONE, &opt_gc_runtimes,
-    "If using --variable-dir, don't garbage-collect old "
-    "temporary runtimes.", NULL },
-  { "generate-locales", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_generate_locales,
-    "If using --runtime, attempt to generate any missing locales. "
-    "[Default, unless $PRESSURE_VESSEL_GENERATE_LOCALES is 0]",
-    NULL },
-  { "no-generate-locales", '\0',
-    G_OPTION_FLAG_REVERSE, G_OPTION_ARG_NONE, &opt_generate_locales,
-    "If using --runtime, don't generate any missing locales.", NULL },
-  { "home", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_FILENAME, &opt_home,
-    "Use HOME as home directory. Implies --unshare-home. "
-    "[Default: $PRESSURE_VESSEL_HOME if set]", "HOME" },
-  { "host-ld-preload", '\0',
-    G_OPTION_FLAG_FILENAME | G_OPTION_FLAG_HIDDEN, G_OPTION_ARG_CALLBACK,
-    &opt_host_ld_preload_cb,
-    "Deprecated alias for --ld-preload=MODULE, which despite its name "
-    "does not necessarily take the module from the host system",
-    "MODULE" },
-  { "graphics-provider", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_FILENAME, &opt_graphics_provider,
-    "If using --runtime, use PATH as the graphics provider. "
-    "The path is assumed to be relative to the current namespace, "
-    "and will be adjusted for use on the host system if pressure-vessel "
-    "is run in a container. The empty string means use the graphics "
-    "stack from container."
-    "[Default: $PRESSURE_VESSEL_GRAPHICS_PROVIDER or '/']", "PATH" },
-  { "launcher", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_launcher,
-    "Instead of specifying a command with its arguments to execute, all the "
-    "elements after '--' will be used as arguments for "
-    "'steam-runtime-launcher-service'. All the environment variables that are "
-    "edited by pressure-vessel, or that are known to be wrong in the new "
-    "container, or that needs to inherit the value from the host system, "
-    "will be locked. This option implies --batch.", NULL },
-  { "ld-audit", '\0',
-    G_OPTION_FLAG_FILENAME, G_OPTION_ARG_CALLBACK, &opt_ld_audit_cb,
-    "Add MODULE from current execution environment to LD_AUDIT when "
-    "executing COMMAND.",
-    "MODULE" },
-  { "ld-audits", '\0',
-    G_OPTION_FLAG_FILENAME, G_OPTION_ARG_CALLBACK, &opt_ld_audits_cb,
-    "Add MODULEs from current execution environment to LD_AUDIT when "
-    "executing COMMAND. Modules are separated by colons.",
-    "MODULE[:MODULE...]" },
-  { "ld-preload", '\0',
-    G_OPTION_FLAG_FILENAME, G_OPTION_ARG_CALLBACK, &opt_ld_preload_cb,
-    "Add MODULE from current execution environment to LD_PRELOAD when "
-    "executing COMMAND.",
-    "MODULE" },
-  { "ld-preloads", '\0',
-    G_OPTION_FLAG_FILENAME, G_OPTION_ARG_CALLBACK, &opt_ld_preloads_cb,
-    "Add MODULEs from current execution environment to LD_PRELOAD when "
-    "executing COMMAND. Modules are separated by colons and/or spaces.",
-    "MODULE[:MODULE...]" },
-  { "pass-fd", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_CALLBACK, opt_pass_fd_cb,
-    "Let the launched process inherit the given fd.",
-    "FD" },
-  { "remove-game-overlay", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_remove_game_overlay,
-    "Disable the Steam Overlay. "
-    "[Default if $PRESSURE_VESSEL_REMOVE_GAME_OVERLAY is 1]",
-    NULL },
-  { "keep-game-overlay", '\0',
-    G_OPTION_FLAG_REVERSE, G_OPTION_ARG_NONE, &opt_remove_game_overlay,
-    "Do not disable the Steam Overlay. "
-    "[Default unless $PRESSURE_VESSEL_REMOVE_GAME_OVERLAY is 1]",
-    NULL },
-  { "import-vulkan-layers", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_import_vulkan_layers,
-    "Import Vulkan layers from the host system. "
-    "[Default unless $PRESSURE_VESSEL_IMPORT_VULKAN_LAYERS is 0]",
-    NULL },
-  { "no-import-vulkan-layers", '\0',
-    G_OPTION_FLAG_REVERSE, G_OPTION_ARG_NONE, &opt_import_vulkan_layers,
-    "Do not import Vulkan layers from the host system. Please note that "
-    "certain Vulkan layers might still continue to be reachable from inside "
-    "the container. This could be the case for all the layers located in "
-    " `~/.local/share/vulkan` for example, because we usually share the real "
-    "home directory."
-    "[Default if $PRESSURE_VESSEL_IMPORT_VULKAN_LAYERS is 0]",
-    NULL },
-  { "runtime", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_FILENAME, &opt_runtime,
-    "Mount the given sysroot or merged /usr in the container, and augment "
-    "it with the provider's graphics stack. The empty string "
-    "means don't use a runtime. [Default: $PRESSURE_VESSEL_RUNTIME or '']",
-    "RUNTIME" },
-  { "runtime-base", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_FILENAME, &opt_runtime_base,
-    "If a --runtime is a relative path, look for "
-    "it relative to BASE. "
-    "[Default: $PRESSURE_VESSEL_RUNTIME_BASE or '.']",
-    "BASE" },
-  { "share-home", '\0',
-    G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK, opt_share_home_cb,
-    "Use the real home directory. "
-    "[Default unless $PRESSURE_VESSEL_HOME is set or "
-    "$PRESSURE_VESSEL_SHARE_HOME is 0]",
-    NULL },
-  { "unshare-home", '\0',
-    G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK, opt_share_home_cb,
-    "Use an app-specific home directory chosen according to --home, "
-    "--freedesktop-app-id, --steam-app-id or $STEAM_COMPAT_APP_ID. "
-    "[Default if $PRESSURE_VESSEL_HOME is set or "
-    "$PRESSURE_VESSEL_SHARE_HOME is 0]",
-    NULL },
-  { "share-pid", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_share_pid,
-    "Do not create a new process ID namespace for the app. "
-    "[Default, unless $PRESSURE_VESSEL_SHARE_PID is 0]",
-    NULL },
-  { "unshare-pid", '\0',
-    G_OPTION_FLAG_REVERSE, G_OPTION_ARG_NONE, &opt_share_pid,
-    "Create a new process ID namespace for the app. "
-    "[Default if $PRESSURE_VESSEL_SHARE_PID is 0]",
-    NULL },
-  { "shell", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_CALLBACK, opt_shell_cb,
-    "--shell=after is equivalent to --shell-after, and so on. "
-    "[Default: $PRESSURE_VESSEL_SHELL or 'none']",
-    "{none|after|fail|instead}" },
-  { "shell-after", '\0',
-    G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK, opt_shell_cb,
-    "Run an interactive shell after COMMAND. Executing \"$@\" in that "
-    "shell will re-run COMMAND [ARGS].",
-    NULL },
-  { "shell-fail", '\0',
-    G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK, opt_shell_cb,
-    "Run an interactive shell after COMMAND, but only if it fails.",
-    NULL },
-  { "shell-instead", '\0',
-    G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK, opt_shell_cb,
-    "Run an interactive shell instead of COMMAND. Executing \"$@\" in that "
-    "shell will run COMMAND [ARGS].",
-    NULL },
-  { "single-thread", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_single_thread,
-    "Disable multi-threaded code paths, for debugging",
-    NULL },
-  { "systemd-scope", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_systemd_scope,
-    "Attempt to run the game in a systemd scope", NULL },
-  { "no-systemd-scope", '\0',
-    G_OPTION_FLAG_REVERSE, G_OPTION_ARG_NONE, &opt_systemd_scope,
-    "Do not run the game in a systemd scope", NULL },
-  { "terminal", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_CALLBACK, opt_terminal_cb,
-    "none: disable features that would use a terminal; "
-    "auto: equivalent to xterm if a --shell option is used, or none; "
-    "xterm: put game output (and --shell if used) in an xterm; "
-    "tty: put game output (and --shell if used) on Steam's "
-    "controlling tty "
-    "[Default: $PRESSURE_VESSEL_TERMINAL or 'auto']",
-    "{none|auto|xterm|tty}" },
-  { "tty", '\0',
-    G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK, opt_terminal_cb,
-    "Equivalent to --terminal=tty", NULL },
-  { "xterm", '\0',
-    G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK, opt_terminal_cb,
-    "Equivalent to --terminal=xterm", NULL },
-  { "terminate-idle-timeout", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_DOUBLE, &opt_terminate_idle_timeout,
-    "If --terminate-timeout is used, wait this many seconds before "
-    "sending SIGTERM. [default: 0.0]",
-    "SECONDS" },
-  { "terminate-timeout", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_DOUBLE, &opt_terminate_timeout,
-    "Send SIGTERM and SIGCONT to descendant processes that didn't "
-    "exit within --terminate-idle-timeout. If they don't all exit within "
-    "this many seconds, send SIGKILL and SIGCONT to survivors. If 0.0, "
-    "skip SIGTERM and use SIGKILL immediately. Implies --subreaper. "
-    "[Default: -1.0, meaning don't signal].",
-    "SECONDS" },
-  { "variable-dir", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_FILENAME, &opt_variable_dir,
-    "If a runtime needs to be unpacked or copied, put it in DIR.",
-    "DIR" },
-  { "verbose", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_verbose,
-    "Be more verbose.", NULL },
-  { "version", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_version,
-    "Print version number and exit.", NULL },
-  { "version-only", '\0',
-    G_OPTION_FLAG_HIDDEN, G_OPTION_ARG_NONE, &opt_version_only,
-    "Print version number (no other information) and exit.", NULL },
-  { "with-host-graphics", '\0',
-    G_OPTION_FLAG_NO_ARG | G_OPTION_FLAG_HIDDEN, G_OPTION_ARG_CALLBACK,
-    opt_with_host_graphics_cb,
-    "Deprecated alias for \"--graphics-provider=/\" or "
-    "\"--graphics-provider=/run/host\"", NULL },
-  { "without-host-graphics", '\0',
-    G_OPTION_FLAG_NO_ARG | G_OPTION_FLAG_HIDDEN, G_OPTION_ARG_CALLBACK,
-    opt_with_host_graphics_cb,
-    "Deprecated alias for \"--graphics-provider=\"", NULL },
-  { "write-final-argv", '\0',
-    G_OPTION_FLAG_HIDDEN, G_OPTION_ARG_FILENAME, &opt_write_final_argv,
-    "Write the final argument vector, as null terminated strings, to the "
-    "given file path.", "PATH" },
-  { "test", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_test,
-    "Smoke test pressure-vessel-wrap and exit.", NULL },
-  { "only-prepare", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_only_prepare,
-    "Prepare runtime, but do not actually run anything.", NULL },
-  { NULL }
-};
-
-static Tristate
-tristate_environment (const gchar *name)
-{
-  const gchar *value = g_getenv (name);
-
-  if (g_strcmp0 (value, "1") == 0)
-    return TRISTATE_YES;
-
-  if (g_strcmp0 (value, "0") == 0)
-    return TRISTATE_NO;
-
-  if (value != NULL && value[0] != '\0')
-    g_warning ("Unrecognised value \"%s\" for $%s", value, name);
-
-  return TRISTATE_MAYBE;
-}
-
 #define usage_error(...) _srt_log_failure (__VA_ARGS__)
 
 int
 main (int argc,
       char *argv[])
 {
+  g_autoptr(PvWrapContext) self = NULL;
   g_autoptr(GArray) inherit_fds = g_array_new (FALSE, FALSE, sizeof (int));
-  g_autoptr(GOptionContext) context = NULL;
   g_autoptr(GError) local_error = NULL;
   GError **error = &local_error;
   int ret = 2;
   gsize i;
-  g_auto(GStrv) original_argv = NULL;
-  g_auto(GStrv) original_environ = NULL;
-  int original_argc = argc;
-  gboolean is_flatpak_env = g_file_test ("/.flatpak-info", G_FILE_TEST_IS_REGULAR);
   PvHomeMode home_mode;
   g_autoptr(FlatpakBwrap) flatpak_subsandbox = NULL;
   g_autoptr(PvEnviron) container_env = NULL;
@@ -824,11 +130,6 @@ main (int argc,
 
   g_info ("pressure-vessel version %s", VERSION);
 
-  original_argv = g_new0 (char *, argc + 1);
-
-  for (i = 0; i < argc; i++)
-    original_argv[i] = g_strdup (argv[i]);
-
   if (g_getenv ("STEAM_RUNTIME") != NULL)
     {
       usage_error ("This program should not be run in the Steam Runtime. "
@@ -837,80 +138,23 @@ main (int argc,
       goto out;
     }
 
-  original_environ = g_get_environ ();
+  self = pv_wrap_context_new (error);
 
-  /* Set defaults */
-  opt_batch = _srt_boolean_environment ("PRESSURE_VESSEL_BATCH", FALSE);
-  opt_copy_runtime = is_flatpak_env;
-  /* Process COPY_RUNTIME_INFO first so that COPY_RUNTIME and VARIABLE_DIR
-   * can override it */
-  opt_copy_runtime_into_cb ("$PRESSURE_VESSEL_COPY_RUNTIME_INTO",
-                            g_getenv ("PRESSURE_VESSEL_COPY_RUNTIME_INTO"),
-                            NULL, NULL);
-  opt_copy_runtime = _srt_boolean_environment ("PRESSURE_VESSEL_COPY_RUNTIME",
-                                               opt_copy_runtime);
-  opt_deterministic = _srt_boolean_environment ("PRESSURE_VESSEL_DETERMINISTIC",
-                                                FALSE);
-  opt_devel = _srt_boolean_environment ("PRESSURE_VESSEL_DEVEL", FALSE);
-
-    {
-      const char *value = g_getenv ("PRESSURE_VESSEL_VARIABLE_DIR");
-
-      if (value != NULL)
-        {
-          g_free (opt_variable_dir);
-          opt_variable_dir = g_strdup (value);
-        }
-    }
-
-  opt_freedesktop_app_id = g_strdup (g_getenv ("PRESSURE_VESSEL_FDO_APP_ID"));
-
-  if (opt_freedesktop_app_id != NULL && opt_freedesktop_app_id[0] == '\0')
-    g_clear_pointer (&opt_freedesktop_app_id, g_free);
-
-  opt_home = g_strdup (g_getenv ("PRESSURE_VESSEL_HOME"));
-
-  if (opt_home != NULL && opt_home[0] == '\0')
-    g_clear_pointer (&opt_home, g_free);
-
-  opt_remove_game_overlay = _srt_boolean_environment ("PRESSURE_VESSEL_REMOVE_GAME_OVERLAY",
-                                                      FALSE);
-  opt_systemd_scope = _srt_boolean_environment ("PRESSURE_VESSEL_SYSTEMD_SCOPE",
-                                                opt_systemd_scope);
-  opt_import_vulkan_layers = _srt_boolean_environment ("PRESSURE_VESSEL_IMPORT_VULKAN_LAYERS",
-                                                       TRUE);
-
-  opt_share_home = tristate_environment ("PRESSURE_VESSEL_SHARE_HOME");
-  opt_gc_runtimes = _srt_boolean_environment ("PRESSURE_VESSEL_GC_RUNTIMES", TRUE);
-  opt_generate_locales = _srt_boolean_environment ("PRESSURE_VESSEL_GENERATE_LOCALES", TRUE);
-
-  opt_share_pid = _srt_boolean_environment ("PRESSURE_VESSEL_SHARE_PID", TRUE);
-  opt_single_thread = _srt_boolean_environment ("PRESSURE_VESSEL_SINGLE_THREAD",
-                                                opt_single_thread);
-  opt_verbose = _srt_boolean_environment ("PRESSURE_VESSEL_VERBOSE", FALSE);
-
-  if (!opt_shell_cb ("$PRESSURE_VESSEL_SHELL",
-                     g_getenv ("PRESSURE_VESSEL_SHELL"), NULL, error))
+  if (self == NULL)
     goto out;
 
-  if (!opt_terminal_cb ("$PRESSURE_VESSEL_TERMINAL",
-                        g_getenv ("PRESSURE_VESSEL_TERMINAL"), NULL, error))
+  if (!pv_wrap_options_parse_environment (&self->options, error))
     goto out;
 
-  context = g_option_context_new ("[--] COMMAND [ARGS]\n"
-                                  "Run COMMAND [ARGS] in a container.\n");
-
-  g_option_context_add_main_entries (context, options, NULL);
-
-  if (!g_option_context_parse (context, &argc, &argv, error))
+  if (!pv_wrap_context_parse_argv (self, &argc, &argv, error))
     goto out;
 
   log_flags = SRT_LOG_FLAGS_DIVERT_STDOUT | SRT_LOG_FLAGS_OPTIONALLY_JOURNAL;
 
-  if (opt_deterministic)
+  if (self->options.deterministic)
     log_flags |= SRT_LOG_FLAGS_DIFFABLE;
 
-  if (opt_verbose)
+  if (self->options.verbose)
     {
       log_flags |= SRT_LOG_FLAGS_DEBUG;
 
@@ -927,65 +171,18 @@ main (int argc,
 
   pv_wrap_detect_virtualization (&interpreter_root, &host_machine);
 
-  if (opt_runtime == NULL)
-    {
-      opt_runtime = g_strdup (g_getenv ("PRESSURE_VESSEL_RUNTIME"));
+  if (!pv_wrap_options_parse_environment_after_argv (&self->options,
+                                                     interpreter_root,
+                                                     error))
+    goto out;
 
-      /* Normalize empty string to NULL to simplify later code */
-      if (opt_runtime != NULL && opt_runtime[0] == '\0')
-        g_clear_pointer (&opt_runtime, g_free);
-    }
-
-  if (opt_runtime_base == NULL)
-    opt_runtime_base = g_strdup (g_getenv ("PRESSURE_VESSEL_RUNTIME_BASE"));
-
-  if (opt_graphics_provider == NULL)
-    opt_graphics_provider = g_strdup (g_getenv ("PRESSURE_VESSEL_GRAPHICS_PROVIDER"));
-
-  if (opt_graphics_provider == NULL)
-    {
-      /* Also check the deprecated 'PRESSURE_VESSEL_HOST_GRAPHICS' */
-      Tristate value = tristate_environment ("PRESSURE_VESSEL_HOST_GRAPHICS");
-
-      if (value == TRISTATE_MAYBE)
-        {
-          if (interpreter_root != NULL)
-            opt_graphics_provider = g_strdup (interpreter_root->path);
-          else
-            opt_graphics_provider = g_strdup ("/");
-        }
-      else
-        {
-          g_warning ("$PRESSURE_VESSEL_HOST_GRAPHICS is deprecated, "
-                     "please use PRESSURE_VESSEL_GRAPHICS_PROVIDER instead");
-
-          if (value == TRISTATE_NO)
-            opt_graphics_provider = g_strdup ("");
-          else if (interpreter_root != NULL)
-            opt_graphics_provider = g_strdup (interpreter_root->path);
-          else if (g_file_test ("/run/host/usr", G_FILE_TEST_IS_DIR)
-                   && g_file_test ("/run/host/etc", G_FILE_TEST_IS_DIR))
-            opt_graphics_provider = g_strdup ("/run/host");
-          else
-            opt_graphics_provider = g_strdup ("/");
-        }
-    }
-
-  g_assert (opt_graphics_provider != NULL);
-  if (opt_graphics_provider[0] != '\0' && opt_graphics_provider[0] != '/')
-    {
-      usage_error ("--graphics-provider path must be absolute, not \"%s\"",
-                   opt_graphics_provider);
-      goto out;
-    }
-
-  if (opt_version_only || opt_version)
+  if (self->options.version_only || self->options.version)
     {
       if (original_stdout >= 0
           && !_srt_util_restore_saved_fd (original_stdout, STDOUT_FILENO, error))
         goto out;
 
-      if (opt_version_only)
+      if (self->options.version_only)
         g_print ("%s\n", VERSION);
       else
         g_print ("%s:\n"
@@ -1000,35 +197,36 @@ main (int argc,
   _srt_unblock_signals ();
   _srt_setenv_disable_gio_modules ();
 
-  if (argc < 2 && !opt_test && !opt_only_prepare)
+  if (argc < 2 && !self->options.test && !self->options.only_prepare)
     {
       usage_error ("An executable to run is required");
       goto out;
     }
 
-  if (opt_terminal == PV_TERMINAL_AUTO)
+  if (self->options.terminal == PV_TERMINAL_AUTO)
     {
-      if (opt_shell != PV_SHELL_NONE)
-        opt_terminal = PV_TERMINAL_XTERM;
+      if (self->options.shell != PV_SHELL_NONE)
+        self->options.terminal = PV_TERMINAL_XTERM;
       else
-        opt_terminal = PV_TERMINAL_NONE;
+        self->options.terminal = PV_TERMINAL_NONE;
     }
 
-  if (opt_terminal == PV_TERMINAL_NONE && opt_shell != PV_SHELL_NONE)
+  if (self->options.terminal == PV_TERMINAL_NONE
+      && self->options.shell != PV_SHELL_NONE)
     {
       usage_error ("--terminal=none is incompatible with --shell");
       goto out;
     }
 
   /* --launcher implies --batch */
-  if (opt_launcher)
-    opt_batch = TRUE;
+  if (self->options.launcher)
+    self->options.batch = TRUE;
 
-  if (opt_batch)
+  if (self->options.batch)
     {
       /* --batch or PRESSURE_VESSEL_BATCH=1 overrides these */
-      opt_shell = PV_SHELL_NONE;
-      opt_terminal = PV_TERMINAL_NONE;
+      self->options.shell = PV_SHELL_NONE;
+      self->options.terminal = PV_TERMINAL_NONE;
     }
 
   if (argc > 1 && strcmp (argv[1], "--") == 0)
@@ -1037,41 +235,43 @@ main (int argc,
       argc--;
     }
 
-  if (opt_steam_app_id != NULL)
-    steam_app_id = opt_steam_app_id;
+  if (self->options.steam_app_id != NULL)
+    steam_app_id = self->options.steam_app_id;
   else
     steam_app_id = _srt_get_steam_app_id ();
 
   home = g_get_home_dir ();
 
-  if (opt_share_home == TRISTATE_YES)
+  if (self->options.share_home == TRISTATE_YES)
     {
       home_mode = PV_HOME_MODE_SHARED;
     }
-  else if (opt_home)
+  else if (self->options.home)
     {
       home_mode = PV_HOME_MODE_PRIVATE;
-      private_home = g_strdup (opt_home);
+      private_home = g_strdup (self->options.home);
     }
-  else if (opt_share_home == TRISTATE_MAYBE)
+  else if (self->options.share_home == TRISTATE_MAYBE)
     {
       home_mode = PV_HOME_MODE_SHARED;
     }
-  else if (opt_freedesktop_app_id)
+  else if (self->options.freedesktop_app_id)
     {
       home_mode = PV_HOME_MODE_PRIVATE;
       private_home = g_build_filename (home, ".var", "app",
-                                       opt_freedesktop_app_id, NULL);
+                                       self->options.freedesktop_app_id,
+                                       NULL);
     }
   else if (steam_app_id != NULL)
     {
       home_mode = PV_HOME_MODE_PRIVATE;
-      opt_freedesktop_app_id = g_strdup_printf ("com.steampowered.App%s",
-                                                steam_app_id);
+      self->options.freedesktop_app_id = g_strdup_printf ("com.steampowered.App%s",
+                                                          steam_app_id);
       private_home = g_build_filename (home, ".var", "app",
-                                       opt_freedesktop_app_id, NULL);
+                                       self->options.freedesktop_app_id,
+                                       NULL);
     }
-  else if (opt_batch)
+  else if (self->options.batch)
     {
       home_mode = PV_HOME_MODE_TRANSIENT;
       private_home = NULL;
@@ -1090,48 +290,49 @@ main (int argc,
   else
     g_assert (private_home == NULL);
 
-  if (opt_env_if_host != NULL)
+  if (self->options.env_if_host != NULL)
     {
-      for (i = 0; opt_env_if_host[i] != NULL; i++)
+      for (i = 0; self->options.env_if_host[i] != NULL; i++)
         {
-          const char *equals = strchr (opt_env_if_host[i], '=');
+          const char *equals = strchr (self->options.env_if_host[i], '=');
 
           if (equals == NULL)
             {
               usage_error ("--env-if-host argument must be of the form "
-                           "NAME=VALUE, not \"%s\"", opt_env_if_host[i]);
+                           "NAME=VALUE, not \"%s\"",
+                           self->options.env_if_host[i]);
               goto out;
             }
         }
     }
 
-  if (opt_only_prepare && opt_test)
+  if (self->options.only_prepare && self->options.test)
     {
       usage_error ("--only-prepare and --test are mutually exclusive");
       goto out;
     }
 
-  if (opt_filesystems != NULL)
+  if (self->options.filesystems != NULL)
     {
-      for (i = 0; opt_filesystems[i] != NULL; i++)
+      for (i = 0; self->options.filesystems[i] != NULL; i++)
         {
-          if (strchr (opt_filesystems[i], ':') != NULL ||
-              strchr (opt_filesystems[i], '\\') != NULL)
+          if (strchr (self->options.filesystems[i], ':') != NULL ||
+              strchr (self->options.filesystems[i], '\\') != NULL)
             {
               usage_error ("':' and '\\' in --filesystem argument "
                            "not handled yet");
               goto out;
             }
-          else if (!g_path_is_absolute (opt_filesystems[i]))
+          else if (!g_path_is_absolute (self->options.filesystems[i]))
             {
               usage_error ("--filesystem argument must be an absolute "
-                           "path, not \"%s\"", opt_filesystems[i]);
+                           "path, not \"%s\"", self->options.filesystems[i]);
               goto out;
             }
         }
     }
 
-  if (opt_copy_runtime && opt_variable_dir == NULL)
+  if (self->options.copy_runtime && self->options.variable_dir == NULL)
     {
       usage_error ("--copy-runtime requires --variable-dir");
       goto out;
@@ -1145,7 +346,7 @@ main (int argc,
     g_warning ("Unable to set normal resource limits: %s",
                g_strerror (-result));
 
-  if (opt_terminal != PV_TERMINAL_TTY && !opt_devel)
+  if (self->options.terminal != PV_TERMINAL_TTY && !self->options.devel)
     {
       int fd;
 
@@ -1160,18 +361,18 @@ main (int argc,
         }
     }
 
-  compat_flags = _srt_steam_get_compat_flags (_srt_const_strv (original_environ));
+  compat_flags = _srt_steam_get_compat_flags (_srt_const_strv (self->original_environ));
   _srt_get_current_dirs (&cwd_p, &cwd_l);
 
   if (_srt_util_is_debugging ())
     {
-      g_auto(GStrv) env = g_strdupv (original_environ);
+      g_auto(GStrv) env = g_strdupv (self->original_environ);
 
       g_debug ("Original argv:");
 
-      for (i = 0; i < original_argc; i++)
+      for (i = 0; i < self->original_argc; i++)
         {
-          g_autofree gchar *quoted = g_shell_quote (original_argv[i]);
+          g_autofree gchar *quoted = g_shell_quote (self->original_argv[i]);
 
           g_debug ("\t%" G_GSIZE_FORMAT ": %s", i, quoted);
         }
@@ -1191,7 +392,7 @@ main (int argc,
           g_debug ("\t%s", quoted);
         }
 
-      if (opt_launcher)
+      if (self->options.launcher)
         g_debug ("Arguments for pv-launcher:");
       else
         g_debug ("Wrapped command:");
@@ -1217,7 +418,7 @@ main (int argc,
     goto out;
 
   /* If we are in a Flatpak environment we can't use bwrap directly */
-  if (is_flatpak_env)
+  if (self->is_flatpak_env)
     {
       if (!pv_wrap_check_flatpak (tools_dir, &flatpak_subsandbox, error))
         goto out;
@@ -1226,7 +427,7 @@ main (int argc,
     {
       g_debug ("Checking for bwrap...");
 
-      bwrap_executable = pv_wrap_check_bwrap (opt_only_prepare,
+      bwrap_executable = pv_wrap_check_bwrap (self->options.only_prepare,
                                               &bwrap_flags,
                                               error);
 
@@ -1236,7 +437,7 @@ main (int argc,
       g_debug ("OK (%s)", bwrap_executable);
     }
 
-  if (opt_test)
+  if (self->options.test)
     {
       ret = 0;
       goto out;
@@ -1255,7 +456,7 @@ main (int argc,
 
   /* Invariant: we are in exactly one of these two modes */
   g_assert (((flatpak_subsandbox != NULL)
-             + (!is_flatpak_env))
+             + (!self->is_flatpak_env))
             == 1);
 
   if (flatpak_subsandbox == NULL)
@@ -1296,7 +497,7 @@ main (int argc,
        * provider inside the rootfs instead of in the real root. */
       if (interpreter_root != NULL)
         graphics_provider_mount_point = "/var/pressure-vessel/gfx";
-      else if (g_strcmp0 (opt_graphics_provider, "/") == 0)
+      else if (g_strcmp0 (self->options.graphics_provider, "/") == 0)
         graphics_provider_mount_point = "/run/host";
       else
         graphics_provider_mount_point = "/run/gfx";
@@ -1304,12 +505,12 @@ main (int argc,
       /* Protect the controlling terminal from the app/game, unless we are
        * running an interactive shell in which case that would break its
        * job control. */
-      if (opt_terminal != PV_TERMINAL_TTY && !opt_devel)
+      if (self->options.terminal != PV_TERMINAL_TTY && !self->options.devel)
         flatpak_bwrap_add_arg (bwrap, "--new-session");
 
       /* Start with just the root tmpfs (which appears automatically)
        * and the standard API filesystems */
-      if (opt_devel)
+      if (self->options.devel)
         sysfs_mode = FLATPAK_FILESYSTEM_MODE_READ_WRITE;
 
       pv_bwrap_add_api_filesystems (bwrap_filesystem_arguments,
@@ -1370,11 +571,11 @@ main (int argc,
     {
       g_assert (flatpak_subsandbox != NULL);
 
-      if (g_strcmp0 (opt_graphics_provider, "/") == 0)
+      if (g_strcmp0 (self->options.graphics_provider, "/") == 0)
         {
           graphics_provider_mount_point = "/run/parent";
         }
-      else if (g_strcmp0 (opt_graphics_provider, "/run/host") == 0)
+      else if (g_strcmp0 (self->options.graphics_provider, "/run/host") == 0)
         {
           g_warning ("Using host graphics drivers in a Flatpak subsandbox "
                      "probably won't work");
@@ -1389,7 +590,7 @@ main (int argc,
         }
     }
 
-  if (opt_runtime != NULL)
+  if (self->options.runtime != NULL)
     {
       G_GNUC_UNUSED g_autoptr(SrtProfilingTimer) timer =
         _srt_profiling_start ("Setting up runtime");
@@ -1399,19 +600,20 @@ main (int argc,
       g_autofree gchar *runtime_resolved = NULL;
       const char *runtime_path = NULL;
 
-      if (opt_deterministic)
+      if (self->options.deterministic)
         flags |= PV_RUNTIME_FLAGS_DETERMINISTIC;
 
-      if (opt_gc_runtimes)
+      if (self->options.gc_runtimes)
         flags |= PV_RUNTIME_FLAGS_GC_RUNTIMES;
 
-      if (opt_generate_locales)
+      if (self->options.generate_locales)
         flags |= PV_RUNTIME_FLAGS_GENERATE_LOCALES;
 
-      if (opt_graphics_provider != NULL && opt_graphics_provider[0] != '\0')
+      if (self->options.graphics_provider != NULL
+          && self->options.graphics_provider[0] != '\0')
         {
           g_assert (graphics_provider_mount_point != NULL);
-          graphics_provider = pv_graphics_provider_new (opt_graphics_provider,
+          graphics_provider = pv_graphics_provider_new (self->options.graphics_provider,
                                                         graphics_provider_mount_point,
                                                         TRUE, error);
 
@@ -1422,13 +624,13 @@ main (int argc,
       if (_srt_util_is_debugging ())
         flags |= PV_RUNTIME_FLAGS_VERBOSE;
 
-      if (opt_import_vulkan_layers)
+      if (self->options.import_vulkan_layers)
         flags |= PV_RUNTIME_FLAGS_IMPORT_VULKAN_LAYERS;
 
-      if (opt_copy_runtime)
+      if (self->options.copy_runtime)
         flags |= PV_RUNTIME_FLAGS_COPY_RUNTIME;
 
-      if (opt_deterministic || opt_single_thread)
+      if (self->options.deterministic || self->options.single_thread)
         flags |= PV_RUNTIME_FLAGS_SINGLE_THREAD;
 
       if (flatpak_subsandbox != NULL)
@@ -1453,20 +655,20 @@ main (int argc,
             }
         }
 
-      runtime_path = opt_runtime;
+      runtime_path = self->options.runtime;
 
       if (!g_path_is_absolute (runtime_path)
-          && opt_runtime_base != NULL
-          && opt_runtime_base[0] != '\0')
+          && self->options.runtime_base != NULL
+          && self->options.runtime_base[0] != '\0')
         {
-          runtime_resolved = g_build_filename (opt_runtime_base,
+          runtime_resolved = g_build_filename (self->options.runtime_base,
                                                runtime_path, NULL);
           runtime_path = runtime_resolved;
         }
 
       g_debug ("Configuring runtime %s...", runtime_path);
 
-      if (is_flatpak_env && !opt_copy_runtime)
+      if (self->is_flatpak_env && !self->options.copy_runtime)
         {
           glnx_throw (error,
                       "Cannot set up a runtime inside Flatpak without "
@@ -1475,11 +677,11 @@ main (int argc,
         }
 
       runtime = pv_runtime_new (runtime_path,
-                                opt_variable_dir,
+                                self->options.variable_dir,
                                 bwrap_executable,
                                 graphics_provider,
                                 interpreter_host_provider,
-                                _srt_const_strv (original_environ),
+                                _srt_const_strv (self->original_environ),
                                 flags,
                                 error);
 
@@ -1515,10 +717,10 @@ main (int argc,
     {
       SrtDirentCompareFunc cmp = NULL;
 
-      if (opt_deterministic)
+      if (self->options.deterministic)
         cmp = _srt_dirent_strcmp;
 
-      g_assert (!is_flatpak_env);
+      g_assert (!self->is_flatpak_env);
       g_assert (bwrap != NULL);
       g_assert (bwrap_filesystem_arguments != NULL);
       g_assert (exports != NULL);
@@ -1558,7 +760,7 @@ main (int argc,
     }
   else
     {
-      g_assert (!is_flatpak_env);
+      g_assert (!self->is_flatpak_env);
       g_assert (bwrap != NULL);
       g_assert (bwrap_filesystem_arguments != NULL);
       g_assert (exports != NULL);
@@ -1571,7 +773,7 @@ main (int argc,
         goto out;
     }
 
-  if (!opt_share_pid)
+  if (!self->options.share_pid)
     {
       if (bwrap != NULL)
         {
@@ -1616,22 +818,22 @@ main (int argc,
 
   adverb_preload_argv = g_ptr_array_new_with_free_func (g_free);
 
-  if (opt_remove_game_overlay)
+  if (self->options.remove_game_overlay)
     append_preload_flags |= PV_APPEND_PRELOAD_FLAGS_REMOVE_GAME_OVERLAY;
 
   /* We need the LD_PRELOADs from Steam visible at the paths that were
    * used for them, which might be their physical rather than logical
    * locations. Steam doesn't generally use LD_AUDIT, but the Steam app
    * on Flathub does, and it needs similar handling. */
-  if (opt_preload_modules != NULL)
+  do
     {
       gsize j;
 
-      g_debug ("Adjusting LD_AUDIT/LD_PRELOAD modules...");
+      g_debug ("Adjusting LD_AUDIT/LD_PRELOAD modules if any...");
 
-      for (j = 0; j < opt_preload_modules->len; j++)
+      for (j = 0; j < self->options.preload_modules->len; j++)
         {
-          const WrapPreloadModule *module = &g_array_index (opt_preload_modules,
+          const WrapPreloadModule *module = &g_array_index (self->options.preload_modules,
                                                             WrapPreloadModule,
                                                             j);
 
@@ -1647,9 +849,10 @@ main (int argc,
                                   exports);
         }
     }
+  while (0);
 
   pv_bind_and_propagate_from_environ (real_root,
-                                      _srt_const_strv (original_environ),
+                                      _srt_const_strv (self->original_environ),
                                       home_mode,
                                       exports, container_env);
 
@@ -1696,29 +899,29 @@ main (int argc,
 
       /* Make arbitrary filesystems available. This is not as complete as
        * Flatpak yet. */
-      if (opt_filesystems != NULL)
+      if (self->options.filesystems != NULL)
         {
           g_debug ("Processing --filesystem arguments...");
 
-          for (i = 0; opt_filesystems[i] != NULL; i++)
+          for (i = 0; self->options.filesystems[i] != NULL; i++)
             {
               /* We already checked this */
-              g_assert (g_path_is_absolute (opt_filesystems[i]));
+              g_assert (g_path_is_absolute (self->options.filesystems[i]));
 
-              g_info ("Bind-mounting \"%s\"", opt_filesystems[i]);
+              g_info ("Bind-mounting \"%s\"", self->options.filesystems[i]);
 
-              if (flatpak_has_path_prefix (opt_filesystems[i], "/overrides"))
+              if (flatpak_has_path_prefix (self->options.filesystems[i], "/overrides"))
                 {
                   g_warning_once ("The path \"/overrides/\" is reserved and cannot be shared");
                   continue;
                 }
 
-              if (flatpak_has_path_prefix (opt_filesystems[i], "/usr"))
+              if (flatpak_has_path_prefix (self->options.filesystems[i], "/usr"))
                 g_warning_once ("Binding directories that are located under \"/usr/\" "
                                 "is not supported!");
               flatpak_exports_add_path_expose (exports,
                                                FLATPAK_FILESYSTEM_MODE_READ_WRITE,
-                                               opt_filesystems[i]);
+                                               self->options.filesystems[i]);
             }
         }
 
@@ -1766,23 +969,24 @@ main (int argc,
 
       /* We need libraries from the Steam Runtime, so make sure that's
        * visible (it should never need to be read/write though) */
-      if (opt_env_if_host != NULL)
+      if (self->options.env_if_host != NULL)
         {
-          for (i = 0; opt_env_if_host[i] != NULL; i++)
+          for (i = 0; self->options.env_if_host[i] != NULL; i++)
             {
-              char *equals = strchr (opt_env_if_host[i], '=');
+              char *equals = strchr (self->options.env_if_host[i], '=');
 
               g_assert (equals != NULL);
 
               if (exports != NULL
-                  && g_str_has_prefix (opt_env_if_host[i], "STEAM_RUNTIME=/"))
+                  && g_str_has_prefix (self->options.env_if_host[i],
+                                       "STEAM_RUNTIME=/"))
                 flatpak_exports_add_path_expose (exports,
                                                  FLATPAK_FILESYSTEM_MODE_READ_ONLY,
                                                  equals + 1);
 
               *equals = '\0';
 
-              pv_environ_setenv (container_env, opt_env_if_host[i],
+              pv_environ_setenv (container_env, self->options.env_if_host[i],
                                    equals + 1);
 
               *equals = '=';
@@ -1830,9 +1034,9 @@ main (int argc,
       g_autoptr(FlatpakBwrap) sharing_bwrap = NULL;
 
       sharing_bwrap = pv_wrap_share_sockets (container_env,
-                                             _srt_const_strv (original_environ),
+                                             _srt_const_strv (self->original_environ),
                                              (runtime != NULL),
-                                             is_flatpak_env);
+                                             self->is_flatpak_env);
       g_warn_if_fail (g_strv_length (sharing_bwrap->envp) == 0);
 
       if (!pv_bwrap_append_adjusted_exports (bwrap, sharing_bwrap, home,
@@ -1842,7 +1046,7 @@ main (int argc,
     }
   else if (flatpak_subsandbox != NULL)
     {
-      pv_wrap_set_icons_env_vars (container_env, _srt_const_strv (original_environ));
+      pv_wrap_set_icons_env_vars (container_env, _srt_const_strv (self->original_environ));
     }
 
   if (runtime != NULL)
@@ -1852,7 +1056,7 @@ main (int argc,
         goto out;
     }
 
-  if (is_flatpak_env)
+  if (self->is_flatpak_env)
     {
       /* Let these inherit from the sub-sandbox environment */
       pv_environ_inherit_env (container_env, "FLATPAK_ID");
@@ -1873,14 +1077,14 @@ main (int argc,
         pv_bwrap_container_env_to_bwrap_argv (bwrap, container_env);
     }
 
-  final_argv = flatpak_bwrap_new (original_environ);
+  final_argv = flatpak_bwrap_new (self->original_environ);
 
   /* Populate final_argv->envp, overwriting its copy of original_environ.
    * We skip this if we are in a Flatpak environment, because in that case
    * we already used `--setenv` for all the variables that we care about and
    * the final_argv->envp will be ignored anyway, other than as a way to
    * invoke pv-launch (for which original_environ is appropriate). */
-  if (!is_flatpak_env)
+  if (!self->is_flatpak_env)
     {
       /* Note that these are two different FlatpakBwrap instances! */
       pv_bwrap_container_env_to_envp (final_argv, container_env);
@@ -1923,7 +1127,7 @@ main (int argc,
             }
         }
 
-      if (!opt_only_prepare)
+      if (!self->options.only_prepare)
         {
           if (!flatpak_bwrap_bundle_args (bwrap, 1, -1, FALSE, error))
             goto out;
@@ -1955,17 +1159,17 @@ main (int argc,
           flatpak_bwrap_add_arg (adverb_argv, adverb_in_container);
         }
 
-      if (opt_terminate_timeout >= 0.0)
+      if (self->options.terminate_timeout >= 0.0)
         {
           char idle_buf[G_ASCII_DTOSTR_BUF_SIZE] = {};
           char timeout_buf[G_ASCII_DTOSTR_BUF_SIZE] = {};
 
           g_ascii_dtostr (idle_buf, sizeof (idle_buf),
-                          opt_terminate_idle_timeout);
+                          self->options.terminate_idle_timeout);
           g_ascii_dtostr (timeout_buf, sizeof (timeout_buf),
-                          opt_terminate_timeout);
+                          self->options.terminate_timeout);
 
-          if (opt_terminate_idle_timeout > 0.0)
+          if (self->options.terminate_idle_timeout > 0.0)
             flatpak_bwrap_add_arg_printf (adverb_argv,
                                           "--terminate-idle-timeout=%s",
                                           idle_buf);
@@ -1987,18 +1191,15 @@ main (int argc,
       flatpak_bwrap_add_arg_printf (adverb_argv, "--assign-fd=%d=%d",
                                     STDERR_FILENO, original_stderr);
 
-      if (opt_pass_fds != NULL)
+      for (i = 0; i < self->options.pass_fds->len; i++)
         {
-          for (i = 0; i < opt_pass_fds->len; i++)
-            {
-              int fd = g_array_index (opt_pass_fds, int, i);
+          int fd = g_array_index (self->options.pass_fds, int, i);
 
-              g_array_append_val (inherit_fds, fd);
-              flatpak_bwrap_add_arg_printf (adverb_argv, "--pass-fd=%d", fd);
-            }
+          g_array_append_val (inherit_fds, fd);
+          flatpak_bwrap_add_arg_printf (adverb_argv, "--pass-fd=%d", fd);
         }
 
-      switch (opt_shell)
+      switch (self->options.shell)
         {
           case PV_SHELL_AFTER:
             flatpak_bwrap_add_arg (adverb_argv, "--shell=after");
@@ -2020,7 +1221,7 @@ main (int argc,
             g_warn_if_reached ();
         }
 
-      switch (opt_terminal)
+      switch (self->options.terminal)
         {
           case PV_TERMINAL_AUTO:
             flatpak_bwrap_add_arg (adverb_argv, "--terminal=auto");
@@ -2054,7 +1255,7 @@ main (int argc,
       flatpak_bwrap_append_bwrap (argv_in_container, adverb_argv);
     }
 
-  if (opt_launcher)
+  if (self->options.launcher)
     {
       g_autoptr(FlatpakBwrap) launcher_argv =
         flatpak_bwrap_new (flatpak_bwrap_empty_env);
@@ -2154,9 +1355,9 @@ main (int argc,
 
   flatpak_bwrap_finish (final_argv);
 
-  if (opt_write_final_argv != NULL)
+  if (self->options.write_final_argv != NULL)
     {
-      FILE *file = fopen (opt_write_final_argv, "w");
+      FILE *file = fopen (self->options.write_final_argv, "w");
       if (file == NULL)
         {
           g_warning ("An error occurred trying to write out the arguments: %s",
@@ -2173,7 +1374,7 @@ main (int argc,
         }
     }
 
-  if (!is_flatpak_env)
+  if (!self->is_flatpak_env)
     {
       if (!pv_wrap_maybe_load_nvidia_modules (error))
         {
@@ -2182,13 +1383,13 @@ main (int argc,
         }
     }
 
-  if (opt_only_prepare)
+  if (self->options.only_prepare)
     {
       ret = 0;
       goto out;
     }
 
-  if (opt_systemd_scope)
+  if (self->options.systemd_scope)
     pv_wrap_move_into_scope (steam_app_id);
 
   pv_bwrap_execve (final_argv,
@@ -2199,16 +1400,7 @@ out:
   if (local_error != NULL)
     _srt_log_failure ("%s", local_error->message);
 
-  g_clear_pointer (&opt_preload_modules, g_array_unref);
   g_clear_pointer (&adverb_preload_argv, g_ptr_array_unref);
-  g_clear_pointer (&opt_env_if_host, g_strfreev);
-  g_clear_pointer (&opt_freedesktop_app_id, g_free);
-  g_clear_pointer (&opt_steam_app_id, g_free);
-  g_clear_pointer (&opt_home, g_free);
-  g_clear_pointer (&opt_runtime, g_free);
-  g_clear_pointer (&opt_runtime_base, g_free);
-  g_clear_pointer (&opt_pass_fds, g_array_unref);
-  g_clear_pointer (&opt_variable_dir, g_free);
 
   g_debug ("Exiting with status %d", ret);
   return ret;

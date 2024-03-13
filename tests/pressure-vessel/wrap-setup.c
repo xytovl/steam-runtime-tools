@@ -37,6 +37,7 @@
 
 #include "bwrap.h"
 #include "supported-architectures.h"
+#include "wrap-context.h"
 #include "wrap-home.h"
 #include "wrap-setup.h"
 #include "utils.h"
@@ -59,6 +60,7 @@
 typedef struct
 {
   TestsOpenFdSet old_fds;
+  PvWrapContext *context;
   SrtSysroot *mock_host;
   FlatpakBwrap *bwrap;
   gchar *tmpdir;
@@ -218,6 +220,8 @@ setup (Fixture *f,
   glnx_opendirat (AT_FDCWD, f->var, TRUE, &f->var_fd, &local_error);
   g_assert_no_error (local_error);
 
+  f->context = pv_wrap_context_new (&local_error);
+  g_assert_no_error (local_error);
   f->bwrap = flatpak_bwrap_new (flatpak_bwrap_empty_env);
   f->env = g_get_environ ();
 }
@@ -270,6 +274,7 @@ teardown (Fixture *f,
       g_assert_no_error (local_error);
     }
 
+  g_clear_object (&f->context);
   g_clear_object (&f->mock_host);
   g_clear_pointer (&f->mock_runtime, g_free);
   g_clear_pointer (&f->tmpdir, g_free);
@@ -639,6 +644,343 @@ test_export_root_dirs (Fixture *f,
   /* We would export these if they existed, but they don't */
   assert_bwrap_does_not_contain (f->bwrap, "/mnt");
   assert_bwrap_does_not_contain (f->bwrap, "/srv");
+}
+
+/*
+ * Check that pv-wrap defaults are as expected
+ */
+static void
+test_options_defaults (Fixture *f,
+                       gconstpointer context)
+{
+  const PvWrapOptions *options = &f->context->options;
+  size_t i;
+
+  /*
+   * First iteration: Check the defaults.
+   * Second iteration: Check the defaults after parsing empty argv.
+   */
+  for (i = 0; i < 2; i++)
+    {
+      static const char * const original_argv[] =
+      {
+        "pressure-vessel-wrap-test",
+        "--",
+        "COMMAND",
+        "ARGS",
+        NULL
+      };
+      static const char * const expected_argv[] =
+      {
+        "pressure-vessel-wrap-test",
+        "COMMAND",
+        "ARGS",
+        NULL
+      };
+      /* This slightly strange copying ensures that we can still free
+       * strings that were removed from argv during parsing */
+      g_auto(GStrv) argv_copy = _srt_strdupv (original_argv);
+      g_autofree gchar **argv = g_memdup2 (argv_copy, sizeof (original_argv));
+      g_autoptr(GError) local_error = NULL;
+      int argc = G_N_ELEMENTS (original_argv) - 1;
+
+      g_assert_null (options->env_if_host);
+      g_assert_null (options->filesystems);
+      g_assert_cmpstr (options->freedesktop_app_id, ==, NULL);
+      g_assert_cmpstr (options->graphics_provider, ==, NULL);
+      g_assert_cmpstr (options->home, ==, NULL);
+      g_assert_cmpuint (options->pass_fds->len, ==, 0);
+      g_assert_cmpuint (options->preload_modules->len, ==, 0);
+      g_assert_cmpstr (options->runtime, ==, NULL);
+      g_assert_cmpstr (options->runtime_base, ==, NULL);
+      g_assert_cmpstr (options->steam_app_id, ==, NULL);
+      g_assert_cmpstr (options->variable_dir, ==, NULL);
+      g_assert_cmpstr (options->write_final_argv, ==, NULL);
+      g_assert_cmpfloat (options->terminate_idle_timeout, <=, 0);
+      g_assert_cmpfloat (options->terminate_idle_timeout, >=, 0);
+      g_assert_cmpfloat (options->terminate_timeout, <, 0);
+      g_assert_cmpint (options->shell, ==, PV_SHELL_NONE);
+      g_assert_cmpint (options->terminal, ==, PV_TERMINAL_AUTO);
+      g_assert_cmpint (options->share_home, ==, TRISTATE_MAYBE);
+      g_assert_cmpint (options->batch, ==, FALSE);
+      g_assert_cmpint (options->copy_runtime, ==, FALSE);
+      g_assert_cmpint (options->deterministic, ==, FALSE);
+      g_assert_cmpint (options->devel, ==, FALSE);
+      g_assert_cmpint (options->gc_runtimes, ==, TRUE);
+      g_assert_cmpint (options->generate_locales, ==, TRUE);
+      g_assert_cmpint (options->import_vulkan_layers, ==, TRUE);
+      g_assert_cmpint (options->launcher, ==, FALSE);
+      g_assert_cmpint (options->only_prepare, ==, FALSE);
+      g_assert_cmpint (options->remove_game_overlay, ==, FALSE);
+      g_assert_cmpint (options->share_pid, ==, TRUE);
+      g_assert_cmpint (options->single_thread, ==, FALSE);
+      g_assert_cmpint (options->systemd_scope, ==, FALSE);
+      g_assert_cmpint (options->test, ==, FALSE);
+      g_assert_cmpint (options->verbose, ==, FALSE);
+      g_assert_cmpint (options->version, ==, FALSE);
+      g_assert_cmpint (options->version_only, ==, FALSE);
+
+      pv_wrap_context_parse_argv (f->context, &argc, &argv, &local_error);
+      g_assert_no_error (local_error);
+
+      g_assert_cmpint (f->context->original_argc,
+                       ==, G_N_ELEMENTS (original_argv) - 1);
+      g_assert_cmpstrv (f->context->original_argv, (gchar **) original_argv);
+      g_assert_cmpstrv (argv, (gchar **) expected_argv);
+    }
+}
+
+/*
+ * Check the effect of explicitly setting various CLI options to false
+ * or empty.
+ */
+static void
+test_options_false (Fixture *f,
+                    gconstpointer context)
+{
+  static const char * const original_argv[] =
+  {
+    "pressure-vessel-wrap-test",
+    "--graphics-provider=",
+    "--no-copy-runtime",
+    "--no-gc-runtimes",
+    "--no-generate-locales",
+    "--no-import-vulkan-layers",
+    "--no-systemd-scope",
+    "--runtime=",
+    "--terminal=none",
+    "--terminate-idle-timeout=0",
+    "--terminate-timeout=0",
+    "--unshare-home",
+    "--unshare-pid",
+    "--",
+    "COMMAND",
+    "ARGS",
+    NULL
+  };
+  static const char * const expected_argv[] =
+  {
+    "pressure-vessel-wrap-test",
+    "COMMAND",
+    "ARGS",
+    NULL
+  };
+  const PvWrapOptions *options = &f->context->options;
+  /* This slightly strange copying ensures that we can still free
+   * strings that were removed from argv during parsing */
+  g_auto(GStrv) argv_copy = _srt_strdupv (original_argv);
+  g_autofree gchar **argv = g_memdup2 (argv_copy, sizeof (original_argv));
+  g_autoptr(GError) local_error = NULL;
+  int argc = G_N_ELEMENTS (original_argv) - 1;
+
+  pv_wrap_context_parse_argv (f->context, &argc, &argv, &local_error);
+  g_assert_no_error (local_error);
+
+  g_assert_cmpint (f->context->original_argc,
+                   ==, G_N_ELEMENTS (original_argv) - 1);
+  g_assert_cmpstrv (f->context->original_argv, (gchar **) original_argv);
+  g_assert_cmpstrv (argv, (gchar **) expected_argv);
+
+  g_assert_null (options->env_if_host);
+  g_assert_null (options->filesystems);
+  g_assert_cmpstr (options->freedesktop_app_id, ==, NULL);
+  g_assert_cmpstr (options->graphics_provider, ==, "");
+  g_assert_cmpstr (options->home, ==, NULL);
+  g_assert_cmpuint (options->pass_fds->len, ==, 0);
+  g_assert_cmpuint (options->preload_modules->len, ==, 0);
+  g_assert_cmpstr (options->runtime, ==, "");
+  g_assert_cmpstr (options->runtime_base, ==, NULL);
+  g_assert_cmpstr (options->steam_app_id, ==, NULL);
+  g_assert_cmpstr (options->variable_dir, ==, NULL);
+  g_assert_cmpstr (options->write_final_argv, ==, NULL);
+  g_assert_cmpfloat (options->terminate_idle_timeout, <=, 0);
+  g_assert_cmpfloat (options->terminate_idle_timeout, >=, 0);
+  g_assert_cmpfloat (options->terminate_timeout, >=, 0);
+  g_assert_cmpfloat (options->terminate_timeout, <=, 0);
+  g_assert_cmpint (options->shell, ==, PV_SHELL_NONE);
+  g_assert_cmpint (options->terminal, ==, PV_TERMINAL_NONE);
+  g_assert_cmpint (options->share_home, ==, TRISTATE_NO);
+  g_assert_cmpint (options->batch, ==, FALSE);
+  g_assert_cmpint (options->copy_runtime, ==, FALSE);
+  g_assert_cmpint (options->deterministic, ==, FALSE);
+  g_assert_cmpint (options->devel, ==, FALSE);
+  g_assert_cmpint (options->gc_runtimes, ==, FALSE);
+  g_assert_cmpint (options->generate_locales, ==, FALSE);
+  g_assert_cmpint (options->import_vulkan_layers, ==, FALSE);
+  g_assert_cmpint (options->launcher, ==, FALSE);
+  g_assert_cmpint (options->only_prepare, ==, FALSE);
+  g_assert_cmpint (options->remove_game_overlay, ==, FALSE);
+  g_assert_cmpint (options->share_pid, ==, FALSE);
+  g_assert_cmpint (options->single_thread, ==, FALSE);
+  g_assert_cmpint (options->systemd_scope, ==, FALSE);
+  g_assert_cmpint (options->test, ==, FALSE);
+  g_assert_cmpint (options->verbose, ==, FALSE);
+  g_assert_cmpint (options->version, ==, FALSE);
+  g_assert_cmpint (options->version_only, ==, FALSE);
+}
+
+/*
+ * Check the effect of explicitly setting various CLI options to true
+ * or non-empty.
+ */
+static void
+test_options_true (Fixture *f,
+                   gconstpointer context)
+{
+  static const char * const original_argv[] =
+  {
+    "pressure-vessel-wrap-test",
+    "--batch",
+    "--copy-runtime",
+    "--deterministic",
+    "--devel",
+    "--env-if-host=ONE=1",
+    "--env-if-host=TWO=two",
+    "--filesystem=/foo",
+    "--filesystem=/bar",
+    "--freedesktop-app-id=com.example.Foo",
+    "--gc-runtimes",
+    "--generate-locales",
+    "--graphics-provider=/gfx",
+    "--home=/home/steam",
+    "--import-vulkan-layers",
+    "--launcher",
+    "--ld-audit=libaudit.so",
+    "--ld-audits=libaudit1.so:libaudit2.so",
+    "--ld-preload=libpreload.so",
+    "--ld-preloads=libpreload1.so libpreload2.so:libpreload3.so",
+    "--only-prepare",
+    "--pass-fd=2",
+    "--remove-game-overlay",
+    "--runtime=sniper",
+    "--runtime-base=/runtimes",
+    "--share-home",
+    "--share-pid",
+    "--shell=instead",
+    "--single-thread",
+    "--steam-app-id=12345",
+    "--systemd-scope",
+    "--terminal=xterm",
+    "--terminate-idle-timeout=10",
+    "--terminate-timeout=5",
+    "--test",
+    "--variable-dir=/runtimes/var",
+    "--verbose",
+    "--version",
+    "--version-only",
+    "--write-final-argv=/dev/null",
+    NULL
+  };
+  static const char * const expected_argv[] =
+  {
+    "pressure-vessel-wrap-test",
+    NULL
+  };
+  static const char * const expected_env_if_host[] =
+  {
+    "ONE=1",
+    "TWO=two",
+    NULL
+  };
+  static const char * const expected_filesystems[] =
+  {
+    "/foo",
+    "/bar",
+    NULL
+  };
+  const PvWrapOptions *options = &f->context->options;
+  /* This slightly strange copying ensures that we can still free
+   * strings that were removed from argv during parsing */
+  g_auto(GStrv) argv_copy = _srt_strdupv (original_argv);
+  g_autofree gchar **argv = g_memdup2 (argv_copy, sizeof (original_argv));
+  g_autoptr(GError) local_error = NULL;
+  int argc = G_N_ELEMENTS (original_argv) - 1;
+  const WrapPreloadModule *module;
+  gsize i = 0;
+
+  pv_wrap_context_parse_argv (f->context, &argc, &argv, &local_error);
+  g_assert_no_error (local_error);
+
+  g_assert_cmpint (f->context->original_argc,
+                   ==, G_N_ELEMENTS (original_argv) - 1);
+  g_assert_cmpstrv (f->context->original_argv, (gchar **) original_argv);
+  g_assert_cmpstrv (argv, (gchar **) expected_argv);
+
+  g_assert_cmpstrv (options->env_if_host, (gchar **) expected_env_if_host);
+  g_assert_cmpstrv (options->filesystems, (gchar **) expected_filesystems);
+  g_assert_cmpstr (options->freedesktop_app_id, ==, "com.example.Foo");
+  g_assert_cmpstr (options->graphics_provider, ==, "/gfx");
+  g_assert_cmpstr (options->home, ==, "/home/steam");
+  g_assert_cmpuint (options->pass_fds->len, ==, 1);
+  g_assert_cmpint (g_array_index (options->pass_fds, int, 0), ==, 2);
+  g_assert_cmpstr (options->runtime, ==, "sniper");
+  g_assert_cmpstr (options->runtime_base, ==, "/runtimes");
+  g_assert_cmpstr (options->steam_app_id, ==, "12345");
+  g_assert_cmpstr (options->variable_dir, ==, "/runtimes/var");
+  g_assert_cmpstr (options->write_final_argv, ==, "/dev/null");
+  g_assert_cmpfloat (options->terminate_idle_timeout, <=, 10);
+  g_assert_cmpfloat (options->terminate_idle_timeout, >=, 10);
+  g_assert_cmpfloat (options->terminate_timeout, >=, 5);
+  g_assert_cmpfloat (options->terminate_timeout, <=, 5);
+  g_assert_cmpint (options->shell, ==, PV_SHELL_INSTEAD);
+  g_assert_cmpint (options->terminal, ==, PV_TERMINAL_XTERM);
+  g_assert_cmpint (options->share_home, ==, TRISTATE_YES);
+  g_assert_cmpint (options->batch, ==, TRUE);
+  g_assert_cmpint (options->copy_runtime, ==, TRUE);
+  g_assert_cmpint (options->deterministic, ==, TRUE);
+  g_assert_cmpint (options->devel, ==, TRUE);
+  g_assert_cmpint (options->gc_runtimes, ==, TRUE);
+  g_assert_cmpint (options->generate_locales, ==, TRUE);
+  g_assert_cmpint (options->import_vulkan_layers, ==, TRUE);
+  g_assert_cmpint (options->launcher, ==, TRUE);
+  g_assert_cmpint (options->only_prepare, ==, TRUE);
+  g_assert_cmpint (options->remove_game_overlay, ==, TRUE);
+  g_assert_cmpint (options->share_pid, ==, TRUE);
+  g_assert_cmpint (options->single_thread, ==, TRUE);
+  g_assert_cmpint (options->systemd_scope, ==, TRUE);
+  g_assert_cmpint (options->test, ==, TRUE);
+  g_assert_cmpint (options->verbose, ==, TRUE);
+  g_assert_cmpint (options->version, ==, TRUE);
+  g_assert_cmpint (options->version_only, ==, TRUE);
+
+  i = 0;
+
+  g_assert_cmpuint (options->preload_modules->len, >, i);
+  module = &g_array_index (options->preload_modules, WrapPreloadModule, i++);
+  g_assert_cmpint (module->which, ==, PRELOAD_VARIABLE_INDEX_LD_AUDIT);
+  g_assert_cmpstr (module->preload, ==, "libaudit.so");
+
+  g_assert_cmpuint (options->preload_modules->len, >, i);
+  module = &g_array_index (options->preload_modules, WrapPreloadModule, i++);
+  g_assert_cmpint (module->which, ==, PRELOAD_VARIABLE_INDEX_LD_AUDIT);
+  g_assert_cmpstr (module->preload, ==, "libaudit1.so");
+
+  g_assert_cmpuint (options->preload_modules->len, >, i);
+  module = &g_array_index (options->preload_modules, WrapPreloadModule, i++);
+  g_assert_cmpint (module->which, ==, PRELOAD_VARIABLE_INDEX_LD_AUDIT);
+  g_assert_cmpstr (module->preload, ==, "libaudit2.so");
+
+  g_assert_cmpuint (options->preload_modules->len, >, i);
+  module = &g_array_index (options->preload_modules, WrapPreloadModule, i++);
+  g_assert_cmpint (module->which, ==, PRELOAD_VARIABLE_INDEX_LD_PRELOAD);
+  g_assert_cmpstr (module->preload, ==, "libpreload.so");
+
+  g_assert_cmpuint (options->preload_modules->len, >, i);
+  module = &g_array_index (options->preload_modules, WrapPreloadModule, i++);
+  g_assert_cmpint (module->which, ==, PRELOAD_VARIABLE_INDEX_LD_PRELOAD);
+  g_assert_cmpstr (module->preload, ==, "libpreload1.so");
+
+  g_assert_cmpuint (options->preload_modules->len, >, i);
+  module = &g_array_index (options->preload_modules, WrapPreloadModule, i++);
+  g_assert_cmpint (module->which, ==, PRELOAD_VARIABLE_INDEX_LD_PRELOAD);
+  g_assert_cmpstr (module->preload, ==, "libpreload2.so");
+
+  g_assert_cmpuint (options->preload_modules->len, >, i);
+  module = &g_array_index (options->preload_modules, WrapPreloadModule, i++);
+  g_assert_cmpint (module->which, ==, PRELOAD_VARIABLE_INDEX_LD_PRELOAD);
+  g_assert_cmpstr (module->preload, ==, "libpreload3.so");
+
+  g_assert_cmpuint (i, ==, options->preload_modules->len);
 }
 
 static void
@@ -1513,6 +1855,12 @@ main (int argc,
   g_test_add ("/make-symlink-in-container/interpreter-root", Fixture,
               &interpreter_root_config,
               setup, test_make_symlink_in_container, teardown);
+  g_test_add ("/options/defaults", Fixture, NULL,
+              setup, test_options_defaults, teardown);
+  g_test_add ("/options/false", Fixture, NULL,
+              setup, test_options_false, teardown);
+  g_test_add ("/options/true", Fixture, NULL,
+              setup, test_options_true, teardown);
   g_test_add ("/remap-ld-preload", Fixture, NULL,
               setup_ld_preload, test_remap_ld_preload, teardown);
   g_test_add ("/remap-ld-preload-flatpak", Fixture, NULL,
