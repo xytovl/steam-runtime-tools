@@ -863,6 +863,8 @@ main (int argc,
 
   if (flatpak_subsandbox == NULL)
     {
+      const PvAppFrameworkPath *framework_paths;
+
       g_assert (bwrap != NULL);
       g_assert (bwrap_filesystem_arguments != NULL);
       g_assert (exports != NULL);
@@ -893,14 +895,20 @@ main (int argc,
             }
         }
 
-      /* On NixOS, all paths hard-coded into libraries are in here */
-      flatpak_exports_add_path_expose (exports,
-                                       FLATPAK_FILESYSTEM_MODE_READ_ONLY,
-                                       "/nix");
-      /* Same, but for Guix */
-      flatpak_exports_add_path_expose (exports,
-                                       FLATPAK_FILESYSTEM_MODE_READ_ONLY,
-                                       "/gnu/store");
+      /* Expose hard-coded library paths from other app runtime frameworks'
+       * dependency management: /nix, /snap, etc. */
+      for (framework_paths = pv_runtime_get_other_app_framework_paths ();
+           framework_paths->path != NULL;
+           framework_paths++)
+        {
+          if (workarounds & framework_paths->ignore_if)
+            g_warning ("Not sharing %s with container to work around %s",
+                       framework_paths->path, framework_paths->bug);
+          else
+            flatpak_exports_add_path_expose (exports,
+                                             FLATPAK_FILESYSTEM_MODE_READ_ONLY,
+                                             framework_paths->path);
+        }
 
       /* Make arbitrary filesystems available. This is not as complete as
        * Flatpak yet. */

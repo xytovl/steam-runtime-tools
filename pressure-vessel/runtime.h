@@ -165,3 +165,17 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC (PvRuntime, g_object_unref)
 
 gboolean pv_runtime_path_belongs_in_interpreter_root (PvRuntime *self,
                                                       const char *path);
+/*
+ * PvAppFrameworkPath:
+ * @path: (type filename): An absolute path
+ * @ignore_if: Ignore this path if the given workaround is active
+ * @bug: Something to log as a reason if we ignore the path
+ */
+typedef struct
+{
+  const char *path;
+  PvWorkaroundFlags ignore_if;
+  const char *bug;
+} PvAppFrameworkPath;
+
+const PvAppFrameworkPath *pv_runtime_get_other_app_framework_paths (void);
