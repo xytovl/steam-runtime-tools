@@ -33,6 +33,7 @@
 #include "flatpak-exports-private.h"
 #include "flatpak-utils-base-private.h"
 #include "graphics-provider.h"
+#include "utils.h"
 
 /**
  * PvRuntimeFlags:
@@ -112,6 +113,7 @@ PvRuntime *pv_runtime_new (const char *source,
                            PvGraphicsProvider *interpreter_host_provider,
                            const char * const *original_environ,
                            PvRuntimeFlags flags,
+                           PvWorkaroundFlags workarounds,
                            GError **error);
 
 gboolean pv_runtime_get_adverb (PvRuntime *self,

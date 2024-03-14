@@ -28,7 +28,33 @@
 
 #include <glib.h>
 
+#include "steam-runtime-tools/bwrap-internal.h"
 #include "steam-runtime-tools/missing-internal.h"
+
+typedef enum
+{
+  /* Old (presumably setuid) system copy of bwrap < 0.5.0 with no --perms */
+  PV_WORKAROUND_FLAGS_BWRAP_NO_PERMS = (1 << 0),
+  /* https://github.com/canonical/steam-snap/issues/356 */
+  PV_WORKAROUND_FLAGS_STEAMSNAP_356 = (1 << 1),
+  /* https://github.com/canonical/steam-snap/issues/369 */
+  PV_WORKAROUND_FLAGS_STEAMSNAP_369 = (1 << 2),
+  /* https://github.com/canonical/steam-snap/issues/370 */
+  PV_WORKAROUND_FLAGS_STEAMSNAP_370 = (1 << 3),
+  PV_WORKAROUND_FLAGS_NONE = 0
+} PvWorkaroundFlags;
+
+#define PV_WORKAROUND_FLAGS_SNAP \
+  (PV_WORKAROUND_FLAGS_STEAMSNAP_356 \
+   | PV_WORKAROUND_FLAGS_STEAMSNAP_369 \
+   | PV_WORKAROUND_FLAGS_STEAMSNAP_370)
+
+#define PV_WORKAROUND_FLAGS_ALL \
+  (PV_WORKAROUND_FLAGS_BWRAP_NO_PERMS \
+   | PV_WORKAROUND_FLAGS_SNAP)
+
+PvWorkaroundFlags pv_get_workarounds (SrtBwrapFlags bwrap_flags,
+                                      const char * const *envp);
 
 void pv_search_path_append (GString *search_path,
                             const gchar *item);

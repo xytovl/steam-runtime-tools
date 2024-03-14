@@ -118,6 +118,7 @@ main (int argc,
   SrtLogFlags log_flags;
   PvWrapLogFlags pv_log_flags = PV_WRAP_LOG_FLAGS_NONE;
   SrtSteamCompatFlags compat_flags;
+  PvWorkaroundFlags workarounds;
   const char *prefix = NULL;
 
   setlocale (LC_ALL, "");
@@ -437,6 +438,9 @@ main (int argc,
       g_debug ("OK (%s)", bwrap_executable);
     }
 
+  workarounds = pv_get_workarounds (bwrap_flags,
+                                    _srt_const_strv (self->original_environ));
+
   if (self->options.test)
     {
       ret = 0;
@@ -683,6 +687,7 @@ main (int argc,
                                 interpreter_host_provider,
                                 _srt_const_strv (self->original_environ),
                                 flags,
+                                workarounds,
                                 error);
 
       if (runtime == NULL)
@@ -1017,7 +1022,7 @@ main (int argc,
       flatpak_exports_append_bwrap_args (exports, exports_bwrap);
       g_warn_if_fail (g_strv_length (exports_bwrap->envp) == 0);
       if (!pv_bwrap_append_adjusted_exports (bwrap, exports_bwrap, home,
-                                             interpreter_root, bwrap_flags,
+                                             interpreter_root, workarounds,
                                              error))
         goto out;
 
@@ -1040,7 +1045,7 @@ main (int argc,
       g_warn_if_fail (g_strv_length (sharing_bwrap->envp) == 0);
 
       if (!pv_bwrap_append_adjusted_exports (bwrap, sharing_bwrap, home,
-                                             interpreter_root, bwrap_flags,
+                                             interpreter_root, workarounds,
                                              error))
         goto out;
     }

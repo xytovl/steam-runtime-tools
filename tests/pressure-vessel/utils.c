@@ -686,6 +686,54 @@ test_stat_describe_permissions (Fixture *f,
     }
 }
 
+static void
+test_workarounds (Fixture *f,
+                  gconstpointer context)
+{
+  static const char * const all_env[] =
+  {
+    "PRESSURE_VESSEL_WORKAROUNDS=all", NULL
+  };
+  static const char * const none_env[] =
+  {
+    "PRESSURE_VESSEL_WORKAROUNDS=none", NULL
+  };
+  static const char * const minus_all_env[] =
+  {
+    "PRESSURE_VESSEL_WORKAROUNDS=-all", NULL
+  };
+  static const char * const snap_env[] =
+  {
+    "SNAP=steam", "SNAP_NAME=steam", "SNAP_REVISION=1", NULL
+  };
+  static const char * const config_env[] =
+  {
+    "PRESSURE_VESSEL_WORKAROUNDS=old-bwrap,steam-snap#356", NULL
+  };
+  static const char * const order_env[] =
+  {
+    "PRESSURE_VESSEL_WORKAROUNDS=steam-snap#356 +steamsnap369 -steamsnap356", NULL
+  };
+
+  g_assert_cmpint (pv_get_workarounds (SRT_BWRAP_FLAGS_HAS_PERMS, NULL),
+                   ==, PV_WORKAROUND_FLAGS_NONE);
+  g_assert_cmpint (pv_get_workarounds (SRT_BWRAP_FLAGS_NONE, NULL),
+                   ==, PV_WORKAROUND_FLAGS_BWRAP_NO_PERMS);
+  g_assert_cmpint (pv_get_workarounds (SRT_BWRAP_FLAGS_NONE, none_env),
+                   ==, PV_WORKAROUND_FLAGS_NONE);
+  g_assert_cmpint (pv_get_workarounds (SRT_BWRAP_FLAGS_NONE, minus_all_env),
+                   ==, PV_WORKAROUND_FLAGS_NONE);
+  g_assert_cmpint (pv_get_workarounds (SRT_BWRAP_FLAGS_HAS_PERMS, all_env),
+                   ==, PV_WORKAROUND_FLAGS_ALL);
+  g_assert_cmpint (pv_get_workarounds (SRT_BWRAP_FLAGS_HAS_PERMS, snap_env),
+                   ==, PV_WORKAROUND_FLAGS_SNAP);
+  g_assert_cmpint (pv_get_workarounds (SRT_BWRAP_FLAGS_HAS_PERMS, config_env),
+                   ==, (PV_WORKAROUND_FLAGS_BWRAP_NO_PERMS
+                        | PV_WORKAROUND_FLAGS_STEAMSNAP_356));
+  g_assert_cmpint (pv_get_workarounds (SRT_BWRAP_FLAGS_HAS_PERMS, order_env),
+                   ==, (PV_WORKAROUND_FLAGS_STEAMSNAP_369));
+}
+
 int
 main (int argc,
       char **argv)
@@ -710,6 +758,8 @@ main (int argc,
               setup, test_search_path_append, teardown);
   g_test_add ("/stat-describe-permissions", Fixture, NULL,
               setup, test_stat_describe_permissions, teardown);
+  g_test_add ("/workarounds", Fixture, NULL,
+              setup, test_workarounds, teardown);
 
   return g_test_run ();
 }

@@ -188,6 +188,7 @@ fixture_create_runtime (Fixture *f,
                             (flags
                              | PV_RUNTIME_FLAGS_VERBOSE
                              | PV_RUNTIME_FLAGS_SINGLE_THREAD),
+                            PV_WORKAROUND_FLAGS_NONE,
                             &local_error);
   g_assert_no_error (local_error);
   g_assert_nonnull (runtime);

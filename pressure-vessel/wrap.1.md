@@ -404,6 +404,12 @@ The following environment variables (among others) are read by
 `PRESSURE_VESSEL_VERBOSE` (boolean)
 :   If set to `1`, equivalent to `--verbose`.
 
+`PRESSURE_VESSEL_WORKAROUNDS` (tokens separated by space, tab and/or comma)
+:   Tokens of the form `foo` or `+foo` enable various workarounds.
+    Tokens of the form `-foo` or `!foo` disable the corresponding workaround.
+    See pressure-vessel source code for details.
+    The default is to auto-detect which workarounds are needed.
+
 `PULSE_CLIENTCONFIG`
 :   Used to locate PulseAudio client configuration.
 
