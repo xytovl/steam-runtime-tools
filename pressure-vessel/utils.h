@@ -41,11 +41,14 @@ typedef enum
   PV_WORKAROUND_FLAGS_STEAMSNAP_369 = (1 << 2),
   /* https://github.com/canonical/steam-snap/issues/370 */
   PV_WORKAROUND_FLAGS_STEAMSNAP_370 = (1 << 3),
+  /* https://github.com/canonical/steam-snap/issues/359 */
+  PV_WORKAROUND_FLAGS_STEAMSNAP_359 = (1 << 4),
   PV_WORKAROUND_FLAGS_NONE = 0
 } PvWorkaroundFlags;
 
 #define PV_WORKAROUND_FLAGS_SNAP \
   (PV_WORKAROUND_FLAGS_STEAMSNAP_356 \
+   | PV_WORKAROUND_FLAGS_STEAMSNAP_359 \
    | PV_WORKAROUND_FLAGS_STEAMSNAP_369 \
    | PV_WORKAROUND_FLAGS_STEAMSNAP_370)
 

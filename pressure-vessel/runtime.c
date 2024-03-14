@@ -187,6 +187,41 @@ path_mutable_in_container_namespace (const char *path)
   return FALSE;
 }
 
+/* See pv_runtime_get_other_app_framework_paths() */
+static const PvAppFrameworkPath framework_paths[] =
+{
+  { "/gnu/store", PV_WORKAROUND_FLAGS_NONE, NULL },
+  { "/nix", PV_WORKAROUND_FLAGS_NONE, NULL },
+  { "/snap", PV_WORKAROUND_FLAGS_STEAMSNAP_359,
+    "https://github.com/canonical/steam-snap/issues/359" },
+  { "/var/lib/snapd/hostfs", PV_WORKAROUND_FLAGS_STEAMSNAP_359,
+    "https://github.com/canonical/steam-snap/issues/359" },
+  { NULL }
+};
+
+/**
+ * pv_runtime_get_other_app_framework_paths:
+ *
+ * Return directories other than /app and /usr in which non-pressure-vessel
+ * app frameworks conventionally hard-code paths to dependency libraries
+ * or similar things. This currently means:
+ *
+ * * /gnu/store, for Guix
+ * * /nix, for Nix and NixOS
+ * * /snap, for Canonical's unofficial Snap version of Steam
+ * * /var/lib/snapd/hostfs, for Snap's equivalent of our /run/host
+ *
+ * Returns: (array zero-terminated=1) (transfer none):
+ *  An array of absolute paths that should be made available read-only
+ *  in the container if they exist and their workaround flags
+ *  are not enabled
+ */
+const PvAppFrameworkPath *
+pv_runtime_get_other_app_framework_paths (void)
+{
+  return framework_paths;
+}
+
 /*
  * pv_runtime_path_belongs_in_interpreter_root:
  * @path: An absolute or root-relative path, for example `/etc/os-release`
@@ -241,23 +276,20 @@ pv_runtime_path_belongs_in_interpreter_root (PvRuntime *self,
  */
 static gboolean
 path_visible_in_container_namespace (PvRuntimeFlags flags,
+                                     PvWorkaroundFlags workarounds,
                                      const char *path)
 {
-  while (path[0] == '/')
-    path++;
+  gsize i;
 
-  /* This is mounted in wrap.c as a special case: NixOS uses a lot of
-   * absolute paths in /nix/store which we need to make available. */
-  if (!(flags & PV_RUNTIME_FLAGS_FLATPAK_SUBSANDBOX)
-      && g_str_has_prefix (path, "nix")
-      && (path[3] == '\0' || path[3] == '/'))
-    return TRUE;
+  if (flags & PV_RUNTIME_FLAGS_FLATPAK_SUBSANDBOX)
+    return FALSE;
 
-  /* Similar, but for Guix */
-  if (!(flags & PV_RUNTIME_FLAGS_FLATPAK_SUBSANDBOX)
-      && g_str_has_prefix (path, "gnu/store")
-      && (path[9] == '\0' || path[9] == '/'))
-    return TRUE;
+  for (i = 0; framework_paths[i].path != NULL; i++)
+    {
+      if ((workarounds & framework_paths[i].ignore_if) == 0
+          && _srt_get_path_after (path, framework_paths[i].path) != NULL)
+        return TRUE;
+    }
 
   return FALSE;
 }
@@ -3898,6 +3930,7 @@ pv_runtime_take_from_provider (PvRuntime *self,
       /* A few paths are always available as-is in the container, such
        * as /nix and /gnu/store */
       else if (path_visible_in_container_namespace (self->flags,
+                                                    self->workarounds,
                                                     source_in_provider))
         {
           target = g_build_filename ("/", source_in_provider, NULL);
