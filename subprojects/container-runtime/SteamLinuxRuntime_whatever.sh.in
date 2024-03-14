@@ -304,7 +304,7 @@ main () {
     fi
 
     if [ "$#" -gt 0 ]; then
-        "$entry_point" -- "$@"
+        exec "$entry_point" -- "$@"
     else
         echo "$entry_point"
         return 0
