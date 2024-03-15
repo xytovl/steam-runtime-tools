@@ -30,6 +30,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "steam-runtime-tools/env-overlay-internal.h"
 #include "steam-runtime-tools/glib-backports-internal.h"
 #include "steam-runtime-tools/log-internal.h"
 #include "steam-runtime-tools/profiling-internal.h"
@@ -37,7 +38,6 @@
 #include "libglnx.h"
 
 #include "bwrap.h"
-#include "environ.h"
 #include "flatpak-bwrap-private.h"
 #include "flatpak-run-private.h"
 #include "flatpak-utils-base-private.h"
@@ -89,7 +89,7 @@ main (int argc,
   gsize i;
   PvHomeMode home_mode;
   g_autoptr(FlatpakBwrap) flatpak_subsandbox = NULL;
-  g_autoptr(PvEnviron) container_env = NULL;
+  g_autoptr(SrtEnvOverlay) container_env = NULL;
   g_autoptr(FlatpakBwrap) bwrap = NULL;
   g_autoptr(FlatpakBwrap) bwrap_filesystem_arguments = NULL;
   g_autoptr(FlatpakBwrap) bwrap_home_arguments = NULL;
@@ -482,7 +482,7 @@ main (int argc,
   g_assert ((bwrap != NULL) == (bwrap_filesystem_arguments != NULL));
   g_assert ((bwrap != NULL) == (bwrap_executable != NULL));
 
-  container_env = pv_environ_new ();
+  container_env = _srt_env_overlay_new ();
 
   if (bwrap != NULL)
     {
@@ -816,7 +816,7 @@ main (int argc,
           g_autofree gchar *adjusted_blockedlist = NULL;
           adjusted_blockedlist = g_build_filename ("/run/parent",
                                                    blockedlist, NULL);
-          pv_environ_setenv (container_env, "SHARED_LIBRARY_GUARD_CONFIG",
+          _srt_env_overlay_set (container_env, "SHARED_LIBRARY_GUARD_CONFIG",
                              adjusted_blockedlist);
         }
     }
@@ -972,7 +972,7 @@ main (int argc,
                               NULL);
     }
 
-  pv_environ_setenv (container_env, "PWD", NULL);
+  _srt_env_overlay_set (container_env, "PWD", NULL);
 
   /* Put Steam Runtime environment variables back, if /usr is mounted
    * from the host. */
@@ -999,7 +999,7 @@ main (int argc,
 
               *equals = '\0';
 
-              pv_environ_setenv (container_env, self->options.env_if_host[i],
+              _srt_env_overlay_set (container_env, self->options.env_if_host[i],
                                    equals + 1);
 
               *equals = '=';
@@ -1072,12 +1072,12 @@ main (int argc,
   if (self->is_flatpak_env)
     {
       /* Let these inherit from the sub-sandbox environment */
-      pv_environ_inherit_env (container_env, "FLATPAK_ID");
-      pv_environ_inherit_env (container_env, "FLATPAK_SANDBOX_DIR");
-      pv_environ_inherit_env (container_env, "DBUS_SESSION_BUS_ADDRESS");
-      pv_environ_inherit_env (container_env, "DBUS_SYSTEM_BUS_ADDRESS");
-      pv_environ_inherit_env (container_env, "DISPLAY");
-      pv_environ_inherit_env (container_env, "XDG_RUNTIME_DIR");
+      _srt_env_overlay_inherit (container_env, "FLATPAK_ID");
+      _srt_env_overlay_inherit (container_env, "FLATPAK_SANDBOX_DIR");
+      _srt_env_overlay_inherit (container_env, "DBUS_SESSION_BUS_ADDRESS");
+      _srt_env_overlay_inherit (container_env, "DBUS_SYSTEM_BUS_ADDRESS");
+      _srt_env_overlay_inherit (container_env, "DISPLAY");
+      _srt_env_overlay_inherit (container_env, "XDG_RUNTIME_DIR");
 
       /* The bwrap envp will be completely ignored when calling
        * s-r-launch-client, and in fact putting them in its environment
@@ -1107,7 +1107,7 @@ main (int argc,
   /* Now that we've populated final_argv->envp, it's too late to change
    * any environment variables. Make sure we get an assertion failure
    * if we try. */
-  g_clear_pointer (&container_env, pv_environ_free);
+  g_clear_pointer (&container_env, _srt_env_overlay_free);
 
   if (bwrap != NULL)
     {

@@ -24,10 +24,10 @@
 
 #include "libglnx.h"
 
-#include "environ.h"
 #include "flatpak-bwrap-private.h"
 #include "flatpak-exports-private.h"
 #include "steam-runtime-tools/bwrap-internal.h"
+#include "steam-runtime-tools/env-overlay-internal.h"
 #include "steam-runtime-tools/glib-backports-internal.h"
 #include "steam-runtime-tools/resolve-in-sysroot-internal.h"
 #include "steam-runtime-tools/steam-internal.h"
@@ -73,10 +73,10 @@ gboolean pv_bwrap_append_adjusted_exports (FlatpakBwrap *to,
                                            GError **error);
 
 void pv_bwrap_container_env_to_subsandbox_argv (FlatpakBwrap *flatpak_subsandbox,
-                                                PvEnviron *container_env);
+                                                SrtEnvOverlay *container_env);
 void pv_bwrap_container_env_to_bwrap_argv (FlatpakBwrap *bwrap,
-                                           PvEnviron *container_env);
+                                           SrtEnvOverlay *container_env);
 void pv_bwrap_container_env_to_envp (FlatpakBwrap *bwrap,
-                                     PvEnviron *container_env);
+                                     SrtEnvOverlay *container_env);
 void pv_bwrap_filtered_container_env_to_bwrap_argv (FlatpakBwrap *bwrap,
-                                                    PvEnviron *container_env);
+                                                    SrtEnvOverlay *container_env);

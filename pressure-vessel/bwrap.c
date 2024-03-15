@@ -720,7 +720,7 @@ static const char* unsecure_environment_variables[] = {
  */
 void
 pv_bwrap_container_env_to_subsandbox_argv (FlatpakBwrap *flatpak_subsandbox,
-                                           PvEnviron *container_env)
+                                           SrtEnvOverlay *container_env)
 {
   g_autoptr(GList) vars = NULL;
   const GList *iter;
@@ -728,12 +728,12 @@ pv_bwrap_container_env_to_subsandbox_argv (FlatpakBwrap *flatpak_subsandbox,
   g_return_if_fail (flatpak_subsandbox != NULL);
   g_return_if_fail (container_env != NULL);
 
-  vars = pv_environ_get_vars (container_env);
+  vars = _srt_env_overlay_get_vars (container_env);
 
   for (iter = vars; iter != NULL; iter = iter->next)
     {
       const char *var = iter->data;
-      const char *val = pv_environ_getenv (container_env, var);
+      const char *val = _srt_env_overlay_get (container_env, var);
 
       if (val != NULL)
         flatpak_bwrap_add_arg_printf (flatpak_subsandbox,
@@ -752,7 +752,7 @@ pv_bwrap_container_env_to_subsandbox_argv (FlatpakBwrap *flatpak_subsandbox,
  */
 void
 pv_bwrap_container_env_to_bwrap_argv (FlatpakBwrap *bwrap,
-                                      PvEnviron *container_env)
+                                      SrtEnvOverlay *container_env)
 {
   g_autoptr(GList) vars = NULL;
   const GList *iter;
@@ -760,12 +760,12 @@ pv_bwrap_container_env_to_bwrap_argv (FlatpakBwrap *bwrap,
   g_return_if_fail (bwrap != NULL);
   g_return_if_fail (container_env != NULL);
 
-  vars = pv_environ_get_vars (container_env);
+  vars = _srt_env_overlay_get_vars (container_env);
 
   for (iter = vars; iter != NULL; iter = iter->next)
     {
       const char *var = iter->data;
-      const char *val = pv_environ_getenv (container_env, var);
+      const char *val = _srt_env_overlay_get (container_env, var);
 
       if (val != NULL)
         flatpak_bwrap_add_args (bwrap,
@@ -783,7 +783,7 @@ pv_bwrap_container_env_to_bwrap_argv (FlatpakBwrap *bwrap,
  */
 void
 pv_bwrap_container_env_to_envp (FlatpakBwrap *bwrap,
-                                PvEnviron *container_env)
+                                SrtEnvOverlay *container_env)
 {
   g_autoptr(GList) vars = NULL;
   const GList *iter;
@@ -791,12 +791,12 @@ pv_bwrap_container_env_to_envp (FlatpakBwrap *bwrap,
   g_return_if_fail (bwrap != NULL);
   g_return_if_fail (container_env != NULL);
 
-  vars = pv_environ_get_vars (container_env);
+  vars = _srt_env_overlay_get_vars (container_env);
 
   for (iter = vars; iter != NULL; iter = iter->next)
     {
       const char *var = iter->data;
-      const char *val = pv_environ_getenv (container_env, var);
+      const char *val = _srt_env_overlay_get (container_env, var);
 
       if (val != NULL)
         flatpak_bwrap_set_env (bwrap, var, val, TRUE);
@@ -811,7 +811,7 @@ pv_bwrap_container_env_to_envp (FlatpakBwrap *bwrap,
  */
 void
 pv_bwrap_filtered_container_env_to_bwrap_argv (FlatpakBwrap *bwrap,
-                                               PvEnviron *container_env)
+                                               SrtEnvOverlay *container_env)
 {
   gsize i;
 
@@ -821,7 +821,7 @@ pv_bwrap_filtered_container_env_to_bwrap_argv (FlatpakBwrap *bwrap,
   for (i = 0; unsecure_environment_variables[i] != NULL; i++)
     {
       const char *var = unsecure_environment_variables[i];
-      const char *val = pv_environ_getenv (container_env, var);
+      const char *val = _srt_env_overlay_get (container_env, var);
 
       if (val != NULL)
         flatpak_bwrap_add_args (bwrap, "--setenv", var, val, NULL);

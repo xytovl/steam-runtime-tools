@@ -6,17 +6,17 @@
 #include <glib.h>
 #include <glib/gstdio.h>
 
+#include "steam-runtime-tools/env-overlay-internal.h"
 #include "steam-runtime-tools/glib-backports-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
 #include "libglnx.h"
 
 #include "tests/test-utils.h"
 #include "bwrap.h"
-#include "environ.h"
 
 typedef struct
 {
-  PvEnviron *container_env;
+  SrtEnvOverlay *container_env;
 } Fixture;
 
 typedef struct
@@ -41,16 +41,16 @@ setup (Fixture *f,
 {
   G_GNUC_UNUSED const Config *config = context;
 
-  f->container_env = pv_environ_new ();
+  f->container_env = _srt_env_overlay_new ();
 
   /* In each of these pairs, the first one is filtered by glibc and the
    * second is not. */
-  pv_environ_setenv (f->container_env, "LD_AUDIT", "audit.so");
-  pv_environ_setenv (f->container_env, "G_MESSAGES_DEBUG", "all");
-  pv_environ_setenv (f->container_env, "TMPDIR", NULL);
-  pv_environ_setenv (f->container_env, "STEAM_RUNTIME", NULL);
-  pv_environ_inherit_env (f->container_env, "LD_PRELOAD");
-  pv_environ_inherit_env (f->container_env, "FLATPAK_ID");
+  _srt_env_overlay_set (f->container_env, "LD_AUDIT", "audit.so");
+  _srt_env_overlay_set (f->container_env, "G_MESSAGES_DEBUG", "all");
+  _srt_env_overlay_set (f->container_env, "TMPDIR", NULL);
+  _srt_env_overlay_set (f->container_env, "STEAM_RUNTIME", NULL);
+  _srt_env_overlay_inherit (f->container_env, "LD_PRELOAD");
+  _srt_env_overlay_inherit (f->container_env, "FLATPAK_ID");
 }
 
 static void
@@ -59,7 +59,7 @@ teardown (Fixture *f,
 {
   G_GNUC_UNUSED const Config *config = context;
 
-  g_clear_pointer (&f->container_env, pv_environ_free);
+  g_clear_pointer (&f->container_env, _srt_env_overlay_free);
 }
 
 static void

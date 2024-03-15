@@ -17,36 +17,35 @@
  * License along with this library. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "environ.h"
+#include "steam-runtime-tools/env-overlay-internal.h"
 
 #include "steam-runtime-tools/utils-internal.h"
 
 /*
- * PvEnviron:
+ * SrtEnvOverlay:
  *
- * Each environment variable we deal with in pressure-vessel has
- * the following possible values:
+ * A set of environment variables, each in one of these states:
  *
  * - Set to a value (empty or non-empty)
  * - Forced to be unset
- * - Inherited from the execution environment of bwrap(1)
+ * - Inherited from some execution environment that is unknown to us
  *
  * We represent this as follows:
  *
  * - Set to a value: values[VAR] = VAL
  * - Forced to be unset: values[VAR] = NULL
- * - Inherited from the execution environment of bwrap(1): VAR not in `values`
+ * - Inherited from the execution environment: VAR not in `values`
  */
-struct _PvEnviron
+struct _SrtEnvOverlay
 {
   /* (element-type filename filename) */
   GHashTable *values;
 };
 
-PvEnviron *
-pv_environ_new (void)
+SrtEnvOverlay *
+_srt_env_overlay_new (void)
 {
-  g_autoptr(PvEnviron) self = g_slice_new0 (PvEnviron);
+  g_autoptr(SrtEnvOverlay) self = g_slice_new0 (SrtEnvOverlay);
 
   self->values = g_hash_table_new_full (g_str_hash, g_str_equal,
                                         g_free, g_free);
@@ -54,21 +53,21 @@ pv_environ_new (void)
 }
 
 void
-pv_environ_free (PvEnviron *self)
+_srt_env_overlay_free (SrtEnvOverlay *self)
 {
   g_return_if_fail (self != NULL);
 
   g_clear_pointer (&self->values, g_hash_table_unref);
-  g_slice_free (PvEnviron, self);
+  g_slice_free (SrtEnvOverlay, self);
 }
 
 /*
  * Set @var to @val, which may be %NULL to unset it.
  */
 void
-pv_environ_setenv (PvEnviron *self,
-                   const char *var,
-                   const char *val)
+_srt_env_overlay_set (SrtEnvOverlay *self,
+                      const char *var,
+                      const char *val)
 {
   g_return_if_fail (self != NULL);
   g_return_if_fail (var != NULL);
@@ -81,8 +80,8 @@ pv_environ_setenv (PvEnviron *self,
  * Set @var to whatever value it happens to have inherited.
  */
 void
-pv_environ_inherit_env (PvEnviron *self,
-                        const char *var)
+_srt_env_overlay_inherit (SrtEnvOverlay *self,
+                          const char *var)
 {
   g_return_if_fail (self != NULL);
   g_return_if_fail (var != NULL);
@@ -95,7 +94,7 @@ pv_environ_inherit_env (PvEnviron *self,
  *  to be unset, but not the variables that are inherited
  */
 GList *
-pv_environ_get_vars (PvEnviron *self)
+_srt_env_overlay_get_vars (SrtEnvOverlay *self)
 {
   g_return_val_if_fail (self != NULL, NULL);
 
@@ -108,8 +107,8 @@ pv_environ_get_vars (PvEnviron *self)
  *  unset or inherited
  */
 const char *
-pv_environ_getenv (PvEnviron *self,
-                   const char *var)
+_srt_env_overlay_get (SrtEnvOverlay *self,
+                      const char *var)
 {
   g_return_val_if_fail (self != NULL, NULL);
 

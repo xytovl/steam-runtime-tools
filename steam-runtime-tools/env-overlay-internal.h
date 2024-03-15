@@ -1,3 +1,4 @@
+/*<private_header>*/
 /*
  * Copyright © 2014-2018 Red Hat, Inc
  * Copyright © 2020 Collabora Ltd.
@@ -23,19 +24,19 @@
 
 #include "steam-runtime-tools/glib-backports-internal.h"
 
-typedef struct _PvEnviron PvEnviron;
+typedef struct _SrtEnvOverlay SrtEnvOverlay;
 
-PvEnviron *pv_environ_new (void);
-void pv_environ_free (PvEnviron *self);
+SrtEnvOverlay *_srt_env_overlay_new (void);
+void _srt_env_overlay_free (SrtEnvOverlay *self);
 
-void pv_environ_setenv (PvEnviron *self,
-                        const char *var,
-                        const char *val);
-void pv_environ_inherit_env (PvEnviron *self,
-                             const char *var);
-
-GList *pv_environ_get_vars (PvEnviron *self);
-const char *pv_environ_getenv (PvEnviron *self,
+void _srt_env_overlay_set (SrtEnvOverlay *self,
+                           const char *var,
+                           const char *val);
+void _srt_env_overlay_inherit (SrtEnvOverlay *self,
                                const char *var);
 
-G_DEFINE_AUTOPTR_CLEANUP_FUNC (PvEnviron, pv_environ_free)
+GList *_srt_env_overlay_get_vars (SrtEnvOverlay *self);
+const char *_srt_env_overlay_get (SrtEnvOverlay *self,
+                                  const char *var);
+
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (SrtEnvOverlay, _srt_env_overlay_free)

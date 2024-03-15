@@ -23,12 +23,12 @@
 #include <glib/gstdio.h>
 #include <glib-object.h>
 
+#include "steam-runtime-tools/env-overlay-internal.h"
 #include "steam-runtime-tools/glib-backports-internal.h"
 #include "steam-runtime-tools/resolve-in-sysroot-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
 #include "libglnx.h"
 
-#include "environ.h"
 #include "flatpak-bwrap-private.h"
 #include "flatpak-exports-private.h"
 #include "flatpak-utils-base-private.h"
@@ -121,7 +121,7 @@ gboolean pv_runtime_get_adverb (PvRuntime *self,
 gboolean pv_runtime_bind (PvRuntime *self,
                           FlatpakExports *exports,
                           FlatpakBwrap *bwrap,
-                          PvEnviron *container_env,
+                          SrtEnvOverlay *container_env,
                           GError **error);
 const char *pv_runtime_get_modified_usr (PvRuntime *self);
 const char *pv_runtime_get_modified_app (PvRuntime *self);
@@ -135,7 +135,7 @@ gboolean pv_runtime_garbage_collect_legacy (const char *variable_dir,
 
 gboolean pv_runtime_use_shared_sockets (PvRuntime *self,
                                         FlatpakBwrap *bwrap,
-                                        PvEnviron *container_env,
+                                        SrtEnvOverlay *container_env,
                                         GError **error);
 
 gboolean pv_runtime_has_library (PvRuntime *self,

@@ -22,9 +22,8 @@
 
 #include <glib.h>
 
-#include "environ.h"
-
 #include "steam-runtime-tools/bwrap-internal.h"
+#include "steam-runtime-tools/env-overlay-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
 
 #include "bwrap.h"
@@ -39,12 +38,12 @@ gchar *pv_wrap_check_bwrap (gboolean only_prepare,
                             SrtBwrapFlags *flags_out,
                             GError **error);
 
-FlatpakBwrap *pv_wrap_share_sockets (PvEnviron *container_env,
+FlatpakBwrap *pv_wrap_share_sockets (SrtEnvOverlay *container_env,
                                      const char * const *original_environ,
                                      gboolean using_a_runtime,
                                      gboolean is_flatpak_env);
 
-void pv_wrap_set_icons_env_vars (PvEnviron *container_env,
+void pv_wrap_set_icons_env_vars (SrtEnvOverlay *container_env,
                                  const char * const *original_environ);
 
 gboolean pv_wrap_use_host_os (int root_fd,
@@ -93,9 +92,9 @@ void pv_wrap_detect_virtualization (SrtSysroot **interpreter_root_out,
                                     SrtMachineType *host_machine_out);
 
 void pv_share_temp_dir (FlatpakExports *exports,
-                        PvEnviron *container_env);
+                        SrtEnvOverlay *container_env);
 void pv_bind_and_propagate_from_environ (SrtSysroot *sysroot,
                                          const char * const *current_env,
                                          PvHomeMode home_mode,
                                          FlatpakExports *exports,
-                                         PvEnviron *container_env);
+                                         SrtEnvOverlay *container_env);

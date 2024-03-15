@@ -1627,7 +1627,7 @@ test_use_home_shared (Fixture *f,
   g_autoptr(FlatpakExports) exports = fixture_create_exports (f);
   g_autoptr(FlatpakExports) env_exports = fixture_create_exports (f);
   g_autoptr(GError) local_error = NULL;
-  g_autoptr(PvEnviron) container_env = pv_environ_new ();
+  g_autoptr(SrtEnvOverlay) container_env = _srt_env_overlay_new ();
   GLogLevelFlags was_fatal;
   gboolean ret;
 

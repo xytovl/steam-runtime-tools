@@ -65,7 +65,7 @@ pv_wrap_check_bwrap (gboolean only_prepare,
 /* Based on Flatpak's flatpak_run_add_wayland_args() */
 static void
 pv_wrap_add_gamescope_args (FlatpakBwrap *sharing_bwrap,
-                            PvEnviron *container_env)
+                            SrtEnvOverlay *container_env)
 {
   const char *wayland_display;
   g_autofree char *user_runtime_dir = flatpak_get_real_xdg_runtime_dir ();
@@ -87,7 +87,7 @@ pv_wrap_add_gamescope_args (FlatpakBwrap *sharing_bwrap,
       (statbuf.st_mode & S_IFMT) == S_IFSOCK)
     {
       sandbox_wayland_socket = "/run/pressure-vessel/gamescope-socket";
-      pv_environ_setenv (container_env, "GAMESCOPE_WAYLAND_DISPLAY",
+      _srt_env_overlay_set (container_env, "GAMESCOPE_WAYLAND_DISPLAY",
                          sandbox_wayland_socket);
       flatpak_bwrap_add_args (sharing_bwrap,
                               "--ro-bind", wayland_socket, sandbox_wayland_socket,
@@ -101,7 +101,7 @@ pv_wrap_add_gamescope_args (FlatpakBwrap *sharing_bwrap,
  * X11 and PulseAudio sockets.
  */
 FlatpakBwrap *
-pv_wrap_share_sockets (PvEnviron *container_env,
+pv_wrap_share_sockets (SrtEnvOverlay *container_env,
                        const char * const *original_environ,
                        gboolean using_a_runtime,
                        gboolean is_flatpak_env)
@@ -118,9 +118,9 @@ pv_wrap_share_sockets (PvEnviron *container_env,
    * Every variable that is unset with flatpak_bwrap_unset_env() in
    * the functions we borrow from Flatpak (below) should be listed
    * here. */
-  pv_environ_setenv (container_env, "DISPLAY", NULL);
-  pv_environ_setenv (container_env, "PULSE_SERVER", NULL);
-  pv_environ_setenv (container_env, "XAUTHORITY", NULL);
+  _srt_env_overlay_set (container_env, "DISPLAY", NULL);
+  _srt_env_overlay_set (container_env, "PULSE_SERVER", NULL);
+  _srt_env_overlay_set (container_env, "XAUTHORITY", NULL);
 
   flatpak_run_add_font_path_args (sharing_bwrap);
 
@@ -197,19 +197,19 @@ pv_wrap_share_sockets (PvEnviron *container_env,
 
       /* If this warning is reached, we might need to add this
        * variable to the block of
-       * pv_environ_setenv (container_env, ., NULL) calls above */
+       * _srt_env_overlay_set (container_env, ., NULL) calls above */
       if (j >= G_N_ELEMENTS (known_vars))
         g_warning ("Extra environment variable %s set during container "
                    "setup but not in known_vars; check logic",
                    var);
 
-      pv_environ_setenv (container_env, var, val);
+      _srt_env_overlay_set (container_env, var, val);
     }
 
   /* flatpak_run_add_x11_args assumes that the default is to inherit
    * the caller's DISPLAY */
-  if (pv_environ_getenv (container_env, "DISPLAY") == NULL)
-    pv_environ_inherit_env (container_env, "DISPLAY");
+  if (_srt_env_overlay_get (container_env, "DISPLAY") == NULL)
+    _srt_env_overlay_inherit (container_env, "DISPLAY");
 
   pv_wrap_set_icons_env_vars (container_env, original_environ);
 
@@ -222,7 +222,7 @@ pv_wrap_share_sockets (PvEnviron *container_env,
  * support the icons from the host system.
  */
 void
-pv_wrap_set_icons_env_vars (PvEnviron *container_env,
+pv_wrap_set_icons_env_vars (SrtEnvOverlay *container_env,
                             const char * const *original_environ)
 {
   g_autoptr(GString) new_data_dirs = g_string_new ("");
@@ -242,7 +242,7 @@ pv_wrap_set_icons_env_vars (PvEnviron *container_env,
     {
       /* We assume that this function is called after use_tmpfs_home() or
        * use_fake_home(), if we are going to. */
-      container_xdg_data_home = pv_environ_getenv (container_env, "XDG_DATA_HOME");
+      container_xdg_data_home = _srt_env_overlay_get (container_env, "XDG_DATA_HOME");
       if (container_xdg_data_home == NULL)
         container_xdg_data_home = "~/.local/share";
       data_home_icons = g_build_filename (container_xdg_data_home, "icons", NULL);
@@ -266,9 +266,9 @@ pv_wrap_set_icons_env_vars (PvEnviron *container_env,
   /* Finally append the binded paths from the host */
   pv_search_path_append (new_xcursor_path, "/run/host/user-share/icons");
   pv_search_path_append (new_xcursor_path, "/run/host/share/icons");
-  pv_environ_setenv (container_env, "XCURSOR_PATH", new_xcursor_path->str);
+  _srt_env_overlay_set (container_env, "XCURSOR_PATH", new_xcursor_path->str);
 
-  initial_xdg_data_dirs = pv_environ_getenv (container_env, "XDG_DATA_DIRS");
+  initial_xdg_data_dirs = _srt_env_overlay_get (container_env, "XDG_DATA_DIRS");
   if (initial_xdg_data_dirs == NULL)
     initial_xdg_data_dirs = _srt_environ_getenv (original_environ, "XDG_DATA_DIRS");
 
@@ -282,7 +282,7 @@ pv_wrap_set_icons_env_vars (PvEnviron *container_env,
   pv_search_path_append (new_data_dirs, initial_xdg_data_dirs);
   pv_search_path_append (new_data_dirs, "/run/host/user-share");
   pv_search_path_append (new_data_dirs, "/run/host/share");
-  pv_environ_setenv (container_env, "XDG_DATA_DIRS", new_data_dirs->str);
+  _srt_env_overlay_set (container_env, "XDG_DATA_DIRS", new_data_dirs->str);
 }
 
 /*
@@ -1018,7 +1018,7 @@ pv_wrap_detect_virtualization (SrtSysroot **interpreter_root_out,
  */
 void
 pv_share_temp_dir (FlatpakExports *exports,
-                   PvEnviron *container_env)
+                   SrtEnvOverlay *container_env)
 {
   static const char * const temp_dir_vars[] =
   {
@@ -1058,7 +1058,7 @@ pv_share_temp_dir (FlatpakExports *exports,
         {
           g_debug ("%s '%s' is in /run/user, unsetting it",
                    var, value);
-          pv_environ_setenv (container_env, var, NULL);
+          _srt_env_overlay_set (container_env, var, NULL);
           continue;
         }
 
@@ -1124,7 +1124,7 @@ bind_and_propagate_from_environ (SrtSysroot *sysroot,
                                  const char * const *current_env,
                                  PvHomeMode home_mode,
                                  FlatpakExports *exports,
-                                 PvEnviron *container_env,
+                                 SrtEnvOverlay *container_env,
                                  const char *variable,
                                  EnvMountFlags flags)
 {
@@ -1223,7 +1223,7 @@ bind_and_propagate_from_environ (SrtSysroot *sysroot,
     {
       g_autofree gchar *joined = g_strjoinv (":", values);
 
-      pv_environ_setenv (container_env, variable, joined);
+      _srt_env_overlay_set (container_env, variable, joined);
     }
 }
 
@@ -1236,7 +1236,7 @@ pv_bind_and_propagate_from_environ (SrtSysroot *sysroot,
                                     const char * const *current_env,
                                     PvHomeMode home_mode,
                                     FlatpakExports *exports,
-                                    PvEnviron *container_env)
+                                    SrtEnvOverlay *container_env)
 {
   gsize i;
 
@@ -1261,10 +1261,10 @@ pv_bind_and_propagate_from_environ (SrtSysroot *sysroot,
            * rely on the fact that any directory available to the parent app
            * is also going to be available to the subsandbox */
           g_return_if_fail (home_mode == PV_HOME_MODE_SHARED);
-          pv_environ_setenv (container_env,
-                             known_required_env[i].name,
-                             _srt_environ_getenv (current_env,
-                                                  known_required_env[i].name));
+          _srt_env_overlay_set (container_env,
+                                known_required_env[i].name,
+                                _srt_environ_getenv (current_env,
+                                                     known_required_env[i].name));
         }
     }
 }
