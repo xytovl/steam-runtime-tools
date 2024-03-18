@@ -754,7 +754,7 @@ main (int argc,
           /* Nothing special to do here: we'll use the same home directory
            * and exports that the parent Flatpak sandbox used. */
         }
-      else if (flatpak_subsandbox != NULL)
+      else
         {
           /* Not yet supported */
           glnx_throw (error,
