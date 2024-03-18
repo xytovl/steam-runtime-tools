@@ -1084,10 +1084,8 @@ main (int argc,
        * variables would be wrong, because s-r-launch-client needs to see the
        * current execution environment's DBUS_SESSION_BUS_ADDRESS
        * (if different). For this reason we convert them to `--setenv`. */
-      if (flatpak_subsandbox != NULL)
-        pv_bwrap_container_env_to_subsandbox_argv (flatpak_subsandbox, container_env);
-      else
-        pv_bwrap_container_env_to_bwrap_argv (bwrap, container_env);
+      g_assert (flatpak_subsandbox != NULL);
+      pv_bwrap_container_env_to_subsandbox_argv (flatpak_subsandbox, container_env);
     }
 
   final_argv = flatpak_bwrap_new (self->original_environ);

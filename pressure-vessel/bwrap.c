@@ -748,38 +748,6 @@ pv_bwrap_container_env_to_subsandbox_argv (FlatpakBwrap *flatpak_subsandbox,
 
 /*
  * Populate @bwrap with environment variables from @container_env.
- * They'll be passed via bubblewrap `--setenv`/`--unsetenv`.
- */
-void
-pv_bwrap_container_env_to_bwrap_argv (FlatpakBwrap *bwrap,
-                                      SrtEnvOverlay *container_env)
-{
-  g_autoptr(GList) vars = NULL;
-  const GList *iter;
-
-  g_return_if_fail (bwrap != NULL);
-  g_return_if_fail (container_env != NULL);
-
-  vars = _srt_env_overlay_get_vars (container_env);
-
-  for (iter = vars; iter != NULL; iter = iter->next)
-    {
-      const char *var = iter->data;
-      const char *val = _srt_env_overlay_get (container_env, var);
-
-      if (val != NULL)
-        flatpak_bwrap_add_args (bwrap,
-                                "--setenv", var, val,
-                                NULL);
-      else
-        flatpak_bwrap_add_args (bwrap,
-                                "--unsetenv", var,
-                                NULL);
-    }
-}
-
-/*
- * Populate @bwrap with environment variables from @container_env.
  */
 void
 pv_bwrap_container_env_to_envp (FlatpakBwrap *bwrap,

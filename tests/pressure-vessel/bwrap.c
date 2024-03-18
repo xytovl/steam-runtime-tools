@@ -182,31 +182,6 @@ test_from_container_env (Fixture *f,
   g_assert_cmpuint (i, ==, bwrap_argv->argv->len);
 }
 
-/* This is the code path we take if a Flatpak app would run bwrap on the host */
-static void
-test_from_container_env_host (Fixture *f,
-                              gconstpointer context)
-{
-  g_autoptr(FlatpakBwrap) bwrap = flatpak_bwrap_new ((char **) initial_envp);
-  gsize i;
-
-  pv_bwrap_container_env_to_bwrap_argv (bwrap, f->container_env);
-  dump_bwrap (bwrap, "Arguments to add to bwrap");
-  /*
-   * Set variable => --setenv
-   * Explicitly unset variable => --unsetenv
-   * Inherited variable => no action
-   * envp is untouched.
-   */
-  g_assert_cmpstrv (bwrap->envp, initial_envp);
-  i = 0;
-  i = assert_3_args (bwrap, i, "--setenv", "G_MESSAGES_DEBUG", "all");
-  i = assert_3_args (bwrap, i, "--setenv", "LD_AUDIT", "audit.so");
-  i = assert_2_args (bwrap, i, "--unsetenv", "STEAM_RUNTIME");
-  i = assert_2_args (bwrap, i, "--unsetenv", "TMPDIR");
-  g_assert_cmpuint (i, ==, bwrap->argv->len);
-}
-
 /* This is the code path we take if starting a Flatpak subsandbox */
 static void
 test_from_container_env_subsandbox (Fixture *f,
@@ -239,8 +214,6 @@ main (int argc,
   _srt_setenv_disable_gio_modules ();
 
   _srt_tests_init (&argc, &argv, NULL);
-  g_test_add ("/bwrap/from-container-env/flatpak-host", Fixture, NULL,
-              setup, test_from_container_env_host, teardown);
   g_test_add ("/bwrap/from-container-env/flatpak-subsandbox", Fixture, NULL,
               setup, test_from_container_env_subsandbox, teardown);
   g_test_add ("/bwrap/from-container-env/normal", Fixture, NULL,
