@@ -1107,7 +1107,7 @@ main (int argc,
   /* Now that we've populated final_argv->envp, it's too late to change
    * any environment variables. Make sure we get an assertion failure
    * if we try. */
-  g_clear_pointer (&container_env, _srt_env_overlay_free);
+  g_clear_pointer (&container_env, _srt_env_overlay_unref);
 
   if (bwrap != NULL)
     {

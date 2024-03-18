@@ -59,7 +59,7 @@ teardown (Fixture *f,
 {
   G_GNUC_UNUSED const Config *config = context;
 
-  g_clear_pointer (&f->container_env, _srt_env_overlay_free);
+  g_clear_pointer (&f->container_env, _srt_env_overlay_unref);
 }
 
 static void

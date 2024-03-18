@@ -28,15 +28,30 @@ _srt_env_overlay_new (void)
 {
   g_autoptr(SrtEnvOverlay) self = g_slice_new0 (SrtEnvOverlay);
 
+  self->refcount = 1;
   self->values = g_hash_table_new_full (g_str_hash, g_str_equal,
                                         g_free, g_free);
   return g_steal_pointer (&self);
 }
 
-void
-_srt_env_overlay_free (SrtEnvOverlay *self)
+SrtEnvOverlay *
+_srt_env_overlay_ref (SrtEnvOverlay *self)
 {
+  g_return_val_if_fail (self->refcount > 0, NULL);
+  self->refcount++;
+  return self;
+}
+
+void
+_srt_env_overlay_unref (void *p)
+{
+  SrtEnvOverlay *self = p;
+
   g_return_if_fail (self != NULL);
+  g_return_if_fail (self->refcount > 0);
+
+  if (--self->refcount > 0)
+    return;
 
   g_clear_pointer (&self->values, g_hash_table_unref);
   g_slice_free (SrtEnvOverlay, self);
