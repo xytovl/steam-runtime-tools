@@ -34,6 +34,7 @@
 #include <glib/gstdio.h>
 #include <gio/gio.h>
 
+#include "steam-runtime-tools/env-overlay-internal.h"
 #include "steam-runtime-tools/glib-backports-internal.h"
 #include "steam-runtime-tools/file-lock-internal.h"
 #include "steam-runtime-tools/launcher-internal.h"
@@ -55,6 +56,7 @@ static const char * const *global_original_environ = NULL;
 static GPtrArray *global_ld_so_conf_entries = NULL;
 static SrtProcessManagerOptions *global_options = NULL;
 static gboolean opt_batch = FALSE;
+static gboolean opt_clear_env = FALSE;
 static gboolean opt_create = FALSE;
 static gboolean opt_exit_with_parent = FALSE;
 static gboolean opt_generate_locales = FALSE;
@@ -682,6 +684,10 @@ static GOptionEntry options[] =
     "Disable all interactivity and redirection: ignore --shell*, "
     "--terminal. [Default: if $PRESSURE_VESSEL_BATCH]", NULL },
 
+  { "clear-env", '\0',
+    G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_clear_env,
+    "Run with clean environment.", NULL },
+
   { "fd", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_CALLBACK, opt_fd_cb,
     "Take a file descriptor, already locked if desired, and keep it "
@@ -834,6 +840,7 @@ main (int argc,
   g_autoptr(GPtrArray) ld_so_conf_entries = NULL;
   g_autoptr(GOptionContext) context = NULL;
   g_autoptr(GError) local_error = NULL;
+  g_autoptr(SrtEnvOverlay) env_overlay = NULL;
   g_autoptr(SrtProcessManager) process_manager = NULL;
   GError **error = &local_error;
   int ret = EX_USAGE;
@@ -869,6 +876,10 @@ main (int argc,
 
   g_option_context_add_main_entries (context, options, NULL);
 
+  env_overlay = _srt_env_overlay_new ();
+  g_option_context_add_group (context,
+                              _srt_env_overlay_create_option_group (env_overlay));
+
   opt_batch = _srt_boolean_environment ("PRESSURE_VESSEL_BATCH", FALSE);
   opt_verbose = _srt_boolean_environment ("PRESSURE_VESSEL_VERBOSE", FALSE);
 
@@ -883,6 +894,8 @@ main (int argc,
 
       goto out;
     }
+
+  g_clear_pointer (&context, g_option_context_free);
 
   if (opt_version)
     {
@@ -954,7 +967,14 @@ main (int argc,
   if (process_manager == NULL)
     goto out;
 
-  wrapped_command = flatpak_bwrap_new (original_environ);
+  if (opt_clear_env)
+    wrapped_command = flatpak_bwrap_new (flatpak_bwrap_empty_env);
+  else
+    wrapped_command = flatpak_bwrap_new (original_environ);
+
+  wrapped_command->envp = _srt_env_overlay_apply (env_overlay,
+                                                  wrapped_command->envp);
+  g_clear_pointer (&env_overlay, _srt_env_overlay_unref);
 
   if (opt_terminal == PV_TERMINAL_AUTO)
     {

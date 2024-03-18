@@ -17,8 +17,13 @@ pressure-vessel-adverb - wrap processes in various ways
 **pressure-vessel-adverb**
 [**--[no-]exit-with-parent**]
 [**--assign-fd** _TARGET_**=**_SOURCE_...]
+[**--clear-env**]
+[**--env** _VAR_**=**_VALUE_]
+[**--env-fd** *FD*]
 [**--fd** *FD*...]
 [**--[no-]generate-locales**]
+[**--inherit-env** *VAR*]
+[**--inherit-env-matching** *WILDCARD*]
 [**--ld-audit** *MODULE*[**:arch=***TUPLE*]...]
 [**--ld-preload** *MODULE*[**:**...]...]
 [**--pass-fd** *FD*...]
@@ -29,6 +34,7 @@ pressure-vessel-adverb - wrap processes in various ways
 [**--subreaper**]
 [**--terminal** **none**|**auto**|**tty**|**xterm**]
 [**--terminate-timeout** *SECONDS* [**--terminate-idle-timeout** *SECONDS*]]
+[**--unset-env** *VAR*]
 [[**--[no-]create**]
 [**--[no-]wait**]
 [**--[no-]write**]
@@ -67,6 +73,18 @@ exit status.
     this option if it does not exist, until a **--no-create** option
     is seen. **--no-create** reverses this behaviour, and is the default.
 
+**--env** _VAR=VALUE_
+:   Set environment variable _VAR_ to _VALUE_.
+    This is mostly equivalent to using
+    **env** _VAR=VALUE_ *COMMAND* *ARGUMENTS...*
+    as the command.
+
+**--env-fd** _FD_
+:   Parse zero-terminated environment variables from _FD_, and set each
+    one as if via **--env**.
+    The format of _FD_ is the same as the output of `$(env -0)` or the
+    pseudo-file `/proc/PID/environ`.
+
 **--exit-with-parent**
 :   Arrange for **pressure-vessel-adverb** to receive **SIGTERM**
     (which it will pass on to *COMMAND*, if possible) when its parent
@@ -88,6 +106,19 @@ exit status.
     temporary directory which is passed to the *COMMAND* in the
     **LOCPATH** environment variable.
     **--no-generate-locales** disables this behaviour, and is the default.
+
+**--inherit-env** *VAR*
+:   Undo the effect of a previous **--env**, **--unset-env**
+    or similar, returning to the default behaviour of inheriting *VAR*
+    from the execution environment of **pressure-vessel-adverb**
+    (unless **--clear-env** was used, in which case this option becomes
+    effectively equivalent to **--unset-env**).
+
+**--inherit-env-matching** *WILDCARD*
+:   Do the same as for **--inherit-env** for any environment variable
+    whose name matches *WILDCARD*.
+    If this command is run from a shell, the wildcard will usually need
+    to be quoted, for example **--inherit-env-matching="FOO&#x2a;"**.
 
 **--ld-audit** *MODULE*[**:arch=***TUPLE*]
 :   Add *MODULE* to **LD_AUDIT** before executing *COMMAND*.
@@ -149,9 +180,10 @@ exit status.
     the *PATH* used here, which will typically be below `/run`.
 
 **--set-ld-library-path** *VALUE*
-:   Set the environment variable LD_LIBRARY_PATH to *VALUE* after
-    processing **--regenerate-ld.so-cache** (if used), but before
-    executing *COMMAND*.
+:   Set the environment variable `LD_LIBRARY_PATH` to *VALUE* after
+    processing **--regenerate-ld.so-cache** (if used) and any
+    environment variable options such as **--env** (if used),
+    but before executing *COMMAND*.
 
 **--shell=after**
 :   Run an interactive shell after *COMMAND* exits.
@@ -211,6 +243,12 @@ exit status.
     and continue to send **SIGKILL** until there are no more descendant
     processes. If *SECONDS* is 0, **SIGKILL** is sent immediately.
     A negative number means signals are not sent, which is the default.
+
+**--unset-env** *VAR*
+:   Unset *VAR* when running the command.
+    This is mostly equivalent to using
+    **env -u** *VAR* *COMMAND* *ARGUMENTS...*
+    as the command.
 
 **--verbose**
 :   Be more verbose.
