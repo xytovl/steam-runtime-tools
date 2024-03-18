@@ -394,7 +394,7 @@ main (int argc,
         }
 
       if (self->options.launcher)
-        g_debug ("Arguments for pv-launcher:");
+        g_debug ("Arguments for s-r-launcher-service:");
       else
         g_debug ("Wrapped command:");
 
