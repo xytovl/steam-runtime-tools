@@ -84,5 +84,6 @@ const char *_srt_env_overlay_get (SrtEnvOverlay *self,
 
 GStrv _srt_env_overlay_apply (SrtEnvOverlay *self,
                               GStrv envp);
+GBytes *_srt_env_overlay_to_env0 (SrtEnvOverlay *self);
 
 GOptionGroup *_srt_env_overlay_create_option_group (SrtEnvOverlay *self);

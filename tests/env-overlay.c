@@ -84,6 +84,56 @@ test_apply (Fixture *f,
   g_assert_cmpstrv (envp, (gchar **) expected);
 }
 
+static void
+dump_env0 (GBytes *env0)
+{
+  size_t len;
+  const char *data = g_bytes_get_data (env0, &len);
+
+  g_test_message ("env -0: %zu bytes", len);
+
+  while (len > 0)
+    {
+      size_t next_len = strnlen (data, len);
+
+      g_assert_cmpuint (next_len, <, len);
+      g_test_message ("\t%s", data);
+      data += (next_len + 1);
+      len -= (next_len + 1);
+    }
+}
+
+static void
+test_to_env0 (Fixture *f,
+              gconstpointer context)
+{
+  static const char * const expected[] =
+  {
+    "G_MESSAGES_DEBUG=all",
+    "LD_AUDIT=audit2.so",
+    NULL
+  };
+  g_autoptr(GBytes) env0 = _srt_env_overlay_to_env0 (f->container_env);
+  size_t len;
+  size_t i = 0;
+  const char *data = g_bytes_get_data (env0, &len);
+
+  dump_env0 (env0);
+
+  while (len > 0)
+    {
+      size_t next_len = strnlen (data, len);
+
+      g_assert_cmpuint (next_len, <, len);
+      g_assert_cmpstr (data, ==, expected[i]);
+      i++;
+      data += (next_len + 1);
+      len -= (next_len + 1);
+    }
+
+  g_assert_null (expected[i]);
+}
+
 int
 main (int argc,
       char **argv)
@@ -93,6 +143,8 @@ main (int argc,
   _srt_tests_init (&argc, &argv, NULL);
   g_test_add ("/env-overlay/apply", Fixture, NULL,
               setup, test_apply, teardown);
+  g_test_add ("/env-overlay/to-env0", Fixture, NULL,
+              setup, test_to_env0, teardown);
 
   return g_test_run ();
 }

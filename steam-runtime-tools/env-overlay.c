@@ -506,6 +506,49 @@ _srt_env_overlay_apply (SrtEnvOverlay *self,
   return g_steal_pointer (&envp);
 }
 
+static void
+byte_array_append_env0 (GByteArray *arr,
+                        const char *var,
+                        const char *val)
+{
+  g_byte_array_append (arr, (const guint8 *) var, strlen (var));
+  g_byte_array_append (arr, (const guint8 *) "=", 1);
+  /* This appends the value plus \0 */
+  g_byte_array_append (arr, (const guint8 *) val, strlen (val) + 1);
+}
+
+/*
+ * _srt_env_overlay_to_env0:
+ * @self: Variables to set and unset
+ *
+ * Return all of the variables set by @self, as a buffer in `env -0` format.
+ * Unset and inherited variables are ignored.
+ *
+ * Returns: (transfer full): `NAME=VALUE\0NAME=VALUE\0...`
+ */
+GBytes *
+_srt_env_overlay_to_env0 (SrtEnvOverlay *self)
+{
+  GByteArray *arr = NULL;
+  g_autoptr(GList) vars = NULL;
+  const GList *iter;
+
+  g_return_val_if_fail (self != NULL, NULL);
+
+  arr = g_byte_array_new ();
+  vars = _srt_env_overlay_get_vars (self);
+
+  for (iter = vars; iter != NULL; iter = iter->next)
+    {
+      const char *value = g_hash_table_lookup (self->values, iter->data);
+
+      if (value != NULL)
+        byte_array_append_env0 (arr, iter->data, value);
+    }
+
+  return g_byte_array_free_to_bytes (arr);
+}
+
 static gboolean
 opt_env_cb (const char *option_name,
             const gchar *value,
