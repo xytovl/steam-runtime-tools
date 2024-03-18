@@ -216,7 +216,7 @@ test_from_container_env_subsandbox (Fixture *f,
   gsize i;
 
   pv_bwrap_container_env_to_subsandbox_argv (flatpak_subsandbox, f->container_env);
-  dump_bwrap (flatpak_subsandbox, "Arguments to add to pv-launch");
+  dump_bwrap (flatpak_subsandbox, "Arguments to add to s-r-launch-client");
   /*
    * Set variable => --env
    * Explicitly unset variable => --unset-env

@@ -716,7 +716,7 @@ static const char* unsecure_environment_variables[] = {
 
 /*
  * Populate @flatpak_subsandbox with environment variables from @container_env.
- * They'll be passed via pv-launch `--env`/`--unset-env`.
+ * They'll be passed via s-r-launch-client `--env`/`--unset-env`.
  */
 void
 pv_bwrap_container_env_to_subsandbox_argv (FlatpakBwrap *flatpak_subsandbox,

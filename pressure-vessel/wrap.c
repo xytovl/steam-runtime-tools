@@ -1080,8 +1080,8 @@ main (int argc,
       pv_environ_inherit_env (container_env, "XDG_RUNTIME_DIR");
 
       /* The bwrap envp will be completely ignored when calling
-       * pv-launch, and in fact putting them in its environment
-       * variables would be wrong, because pv-launch needs to see the
+       * s-r-launch-client, and in fact putting them in its environment
+       * variables would be wrong, because s-r-launch-client needs to see the
        * current execution environment's DBUS_SESSION_BUS_ADDRESS
        * (if different). For this reason we convert them to `--setenv`. */
       if (flatpak_subsandbox != NULL)
@@ -1096,7 +1096,7 @@ main (int argc,
    * We skip this if we are in a Flatpak environment, because in that case
    * we already used `--setenv` for all the variables that we care about and
    * the final_argv->envp will be ignored anyway, other than as a way to
-   * invoke pv-launch (for which original_environ is appropriate). */
+   * invoke s-r-launch-client (for which original_environ is appropriate). */
   if (!self->is_flatpak_env)
     {
       /* Note that these are two different FlatpakBwrap instances! */
