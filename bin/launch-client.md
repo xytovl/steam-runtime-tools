@@ -18,6 +18,7 @@ steam-runtime-launch-client - client to launch processes in a container
 [**--clear-env**]
 [**--directory** *DIR*]
 [**--env** _VAR_**=**_VALUE_]
+[**--env-fd** *FD*]
 [**--forward-fd** *FD*]
 [**--inherit-env** *VAR*]
 [**--inherit-env-matching** *WILDCARD*]
@@ -283,6 +284,12 @@ or disabled with **--inherit-env=TERM**.
     This is mostly equivalent to using
     **env** _VAR=VALUE_ *COMMAND* *ARGUMENTS...*
     as the command.
+
+**--env-fd** _FD_
+:   Parse zero-terminated environment variables from _FD_, and set each
+    one as if via **--env**.
+    The format of _FD_ is the same as the output of `$(env -0)` or the
+    pseudo-file `/proc/PID/environ`.
 
 **--inherit-env** *VAR*
 :   Undo the effect of a previous **--env**, **--unset-env**, **--pass-env**
