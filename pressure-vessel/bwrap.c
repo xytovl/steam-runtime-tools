@@ -785,24 +785,10 @@ void
 pv_bwrap_container_env_to_envp (FlatpakBwrap *bwrap,
                                 SrtEnvOverlay *container_env)
 {
-  g_autoptr(GList) vars = NULL;
-  const GList *iter;
-
   g_return_if_fail (bwrap != NULL);
   g_return_if_fail (container_env != NULL);
 
-  vars = _srt_env_overlay_get_vars (container_env);
-
-  for (iter = vars; iter != NULL; iter = iter->next)
-    {
-      const char *var = iter->data;
-      const char *val = _srt_env_overlay_get (container_env, var);
-
-      if (val != NULL)
-        flatpak_bwrap_set_env (bwrap, var, val, TRUE);
-      else
-        flatpak_bwrap_unset_env (bwrap, var);
-    }
+  bwrap->envp = _srt_env_overlay_apply (container_env, bwrap->envp);
 }
 
 /*

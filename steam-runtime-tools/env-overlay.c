@@ -471,3 +471,37 @@ _srt_env_overlay_env_fd_cli (SrtEnvOverlay *self,
 
   return TRUE;
 }
+
+/*
+ * _srt_env_overlay_apply:
+ * @self: Variables to set and unset
+ * @envp: (transfer full): An environment block
+ *
+ * Return a version of @envp that has been modified to set and unset
+ * its environment variables according to the instructions in @self.
+ *
+ * Returns: (transfer full): The new environment block
+ */
+GStrv
+_srt_env_overlay_apply (SrtEnvOverlay *self,
+                        GStrv envp)
+{
+  g_autoptr(GList) vars = NULL;
+  const GList *iter;
+
+  g_return_val_if_fail (self != NULL, envp);
+
+  vars = _srt_env_overlay_get_vars (self);
+
+  for (iter = vars; iter != NULL; iter = iter->next)
+    {
+      const char *value = g_hash_table_lookup (self->values, iter->data);
+
+      if (value != NULL)
+        envp = g_environ_setenv (envp, iter->data, value, TRUE);
+      else
+        envp = g_environ_unsetenv (envp, iter->data);
+    }
+
+  return g_steal_pointer (&envp);
+}

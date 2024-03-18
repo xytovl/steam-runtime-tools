@@ -102,3 +102,6 @@ gboolean _srt_env_overlay_env_fd_cli (SrtEnvOverlay *self,
 GList *_srt_env_overlay_get_vars (SrtEnvOverlay *self);
 const char *_srt_env_overlay_get (SrtEnvOverlay *self,
                                   const char *var);
+
+GStrv _srt_env_overlay_apply (SrtEnvOverlay *self,
+                              GStrv envp);
