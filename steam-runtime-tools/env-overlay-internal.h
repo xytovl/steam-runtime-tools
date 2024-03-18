@@ -26,14 +26,74 @@
 
 typedef struct _SrtEnvOverlay SrtEnvOverlay;
 
+/*
+ * SrtEnvOverlay:
+ *
+ * A set of environment variables, each in one of these states:
+ *
+ * - Set to a value (empty or non-empty)
+ * - Forced to be unset
+ * - Inherited from some execution environment that is unknown to us
+ *
+ * We represent this as follows:
+ *
+ * - Set to a value: values[VAR] = VAL
+ * - Forced to be unset: values[VAR] = NULL
+ * - Inherited from the execution environment: VAR not in `values`
+ */
+struct _SrtEnvOverlay
+{
+  /* (element-type filename filename) */
+  GHashTable *values;
+};
+
 SrtEnvOverlay *_srt_env_overlay_new (void);
 void _srt_env_overlay_free (SrtEnvOverlay *self);
 
 void _srt_env_overlay_set (SrtEnvOverlay *self,
                            const char *var,
                            const char *val);
+gboolean _srt_env_overlay_set_cli (SrtEnvOverlay *self,
+                                   const char *option_name,
+                                   const char *value,
+                                   GError **error);
+gboolean _srt_env_overlay_unset_cli (SrtEnvOverlay *self,
+                                     const char *option_name,
+                                     const char *value,
+                                     GError **error);
+void _srt_env_overlay_take (SrtEnvOverlay *self,
+                            gchar *var,
+                            gchar *val);
+
 void _srt_env_overlay_inherit (SrtEnvOverlay *self,
                                const char *var);
+gboolean _srt_env_overlay_inherit_cli (SrtEnvOverlay *self,
+                                       const char *option_name,
+                                       const char *value,
+                                       GError **error);
+
+void _srt_env_overlay_inherit_matching_pattern (SrtEnvOverlay *self,
+                                                const char *pattern);
+gboolean _srt_env_overlay_inherit_matching_pattern_cli (SrtEnvOverlay *self,
+                                                        const char *option_name,
+                                                        const char *value,
+                                                        GError **error);
+
+gboolean _srt_env_overlay_pass_cli (SrtEnvOverlay *self,
+                                    const char *option_name,
+                                    const char *value,
+                                    const char * const *envp,
+                                    GError **error);
+gboolean _srt_env_overlay_pass_matching_pattern_cli (SrtEnvOverlay *self,
+                                                     const char *option_name,
+                                                     const char *value,
+                                                     const char * const *envp,
+                                                     GError **error);
+
+gboolean _srt_env_overlay_env_fd_cli (SrtEnvOverlay *self,
+                                      const char *option_name,
+                                      const char *value,
+                                      GError **error);
 
 GList *_srt_env_overlay_get_vars (SrtEnvOverlay *self);
 const char *_srt_env_overlay_get (SrtEnvOverlay *self,
