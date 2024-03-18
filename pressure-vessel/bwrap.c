@@ -716,17 +716,37 @@ static const char* unsecure_environment_variables[] = {
 
 /*
  * Populate @flatpak_subsandbox with environment variables from @container_env.
- * They'll be passed via s-r-launch-client `--env`/`--unset-env`.
+ * They'll be passed via s-r-launch-client `--env-fd`/`--unset-env`.
  */
-void
+gboolean
 pv_bwrap_container_env_to_subsandbox_argv (FlatpakBwrap *flatpak_subsandbox,
-                                           SrtEnvOverlay *container_env)
+                                           SrtEnvOverlay *container_env,
+                                           GError **error)
 {
+  g_auto(GLnxTmpfile) tmpf  = { 0, };
+  g_autoptr(GBytes) bytes = NULL;
   g_autoptr(GList) vars = NULL;
   const GList *iter;
+  const void *content = NULL;
+  size_t content_size = 0;
 
-  g_return_if_fail (flatpak_subsandbox != NULL);
-  g_return_if_fail (container_env != NULL);
+  g_return_val_if_fail (flatpak_subsandbox != NULL, FALSE);
+  g_return_val_if_fail (container_env != NULL, FALSE);
+
+  bytes = _srt_env_overlay_to_env0 (container_env);
+  content = g_bytes_get_data (bytes, &content_size);
+  g_return_val_if_fail (content_size < G_MAXSSIZE, FALSE);
+
+  if (content_size != 0)
+    {
+      if (!flatpak_buffer_to_sealed_memfd_or_tmpfile (&tmpf, "environ", content,
+                                                      (gssize) content_size,
+                                                      error))
+        return FALSE;
+
+      flatpak_bwrap_add_args_data_fd (flatpak_subsandbox, "--env-fd",
+                                      g_steal_fd (&tmpf.fd), NULL);
+    }
 
   vars = _srt_env_overlay_get_vars (container_env);
 
@@ -735,15 +755,13 @@ pv_bwrap_container_env_to_subsandbox_argv (FlatpakBwrap *flatpak_subsandbox,
       const char *var = iter->data;
       const char *val = _srt_env_overlay_get (container_env, var);
 
-      if (val != NULL)
-        flatpak_bwrap_add_arg_printf (flatpak_subsandbox,
-                                      "--env=%s=%s",
-                                      var, val);
-      else
+      if (val == NULL)
         flatpak_bwrap_add_args (flatpak_subsandbox,
                                 "--unset-env", var,
                                 NULL);
     }
+
+  return TRUE;
 }
 
 /*

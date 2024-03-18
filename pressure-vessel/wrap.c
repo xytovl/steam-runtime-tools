@@ -1085,14 +1085,18 @@ main (int argc,
        * current execution environment's DBUS_SESSION_BUS_ADDRESS
        * (if different). For this reason we convert them to `--setenv`. */
       g_assert (flatpak_subsandbox != NULL);
-      pv_bwrap_container_env_to_subsandbox_argv (flatpak_subsandbox, container_env);
+
+      if (!pv_bwrap_container_env_to_subsandbox_argv (flatpak_subsandbox,
+                                                      container_env,
+                                                      error))
+        goto out;
     }
 
   final_argv = flatpak_bwrap_new (self->original_environ);
 
   /* Populate final_argv->envp, overwriting its copy of original_environ.
    * We skip this if we are in a Flatpak environment, because in that case
-   * we already used `--setenv` for all the variables that we care about and
+   * we already used `--env-fd` for all the variables that we care about and
    * the final_argv->envp will be ignored anyway, other than as a way to
    * invoke s-r-launch-client (for which original_environ is appropriate). */
   if (!self->is_flatpak_env)
