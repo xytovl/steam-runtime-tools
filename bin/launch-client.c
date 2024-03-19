@@ -760,35 +760,17 @@ static gboolean opt_verbose = FALSE;
 static gboolean opt_version = FALSE;
 
 static gboolean
-opt_env_cb (const char *option_name,
-            const gchar *value,
-            G_GNUC_UNUSED gpointer data,
-            GError **error)
+opt_pass_env_cb (const char *option_name,
+                 const gchar *value,
+                 G_GNUC_UNUSED gpointer data,
+                 GError **error)
 {
-  if (g_strcmp0 (option_name, "--env") == 0)
-    return _srt_env_overlay_set_cli (global_env_overlay,
-                                     option_name,
-                                     value,
-                                     error);
-
-  if (g_strcmp0 (option_name, "--inherit-env") == 0)
-    return _srt_env_overlay_inherit_cli (global_env_overlay,
-                                         option_name,
-                                         value,
-                                         error);
-
   if (g_strcmp0 (option_name, "--pass-env") == 0)
     return _srt_env_overlay_pass_cli (global_env_overlay,
                                       option_name,
                                       value,
                                       global_original_environ,
                                       error);
-
-  if (g_strcmp0 (option_name, "--inherit-env-matching") == 0)
-    return _srt_env_overlay_inherit_matching_pattern_cli (global_env_overlay,
-                                                          option_name,
-                                                          value,
-                                                          error);
 
   if (g_strcmp0 (option_name, "--pass-env-matching") == 0)
     return _srt_env_overlay_pass_matching_pattern_cli (global_env_overlay,
@@ -797,25 +779,7 @@ opt_env_cb (const char *option_name,
                                                        global_original_environ,
                                                        error);
 
-  if (g_strcmp0 (option_name, "--unset-env") == 0)
-    return _srt_env_overlay_unset_cli (global_env_overlay,
-                                       option_name,
-                                       value,
-                                       error);
-
   g_return_val_if_reached (FALSE);
-}
-
-static gboolean
-option_env_fd_cb (G_GNUC_UNUSED const gchar *option_name,
-                  const gchar *value,
-                  G_GNUC_UNUSED gpointer data,
-                  GError **error)
-{
-  return _srt_env_overlay_env_fd_cli (global_env_overlay,
-                                      option_name,
-                                      value,
-                                      error);
 }
 
 static gboolean
@@ -922,12 +886,6 @@ static const GOptionEntry options[] =
   { "directory", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_FILENAME, &opt_directory,
     "Working directory in which to run the command.", "DIR" },
-  { "env", '\0',
-    G_OPTION_FLAG_FILENAME, G_OPTION_ARG_CALLBACK, opt_env_cb,
-    "Set environment variable.", "VAR=VALUE" },
-  { "env-fd", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_CALLBACK, option_env_fd_cb,
-    "Read environment variables in env -0 format from FD", "FD" },
   { "forward-fd", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_STRING_ARRAY, &forward_fds,
     "Connect a file descriptor to the launched process. "
@@ -937,13 +895,6 @@ static const GOptionEntry options[] =
     G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK, opt_host_cb,
     "Connect to a service running on the host system.",
     NULL },
-  { "inherit-env", '\0',
-    G_OPTION_FLAG_FILENAME, G_OPTION_ARG_CALLBACK, opt_env_cb,
-    "Undo a previous --env, --unset-env, --pass-env, etc.", "VAR" },
-  { "inherit-env-matching", '\0',
-    G_OPTION_FLAG_FILENAME, G_OPTION_ARG_CALLBACK, opt_env_cb,
-    "Undo previous --env, --unset-env, etc. matching a shell-style wildcard",
-    "WILDCARD" },
   { "inside-app", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_CALLBACK, opt_inside_cb,
     "Connect to a service running inside the container for the given Steam app.",
@@ -953,10 +904,10 @@ static const GOptionEntry options[] =
     "List some of the available servers and then exit.",
     NULL },
   { "pass-env", '\0',
-    G_OPTION_FLAG_FILENAME, G_OPTION_ARG_CALLBACK, opt_env_cb,
+    G_OPTION_FLAG_FILENAME, G_OPTION_ARG_CALLBACK, opt_pass_env_cb,
     "Pass environment variable through, or unset if set.", "VAR" },
   { "pass-env-matching", '\0',
-    G_OPTION_FLAG_FILENAME, G_OPTION_ARG_CALLBACK, opt_env_cb,
+    G_OPTION_FLAG_FILENAME, G_OPTION_ARG_CALLBACK, opt_pass_env_cb,
     "Pass environment variables matching a shell-style wildcard.",
     "WILDCARD" },
   { "share-pids", '\0',
@@ -979,9 +930,6 @@ static const GOptionEntry options[] =
     G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_terminate,
     "Terminate the Launcher server after the COMMAND (if any) has run.",
     NULL },
-  { "unset-env", '\0',
-    G_OPTION_FLAG_FILENAME, G_OPTION_ARG_CALLBACK, opt_env_cb,
-    "Unset environment variable, like env -u.", "VAR" },
   { "verbose", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_verbose,
     "Be more verbose.", NULL },
@@ -1078,10 +1026,13 @@ main (int argc,
   g_option_context_set_summary (context,
                                 "Send IPC requests to create child "
                                 "processes.");
-
   g_option_context_add_main_entries (context, options, NULL);
+
   env_overlay = _srt_env_overlay_new ();
   global_env_overlay = env_overlay;
+  g_option_context_add_group (context,
+                              _srt_env_overlay_create_option_group (env_overlay));
+
   /* Guess we might need up to 4 names + NULL, which is enough for
    * "--alongside-steam --host" without reallocation */
   opt_bus_names = g_ptr_array_new_full (5, g_free);

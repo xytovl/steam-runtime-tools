@@ -57,31 +57,15 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC (SrtEnvOverlay, _srt_env_overlay_unref)
 void _srt_env_overlay_set (SrtEnvOverlay *self,
                            const char *var,
                            const char *val);
-gboolean _srt_env_overlay_set_cli (SrtEnvOverlay *self,
-                                   const char *option_name,
-                                   const char *value,
-                                   GError **error);
-gboolean _srt_env_overlay_unset_cli (SrtEnvOverlay *self,
-                                     const char *option_name,
-                                     const char *value,
-                                     GError **error);
 void _srt_env_overlay_take (SrtEnvOverlay *self,
                             gchar *var,
                             gchar *val);
 
 void _srt_env_overlay_inherit (SrtEnvOverlay *self,
                                const char *var);
-gboolean _srt_env_overlay_inherit_cli (SrtEnvOverlay *self,
-                                       const char *option_name,
-                                       const char *value,
-                                       GError **error);
 
 void _srt_env_overlay_inherit_matching_pattern (SrtEnvOverlay *self,
                                                 const char *pattern);
-gboolean _srt_env_overlay_inherit_matching_pattern_cli (SrtEnvOverlay *self,
-                                                        const char *option_name,
-                                                        const char *value,
-                                                        GError **error);
 
 gboolean _srt_env_overlay_pass_cli (SrtEnvOverlay *self,
                                     const char *option_name,
@@ -94,14 +78,11 @@ gboolean _srt_env_overlay_pass_matching_pattern_cli (SrtEnvOverlay *self,
                                                      const char * const *envp,
                                                      GError **error);
 
-gboolean _srt_env_overlay_env_fd_cli (SrtEnvOverlay *self,
-                                      const char *option_name,
-                                      const char *value,
-                                      GError **error);
-
 GList *_srt_env_overlay_get_vars (SrtEnvOverlay *self);
 const char *_srt_env_overlay_get (SrtEnvOverlay *self,
                                   const char *var);
 
 GStrv _srt_env_overlay_apply (SrtEnvOverlay *self,
                               GStrv envp);
+
+GOptionGroup *_srt_env_overlay_create_option_group (SrtEnvOverlay *self);

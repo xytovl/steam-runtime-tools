@@ -89,7 +89,7 @@ _srt_env_overlay_set (SrtEnvOverlay *self,
  *
  * Returns: %TRUE on success
  */
-gboolean
+static gboolean
 _srt_env_overlay_set_cli (SrtEnvOverlay *self,
                           const char *option_name,
                           const char *value,
@@ -133,7 +133,7 @@ _srt_env_overlay_set_cli (SrtEnvOverlay *self,
  *
  * Returns: %TRUE on success
  */
-gboolean
+static gboolean
 _srt_env_overlay_unset_cli (SrtEnvOverlay *self,
                             const char *option_name,
                             const char *value,
@@ -206,7 +206,7 @@ _srt_env_overlay_inherit (SrtEnvOverlay *self,
  *
  * Returns: %TRUE on success
  */
-gboolean
+static gboolean
 _srt_env_overlay_inherit_cli (SrtEnvOverlay *self,
                               const char *option_name,
                               const char *value,
@@ -306,7 +306,7 @@ _srt_env_overlay_inherit_matching_pattern (SrtEnvOverlay *self,
  *
  * Returns: %TRUE on success
  */
-gboolean
+static gboolean
 _srt_env_overlay_inherit_matching_pattern_cli (SrtEnvOverlay *self,
                                                const char *option_name,
                                                const char *value,
@@ -399,7 +399,7 @@ _srt_env_overlay_pass_matching_pattern_cli (SrtEnvOverlay *self,
   return TRUE;
 }
 
-gboolean
+static gboolean
 _srt_env_overlay_env_fd_cli (SrtEnvOverlay *self,
                              const char *option_name,
                              const char *value,
@@ -504,4 +504,89 @@ _srt_env_overlay_apply (SrtEnvOverlay *self,
     }
 
   return g_steal_pointer (&envp);
+}
+
+static gboolean
+opt_env_cb (const char *option_name,
+            const gchar *value,
+            gpointer data,
+            GError **error)
+{
+  return _srt_env_overlay_set_cli (data, option_name, value, error);
+}
+
+static gboolean
+opt_env_fd_cb (const char *option_name,
+               const gchar *value,
+               gpointer data,
+               GError **error)
+{
+  return _srt_env_overlay_env_fd_cli (data, option_name, value, error);
+}
+
+static gboolean
+opt_inherit_env_cb (const char *option_name,
+                    const gchar *value,
+                    gpointer data,
+                    GError **error)
+{
+  return _srt_env_overlay_inherit_cli (data, option_name, value, error);
+}
+
+static gboolean
+opt_inherit_env_matching_cb (const char *option_name,
+                             const gchar *value,
+                             gpointer data,
+                             GError **error)
+{
+  return _srt_env_overlay_inherit_matching_pattern_cli (data, option_name,
+                                                        value, error);
+}
+
+static gboolean
+opt_unset_env_cb (const char *option_name,
+                  const gchar *value,
+                  gpointer data,
+                  GError **error)
+{
+  return _srt_env_overlay_unset_cli (data, option_name, value, error);
+}
+
+static const GOptionEntry options[] =
+{
+  { "env", '\0',
+    G_OPTION_FLAG_FILENAME, G_OPTION_ARG_CALLBACK, opt_env_cb,
+    "Set environment variable.", "VAR=VALUE" },
+  { "env-fd", '\0',
+    G_OPTION_FLAG_NONE, G_OPTION_ARG_CALLBACK, opt_env_fd_cb,
+    "Read environment variables in env -0 format from FD", "FD" },
+  { "inherit-env", '\0',
+    G_OPTION_FLAG_FILENAME, G_OPTION_ARG_CALLBACK, opt_inherit_env_cb,
+    "Undo a previous --env, --unset-env, --pass-env, etc.", "VAR" },
+  { "inherit-env-matching", '\0',
+    G_OPTION_FLAG_FILENAME, G_OPTION_ARG_CALLBACK, opt_inherit_env_matching_cb,
+    "Undo previous --env, --unset-env, etc. matching a shell-style wildcard",
+    "WILDCARD" },
+  { "unset-env", '\0',
+    G_OPTION_FLAG_FILENAME, G_OPTION_ARG_CALLBACK, opt_unset_env_cb,
+    "Unset environment variable, like env -u.", "VAR" },
+  { NULL }
+};
+
+/*
+ * Returns: (transfer full): a #GOptionGroup
+ */
+GOptionGroup *
+_srt_env_overlay_create_option_group (SrtEnvOverlay *self)
+{
+  GOptionGroup *group = NULL;
+
+  group = g_option_group_new ("environment",
+                              "Environment Options:",
+                              "Environment options",
+                              _srt_env_overlay_ref (self),
+                              _srt_env_overlay_unref);
+  g_option_group_add_entries (group, options);
+
+  return g_steal_pointer (&group);
 }
