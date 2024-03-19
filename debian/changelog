@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20240313.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20240319.0) UNRELEASED; urgency=medium
 
   * steam-runtime-system-info:
     - Do the same functional tests on bwrap that were previously only
@@ -9,6 +9,10 @@ steam-runtime-tools (0.20240313.0) UNRELEASED; urgency=medium
     - Emit more specific messages for several common bwrap problems
       (steamrt/tasks#406)
     - Detect several common Flatpak problems (steamrt/tasks#406)
+  * srt-logger:
+    - New tool to divert command output to a log file (with rotation),
+      the terminal from which Steam was run (if any), and optionally
+      the systemd Journal (steamrt/tasks#393)
   * pressure-vessel:
     - Treat $BWRAP as less-preferred than pv-bwrap. The order we try is now:
       $PRESSURE_VESSEL_BWRAP > pv-bwrap > $BWRAP > system bwrap
@@ -39,7 +43,7 @@ steam-runtime-tools (0.20240313.0) UNRELEASED; urgency=medium
       fewer process that will not terminate its descendants when killed.
   * tests: Improve unit test coverage
 
- -- Simon McVittie <smcv@collabora.com>  Fri, 15 Mar 2024 15:43:39 +0000
+ -- Simon McVittie <smcv@collabora.com>  Tue, 19 Mar 2024 17:26:03 +0000
 
 steam-runtime-tools (0.20240306.0) steamrt; urgency=medium
 
