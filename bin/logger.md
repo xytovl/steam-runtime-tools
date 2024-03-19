@@ -113,7 +113,8 @@ final log messages during shutdown to be recorded.
     `K`, `KiB`, `M` or `MiB` for powers of 1024,
     or `kB` or `MB` for powers of 1000.
 
-    The default is 8 MiB. **--rotate=0** can be used to disable rotation.
+    The default is 8 MiB. **--rotate=0** or environment variable
+    **SRT_LOG_ROTATION=0** can be used to disable rotation.
 
 **--terminal-fd** *FD*
 :   Receive an inherited file descriptor for the terminal instead of
@@ -140,6 +141,9 @@ final log messages during shutdown to be recorded.
 `SRT_LOG_DIR`
 :   An absolute or relative path to be used instead of the default
     log directory.
+
+`SRT_LOG_ROTATION` (`0` or `1`)
+:   If set to `0`, log rotation is disabled and **--rotate** is ignored.
 
 `SRT_LOG_TERMINAL`
 :   If set to the absolute path of a terminal device such as `/dev/pts/0`,

@@ -33,7 +33,7 @@ if [ "${STEAM_LINUX_RUNTIME_LOG-}" = 1 ]; then
     use_timestamp=yes
 fi
 
-if [ "${STEAM_LINUX_RUNTIME_KEEP_LOGS-}" = 1 ]; then
+if [ "${SRT_LOG_ROTATION-}" = 0 ] || [ "${STEAM_LINUX_RUNTIME_KEEP_LOGS-}" = 1 ]; then
     keep_logs=yes
 fi
 

@@ -173,6 +173,9 @@ run (int argc,
   if (!g_option_context_parse (option_context, &argc, &argv, error))
     return FALSE;
 
+  if (!_srt_boolean_environment ("SRT_LOG_ROTATION", TRUE))
+    opt_max_bytes = 0;
+
   if (opt_version)
     {
       g_print (

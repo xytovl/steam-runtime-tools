@@ -565,7 +565,7 @@ _srt_logger_run_subprocess (SrtLogger *self,
 
   g_ptr_array_add (logger_argv, g_strdup (logger));
 
-  if (self->max_bytes > 0)
+  if (self->max_bytes > 0 && _srt_boolean_environment ("SRT_LOG_ROTATION", TRUE))
     g_ptr_array_add (logger_argv,
                      g_strdup_printf ("--rotate=%" G_GOFFSET_FORMAT,
                                       self->max_bytes));
