@@ -79,6 +79,24 @@ foreach bin_name : json_programs
   )
 endforeach
 
+# Slightly different: different prefix (so that `pkill steam` will leave
+# it running for long enough to finish writing its log!)
+srt_bin += executable(
+  'srt-logger',
+  sources: [
+    'logger.c',
+  ],
+  c_args : srt_c_args,
+  dependencies : [
+    gio_unix,
+    libglnx_dep,
+    libsteamrt_static_dep,
+  ],
+  install : true,
+  build_rpath : bin_rpath,
+  install_rpath : bin_rpath,
+)
+
 # Slightly different: needs threads and pv_include_dirs
 srt_bin += executable(
   'steam-runtime-launch-client',
@@ -167,6 +185,25 @@ if build_man_pages
       ],
       input : bin_name + '.md',
       output : 'steam-runtime-' + bin_name + '.1',
+      install : true,
+      install_dir : join_paths(get_option('prefix'), get_option('mandir'), 'man1'),
+    )
+  endforeach
+
+  foreach bin_name : ['logger']
+    custom_target(
+      'srt-' + bin_name + '.1',
+      build_by_default : true,
+      command : [
+        pandoc,
+        '-s',
+        '-o', '@OUTPUT@',
+        '-f', pandoc_markdown_nosmart,
+        '-t', 'man',
+        '@INPUT@',
+      ],
+      input : bin_name + '.md',
+      output : 'srt-' + bin_name + '.1',
       install : true,
       install_dir : join_paths(get_option('prefix'), get_option('mandir'), 'man1'),
     )

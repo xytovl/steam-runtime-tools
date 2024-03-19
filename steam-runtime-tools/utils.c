@@ -1836,3 +1836,39 @@ _srt_describe_fd (int fd)
 
   return g_strescape (target, NULL);
 }
+
+#define MEBIBYTE 1024 * 1024
+#define KIBIBYTE 1024
+
+goffset
+_srt_byte_suffix_to_multiplier (const char *suffix)
+{
+  static const struct
+  {
+    const char *suffix;
+    unsigned multiplier;
+  } byte_suffixes[] =
+  {
+    { "", 1 },
+    /* Gigabytes and up are not yet handled here, since this is currently
+     * only used for the sizes of log files, for which megabytes are large */
+    { "M", MEBIBYTE },
+    { "MiB", MEBIBYTE },
+    { "MB", 1000 * 1000 },
+    { "K", KIBIBYTE },
+    { "KiB", KIBIBYTE },
+    { "kB", 1000 },
+  };
+  size_t i;
+
+  while (*suffix == ' ')
+    suffix++;
+
+  for (i = 0; i < G_N_ELEMENTS (byte_suffixes); i++)
+    {
+      if (g_str_equal (suffix, byte_suffixes[i].suffix))
+        return byte_suffixes[i].multiplier;
+    }
+
+  return 0;
+}

@@ -34,8 +34,11 @@
 #include <gio/gio.h>
 
 #include "steam-runtime-tools/glib-backports-internal.h"
+
+#include "steam-runtime-tools/file-lock-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
 
+static gchar *opt_exclusive_lock = NULL;
 static gboolean opt_print_version = FALSE;
 static gboolean opt_ignore_sigchld = FALSE;
 static gboolean opt_unignore_sigchld = FALSE;
@@ -45,6 +48,9 @@ static gboolean opt_show_signal_dispositions = FALSE;
 
 static GOptionEntry options[] =
 {
+  { "exclusive-lock", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_FILENAME,
+    &opt_exclusive_lock,
+    "Take an exclusive lock on PATH", "PATH" },
   { "show-signals", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE,
     &opt_show_signal_dispositions,
     "Show signal dispositions", NULL },
@@ -88,6 +94,7 @@ int
 main (int argc,
       char *argv[])
 {
+  g_autoptr(SrtFileLock) exclusive_lock = NULL;
   GError *local_error = NULL;
   FILE *original_stdout = NULL;
   int ret = EX_USAGE;
@@ -315,6 +322,17 @@ main (int argc,
                 }
             }
         }
+    }
+
+  if (opt_exclusive_lock != NULL)
+    {
+      exclusive_lock = srt_file_lock_new (AT_FDCWD, opt_exclusive_lock,
+                                          (SRT_FILE_LOCK_FLAGS_EXCLUSIVE
+                                           | SRT_FILE_LOCK_FLAGS_WAIT),
+                                          &local_error);
+
+      if (exclusive_lock == NULL)
+        goto out;
     }
 
   if (!put_back_original_stdout (original_stdout, &local_error))

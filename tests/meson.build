@@ -147,7 +147,14 @@ endforeach
 test_depends += executable(
   'adverb',
   'adverb.c',
-  dependencies : [glib, gio, gio_unix, libglnx_dep, json_glib, libsteamrt_dep],
+  dependencies : [
+    glib,
+    gio,
+    gio_unix,
+    libglnx_dep,
+    json_glib,
+    libsteamrt_static_dep,
+  ],
   include_directories : project_include_dirs,
   install : get_option('installed_tests'),
   install_dir : tests_dir,
@@ -502,6 +509,7 @@ if get_option('bin')
   test_scripts += [
     {'name': 'test-launcher.py', 'dbus': true, 'timeout': 90},
     {'name': 'test-launcher.py', 'dbus': true, 'full_python': true, 'timeout': 90},
+    {'name': 'test-logger.py'},
   ]
 endif
 

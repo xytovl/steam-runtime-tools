@@ -597,3 +597,5 @@ _srt_fd_unset_close_on_exec (int fd)
 
   return 0;
 }
+
+goffset _srt_byte_suffix_to_multiplier (const char *suffix);
