@@ -45,8 +45,9 @@ setup (Fixture *f,
 
   f->container_env = _srt_env_overlay_new ();
 
-  /* In each of these pairs, the first one is filtered by glibc and the
-   * second is not. */
+  /* In each of these pairs, the first one is filtered by glibc for setuid
+   * executables and the second is not (although in fact this no longer
+   * matters, because we now treat both cases the same). */
   _srt_env_overlay_set (f->container_env, "LD_AUDIT", "audit.so");
   _srt_env_overlay_set (f->container_env, "G_MESSAGES_DEBUG", "all");
   _srt_env_overlay_set (f->container_env, "TMPDIR", NULL);
@@ -185,39 +186,31 @@ assert_2_args (FlatpakBwrap *bwrap,
  return i + 2;
 }
 
-/*
- * Assert that 3 arguments starting from @i are (a, b, c).
- * Return the index of the next argument, either in-bounds for the array
- * or 1 more than the last valid argument.
- */
-static gsize
-assert_3_args (FlatpakBwrap *bwrap,
-               gsize i,
-               const char *a,
-               const char *b,
-               const char *c)
-{
-  g_assert_cmpuint (bwrap->argv->len, >=, i + 3);
-  assert_1_arg (bwrap, i, a);
-  assert_1_arg (bwrap, i + 1, b);
-  assert_1_arg (bwrap, i + 2, c);
-  return i + 3;
-}
-
 /* This is the normal code path when Flatpak is not involved */
 static void
 test_from_container_env (Fixture *f,
                          gconstpointer context)
 {
-  g_autoptr(FlatpakBwrap) bwrap_argv = flatpak_bwrap_new ((char **) initial_envp);
+  static const char expected_env[] = (
+    "G_MESSAGES_DEBUG=all\0"
+    "LD_AUDIT=audit.so\0"
+    /* ... plus an implicit \0 */
+  );
+  g_autoptr(GError) local_error = NULL;
+  g_autoptr(FlatpakBwrap) adverb_argv = flatpak_bwrap_new ((char **) initial_envp);
   g_autoptr(FlatpakBwrap) bwrap_envp = flatpak_bwrap_new ((char **) initial_envp);
   g_auto(GStrv) envp = NULL;
+  gboolean ok;
   gsize i;
 
   pv_bwrap_container_env_to_envp (bwrap_envp, f->container_env);
   dump_bwrap (bwrap_envp, "Environment for final command");
-  pv_bwrap_filtered_container_env_to_bwrap_argv (bwrap_argv, f->container_env);
-  dump_bwrap (bwrap_argv, "Arguments to add to bwrap");
+  ok = pv_bwrap_container_env_to_env_fd (adverb_argv,
+                                         f->container_env,
+                                         &local_error);
+  g_assert_no_error (local_error);
+  g_assert_true (ok);
+  dump_bwrap (adverb_argv, "Arguments to add to pv-adverb");
   /*
    * Set variable => set variable in envp, and also add --setenv if it's one
    *  that glibc would otherwise filter out in a setuid bwrap
@@ -236,10 +229,13 @@ test_from_container_env (Fixture *f,
   assert_1_item (_srt_const_strv (envp), i++, "LD_PRELOAD=libfakeroot.so");
   assert_1_item (_srt_const_strv (envp), i++, NULL);
 
-  g_assert_cmpstrv (bwrap_argv->envp, initial_envp);
+  g_assert_cmpstrv (adverb_argv->envp, initial_envp);
   i = 0;
-  i = assert_3_args (bwrap_argv, i, "--setenv", "LD_AUDIT", "audit.so");
-  g_assert_cmpuint (i, ==, bwrap_argv->argv->len);
+  assert_1_arg (adverb_argv, i++, "--env-fd");
+  assert_fd_with_payload (adverb_argv, i++,
+                          expected_env, sizeof (expected_env) - 1,
+                          dump_env0);
+  g_assert_cmpuint (i, ==, adverb_argv->argv->len);
 }
 
 /* This is the code path we take if starting a Flatpak subsandbox */

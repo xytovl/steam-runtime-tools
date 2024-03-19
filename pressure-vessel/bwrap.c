@@ -683,37 +683,6 @@ pv_bwrap_append_adjusted_exports (FlatpakBwrap *to,
   return TRUE;
 }
 
-/* List of variables that are stripped down from the environment when
- * using the secure-execution mode.
- * List taken from glibc sysdeps/generic/unsecvars.h */
-static const char* unsecure_environment_variables[] = {
-  "GCONV_PATH",
-  "GETCONF_DIR",
-  "GLIBC_TUNABLES",
-  "HOSTALIASES",
-  "LD_AUDIT",
-  "LD_DEBUG",
-  "LD_DEBUG_OUTPUT",
-  "LD_DYNAMIC_WEAK",
-  "LD_HWCAP_MASK",
-  "LD_LIBRARY_PATH",
-  "LD_ORIGIN_PATH",
-  "LD_PRELOAD",
-  "LD_PROFILE",
-  "LD_SHOW_AUXV",
-  "LD_USE_LOAD_BIAS",
-  "LOCALDOMAIN",
-  "LOCPATH",
-  "MALLOC_TRACE",
-  "NIS_PATH",
-  "NLSPATH",
-  "RESOLV_HOST_CONF",
-  "RES_OPTIONS",
-  "TMPDIR",
-  "TZDIR",
-  NULL,
-};
-
 /*
  * Populate @flatpak_subsandbox with environment variables from @container_env.
  * They'll be passed via s-r-launch-client `--env-fd`/`--unset-env`.
@@ -723,30 +692,15 @@ pv_bwrap_container_env_to_subsandbox_argv (FlatpakBwrap *flatpak_subsandbox,
                                            SrtEnvOverlay *container_env,
                                            GError **error)
 {
-  g_auto(GLnxTmpfile) tmpf  = { 0, };
-  g_autoptr(GBytes) bytes = NULL;
   g_autoptr(GList) vars = NULL;
   const GList *iter;
-  const void *content = NULL;
-  size_t content_size = 0;
 
   g_return_val_if_fail (flatpak_subsandbox != NULL, FALSE);
   g_return_val_if_fail (container_env != NULL, FALSE);
 
-  bytes = _srt_env_overlay_to_env0 (container_env);
-  content = g_bytes_get_data (bytes, &content_size);
-  g_return_val_if_fail (content_size < G_MAXSSIZE, FALSE);
-
-  if (content_size != 0)
-    {
-      if (!flatpak_buffer_to_sealed_memfd_or_tmpfile (&tmpf, "environ", content,
-                                                      (gssize) content_size,
-                                                      error))
-        return FALSE;
-
-      flatpak_bwrap_add_args_data_fd (flatpak_subsandbox, "--env-fd",
-                                      g_steal_fd (&tmpf.fd), NULL);
-    }
+  if (!pv_bwrap_container_env_to_env_fd (flatpak_subsandbox, container_env,
+                                         error))
+    return FALSE;
 
   vars = _srt_env_overlay_get_vars (container_env);
 
@@ -778,24 +732,44 @@ pv_bwrap_container_env_to_envp (FlatpakBwrap *bwrap,
 }
 
 /*
- * For each variable in @container_env that would be filtered out by
- * a setuid bubblewrap, add it to @bwrap via `--setenv`.
+ * pv_bwrap_container_env_to_env_fd:
+ * @argv: Arguments for s-r-launch-client, pv-adverb, or anything else
+ *  that takes an `--env-fd` argument compatible with those
+ * @container_env: The environment variables to set
+ * @error: You know how this works
+ *
+ * Add the variables that are set by @container_env to the
+ * arguments in @argv as an `--env-fd`.
+ *
+ * Returns: %TRUE on success
  */
-void
-pv_bwrap_filtered_container_env_to_bwrap_argv (FlatpakBwrap *bwrap,
-                                               SrtEnvOverlay *container_env)
+gboolean
+pv_bwrap_container_env_to_env_fd (FlatpakBwrap *argv,
+                                  SrtEnvOverlay *container_env,
+                                  GError **error)
 {
-  gsize i;
+  g_auto(GLnxTmpfile) tmpf  = { 0, };
+  g_autoptr(GBytes) bytes = NULL;
+  const void *content = NULL;
+  size_t content_size = 0;
 
-  g_return_if_fail (bwrap != NULL);
-  g_return_if_fail (container_env != NULL);
+  g_return_val_if_fail (argv != NULL, FALSE);
+  g_return_val_if_fail (container_env != NULL, FALSE);
 
-  for (i = 0; unsecure_environment_variables[i] != NULL; i++)
+  bytes = _srt_env_overlay_to_env0 (container_env);
+  content = g_bytes_get_data (bytes, &content_size);
+  g_return_val_if_fail (content_size < G_MAXSSIZE, FALSE);
+
+  if (content_size != 0)
     {
-      const char *var = unsecure_environment_variables[i];
-      const char *val = _srt_env_overlay_get (container_env, var);
+      if (!flatpak_buffer_to_sealed_memfd_or_tmpfile (&tmpf, "environ", content,
+                                                      (gssize) content_size,
+                                                      error))
+        return FALSE;
 
-      if (val != NULL)
-        flatpak_bwrap_add_args (bwrap, "--setenv", var, val, NULL);
+      flatpak_bwrap_add_args_data_fd (argv, "--env-fd",
+                                      g_steal_fd (&tmpf.fd), NULL);
     }
+
+  return TRUE;
 }

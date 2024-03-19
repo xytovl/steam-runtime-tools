@@ -77,5 +77,6 @@ gboolean pv_bwrap_container_env_to_subsandbox_argv (FlatpakBwrap *flatpak_subsan
                                                     GError **error);
 void pv_bwrap_container_env_to_envp (FlatpakBwrap *bwrap,
                                      SrtEnvOverlay *container_env);
-void pv_bwrap_filtered_container_env_to_bwrap_argv (FlatpakBwrap *bwrap,
-                                                    SrtEnvOverlay *container_env);
+gboolean pv_bwrap_container_env_to_env_fd (FlatpakBwrap *argv,
+                                           SrtEnvOverlay *container_env,
+                                           GError **error);

@@ -117,7 +117,8 @@ PvRuntime *pv_runtime_new (const char *source,
                            GError **error);
 
 gboolean pv_runtime_get_adverb (PvRuntime *self,
-                                FlatpakBwrap *adverb_args);
+                                FlatpakBwrap *adverb_args,
+                                GError **error);
 gboolean pv_runtime_bind (PvRuntime *self,
                           FlatpakExports *exports,
                           FlatpakBwrap *bwrap,

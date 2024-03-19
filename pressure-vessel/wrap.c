@@ -1100,16 +1100,15 @@ main (int argc,
    * the final_argv->envp will be ignored anyway, other than as a way to
    * invoke s-r-launch-client (for which original_environ is appropriate). */
   if (!self->is_flatpak_env)
-    {
-      /* Note that these are two different FlatpakBwrap instances! */
-      pv_bwrap_container_env_to_envp (final_argv, container_env);
-      pv_bwrap_filtered_container_env_to_bwrap_argv (bwrap, container_env);
-    }
+    pv_bwrap_container_env_to_envp (final_argv, container_env);
 
   /* Now that we've populated final_argv->envp, it's too late to change
-   * any environment variables. Make sure we get an assertion failure
-   * if we try. */
-  g_clear_pointer (&container_env, _srt_env_overlay_unref);
+   * any environment variables. Make sure that under normal circumstances
+   * we get an assertion failure if we try.
+   * However, if we're working around a setuid bwrap, we need to keep this
+   * around a little bit longer. */
+  if (!(workarounds & PV_WORKAROUND_FLAGS_BWRAP_SETUID))
+    g_clear_pointer (&container_env, _srt_env_overlay_unref);
 
   if (bwrap != NULL)
     {
@@ -1161,17 +1160,32 @@ main (int argc,
         {
           /* This includes the arguments necessary to regenerate the
            * ld.so cache */
-          if (!pv_runtime_get_adverb (runtime, adverb_argv))
+          if (!pv_runtime_get_adverb (runtime, adverb_argv, error))
             goto out;
         }
       else
         {
           /* If not using a runtime, the adverb in the container has the
-           * same path as outside */
+           * same path as outside and we assume no special LD_LIBRARY_PATH
+           * is needed */
           g_autofree gchar *adverb_in_container =
             g_build_filename (tools_dir, "pressure-vessel-adverb", NULL);
 
           flatpak_bwrap_add_arg (adverb_argv, adverb_in_container);
+        }
+
+      if (workarounds & PV_WORKAROUND_FLAGS_BWRAP_SETUID)
+        {
+          /* If bwrap is setuid, then it might have filtered some
+           * environment variables out of the environment.
+           * Use pv-adverb --env-fd to put them back.
+           * We used to do this for only the environment variables that
+           * a setuid executable would filter out, but now that we're using
+           * --env-fd, it's just as easy to serialize all of them. */
+          if (!pv_bwrap_container_env_to_env_fd (adverb_argv,
+                                                 container_env,
+                                                 error))
+            goto out;
         }
 
       if (self->options.terminate_timeout >= 0.0)

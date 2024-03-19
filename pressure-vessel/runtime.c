@@ -2090,7 +2090,8 @@ pv_runtime_adverb_regenerate_ld_so_cache (PvRuntime *self,
  * and we want -adverb for its locale functionality anyway. */
 gboolean
 pv_runtime_get_adverb (PvRuntime *self,
-                       FlatpakBwrap *bwrap)
+                       FlatpakBwrap *bwrap,
+                       GError **error)
 {
   g_return_val_if_fail (PV_IS_RUNTIME (self), FALSE);
   /* This will be true if pv_runtime_bind() was successfully called. */
@@ -2098,6 +2099,44 @@ pv_runtime_get_adverb (PvRuntime *self,
   g_return_val_if_fail (bwrap != NULL, FALSE);
   g_return_val_if_fail (flatpak_bwrap_is_empty (bwrap), FALSE);
   g_return_val_if_fail (!pv_bwrap_was_finished (bwrap), FALSE);
+
+  if (self->workarounds & PV_WORKAROUND_FLAGS_BWRAP_SETUID)
+    {
+      g_autofree char *ld_library_path = pv_runtime_get_ld_library_path (self);
+      const char *ld_so;
+      const char *tuple;
+
+      /* We can't rely on LD_LIBRARY_PATH staying in the environment,
+       * which means we can't run anything until we have invoked
+       * ldconfig to regenerate ld.so.cache, which is a chicken-and-egg
+       * problem because pv-adverb needs to load shared libraries.
+       * Resolve this by using ld.so(8) to invoke pv-adverb, which we
+       * assume is of the same architecture as pv-wrap. */
+#if defined(_SRT_MULTIARCH)
+      tuple = _SRT_MULTIARCH;
+#elif defined(__x86_64__)
+      tuple = SRT_ABI_X86_64;
+#elif defined(__i386__)
+      tuple = SRT_ABI_I386;
+#elif defined(__aarch64__)
+      tuple = SRT_ABI_AARCH64;
+#else
+#error Unsupported architecture
+#endif
+      ld_so = srt_architecture_get_expected_runtime_linker (tuple);
+
+      if (ld_so == NULL)
+        return glnx_throw (error,
+                           "Runtime linker for architecture %s not known",
+                           tuple);
+
+      g_debug ("Using runtime linker %s to run pv-adverb", ld_so);
+      flatpak_bwrap_add_args (bwrap,
+                              ld_so,
+                              "--library-path",
+                              ld_library_path,
+                              NULL);
+    }
 
   flatpak_bwrap_add_arg (bwrap, self->adverb_in_container);
 
