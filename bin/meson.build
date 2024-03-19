@@ -44,6 +44,7 @@ glib_programs = [
   'check-requirements',
   'identify-library-abi',
   'steam-remote',
+  'supervisor',
   'urlopen',
 ]
 
