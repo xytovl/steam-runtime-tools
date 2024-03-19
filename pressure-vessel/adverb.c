@@ -52,7 +52,7 @@
 #include "utils.h"
 #include "wrap-interactive.h"
 
-static const char * const *global_original_environ = NULL;
+static const char * const *global_envp = NULL;
 static GPtrArray *global_ld_so_conf_entries = NULL;
 static SrtProcessManagerOptions *global_options = NULL;
 static gboolean opt_batch = FALSE;
@@ -387,7 +387,7 @@ run_helper_sync (const char *cwd,
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
   if (envp == NULL)
-    envp = global_original_environ;
+    envp = global_envp;
 
   sigemptyset (&mask);
   sigemptyset (&old_mask);
@@ -502,7 +502,7 @@ regenerate_ld_so_cache (const GPtrArray *ld_so_cache_paths,
 
   if (!run_helper_sync (dir,
                         (const char * const *) argv->pdata,
-                        global_original_environ,
+                        global_envp,
                         &child_stdout,
                         &child_stderr,
                         &wait_status,
@@ -556,7 +556,7 @@ regenerate_ld_so_cache (const GPtrArray *ld_so_cache_paths,
 
       if (!run_helper_sync (NULL,
                             read_back_argv,
-                            global_original_environ,
+                            global_envp,
                             &child_stdout,
                             &child_stderr,
                             &wait_status,
@@ -836,7 +836,7 @@ main (int argc,
       char *argv[])
 {
   g_auto(SrtProcessManagerOptions) process_manager_options = SRT_PROCESS_MANAGER_OPTIONS_INIT;
-  g_auto(GStrv) original_environ = NULL;
+  g_auto(GStrv) envp = NULL;
   g_autoptr(GPtrArray) ld_so_conf_entries = NULL;
   g_autoptr(GOptionContext) context = NULL;
   g_autoptr(GError) local_error = NULL;
@@ -854,8 +854,8 @@ main (int argc,
 
   global_options = &process_manager_options;
 
-  original_environ = g_get_environ ();
-  global_original_environ = (const char * const *) original_environ;
+  envp = g_get_environ ();
+  global_envp = (const char * const *) envp;
 
   ld_so_conf_entries = g_ptr_array_new_with_free_func (g_free);
   global_ld_so_conf_entries = ld_so_conf_entries;
@@ -967,13 +967,19 @@ main (int argc,
   if (process_manager == NULL)
     goto out;
 
-  if (opt_clear_env)
-    wrapped_command = flatpak_bwrap_new (flatpak_bwrap_empty_env);
-  else
-    wrapped_command = flatpak_bwrap_new (original_environ);
+  envp = _srt_env_overlay_apply (env_overlay, envp);
 
-  wrapped_command->envp = _srt_env_overlay_apply (env_overlay,
-                                                  wrapped_command->envp);
+  if (opt_clear_env)
+    {
+      wrapped_command = flatpak_bwrap_new (flatpak_bwrap_empty_env);
+      wrapped_command->envp = _srt_env_overlay_apply (env_overlay,
+                                                      wrapped_command->envp);
+    }
+  else
+    {
+      wrapped_command = flatpak_bwrap_new (envp);
+    }
+
   g_clear_pointer (&env_overlay, _srt_env_overlay_unref);
 
   if (opt_terminal == PV_TERMINAL_AUTO)
@@ -1142,7 +1148,7 @@ out:
   if (local_error != NULL)
     _srt_log_failure ("%s", local_error->message);
 
-  global_original_environ = NULL;
+  global_envp = NULL;
   g_debug ("Exiting with status %d", ret);
   return ret;
 }
