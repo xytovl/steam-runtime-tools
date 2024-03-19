@@ -3425,6 +3425,72 @@ bind_runtime_base (PvRuntime *self,
         }
     }
 
+  if (self->flags & PV_RUNTIME_FLAGS_IMPORT_CA_CERTS)
+    {
+      g_auto(SrtDirIter) iter = SRT_DIR_ITER_CLEARED;
+      glnx_autofd int dirfd = -1;
+      struct dirent *dent;
+
+      flatpak_bwrap_add_args (bwrap,
+                              "--tmpfs", "/etc/ssl/certs",
+                              NULL);
+
+      /* This is a developer-facing rather than end-user-facing flag, so
+       * for simplicity this assumes that the runtime is Debian-based, and
+       * that the host OS has also been set up to be compatible with
+       * Debian's layout for CA certificates (like Arch is). */
+      dirfd = _srt_sysroot_open (self->host_root,
+                                 "/etc/ssl/certs",
+                                 (SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY
+                                  | SRT_RESOLVE_FLAGS_READABLE),
+                                 NULL,
+                                 error);
+
+      if (dirfd < 0)
+        return FALSE;
+
+      if (!_srt_dir_iter_init_take_fd (&iter, &dirfd,
+                                       SRT_DIR_ITER_FLAGS_NONE,
+                                       self->arbitrary_dirent_order,
+                                       error))
+        return FALSE;
+
+      while (_srt_dir_iter_next_dent (&iter, &dent, NULL, NULL) && dent != NULL)
+        {
+          const char *member = dent->d_name;
+
+          if (g_str_equal (member, "ca-certificates.crt")
+              || g_str_has_suffix (member, ".0"))
+            {
+              g_autoptr(GError) local_error = NULL;
+              g_autofree gchar *logical_path = NULL;
+              g_autofree gchar *resolved = NULL;
+              glnx_autofd int fd = -1;
+
+              logical_path = g_build_filename ("/etc/ssl/certs", member, NULL);
+              fd = _srt_sysroot_open (self->host_root,
+                                      logical_path,
+                                      (SRT_RESOLVE_FLAGS_READABLE
+                                       | SRT_RESOLVE_FLAGS_RETURN_ABSOLUTE),
+                                      &resolved,
+                                      &local_error);
+
+              if (fd < 0)
+                {
+                  g_warning ("%s", local_error->message);
+                  continue;
+                }
+
+              if (!pv_runtime_bind_into_container (self, bwrap,
+                                                   resolved, NULL, 0,
+                                                   logical_path,
+                                                   PV_RUNTIME_EMULATION_ROOTS_BOTH,
+                                                   error))
+                return FALSE;
+            }
+        }
+    }
+
   return TRUE;
 }
 

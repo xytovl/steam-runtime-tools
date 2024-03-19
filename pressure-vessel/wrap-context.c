@@ -56,6 +56,7 @@ pv_wrap_options_init (PvWrapOptions *self)
   self->gc_runtimes = TRUE;
   self->generate_locales = TRUE;
   self->graphics_provider = FALSE;
+  self->import_ca_certs = FALSE;
   self->import_vulkan_layers = TRUE;
   self->launcher = FALSE;
   self->only_prepare = FALSE;
@@ -537,6 +538,8 @@ pv_wrap_options_parse_environment (PvWrapOptions *self,
                                                         self->remove_game_overlay);
   self->systemd_scope = _srt_boolean_environment ("PRESSURE_VESSEL_SYSTEMD_SCOPE",
                                                   self->systemd_scope);
+  self->import_ca_certs = _srt_boolean_environment ("PRESSURE_VESSEL_IMPORT_CA_CERTS",
+                                                    self->import_ca_certs);
   self->import_vulkan_layers = _srt_boolean_environment ("PRESSURE_VESSEL_IMPORT_VULKAN_LAYERS",
                                                          self->import_vulkan_layers);
 
