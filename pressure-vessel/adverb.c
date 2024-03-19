@@ -1032,32 +1032,6 @@ main (int argc,
   flatpak_bwrap_append_argsv (wrapped_command, &argv[1], argc - 1);
   flatpak_bwrap_finish (wrapped_command);
 
-  lib_temp_dirs = pv_per_arch_dirs_new (error);
-
-  if (lib_temp_dirs == NULL)
-    {
-      g_warning ("%s", local_error->message);
-      g_clear_error (error);
-    }
-
-  if (opt_overrides != NULL
-      && !pv_adverb_set_up_overrides (wrapped_command,
-                                      lib_temp_dirs,
-                                      opt_overrides,
-                                      error))
-    {
-      g_warning ("%s", local_error->message);
-      g_clear_error (error);
-    }
-
-  if (opt_preload_modules != NULL
-      && !pv_adverb_set_up_preload_modules (wrapped_command,
-                                            lib_temp_dirs,
-                                            (const PvAdverbPreloadModule *) opt_preload_modules->data,
-                                            opt_preload_modules->len,
-                                            error))
-    goto out;
-
   if (opt_regenerate_ld_so_cache != NULL
       && opt_regenerate_ld_so_cache[0] != '\0')
     {
@@ -1096,6 +1070,32 @@ main (int argc,
       flatpak_bwrap_set_env (wrapped_command, "LD_LIBRARY_PATH",
                              opt_set_ld_library_path, TRUE);
     }
+
+  lib_temp_dirs = pv_per_arch_dirs_new (error);
+
+  if (lib_temp_dirs == NULL)
+    {
+      g_warning ("%s", local_error->message);
+      g_clear_error (error);
+    }
+
+  if (opt_overrides != NULL
+      && !pv_adverb_set_up_overrides (wrapped_command,
+                                      lib_temp_dirs,
+                                      opt_overrides,
+                                      error))
+    {
+      g_warning ("%s", local_error->message);
+      g_clear_error (error);
+    }
+
+  if (opt_preload_modules != NULL
+      && !pv_adverb_set_up_preload_modules (wrapped_command,
+                                            lib_temp_dirs,
+                                            (const PvAdverbPreloadModule *) opt_preload_modules->data,
+                                            opt_preload_modules->len,
+                                            error))
+    goto out;
 
   if (opt_generate_locales)
     {
