@@ -36,7 +36,8 @@ static int check_features (char *features)
     char *saveptr = NULL;
     char *token;
 
-    if (strcmp0(getenv("XDG_CURRENT_DESKTOP"), "gamescope") == 0) {
+    if (strcmp0(getenv("XDG_CURRENT_DESKTOP"), "gamescope") == 0
+        && strcmp0(getenv("STEAM_RUNTIME_DIALOG__FORCE_GAMESCOPE"), "1") != 0) {
         return SDL_SetError("This implementation does not yet work under Gamescope");
     }
 
