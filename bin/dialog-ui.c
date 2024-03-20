@@ -200,8 +200,8 @@ dialog_set_app_id(Dialog *self)
      * Note that this needs to be a long because that's how Xlib represents
      * CARDINAL properties, even though a CARDINAL is only 32 bits of
      * valid data! */
-    static const unsigned long appid = 769;
-
+    unsigned long appid = 769;
+    const char *appid_str;
     SDL_SysWMinfo info = {
         .version = { .major = 2, .minor = 0, .patch = 0 }
     };
@@ -239,6 +239,12 @@ dialog_set_app_id(Dialog *self)
     if (appid_atom == None) {
         warnx("Unable to create X11 Atom for STEAM_GAME");
         return;
+    }
+
+    appid_str = getenv("STEAM_RUNTIME_DIALOG__FORCE_APPID");
+
+    if (appid_str != NULL) {
+        appid = strtoul(appid_str, NULL, 10);
     }
 
     res = XChangeProperty(info.info.x11.display, info.info.x11.window,
