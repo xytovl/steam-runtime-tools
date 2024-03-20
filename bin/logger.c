@@ -84,7 +84,7 @@ static const GOptionEntry option_entries[] =
   { "log-directory", 'd',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_FILENAME, &opt_log_directory,
     "Directory in which to write logs "
-    "[default: $STEAM_CLIENT_LOG_FOLDER or ~/.steam/root/logs]",
+    "[default: $STEAM_CLIENT_LOG_FOLDER or ~/.steam/steam/logs]",
     "PATH" },
   { "log-fd", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_INT, &opt_log_fd,

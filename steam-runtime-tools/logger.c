@@ -316,7 +316,7 @@ _srt_logger_setup (SrtLogger *self,
             }
 
           self->log_dir = g_build_filename (g_get_home_dir (),
-                                            ".steam", "root", dir,
+                                            ".steam", "steam", dir,
                                             NULL);
 
           g_debug ("using %s: %s", source, self->log_dir);

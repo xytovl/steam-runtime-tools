@@ -80,9 +80,9 @@ final log messages during shutdown to be recorded.
     interpreted as being absolute or relative to the current working
     directory in the usual way.
     Otherwise, if `$STEAM_CLIENT_LOG_FOLDER` is set, the default is
-    that directory interpreted as relative to `~/.steam/root` (unusually,
+    that directory interpreted as relative to `~/.steam/steam` (unusually,
     this is done even if it starts with `/`).
-    Otherwise the default is `~/.steam/root/logs`.
+    Otherwise the default is `~/.steam/steam/logs`.
     The log directory must already exist during **srt-logger** startup.
 
 **--log-fd** *FD*
@@ -159,7 +159,7 @@ final log messages during shutdown to be recorded.
     **--use-journal** to all **srt-logger** invocations.
 
 `STEAM_CLIENT_LOG_FOLDER`
-:   A path relative to `~/.steam/root` to be used as a default log
+:   A path relative to `~/.steam/steam` to be used as a default log
     directory if `$SRT_LOG_DIR` is unset.
     The default is `logs`.
     Note that unusually, this is interpreted as a relative path, even if
