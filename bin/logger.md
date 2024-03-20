@@ -22,7 +22,9 @@ srt-logger - record logs
 # DESCRIPTION
 
 If run without a *COMMAND*, **srt-logger** reads from standard input
-and writes to standard error, a log file and/or the systemd Journal.
+and writes to a log file.
+Depending on configuration and execution environment, messages might also
+be copied to the terminal and/or the systemd Journal.
 
 If run with a *COMMAND*, **srt-logger** runs the *COMMAND* with its
 standard output and standard error connected to a pipe, with a new
