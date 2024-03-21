@@ -61,9 +61,6 @@ One option is special:
 `SYSTEM_LD_LIBRARY_PATH`
 :   Used to reset `LD_LIBRARY_PATH` to the value it had on entry to Steam.
 
-`SYSTEM_LD_PRELOAD`
-:   Used to reset `LD_PRELOAD` to the value it had on entry to Steam.
-
 `SYSTEM_PATH`
 :   Used to reset `PATH` to the value it had on entry to Steam.
 

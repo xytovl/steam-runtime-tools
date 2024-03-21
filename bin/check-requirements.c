@@ -49,6 +49,7 @@
 #include <steam-runtime-tools/cpu-feature-internal.h>
 #include <steam-runtime-tools/log-internal.h>
 #include <steam-runtime-tools/resolve-in-sysroot-internal.h>
+#include <steam-runtime-tools/runtime-internal.h>
 #include <steam-runtime-tools/steam-internal.h>
 #include <steam-runtime-tools/utils-internal.h>
 
@@ -185,6 +186,7 @@ int
 main (int argc,
       char **argv)
 {
+  g_auto(GStrv) subproc_environ = NULL;
   g_autoptr(FILE) original_stdout = NULL;
   g_autoptr(GError) error = NULL;
   g_autoptr(SrtContainerInfo) container_info = NULL;
@@ -204,6 +206,7 @@ main (int argc,
   SrtBwrapIssues bwrap_issues;
   SrtFlatpakIssues flatpak_issues;
 
+  subproc_environ = g_get_environ ();
   _srt_setenv_disable_gio_modules ();
   log_flags = SRT_LOG_FLAGS_OPTIONALLY_JOURNAL | SRT_LOG_FLAGS_DIVERT_STDOUT;
 
@@ -287,7 +290,17 @@ main (int argc,
       g_clear_error (&error);
     }
 
-  runner = _srt_subprocess_runner_new ();
+  /* Emulate the environment that will be used for the container runtime
+   * framework, by not loading any LD_PRELOAD modules.
+   * This corresponds to what pressure-vessel-unruntime does. */
+  subproc_environ = _srt_environ_escape_steam_runtime (subproc_environ);
+  subproc_environ = g_environ_unsetenv (subproc_environ, "LD_AUDIT");
+  subproc_environ = g_environ_unsetenv (subproc_environ, "LD_PRELOAD");
+
+  runner = _srt_subprocess_runner_new_full (_srt_const_strv (subproc_environ),
+                                            NULL,
+                                            NULL,
+                                            SRT_TEST_FLAGS_NONE);
   sysroot = _srt_sysroot_new_direct (&error);
 
   if (sysroot == NULL)

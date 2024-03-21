@@ -70,11 +70,6 @@ main () {
         export LD_LIBRARY_PATH="$SYSTEM_LD_LIBRARY_PATH"
     fi
 
-    if [ -n "${SYSTEM_LD_PRELOAD+set}" ]; then
-        set -- "--steam-runtime-env=SYSTEM_LD_PRELOAD=$SYSTEM_LD_PRELOAD" "$@"
-        export LD_PRELOAD="$SYSTEM_LD_PRELOAD"
-    fi
-
     if [ -n "${STEAM_RUNTIME_LIBRARY_PATH+set}" ]; then
         set -- "--steam-runtime-env=STEAM_RUNTIME_LIBRARY_PATH=$STEAM_RUNTIME_LIBRARY_PATH" "$@"
     fi
