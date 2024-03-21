@@ -20,7 +20,7 @@ Build-Depends:
  libglib2.0-dev,
  libjson-glib-dev (>= 1.0),
  libsdl2-dev,
- libsdl2-ttf-dev,
+ libsdl2-ttf-dev <!pkg.steamrt.heavy>,
  libtheora0 <!nocheck>,
  libudev1 <!nocheck> | libudev0 <!nocheck>,
  libva-dev,
@@ -257,6 +257,7 @@ Description: Steam Runtime utility library - minimal command-line tools
  Steam Runtime setup.
 
 Package: steam-runtime-tools-ui
+Build-Profiles: <!pkg.steamrt.heavy>
 Architecture: any
 Multi-Arch: foreign
 Section: x11
