@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20240319.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20240321.0) UNRELEASED; urgency=medium
 
   * steam-runtime-system-info:
     - Do the same functional tests on bwrap that were previously only
@@ -9,15 +9,25 @@ steam-runtime-tools (0.20240319.0) UNRELEASED; urgency=medium
     - Emit more specific messages for several common bwrap problems
       (steamrt/tasks#406)
     - Detect several common Flatpak problems (steamrt/tasks#406)
+  * steam-runtime-launch-client:
+    - Document --env-fd
   * srt-logger:
     - New tool to divert command output to a log file (with rotation),
       the terminal from which Steam was run (if any), and optionally
       the systemd Journal (steamrt/tasks#393)
+    - Unset LD_PRELOAD etc. before running srt-bwrap, matching what we will
+      actually do in pressure-vessel (steam-runtime#658)
+  * steam-runtime-dialog:
+    - New tool, a wrapper for zenity-style UIs (steamrt/tasks#376)
+  * steam-runtime-dialog-ui:
+    - New tool, a fallback UI for steam-runtime-dialog (steamrt/tasks#376)
+  * steam-runtime-launch-options:
+    - Use ~/.steam/root/steam-dialog, if available, in preference to zenity
   * pressure-vessel:
     - Treat $BWRAP as less-preferred than pv-bwrap. The order we try is now:
-      $PRESSURE_VESSEL_BWRAP > pv-bwrap > $BWRAP > system bwrap
+      $PRESSURE_VESSEL_BWRAP > srt-bwrap > $BWRAP > system bwrap
       instead of the previous:
-      $PRESSURE_VESSEL_BWRAP > $BWRAP > pv-bwrap > system bwrap
+      $PRESSURE_VESSEL_BWRAP > $BWRAP > srt-bwrap > system bwrap
     - Add a PRESSURE_VESSEL_WORKAROUNDS environment variable.
       This is a space- or comma-separated list of
       workarounds to enable ("+foo") or disable ("-foo").
@@ -25,8 +35,11 @@ steam-runtime-tools (0.20240319.0) UNRELEASED; urgency=medium
       `steam-snap#370` are enabled by default while running under Snap,
       but they can be disabled to test new Snap releases where the relevant
       bug has been fixed.
-      There is also a `bwrap-no-perms` workaround, which is used automatically
-      if a pre-0.5.0 version of bubblewrap is detected, but can be disabled.
+      For non-Snap systems, the initial workarounds are `bwrap-no-perms`
+      and `bwrap-setuid`, which are used automatically if they appear to be
+      needed, but can be explicitly enabled or disabled for testing.
+    - Fix a regression when using a setuid system copy of bubblewrap
+      (steam-runtime#650)
     - Make library dependencies in /var/lib/snapd/hostfs available,
       fixing missing /usr/share/nvidia (steam-runtime#586).
       This is only done if `-steam-snap#359` appears in
@@ -36,14 +49,18 @@ steam-runtime-tools (0.20240319.0) UNRELEASED; urgency=medium
       This cannot yet be done by default because it is not allowed by the
       AppArmor profile (canonical/steam-snap/issues/359), so it is only done
       if "-steam-snap#359" appears in PRESSURE_VESSEL_WORKAROUNDS.
+    - Under Flatpak, use --env-fd to shorten s-r-launch-client command line
+    - Remove dead code for non-subsandbox Flatpak
     - Refactoring
   * SteamLinuxRuntime_sniper.sh:
     - exec entry point instead of running it as a subprocess.
       This saves us a process, and more directly, it means that there's one
       fewer process that will not terminate its descendants when killed.
+    - Use ~/.steam/root/steam-dialog for UI if available
+  * Refactoring
   * tests: Improve unit test coverage
 
- -- Simon McVittie <smcv@collabora.com>  Tue, 19 Mar 2024 17:26:03 +0000
+ -- Simon McVittie <smcv@collabora.com>  Thu, 21 Mar 2024 13:15:06 +0000
 
 steam-runtime-tools (0.20240306.0) steamrt; urgency=medium
 
