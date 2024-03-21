@@ -136,7 +136,31 @@ srt_bin += executable(
   install_rpath : bin_rpath,
 )
 
+# Different: needs threads and UI
+if sdl2_dep.found()
+  glib_programs += 'dialog-ui'
+  srt_bin += executable(
+    'steam-runtime-dialog-ui',
+    sources: [
+      'dialog-ui.c',
+    ],
+    c_args : srt_c_args,
+    dependencies : [
+      threads,
+      gio_unix,
+      libglnx_dep,
+      libsteamrt_static_dep,
+      libsteamrt_ui_dep,
+      sdl2_dep,
+      sdl2_ttf_dep,
+      x11_dep,
+    ],
+    install : true,
+  )
+endif
+
 sh_scripts = [
+  'dialog',
   'launch-options',
 ]
 

@@ -95,6 +95,16 @@ main () {
     if ! result="$("$script" --check-gui-dependencies 2>&1)"; then
         echo "$result" >&2
 
+        if [ -x ~/.steam/root/steam-dialog ]; then
+            if [ -e "$script" ]; then
+                result="The pressure-vessel developer/debugging options menu requires Python 3, PyGI, GTK 3, and GTK 3 GObject-Introspection data.
+
+$result"
+            fi
+            ~/.steam/root/steam-dialog --error --width=500 --text="$result"
+            exit 125
+        fi
+
         if [ -z "${STEAM_ZENITY-unset}" ]; then
             # Steam sets STEAM_ZENITY to the empty string if it wants to
             # suppress use of zenity dialogs, for example on Steam Deck.

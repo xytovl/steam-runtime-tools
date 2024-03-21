@@ -519,6 +519,12 @@ if get_option('libcurl_compat')
   ]
 endif
 
+if get_option('bin') and sdl2_dep.found()
+  test_scripts += [
+    {'name': 'dialog-ui.py'},
+  ]
+endif
+
 foreach test_info : test_scripts
   test_name = test_info['name']
   program = files(test_name)

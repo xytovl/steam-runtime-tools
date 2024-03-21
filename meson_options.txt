@@ -64,6 +64,13 @@ option(
   description: 'Search for this Python instead of "python3.5" and "python3"'
 )
 
+option(
+  'ui',
+  type : 'feature',
+  value : 'auto',
+  description : 'Provide SDL-based steam-dialog implementation',
+)
+
 option('fully_featured_python', type : 'string', value : '')
 option('srcdir', type : 'string', value : '')
 option('test_containers_dir', type : 'string', value : '')

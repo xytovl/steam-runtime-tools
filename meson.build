@@ -91,6 +91,12 @@ gobject_introspection_dep = dependency(
 )
 build_gir = gobject_introspection_dep.found()
 
+dbus_dep = dependency('dbus-1', required : get_option('ui'))
+sdl2_dep = dependency('sdl2', required : get_option('ui'))
+sdl2_ttf_dep = dependency('SDL2_ttf', required : get_option('ui'))
+fontconfig_dep = dependency('fontconfig', required : get_option('ui'))
+x11_dep = dependency('x11', required : get_option('ui'))
+
 dbus_run_session = find_program('dbus-run-session', required : false)
 glslang_validator = find_program('glslangValidator', required : true)
 sh = find_program('sh', required : true)

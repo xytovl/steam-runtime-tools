@@ -310,6 +310,27 @@ libsteamrt_compilation = declare_dependency(
   compile_args : ['-D_SRT_COMPILATION'],
 )
 
+if sdl2_dep.found()
+  libsteamrt_ui = static_library(
+    'steam-runtime-tools-ui',
+    'sdl-utils.c',
+    c_args : srt_c_args,
+    include_directories : project_include_dirs,
+    dependencies : [
+      dbus_dep,
+      sdl2_dep,
+      sdl2_ttf_dep,
+      fontconfig_dep,
+      libsteamrt_libc_utils_dep,
+    ],
+    install : false,
+  )
+  libsteamrt_ui_dep = declare_dependency(
+    include_directories : project_include_dirs,
+    link_with : libsteamrt_ui,
+  )
+endif
+
 if build_gir
   gnome.generate_gir(
     libsteamrt,

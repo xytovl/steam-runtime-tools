@@ -208,3 +208,29 @@ unblock_signals_single_threaded (void)
         (void) sigaction (sig, &action, NULL);
     }
 }
+
+/*
+ * getenv_bool:
+ * @env: Name of an environment variable
+ * @def: Default if unset or empty
+ *
+ * Try to interpret @env as boolean:
+ *
+ * - if unset or empty, return @def
+ * - if set to `0`, return false
+ * - otherwise return true
+ */
+static inline bool
+getenv_bool (const char *env,
+             bool def)
+{
+  const char *value = getenv (env);
+
+  if (value == NULL || *value == '\0')
+    return def;
+
+  if (strcmp (value, "0") == 0)
+    return false;
+
+  return true;
+}
