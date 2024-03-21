@@ -25,8 +25,9 @@
 
 #pragma once
 
-#include "environ.h"
+#include "steam-runtime-tools/env-overlay-internal.h"
+
 #include "flatpak-bwrap-private.h"
 
 void pv_wrap_add_pipewire_args (FlatpakBwrap *sharing_bwrap,
-                                PvEnviron *container_env);
+                                SrtEnvOverlay *container_env);

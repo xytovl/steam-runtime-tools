@@ -30,6 +30,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "steam-runtime-tools/env-overlay-internal.h"
 #include "steam-runtime-tools/glib-backports-internal.h"
 #include "steam-runtime-tools/log-internal.h"
 #include "steam-runtime-tools/profiling-internal.h"
@@ -37,7 +38,6 @@
 #include "libglnx.h"
 
 #include "bwrap.h"
-#include "environ.h"
 #include "flatpak-bwrap-private.h"
 #include "flatpak-run-private.h"
 #include "flatpak-utils-base-private.h"
@@ -89,7 +89,7 @@ main (int argc,
   gsize i;
   PvHomeMode home_mode;
   g_autoptr(FlatpakBwrap) flatpak_subsandbox = NULL;
-  g_autoptr(PvEnviron) container_env = NULL;
+  g_autoptr(SrtEnvOverlay) container_env = NULL;
   g_autoptr(FlatpakBwrap) bwrap = NULL;
   g_autoptr(FlatpakBwrap) bwrap_filesystem_arguments = NULL;
   g_autoptr(FlatpakBwrap) bwrap_home_arguments = NULL;
@@ -394,7 +394,7 @@ main (int argc,
         }
 
       if (self->options.launcher)
-        g_debug ("Arguments for pv-launcher:");
+        g_debug ("Arguments for s-r-launcher-service:");
       else
         g_debug ("Wrapped command:");
 
@@ -482,7 +482,7 @@ main (int argc,
   g_assert ((bwrap != NULL) == (bwrap_filesystem_arguments != NULL));
   g_assert ((bwrap != NULL) == (bwrap_executable != NULL));
 
-  container_env = pv_environ_new ();
+  container_env = _srt_env_overlay_new ();
 
   if (bwrap != NULL)
     {
@@ -754,7 +754,7 @@ main (int argc,
           /* Nothing special to do here: we'll use the same home directory
            * and exports that the parent Flatpak sandbox used. */
         }
-      else if (flatpak_subsandbox != NULL)
+      else
         {
           /* Not yet supported */
           glnx_throw (error,
@@ -816,7 +816,7 @@ main (int argc,
           g_autofree gchar *adjusted_blockedlist = NULL;
           adjusted_blockedlist = g_build_filename ("/run/parent",
                                                    blockedlist, NULL);
-          pv_environ_setenv (container_env, "SHARED_LIBRARY_GUARD_CONFIG",
+          _srt_env_overlay_set (container_env, "SHARED_LIBRARY_GUARD_CONFIG",
                              adjusted_blockedlist);
         }
     }
@@ -972,7 +972,7 @@ main (int argc,
                               NULL);
     }
 
-  pv_environ_setenv (container_env, "PWD", NULL);
+  _srt_env_overlay_set (container_env, "PWD", NULL);
 
   /* Put Steam Runtime environment variables back, if /usr is mounted
    * from the host. */
@@ -999,7 +999,7 @@ main (int argc,
 
               *equals = '\0';
 
-              pv_environ_setenv (container_env, self->options.env_if_host[i],
+              _srt_env_overlay_set (container_env, self->options.env_if_host[i],
                                    equals + 1);
 
               *equals = '=';
@@ -1072,42 +1072,43 @@ main (int argc,
   if (self->is_flatpak_env)
     {
       /* Let these inherit from the sub-sandbox environment */
-      pv_environ_inherit_env (container_env, "FLATPAK_ID");
-      pv_environ_inherit_env (container_env, "FLATPAK_SANDBOX_DIR");
-      pv_environ_inherit_env (container_env, "DBUS_SESSION_BUS_ADDRESS");
-      pv_environ_inherit_env (container_env, "DBUS_SYSTEM_BUS_ADDRESS");
-      pv_environ_inherit_env (container_env, "DISPLAY");
-      pv_environ_inherit_env (container_env, "XDG_RUNTIME_DIR");
+      _srt_env_overlay_inherit (container_env, "FLATPAK_ID");
+      _srt_env_overlay_inherit (container_env, "FLATPAK_SANDBOX_DIR");
+      _srt_env_overlay_inherit (container_env, "DBUS_SESSION_BUS_ADDRESS");
+      _srt_env_overlay_inherit (container_env, "DBUS_SYSTEM_BUS_ADDRESS");
+      _srt_env_overlay_inherit (container_env, "DISPLAY");
+      _srt_env_overlay_inherit (container_env, "XDG_RUNTIME_DIR");
 
       /* The bwrap envp will be completely ignored when calling
-       * pv-launch, and in fact putting them in its environment
-       * variables would be wrong, because pv-launch needs to see the
+       * s-r-launch-client, and in fact putting them in its environment
+       * variables would be wrong, because s-r-launch-client needs to see the
        * current execution environment's DBUS_SESSION_BUS_ADDRESS
        * (if different). For this reason we convert them to `--setenv`. */
-      if (flatpak_subsandbox != NULL)
-        pv_bwrap_container_env_to_subsandbox_argv (flatpak_subsandbox, container_env);
-      else
-        pv_bwrap_container_env_to_bwrap_argv (bwrap, container_env);
+      g_assert (flatpak_subsandbox != NULL);
+
+      if (!pv_bwrap_container_env_to_subsandbox_argv (flatpak_subsandbox,
+                                                      container_env,
+                                                      error))
+        goto out;
     }
 
   final_argv = flatpak_bwrap_new (self->original_environ);
 
   /* Populate final_argv->envp, overwriting its copy of original_environ.
    * We skip this if we are in a Flatpak environment, because in that case
-   * we already used `--setenv` for all the variables that we care about and
+   * we already used `--env-fd` for all the variables that we care about and
    * the final_argv->envp will be ignored anyway, other than as a way to
-   * invoke pv-launch (for which original_environ is appropriate). */
+   * invoke s-r-launch-client (for which original_environ is appropriate). */
   if (!self->is_flatpak_env)
-    {
-      /* Note that these are two different FlatpakBwrap instances! */
-      pv_bwrap_container_env_to_envp (final_argv, container_env);
-      pv_bwrap_filtered_container_env_to_bwrap_argv (bwrap, container_env);
-    }
+    pv_bwrap_container_env_to_envp (final_argv, container_env);
 
   /* Now that we've populated final_argv->envp, it's too late to change
-   * any environment variables. Make sure we get an assertion failure
-   * if we try. */
-  g_clear_pointer (&container_env, pv_environ_free);
+   * any environment variables. Make sure that under normal circumstances
+   * we get an assertion failure if we try.
+   * However, if we're working around a setuid bwrap, we need to keep this
+   * around a little bit longer. */
+  if (!(workarounds & PV_WORKAROUND_FLAGS_BWRAP_SETUID))
+    g_clear_pointer (&container_env, _srt_env_overlay_unref);
 
   if (bwrap != NULL)
     {
@@ -1159,17 +1160,32 @@ main (int argc,
         {
           /* This includes the arguments necessary to regenerate the
            * ld.so cache */
-          if (!pv_runtime_get_adverb (runtime, adverb_argv))
+          if (!pv_runtime_get_adverb (runtime, adverb_argv, error))
             goto out;
         }
       else
         {
           /* If not using a runtime, the adverb in the container has the
-           * same path as outside */
+           * same path as outside and we assume no special LD_LIBRARY_PATH
+           * is needed */
           g_autofree gchar *adverb_in_container =
             g_build_filename (tools_dir, "pressure-vessel-adverb", NULL);
 
           flatpak_bwrap_add_arg (adverb_argv, adverb_in_container);
+        }
+
+      if (workarounds & PV_WORKAROUND_FLAGS_BWRAP_SETUID)
+        {
+          /* If bwrap is setuid, then it might have filtered some
+           * environment variables out of the environment.
+           * Use pv-adverb --env-fd to put them back.
+           * We used to do this for only the environment variables that
+           * a setuid executable would filter out, but now that we're using
+           * --env-fd, it's just as easy to serialize all of them. */
+          if (!pv_bwrap_container_env_to_env_fd (adverb_argv,
+                                                 container_env,
+                                                 error))
+            goto out;
         }
 
       if (self->options.terminate_timeout >= 0.0)

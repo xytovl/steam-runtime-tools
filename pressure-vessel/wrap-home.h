@@ -22,9 +22,12 @@
 
 #include <glib.h>
 
-#include "environ.h"
+#include "libglnx.h"
+
 #include "flatpak-bwrap-private.h"
 #include "flatpak-exports-private.h"
+
+#include "steam-runtime-tools/env-overlay-internal.h"
 
 /**
  * PvHomeMode:
@@ -47,5 +50,5 @@ gboolean pv_wrap_use_home (PvHomeMode mode,
                            const char *private_home,
                            FlatpakExports *exports,
                            FlatpakBwrap *bwrap_home_arguments,
-                           PvEnviron *container_env,
+                           SrtEnvOverlay *container_env,
                            GError **error);

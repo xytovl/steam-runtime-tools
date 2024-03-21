@@ -34,6 +34,7 @@
 #include <glib/gstdio.h>
 #include <gio/gio.h>
 
+#include "steam-runtime-tools/env-overlay-internal.h"
 #include "steam-runtime-tools/glib-backports-internal.h"
 #include "steam-runtime-tools/file-lock-internal.h"
 #include "steam-runtime-tools/launcher-internal.h"
@@ -51,10 +52,11 @@
 #include "utils.h"
 #include "wrap-interactive.h"
 
-static const char * const *global_original_environ = NULL;
+static const char * const *global_envp = NULL;
 static GPtrArray *global_ld_so_conf_entries = NULL;
 static SrtProcessManagerOptions *global_options = NULL;
 static gboolean opt_batch = FALSE;
+static gboolean opt_clear_env = FALSE;
 static gboolean opt_create = FALSE;
 static gboolean opt_exit_with_parent = FALSE;
 static gboolean opt_generate_locales = FALSE;
@@ -385,7 +387,7 @@ run_helper_sync (const char *cwd,
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
   if (envp == NULL)
-    envp = global_original_environ;
+    envp = global_envp;
 
   sigemptyset (&mask);
   sigemptyset (&old_mask);
@@ -500,7 +502,7 @@ regenerate_ld_so_cache (const GPtrArray *ld_so_cache_paths,
 
   if (!run_helper_sync (dir,
                         (const char * const *) argv->pdata,
-                        global_original_environ,
+                        global_envp,
                         &child_stdout,
                         &child_stderr,
                         &wait_status,
@@ -554,7 +556,7 @@ regenerate_ld_so_cache (const GPtrArray *ld_so_cache_paths,
 
       if (!run_helper_sync (NULL,
                             read_back_argv,
-                            global_original_environ,
+                            global_envp,
                             &child_stdout,
                             &child_stderr,
                             &wait_status,
@@ -681,6 +683,10 @@ static GOptionEntry options[] =
     G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_batch,
     "Disable all interactivity and redirection: ignore --shell*, "
     "--terminal. [Default: if $PRESSURE_VESSEL_BATCH]", NULL },
+
+  { "clear-env", '\0',
+    G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_clear_env,
+    "Run with clean environment.", NULL },
 
   { "fd", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_CALLBACK, opt_fd_cb,
@@ -830,10 +836,11 @@ main (int argc,
       char *argv[])
 {
   g_auto(SrtProcessManagerOptions) process_manager_options = SRT_PROCESS_MANAGER_OPTIONS_INIT;
-  g_auto(GStrv) original_environ = NULL;
+  g_auto(GStrv) envp = NULL;
   g_autoptr(GPtrArray) ld_so_conf_entries = NULL;
   g_autoptr(GOptionContext) context = NULL;
   g_autoptr(GError) local_error = NULL;
+  g_autoptr(SrtEnvOverlay) env_overlay = NULL;
   g_autoptr(SrtProcessManager) process_manager = NULL;
   GError **error = &local_error;
   int ret = EX_USAGE;
@@ -847,8 +854,8 @@ main (int argc,
 
   global_options = &process_manager_options;
 
-  original_environ = g_get_environ ();
-  global_original_environ = (const char * const *) original_environ;
+  envp = g_get_environ ();
+  global_envp = (const char * const *) envp;
 
   ld_so_conf_entries = g_ptr_array_new_with_free_func (g_free);
   global_ld_so_conf_entries = ld_so_conf_entries;
@@ -869,6 +876,10 @@ main (int argc,
 
   g_option_context_add_main_entries (context, options, NULL);
 
+  env_overlay = _srt_env_overlay_new ();
+  g_option_context_add_group (context,
+                              _srt_env_overlay_create_option_group (env_overlay));
+
   opt_batch = _srt_boolean_environment ("PRESSURE_VESSEL_BATCH", FALSE);
   opt_verbose = _srt_boolean_environment ("PRESSURE_VESSEL_VERBOSE", FALSE);
 
@@ -883,6 +894,8 @@ main (int argc,
 
       goto out;
     }
+
+  g_clear_pointer (&context, g_option_context_free);
 
   if (opt_version)
     {
@@ -954,7 +967,20 @@ main (int argc,
   if (process_manager == NULL)
     goto out;
 
-  wrapped_command = flatpak_bwrap_new (original_environ);
+  envp = _srt_env_overlay_apply (env_overlay, envp);
+
+  if (opt_clear_env)
+    {
+      wrapped_command = flatpak_bwrap_new (flatpak_bwrap_empty_env);
+      wrapped_command->envp = _srt_env_overlay_apply (env_overlay,
+                                                      wrapped_command->envp);
+    }
+  else
+    {
+      wrapped_command = flatpak_bwrap_new (envp);
+    }
+
+  g_clear_pointer (&env_overlay, _srt_env_overlay_unref);
 
   if (opt_terminal == PV_TERMINAL_AUTO)
     {
@@ -1012,32 +1038,6 @@ main (int argc,
   flatpak_bwrap_append_argsv (wrapped_command, &argv[1], argc - 1);
   flatpak_bwrap_finish (wrapped_command);
 
-  lib_temp_dirs = pv_per_arch_dirs_new (error);
-
-  if (lib_temp_dirs == NULL)
-    {
-      g_warning ("%s", local_error->message);
-      g_clear_error (error);
-    }
-
-  if (opt_overrides != NULL
-      && !pv_adverb_set_up_overrides (wrapped_command,
-                                      lib_temp_dirs,
-                                      opt_overrides,
-                                      error))
-    {
-      g_warning ("%s", local_error->message);
-      g_clear_error (error);
-    }
-
-  if (opt_preload_modules != NULL
-      && !pv_adverb_set_up_preload_modules (wrapped_command,
-                                            lib_temp_dirs,
-                                            (const PvAdverbPreloadModule *) opt_preload_modules->data,
-                                            opt_preload_modules->len,
-                                            error))
-    goto out;
-
   if (opt_regenerate_ld_so_cache != NULL
       && opt_regenerate_ld_so_cache[0] != '\0')
     {
@@ -1076,6 +1076,32 @@ main (int argc,
       flatpak_bwrap_set_env (wrapped_command, "LD_LIBRARY_PATH",
                              opt_set_ld_library_path, TRUE);
     }
+
+  lib_temp_dirs = pv_per_arch_dirs_new (error);
+
+  if (lib_temp_dirs == NULL)
+    {
+      g_warning ("%s", local_error->message);
+      g_clear_error (error);
+    }
+
+  if (opt_overrides != NULL
+      && !pv_adverb_set_up_overrides (wrapped_command,
+                                      lib_temp_dirs,
+                                      opt_overrides,
+                                      error))
+    {
+      g_warning ("%s", local_error->message);
+      g_clear_error (error);
+    }
+
+  if (opt_preload_modules != NULL
+      && !pv_adverb_set_up_preload_modules (wrapped_command,
+                                            lib_temp_dirs,
+                                            (const PvAdverbPreloadModule *) opt_preload_modules->data,
+                                            opt_preload_modules->len,
+                                            error))
+    goto out;
 
   if (opt_generate_locales)
     {
@@ -1122,7 +1148,7 @@ out:
   if (local_error != NULL)
     _srt_log_failure ("%s", local_error->message);
 
-  global_original_environ = NULL;
+  global_envp = NULL;
   g_debug ("Exiting with status %d", ret);
   return ret;
 }

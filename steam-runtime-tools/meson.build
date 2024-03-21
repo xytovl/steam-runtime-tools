@@ -142,6 +142,8 @@ libsteamrt_internals = [
 # Modules that are needed by bin/ or pressure-vessel/ but not by the
 # library API
 libsteamrt_static_extras = [
+    'env-overlay.c',
+    'env-overlay-internal.h',
     'file-lock.c',
     'file-lock-internal.h',
     'logger.c',

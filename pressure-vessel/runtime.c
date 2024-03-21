@@ -140,6 +140,7 @@ G_DEFINE_TYPE_WITH_CODE (PvRuntime, pv_runtime, G_TYPE_OBJECT,
                          G_IMPLEMENT_INTERFACE (G_TYPE_INITABLE,
                                                 pv_runtime_initable_iface_init))
 
+static gchar *pv_runtime_get_ld_library_path (PvRuntime *self);
 static gboolean pv_runtime_symlinkat (const gchar *target,
                                       int destination_dirfd,
                                       const gchar *destination,
@@ -696,10 +697,10 @@ G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC (RuntimeArchitecture,
 
 static gboolean pv_runtime_use_provider_graphics_stack (PvRuntime *self,
                                                         FlatpakBwrap *bwrap,
-                                                        PvEnviron *container_env,
+                                                        SrtEnvOverlay *container_env,
                                                         GError **error);
 static void pv_runtime_set_search_paths (PvRuntime *self,
-                                         PvEnviron *container_env);
+                                         SrtEnvOverlay *container_env);
 
 static void
 pv_runtime_init (PvRuntime *self)
@@ -2089,7 +2090,8 @@ pv_runtime_adverb_regenerate_ld_so_cache (PvRuntime *self,
  * and we want -adverb for its locale functionality anyway. */
 gboolean
 pv_runtime_get_adverb (PvRuntime *self,
-                       FlatpakBwrap *bwrap)
+                       FlatpakBwrap *bwrap,
+                       GError **error)
 {
   g_return_val_if_fail (PV_IS_RUNTIME (self), FALSE);
   /* This will be true if pv_runtime_bind() was successfully called. */
@@ -2097,6 +2099,44 @@ pv_runtime_get_adverb (PvRuntime *self,
   g_return_val_if_fail (bwrap != NULL, FALSE);
   g_return_val_if_fail (flatpak_bwrap_is_empty (bwrap), FALSE);
   g_return_val_if_fail (!pv_bwrap_was_finished (bwrap), FALSE);
+
+  if (self->workarounds & PV_WORKAROUND_FLAGS_BWRAP_SETUID)
+    {
+      g_autofree char *ld_library_path = pv_runtime_get_ld_library_path (self);
+      const char *ld_so;
+      const char *tuple;
+
+      /* We can't rely on LD_LIBRARY_PATH staying in the environment,
+       * which means we can't run anything until we have invoked
+       * ldconfig to regenerate ld.so.cache, which is a chicken-and-egg
+       * problem because pv-adverb needs to load shared libraries.
+       * Resolve this by using ld.so(8) to invoke pv-adverb, which we
+       * assume is of the same architecture as pv-wrap. */
+#if defined(_SRT_MULTIARCH)
+      tuple = _SRT_MULTIARCH;
+#elif defined(__x86_64__)
+      tuple = SRT_ABI_X86_64;
+#elif defined(__i386__)
+      tuple = SRT_ABI_I386;
+#elif defined(__aarch64__)
+      tuple = SRT_ABI_AARCH64;
+#else
+#error Unsupported architecture
+#endif
+      ld_so = srt_architecture_get_expected_runtime_linker (tuple);
+
+      if (ld_so == NULL)
+        return glnx_throw (error,
+                           "Runtime linker for architecture %s not known",
+                           tuple);
+
+      g_debug ("Using runtime linker %s to run pv-adverb", ld_so);
+      flatpak_bwrap_add_args (bwrap,
+                              ld_so,
+                              "--library-path",
+                              ld_library_path,
+                              NULL);
+    }
 
   flatpak_bwrap_add_arg (bwrap, self->adverb_in_container);
 
@@ -3026,7 +3066,7 @@ static gboolean
 bind_runtime_base (PvRuntime *self,
                    FlatpakExports *exports,
                    FlatpakBwrap *bwrap,
-                   PvEnviron *container_env,
+                   SrtEnvOverlay *container_env,
                    GError **error)
 {
   static const char * const bind_mutable[] =
@@ -3132,7 +3172,7 @@ bind_runtime_base (PvRuntime *self,
        * into /var/pressure-vessel/gfx, which contains bind-mounts from
        * FEX-Emu's original rootfs.
        *
-       * We cannot do this via pv_environ_setenv(), since that sets the
+       * We cannot do this via _srt_env_overlay_set(), since that sets the
        * environment in which we execute pv-bwrap, but that needs to be
        * using the old environment to find the rootfs, since it has not
        * pivoted its root directory yet.
@@ -3193,7 +3233,7 @@ bind_runtime_base (PvRuntime *self,
                           "--symlink", "../run", "/var/run",
                           NULL);
 
-  pv_environ_setenv (container_env, "XDG_RUNTIME_DIR", xrd);
+  _srt_env_overlay_set (container_env, "XDG_RUNTIME_DIR", xrd);
 
   if (self->provider != NULL
       && (g_strcmp0 (self->provider->path_in_host_ns, "/") != 0
@@ -3414,7 +3454,7 @@ pv_runtime_symlinkat (const gchar *target,
 static gboolean
 bind_runtime_ld_so (PvRuntime *self,
                     FlatpakBwrap *bwrap,
-                    PvEnviron *container_env,
+                    SrtEnvOverlay *container_env,
                     GError **error)
 {
   gsize i, j;
@@ -7111,7 +7151,7 @@ check_path_entries_all_in_dir (const char *path,
 static gboolean
 pv_runtime_use_provider_graphics_stack (PvRuntime *self,
                                         FlatpakBwrap *bwrap,
-                                        PvEnviron *container_env,
+                                        SrtEnvOverlay *container_env,
                                         GError **error)
 {
   gsize i, j;
@@ -7585,32 +7625,32 @@ pv_runtime_use_provider_graphics_stack (PvRuntime *self,
 
   if (dri_path->len != 0)
     {
-      pv_environ_setenv (container_env, "LIBGL_DRIVERS_PATH", dri_path->str);
-      pv_environ_setenv (container_env, "LIBVA_DRIVERS_PATH", dri_path->str);
+      _srt_env_overlay_set (container_env, "LIBGL_DRIVERS_PATH", dri_path->str);
+      _srt_env_overlay_set (container_env, "LIBVA_DRIVERS_PATH", dri_path->str);
     }
   else
     {
-      pv_environ_setenv (container_env, "LIBGL_DRIVERS_PATH", NULL);
-      pv_environ_setenv (container_env, "LIBVA_DRIVERS_PATH", NULL);
+      _srt_env_overlay_set (container_env, "LIBGL_DRIVERS_PATH", NULL);
+      _srt_env_overlay_set (container_env, "LIBVA_DRIVERS_PATH", NULL);
     }
 
   if (egl_path->len != 0)
-    pv_environ_setenv (container_env, "__EGL_VENDOR_LIBRARY_FILENAMES",
-                       egl_path->str);
+    _srt_env_overlay_set (container_env, "__EGL_VENDOR_LIBRARY_FILENAMES",
+                          egl_path->str);
   else
-    pv_environ_setenv (container_env, "__EGL_VENDOR_LIBRARY_FILENAMES",
-                       NULL);
+    _srt_env_overlay_set (container_env, "__EGL_VENDOR_LIBRARY_FILENAMES",
+                          NULL);
 
-  pv_environ_setenv (container_env, "__EGL_VENDOR_LIBRARY_DIRS", NULL);
+  _srt_env_overlay_set (container_env, "__EGL_VENDOR_LIBRARY_DIRS", NULL);
 
   if (egl_ext_platform_path->len != 0)
-    pv_environ_setenv (container_env, "__EGL_EXTERNAL_PLATFORM_CONFIG_FILENAMES",
-                       egl_ext_platform_path->str);
+    _srt_env_overlay_set (container_env, "__EGL_EXTERNAL_PLATFORM_CONFIG_FILENAMES",
+                          egl_ext_platform_path->str);
   else
-    pv_environ_setenv (container_env, "__EGL_EXTERNAL_PLATFORM_CONFIG_FILENAMES",
-                       NULL);
+    _srt_env_overlay_set (container_env, "__EGL_EXTERNAL_PLATFORM_CONFIG_FILENAMES",
+                          NULL);
 
-  pv_environ_setenv (container_env, "__EGL_EXTERNAL_PLATFORM_CONFIG_DIRS", NULL);
+  _srt_env_overlay_set (container_env, "__EGL_EXTERNAL_PLATFORM_CONFIG_DIRS", NULL);
 
   if (vulkan_path->len != 0)
     {
@@ -7619,18 +7659,18 @@ pv_runtime_use_provider_graphics_stack (PvRuntime *self,
        * that supports VK_DRIVER_FILES, we need to set both:
        * old Vulkan-Loader versions will use the old variable, while new
        * versions will use the new one. */
-      pv_environ_setenv (container_env, "VK_DRIVER_FILES", vulkan_path->str);
-      pv_environ_setenv (container_env, "VK_ICD_FILENAMES", vulkan_path->str);
+      _srt_env_overlay_set (container_env, "VK_DRIVER_FILES", vulkan_path->str);
+      _srt_env_overlay_set (container_env, "VK_ICD_FILENAMES", vulkan_path->str);
     }
   else
     {
-      pv_environ_setenv (container_env, "VK_ICD_FILENAMES", NULL);
-      pv_environ_setenv (container_env, "VK_DRIVER_FILES", NULL);
+      _srt_env_overlay_set (container_env, "VK_ICD_FILENAMES", NULL);
+      _srt_env_overlay_set (container_env, "VK_DRIVER_FILES", NULL);
     }
 
   /* Setting VK_DRIVER_FILES now disables this, but that wasn't the case
    * in Vulkan-Loader 1.3.207, and it seems clearer if we unset it anyway. */
-  pv_environ_setenv (container_env, "VK_ADD_DRIVER_FILES", NULL);
+  _srt_env_overlay_set (container_env, "VK_ADD_DRIVER_FILES", NULL);
 
   if (self->flags & PV_RUNTIME_FLAGS_IMPORT_VULKAN_LAYERS)
     {
@@ -7661,10 +7701,10 @@ pv_runtime_use_provider_graphics_stack (PvRuntime *self,
 
           prepended_data_dirs = g_strdup_printf ("%s:%s", override_share, xdg_data_dirs);
 
-          pv_environ_setenv (container_env, "XDG_DATA_DIRS",
-                             prepended_data_dirs);
+          _srt_env_overlay_set (container_env, "XDG_DATA_DIRS",
+                                prepended_data_dirs);
         }
-      pv_environ_setenv (container_env, "VK_LAYER_PATH", NULL);
+      _srt_env_overlay_set (container_env, "VK_LAYER_PATH", NULL);
     }
 
   /* We binded the VDPAU drivers in "%{libdir}/vdpau".
@@ -7673,7 +7713,7 @@ pv_runtime_use_provider_graphics_stack (PvRuntime *self,
    * setup of VDPAU drivers to pv-adverb, which is running with our final
    * choice of glibc and therefore can do something more clever with
    * dynamic string tokens. */
-  pv_environ_setenv (container_env, "VDPAU_DRIVER_PATH", NULL);
+  _srt_env_overlay_set (container_env, "VDPAU_DRIVER_PATH", NULL);
 
   return TRUE;
 }
@@ -7682,7 +7722,7 @@ gboolean
 pv_runtime_bind (PvRuntime *self,
                  FlatpakExports *exports,
                  FlatpakBwrap *bwrap,
-                 PvEnviron *container_env,
+                 SrtEnvOverlay *container_env,
                  GError **error)
 {
   const char *value;
@@ -7849,7 +7889,7 @@ pv_runtime_bind (PvRuntime *self,
        * We do not do this for games developed against soldier, because
        * backwards compatibility is not a concern for game developers who
        * have specifically opted-in to using the newer runtime. */
-      pv_environ_setenv (container_env, "STEAM_RUNTIME", "/");
+      _srt_env_overlay_set (container_env, "STEAM_RUNTIME", "/");
 
       /* Scout is configured without Wayland support. For this reason, if
        * the Wayland driver was forced via SDL_VIDEODRIVER, we expect that
@@ -7857,7 +7897,7 @@ pv_runtime_bind (PvRuntime *self,
        * unset SDL_VIDEODRIVER, so that the default x11 gets chosen instead */
       sdl_videodriver = g_environ_getenv (self->original_environ, "SDL_VIDEODRIVER");
       if (g_strcmp0 (sdl_videodriver, "wayland") == 0)
-        pv_environ_setenv (container_env, "SDL_VIDEODRIVER", NULL);
+        _srt_env_overlay_set (container_env, "SDL_VIDEODRIVER", NULL);
     }
 
   value = g_environ_getenv (self->original_environ, "STEAM_ZENITY");
@@ -7865,7 +7905,7 @@ pv_runtime_bind (PvRuntime *self,
   if (g_strcmp0 (value, "") == 0)
     {
       g_debug ("zenity UIs disabled by STEAM_ZENITY='' (gamescope/Steam Deck)");
-      pv_environ_setenv (container_env, "STEAM_ZENITY", "");
+      _srt_env_overlay_set (container_env, "STEAM_ZENITY", "");
     }
   else
     {
@@ -7874,12 +7914,12 @@ pv_runtime_bind (PvRuntime *self,
       if (g_file_test (zenity, G_FILE_TEST_IS_EXECUTABLE))
         {
           g_debug ("container runtime has zenity");
-          pv_environ_setenv (container_env, "STEAM_ZENITY", "/usr/bin/zenity");
+          _srt_env_overlay_set (container_env, "STEAM_ZENITY", "/usr/bin/zenity");
         }
       else
         {
           g_debug ("container runtime does not have zenity");
-          pv_environ_setenv (container_env, "STEAM_ZENITY", NULL);
+          _srt_env_overlay_set (container_env, "STEAM_ZENITY", NULL);
         }
     }
 
@@ -7888,18 +7928,12 @@ pv_runtime_bind (PvRuntime *self,
   return TRUE;
 }
 
-void
-pv_runtime_set_search_paths (PvRuntime *self,
-                             PvEnviron *container_env)
+static gchar *
+pv_runtime_get_ld_library_path (PvRuntime *self)
 {
   g_autoptr(GString) ld_library_path = g_string_new ("");
-  g_autofree char *terminfo_path = NULL;
   gsize i;
 
-  /* We need to set LD_LIBRARY_PATH here so that we can run
-   * pressure-vessel-adverb, even if it is going to regenerate
-   * the ld.so.cache for better robustness before launching the
-   * actual game */
   g_assert (pv_multiarch_tuples[PV_N_SUPPORTED_ARCHITECTURES] == NULL);
 
   for (i = 0; i < PV_N_SUPPORTED_ARCHITECTURES; i++)
@@ -7917,27 +7951,42 @@ pv_runtime_set_search_paths (PvRuntime *self,
       pv_search_path_append (ld_library_path, aliases);
     }
 
+  return g_string_free (g_steal_pointer (&ld_library_path), FALSE);
+}
+
+void
+pv_runtime_set_search_paths (PvRuntime *self,
+                             SrtEnvOverlay *container_env)
+{
+  g_autofree char *terminfo_path = NULL;
+  g_autofree char *ld_library_path = pv_runtime_get_ld_library_path (self);
+
   /* If the runtime is Debian-based, make sure we search where ncurses-base
    * puts terminfo, even if we're using a non-Debian-based libtinfo.so.6. */
   terminfo_path = g_build_filename (self->source_files, "lib", "terminfo",
                                     NULL);
 
   if (g_file_test (terminfo_path, G_FILE_TEST_IS_DIR))
-    pv_environ_setenv (container_env, "TERMINFO_DIRS", "/lib/terminfo");
+    _srt_env_overlay_set (container_env, "TERMINFO_DIRS", "/lib/terminfo");
 
   /* The PATH from outside the container doesn't really make sense inside the
    * container: in principle the layout could be totally different. */
-  pv_environ_setenv (container_env, "PATH", "/usr/bin:/bin");
-  pv_environ_setenv (container_env, "LD_LIBRARY_PATH", ld_library_path->str);
+  _srt_env_overlay_set (container_env, "PATH", "/usr/bin:/bin");
+
+  /* We need to set LD_LIBRARY_PATH here so that we can run
+   * pressure-vessel-adverb, even if it is going to regenerate
+   * the ld.so.cache for better robustness before launching the
+   * actual game */
+  _srt_env_overlay_set (container_env, "LD_LIBRARY_PATH", ld_library_path);
 }
 
 gboolean
 pv_runtime_use_shared_sockets (PvRuntime *self,
                                FlatpakBwrap *bwrap,
-                               PvEnviron *container_env,
+                               SrtEnvOverlay *container_env,
                                GError **error)
 {
-  if (pv_environ_getenv (container_env, "PULSE_SERVER") != NULL
+  if (_srt_env_overlay_get (container_env, "PULSE_SERVER") != NULL
       || self->is_flatpak_env)
     {
       /* Make the PulseAudio driver the default.

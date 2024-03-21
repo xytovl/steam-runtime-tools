@@ -39,6 +39,7 @@
 #include <gio/gio.h>
 #include <gio/gunixfdlist.h>
 
+#include "steam-runtime-tools/env-overlay-internal.h"
 #include "steam-runtime-tools/glib-backports-internal.h"
 #include "steam-runtime-tools/launcher-internal.h"
 #include "steam-runtime-tools/log-internal.h"
@@ -742,6 +743,7 @@ choose_implementation (GPtrArray *possible_names,
   return FALSE;
 }
 
+static SrtEnvOverlay *global_env_overlay = NULL;
 static gchar **forward_fds = NULL;
 static gchar *opt_app_path = NULL;
 static GPtrArray *opt_bus_names = NULL;
@@ -751,204 +753,33 @@ static gchar *opt_directory = NULL;
 static gboolean opt_list = FALSE;
 static gchar *opt_shell_command = NULL;
 static gchar *opt_socket = NULL;
-static GHashTable *opt_env = NULL;
-static GHashTable *opt_unsetenv = NULL;
 static gboolean opt_share_pids = FALSE;
 static gboolean opt_terminate = FALSE;
 static gchar *opt_usr_path = NULL;
 static gboolean opt_verbose = FALSE;
 static gboolean opt_version = FALSE;
 
-static void
-remove_keys_matching_pattern (GHashTable *table,
-                              const char *pattern)
-{
-  GHashTableIter iter;
-  gpointer k;
-
-  g_hash_table_iter_init (&iter, table);
-
-  while (g_hash_table_iter_next (&iter, &k, NULL))
-    {
-      if (fnmatch (pattern, k, 0) == 0)
-        g_hash_table_iter_remove (&iter);
-    }
-}
-
 static gboolean
-opt_env_cb (const char *option_name,
-            const gchar *value,
-            G_GNUC_UNUSED gpointer data,
-            GError **error)
+opt_pass_env_cb (const char *option_name,
+                 const gchar *value,
+                 G_GNUC_UNUSED gpointer data,
+                 GError **error)
 {
-  g_assert (opt_env != NULL);
-  g_assert (opt_unsetenv != NULL);
-
-  if (g_strcmp0 (option_name, "--env") == 0)
-    {
-      g_auto(GStrv) split = g_strsplit (value, "=", 2);
-
-      if (split == NULL ||
-          split[0] == NULL ||
-          split[0][0] == 0 ||
-          split[1] == NULL)
-        {
-          g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
-                       "Invalid env format %s", value);
-          return FALSE;
-        }
-
-      g_hash_table_remove (opt_unsetenv, split[0]);
-      g_hash_table_replace (opt_env,
-                            g_steal_pointer (&split[0]),
-                            g_steal_pointer (&split[1]));
-      return TRUE;
-    }
-
-  if (g_strcmp0 (option_name, "--inherit-env") == 0)
-    {
-      g_hash_table_remove (opt_env, value);
-      g_hash_table_remove (opt_unsetenv, value);
-      return TRUE;
-    }
-
   if (g_strcmp0 (option_name, "--pass-env") == 0)
-    {
-      const gchar *env = g_getenv (value);
-
-      if (env != NULL)
-        {
-          g_hash_table_remove (opt_unsetenv, value);
-          g_hash_table_replace (opt_env, g_strdup (value), g_strdup (env));
-        }
-      else
-        {
-          g_hash_table_remove (opt_env, value);
-          g_hash_table_add (opt_unsetenv, g_strdup (value));
-        }
-
-      return TRUE;
-    }
-
-  if (g_strcmp0 (option_name, "--inherit-env-matching") == 0)
-    {
-      remove_keys_matching_pattern (opt_env, value);
-      remove_keys_matching_pattern (opt_unsetenv, value);
-      return TRUE;
-    }
+    return _srt_env_overlay_pass_cli (global_env_overlay,
+                                      option_name,
+                                      value,
+                                      global_original_environ,
+                                      error);
 
   if (g_strcmp0 (option_name, "--pass-env-matching") == 0)
-    {
-      const char * const *iter;
-
-      if (global_original_environ == NULL)
-        return TRUE;
-
-      for (iter = global_original_environ; *iter != NULL; iter++)
-        {
-          g_auto(GStrv) split = g_strsplit (*iter, "=", 2);
-
-          if (split == NULL ||
-              split[0] == NULL ||
-              split[0][0] == 0 ||
-              split[1] == NULL)
-            continue;
-
-          if (fnmatch (value, split[0], 0) == 0)
-            {
-              g_hash_table_remove (opt_unsetenv, split[0]);
-              g_hash_table_replace (opt_env,
-                                    g_steal_pointer (&split[0]),
-                                    g_steal_pointer (&split[1]));
-            }
-        }
-
-      return TRUE;
-    }
-
-  if (g_strcmp0 (option_name, "--unset-env") == 0)
-    {
-      g_hash_table_remove (opt_env, value);
-      g_hash_table_add (opt_unsetenv, g_strdup (value));
-      return TRUE;
-    }
+    return _srt_env_overlay_pass_matching_pattern_cli (global_env_overlay,
+                                                       option_name,
+                                                       value,
+                                                       global_original_environ,
+                                                       error);
 
   g_return_val_if_reached (FALSE);
-}
-
-static gboolean
-option_env_fd_cb (G_GNUC_UNUSED const gchar *option_name,
-                  const gchar *value,
-                  G_GNUC_UNUSED gpointer data,
-                  GError **error)
-{
-  g_autofree gchar *proc_filename = NULL;
-  g_autofree gchar *env_block = NULL;
-  gsize remaining;
-  const char *p;
-  guint64 fd;
-  gchar *endptr;
-
-  g_assert (opt_env != NULL);
-  g_assert (opt_unsetenv != NULL);
-
-  fd = g_ascii_strtoull (value, &endptr, 10);
-
-  if (endptr == NULL || *endptr != '\0' || fd > G_MAXINT)
-    {
-      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
-                   "Not a valid file descriptor: %s", value);
-      return FALSE;
-    }
-
-  proc_filename = g_strdup_printf ("/proc/self/fd/%d", (int) fd);
-
-  if (!g_file_get_contents (proc_filename, &env_block, &remaining, error))
-    return FALSE;
-
-  p = env_block;
-
-  while (remaining > 0)
-    {
-      g_autofree gchar *var = NULL;
-      g_autofree gchar *val = NULL;
-      size_t len = strnlen (p, remaining);
-      const char *equals;
-
-      g_assert (len <= remaining);
-
-      equals = memchr (p, '=', len);
-
-      if (equals == NULL || equals == p)
-        {
-          g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
-                       "Environment variable must be given in the form VARIABLE=VALUE, not %.*s",
-                       (int) len, p);
-          return FALSE;
-        }
-
-      var = g_strndup (p, equals - p);
-      val = g_strndup (equals + 1, len - (equals - p) - 1);
-      g_hash_table_remove (opt_unsetenv, var);
-      g_hash_table_replace (opt_env,
-                            g_steal_pointer (&var),
-                            g_steal_pointer (&val));
-
-      p += len;
-      remaining -= len;
-
-      if (remaining > 0)
-        {
-          g_assert (*p == '\0');
-          p += 1;
-          remaining -= 1;
-        }
-    }
-
-  if (fd >= 3)
-    close (fd);
-
-  return TRUE;
 }
 
 static gboolean
@@ -1055,12 +886,6 @@ static const GOptionEntry options[] =
   { "directory", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_FILENAME, &opt_directory,
     "Working directory in which to run the command.", "DIR" },
-  { "env", '\0',
-    G_OPTION_FLAG_FILENAME, G_OPTION_ARG_CALLBACK, opt_env_cb,
-    "Set environment variable.", "VAR=VALUE" },
-  { "env-fd", '\0',
-    G_OPTION_FLAG_NONE, G_OPTION_ARG_CALLBACK, option_env_fd_cb,
-    "Read environment variables in env -0 format from FD", "FD" },
   { "forward-fd", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_STRING_ARRAY, &forward_fds,
     "Connect a file descriptor to the launched process. "
@@ -1070,13 +895,6 @@ static const GOptionEntry options[] =
     G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK, opt_host_cb,
     "Connect to a service running on the host system.",
     NULL },
-  { "inherit-env", '\0',
-    G_OPTION_FLAG_FILENAME, G_OPTION_ARG_CALLBACK, opt_env_cb,
-    "Undo a previous --env, --unset-env, --pass-env, etc.", "VAR" },
-  { "inherit-env-matching", '\0',
-    G_OPTION_FLAG_FILENAME, G_OPTION_ARG_CALLBACK, opt_env_cb,
-    "Undo previous --env, --unset-env, etc. matching a shell-style wildcard",
-    "WILDCARD" },
   { "inside-app", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_CALLBACK, opt_inside_cb,
     "Connect to a service running inside the container for the given Steam app.",
@@ -1086,10 +904,10 @@ static const GOptionEntry options[] =
     "List some of the available servers and then exit.",
     NULL },
   { "pass-env", '\0',
-    G_OPTION_FLAG_FILENAME, G_OPTION_ARG_CALLBACK, opt_env_cb,
+    G_OPTION_FLAG_FILENAME, G_OPTION_ARG_CALLBACK, opt_pass_env_cb,
     "Pass environment variable through, or unset if set.", "VAR" },
   { "pass-env-matching", '\0',
-    G_OPTION_FLAG_FILENAME, G_OPTION_ARG_CALLBACK, opt_env_cb,
+    G_OPTION_FLAG_FILENAME, G_OPTION_ARG_CALLBACK, opt_pass_env_cb,
     "Pass environment variables matching a shell-style wildcard.",
     "WILDCARD" },
   { "share-pids", '\0',
@@ -1112,9 +930,6 @@ static const GOptionEntry options[] =
     G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_terminate,
     "Terminate the Launcher server after the COMMAND (if any) has run.",
     NULL },
-  { "unset-env", '\0',
-    G_OPTION_FLAG_FILENAME, G_OPTION_ARG_CALLBACK, opt_env_cb,
-    "Unset environment variable, like env -u.", "VAR" },
   { "verbose", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_verbose,
     "Be more verbose.", NULL },
@@ -1134,6 +949,7 @@ main (int argc,
   g_autoptr(GPtrArray) replacement_command_and_args = NULL;
   g_autoptr(GPtrArray) shell_argv = NULL;
   g_autoptr(GError) local_error = NULL;
+  g_autoptr(SrtEnvOverlay) env_overlay = NULL;
   GError **error = &local_error;
   char **command_and_args;
   g_autoptr(FILE) original_stdout = NULL;
@@ -1157,6 +973,7 @@ main (int argc,
   g_autofree char *home_realpath = NULL;
   g_autofree char *service_bus_name = NULL;
   const char *flatpak_id = NULL;
+  gboolean unsetenv = FALSE;
   static const char * const run_interactive_shell[] =
   {
     "sh",
@@ -1209,13 +1026,16 @@ main (int argc,
   g_option_context_set_summary (context,
                                 "Send IPC requests to create child "
                                 "processes.");
-
   g_option_context_add_main_entries (context, options, NULL);
-  opt_env = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
+
+  env_overlay = _srt_env_overlay_new ();
+  global_env_overlay = env_overlay;
+  g_option_context_add_group (context,
+                              _srt_env_overlay_create_option_group (env_overlay));
+
   /* Guess we might need up to 4 names + NULL, which is enough for
    * "--alongside-steam --host" without reallocation */
   opt_bus_names = g_ptr_array_new_full (5, g_free);
-  opt_unsetenv = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
   opt_verbose = _srt_boolean_environment ("PRESSURE_VESSEL_VERBOSE", FALSE);
 
   for (i = 0; i <= 2; i++)
@@ -1224,7 +1044,7 @@ main (int argc,
         {
           g_debug ("Passing through TERM environment variable because "
                    "fd %zu is a terminal", i);
-          opt_env_cb ("--pass-env", "TERM", NULL, NULL);
+          _srt_env_overlay_set (env_overlay, "TERM", g_getenv ("TERM"));
           break;
         }
     }
@@ -1527,10 +1347,15 @@ main (int argc,
       g_variant_builder_add (&fd_builder, "{uh}", fd, handle);
     }
 
-  g_hash_table_iter_init (&iter, opt_env);
+  g_hash_table_iter_init (&iter, env_overlay->values);
 
   while (g_hash_table_iter_next (&iter, &key, &value))
-    g_variant_builder_add (&env_builder, "{ss}", key, value);
+    {
+      if (value != NULL)
+        g_variant_builder_add (&env_builder, "{ss}", key, value);
+      else
+        unsetenv = TRUE;
+    }
 
   spawn_flags = 0;
 
@@ -1602,9 +1427,9 @@ main (int argc,
       spawn_flags |= FLATPAK_SPAWN_FLAGS_SHARE_PIDS;
     }
 
-  if (g_hash_table_size (opt_unsetenv) > 0)
+  if (unsetenv)
     {
-      g_hash_table_iter_init (&iter, opt_unsetenv);
+      g_hash_table_iter_init (&iter, env_overlay->values);
 
       /* The host portal doesn't support options, so we always have to do
        * this the hard way. The subsandbox portal supports unset-env in
@@ -1616,8 +1441,11 @@ main (int argc,
 
           g_variant_builder_init (&strv_builder, G_VARIANT_TYPE_STRING_ARRAY);
 
-          while (g_hash_table_iter_next (&iter, &key, NULL))
-            g_variant_builder_add (&strv_builder, "s", key);
+          while (g_hash_table_iter_next (&iter, &key, &value))
+            {
+              if (value == NULL)
+                g_variant_builder_add (&strv_builder, "s", key);
+            }
 
           g_variant_builder_add (&options_builder, "{s@v}", "unset-env",
                                  g_variant_new_variant (g_variant_builder_end (&strv_builder)));
@@ -1628,10 +1456,13 @@ main (int argc,
 
           g_ptr_array_add (replacement_command_and_args, g_strdup ("/usr/bin/env"));
 
-          while (g_hash_table_iter_next (&iter, &key, NULL))
+          while (g_hash_table_iter_next (&iter, &key, &value))
             {
-              g_ptr_array_add (replacement_command_and_args, g_strdup ("-u"));
-              g_ptr_array_add (replacement_command_and_args, g_strdup (key));
+              if (value == NULL)
+                {
+                  g_ptr_array_add (replacement_command_and_args, g_strdup ("-u"));
+                  g_ptr_array_add (replacement_command_and_args, g_strdup (key));
+                }
             }
 
           if (strchr (command_and_args[0], '=') != NULL)
@@ -1840,6 +1671,7 @@ main (int argc,
   g_main_loop_run (loop);
 
 out:
+
   if (local_error != NULL)
     _srt_log_failure ("%s", local_error->message);
 
@@ -1852,9 +1684,8 @@ out:
   g_free (opt_directory);
   g_free (opt_socket);
   g_ptr_array_unref (opt_bus_names);
-  g_hash_table_unref (opt_env);
-  g_hash_table_unref (opt_unsetenv);
   g_free (opt_usr_path);
+  global_env_overlay = NULL;
   global_original_environ = NULL;
   g_clear_object (&first_pty_bridge);
 

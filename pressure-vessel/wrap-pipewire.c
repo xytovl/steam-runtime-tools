@@ -69,7 +69,7 @@ get_runtime_dir (void)
 
 void
 pv_wrap_add_pipewire_args (FlatpakBwrap *sharing_bwrap,
-                           PvEnviron *container_env)
+                           SrtEnvOverlay *container_env)
 {
   g_autoptr(GDir) dir = NULL;
   const char *remote = get_remote ();
@@ -77,7 +77,7 @@ pv_wrap_add_pipewire_args (FlatpakBwrap *sharing_bwrap,
   const char *member;
 
   /* Make Pipewire look in the container's XDG_RUNTIME_DIR */
-  pv_environ_setenv (container_env, "PIPEWIRE_RUNTIME_DIR", NULL);
+  _srt_env_overlay_set (container_env, "PIPEWIRE_RUNTIME_DIR", NULL);
 
   if (g_file_test (DEFAULT_SYSTEM_RUNTIME_DIR, G_FILE_TEST_IS_DIR))
     flatpak_bwrap_add_args (sharing_bwrap,
@@ -124,7 +124,7 @@ pv_wrap_add_pipewire_args (FlatpakBwrap *sharing_bwrap,
           g_autofree gchar *container_socket =
             g_strdup_printf ("/run/user/%d/pv-pipewire", getuid ());
 
-          pv_environ_setenv (container_env, "PIPEWIRE_REMOTE", "pv-pipewire");
+          _srt_env_overlay_set (container_env, "PIPEWIRE_REMOTE", "pv-pipewire");
           flatpak_bwrap_add_args (sharing_bwrap,
                                   "--ro-bind",
                                     host_socket,
@@ -133,7 +133,7 @@ pv_wrap_add_pipewire_args (FlatpakBwrap *sharing_bwrap,
         }
       else
         {
-          pv_environ_setenv (container_env, "PIPEWIRE_REMOTE", NULL);
+          _srt_env_overlay_set (container_env, "PIPEWIRE_REMOTE", NULL);
         }
     }
 }

@@ -48,7 +48,7 @@ static gboolean expose_steam (FlatpakExports *exports,
 static gboolean
 use_tmpfs_home (FlatpakExports *exports,
                 FlatpakBwrap *bwrap,
-                PvEnviron *container_env,
+                SrtEnvOverlay *container_env,
                 GError **error)
 {
   const gchar *home = g_get_home_dir ();
@@ -89,9 +89,9 @@ use_tmpfs_home (FlatpakExports *exports,
                           "--symlink", tmp, "/var/tmp",
                           NULL);
 
-  pv_environ_setenv (container_env, "XDG_CACHE_HOME", cache);
-  pv_environ_setenv (container_env, "XDG_CONFIG_HOME", config);
-  pv_environ_setenv (container_env, "XDG_DATA_HOME", data);
+  _srt_env_overlay_set (container_env, "XDG_CACHE_HOME", cache);
+  _srt_env_overlay_set (container_env, "XDG_CONFIG_HOME", config);
+  _srt_env_overlay_set (container_env, "XDG_DATA_HOME", data);
 
   return expose_steam (exports, FLATPAK_FILESYSTEM_MODE_READ_ONLY,
                        PV_HOME_MODE_TRANSIENT, real_home, NULL, error);
@@ -100,7 +100,7 @@ use_tmpfs_home (FlatpakExports *exports,
 static gboolean
 use_fake_home (FlatpakExports *exports,
                FlatpakBwrap *bwrap,
-               PvEnviron *container_env,
+               SrtEnvOverlay *container_env,
                const gchar *fake_home,
                GError **error)
 {
@@ -171,9 +171,9 @@ use_fake_home (FlatpakExports *exports,
                           "--bind", tmp, "/var/tmp",
                           NULL);
 
-  pv_environ_setenv (container_env, "XDG_CACHE_HOME", cache);
-  pv_environ_setenv (container_env, "XDG_CONFIG_HOME", config);
-  pv_environ_setenv (container_env, "XDG_DATA_HOME", data);
+  _srt_env_overlay_set (container_env, "XDG_CACHE_HOME", cache);
+  _srt_env_overlay_set (container_env, "XDG_CONFIG_HOME", config);
+  _srt_env_overlay_set (container_env, "XDG_DATA_HOME", data);
 
   flatpak_exports_add_path_expose (exports,
                                    FLATPAK_FILESYSTEM_MODE_READ_WRITE,
@@ -318,7 +318,7 @@ pv_wrap_use_home (PvHomeMode mode,
                   const char *private_home,
                   FlatpakExports *exports,
                   FlatpakBwrap *bwrap_home_arguments,
-                  PvEnviron *container_env,
+                  SrtEnvOverlay *container_env,
                   GError **error)
 {
   size_t i;
