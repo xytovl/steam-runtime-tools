@@ -193,7 +193,7 @@ class TestLogger(BaseTest):
                 tmpdir, '.local', 'share', 'Steam', 'my-logs'
             ).mkdir(parents=True)
             Path(tmpdir, '.steam').mkdir(parents=True)
-            Path(tmpdir, '.steam', 'root').symlink_to(
+            Path(tmpdir, '.steam', 'steam').symlink_to(
                 '../.local/share/Steam'
             )
 
