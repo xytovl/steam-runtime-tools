@@ -10,10 +10,15 @@ libsteam-runtime-tools-0.so.0 libsteam-runtime-tools-0-0 #MINVER#
  srt_architecture_error_get_type@Base 0.20201124.0
  srt_architecture_error_quark@Base 0.20201124.0
  srt_architecture_get_expected_runtime_linker@Base 0.20201124.0
+ srt_bwrap_issues_get_type@Base 0.20240321.0~
  srt_check_library_presence@Base 0.20190801.0
+ srt_container_info_get_bwrap_issues@Base 0.20240321.0~
+ srt_container_info_get_bwrap_messages@Base 0.20240321.0~
+ srt_container_info_get_bwrap_path@Base 0.20240321.0~
  srt_container_info_get_container_host_directory@Base 0.20210430.0
  srt_container_info_get_container_host_os_info@Base 0.20231107.1
  srt_container_info_get_container_type@Base 0.20210430.0
+ srt_container_info_get_flatpak_issues@Base 0.20240321.0~
  srt_container_info_get_flatpak_version@Base 0.20210430.0
  srt_container_info_get_type@Base 0.20210430.0
  srt_container_type_get_type@Base 0.20200306.0
@@ -54,6 +59,7 @@ libsteam-runtime-tools-0.so.0 libsteam-runtime-tools-0-0 #MINVER#
  srt_egl_icd_write_to_file@Base 0.20190926.0
  srt_enum_from_nick@Base 0.20200908.0
  srt_enum_value_to_nick@Base 0.20191209.0
+ srt_flatpak_issues_get_type@Base 0.20240321.0~
  srt_get_flags_from_json_array@Base 0.20200908.0
  srt_glx_icd_get_library_path@Base 0.20200306.0
  srt_glx_icd_get_library_soname@Base 0.20200306.0
