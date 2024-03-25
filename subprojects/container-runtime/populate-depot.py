@@ -982,7 +982,6 @@ class Main:
         logger.info('%r', argv)
         subprocess.run(argv, check=True)
         self.prune_runtime(Path(dest))
-        self.write_lookaside(dest)
         self.minimize_runtime(dest)
 
         if self.include_sdk_sysroot:
@@ -1488,20 +1487,6 @@ class Main:
 
         return lc_names
 
-    def write_lookaside(self, runtime: str) -> None:
-        with tempfile.TemporaryDirectory(prefix='slr-mtree-') as temp:
-            writer = gzip.open(os.path.join(temp, 'usr-mtree.txt.gz'), 'wt')
-
-            lc_names = self.write_mtree(Path(runtime) / 'files', writer)
-
-            if '.ref' not in lc_names:
-                writer.write('./.ref type=file size=0 mode=644\n')
-
-            # We need to close the gzip before copying it, otherwise we
-            # will end up with a corrupted file
-            writer.close()
-            shutil.copy2(writer.name, runtime)
-
     def write_top_level_mtree(self) -> None:
         with tempfile.TemporaryDirectory(prefix='slr-mtree-') as temp:
             writer = gzip.open(os.path.join(temp, 'mtree.txt.gz'), 'wt')
@@ -1533,16 +1518,26 @@ class Main:
 
     def minimize_runtime(self, root: str) -> None:
         '''
-        Remove files that pressure-vessel can reconstitute from the manifest.
-
-        This is the equivalent of:
-
-        find $root/files -type l -delete
-        find $root/files -empty -delete
-
-        Note that this needs to be done before ensure_ref(), otherwise
-        it will delete files/.ref too.
+        Convert $root from an ordinary runtime into a minimized runtime
+        described by a mtree manifest usr-mtree.txt.gz, which
+        pressure-vessel can reconstitute back into the original runtime.
         '''
+
+        # Generate the manifest
+        with tempfile.TemporaryDirectory(prefix='slr-mtree-') as temp:
+            writer = gzip.open(os.path.join(temp, 'usr-mtree.txt.gz'), 'wt')
+
+            lc_names = self.write_mtree(Path(root) / 'files', writer)
+
+            if '.ref' not in lc_names:
+                writer.write('./.ref type=file size=0 mode=644\n')
+
+            # We need to close the gzip before copying it, otherwise we
+            # will end up with a corrupted file
+            writer.close()
+            shutil.copy2(writer.name, root)
+
+        # Remove files that can be restored from the manifest
         for (dirpath, dirnames, filenames) in os.walk(
             os.path.join(root, 'files'),
             topdown=False,
