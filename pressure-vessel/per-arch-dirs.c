@@ -79,6 +79,11 @@ get_libdl_platform_or_mock (SrtSystemInfo *system_info,
  *  `${LIB}` expands to `lib` on i386 and `lib64` on x86_64.
  * @PV_PER_ARCH_DIRS_SCHEME_ARCH: Arch Linux's variant of FHS library
  *  directories. `${LIB}` expands to `lib32` on i386 and `lib` on x86_64.
+ *  Does not exist on non-x86: use %PV_PER_ARCH_DIRS_SCHEME_FHS instead.
+ * @PV_PER_ARCH_DIRS_SCHEME_LIBQUAL: The variant of FHS library directories
+ *  used in Clear Linux and Solus.
+ *  `${LIB}` expands to `lib32` on i386 and `lib64` on x86_64.
+ *  Does not exist on non-x86: use %PV_PER_ARCH_DIRS_SCHEME_FHS instead.
  * @PV_PER_ARCH_DIRS_SCHEME_PLATFORM: `${PLATFORM}` expands to a
  *  known/supported platform alias.
  * @PV_PER_ARCH_DIRS_SCHEME_NONE: None of the above.
@@ -89,7 +94,10 @@ typedef enum
   PV_PER_ARCH_DIRS_SCHEME_MULTIARCH,
   PV_PER_ARCH_DIRS_SCHEME_UBUNTU_1204,
   PV_PER_ARCH_DIRS_SCHEME_FHS,
+#if defined(__i386__) || defined(__x86_64__)
   PV_PER_ARCH_DIRS_SCHEME_ARCH,
+  PV_PER_ARCH_DIRS_SCHEME_LIBQUAL,
+#endif
   PV_PER_ARCH_DIRS_SCHEME_PLATFORM,
 } PvPerArchDirsScheme;
 
@@ -97,21 +105,23 @@ typedef enum
   static const char * const multiarch_libs[] = { "lib/x86_64-linux-gnu", "lib/i386-linux-gnu" };
   static const char * const fhs_libs[] = { "lib64", "lib" };
   static const char * const arch_libs[] = { "lib", "lib32" };
+  static const char * const libqual_libs[] = { "lib64", "lib32" };
 #elif defined(__aarch64__)
   static const char * const multiarch_libs[] = { "lib/aarch64-linux-gnu" };
   static const char * const fhs_libs[] = { "lib" };
-  static const char * const arch_libs[] = { "lib" };
 #elif defined(_SRT_MULTIARCH)
   static const char * const multiarch_libs[] = { "lib/" _SRT_MULTIARCH };
   static const char * const fhs_libs[] = { "lib" };
-  static const char * const arch_libs[] = { "lib" };
 #else
 #error Architecture not supported by pressure-vessel
 #endif
 
 G_STATIC_ASSERT (G_N_ELEMENTS (multiarch_libs) == PV_N_SUPPORTED_ARCHITECTURES);
 G_STATIC_ASSERT (G_N_ELEMENTS (fhs_libs) == PV_N_SUPPORTED_ARCHITECTURES);
+#if defined(__i386__) || defined(__x86_64__)
 G_STATIC_ASSERT (G_N_ELEMENTS (arch_libs) == PV_N_SUPPORTED_ARCHITECTURES);
+G_STATIC_ASSERT (G_N_ELEMENTS (libqual_libs) == PV_N_SUPPORTED_ARCHITECTURES);
+#endif
 
 static gboolean
 pv_per_arch_dirs_supports_scheme (SrtSystemInfo *system_info,
@@ -129,7 +139,10 @@ pv_per_arch_dirs_supports_scheme (SrtSystemInfo *system_info,
           case PV_PER_ARCH_DIRS_SCHEME_MULTIARCH:
           case PV_PER_ARCH_DIRS_SCHEME_UBUNTU_1204:
           case PV_PER_ARCH_DIRS_SCHEME_FHS:
+#if defined(__i386__) || defined(__x86_64__)
           case PV_PER_ARCH_DIRS_SCHEME_ARCH:
+          case PV_PER_ARCH_DIRS_SCHEME_LIBQUAL:
+#endif
             libdl_string = get_libdl_lib_or_mock (system_info, abi, NULL);
             break;
 
@@ -168,12 +181,21 @@ pv_per_arch_dirs_supports_scheme (SrtSystemInfo *system_info,
 
             break;
 
+#if defined(__i386__) || defined(__x86_64__)
           case PV_PER_ARCH_DIRS_SCHEME_ARCH:
             if (libdl_string == NULL
                 || !g_str_equal (libdl_string, arch_libs[abi]))
               return FALSE;
 
             break;
+
+          case PV_PER_ARCH_DIRS_SCHEME_LIBQUAL:
+            if (libdl_string == NULL
+                || !g_str_equal (libdl_string, libqual_libs[abi]))
+              return FALSE;
+
+            break;
+#endif
 
           case PV_PER_ARCH_DIRS_SCHEME_PLATFORM:
             if (libdl_string == NULL)
@@ -242,6 +264,7 @@ pv_per_arch_dirs_new (GError **error)
       for (abi = 0; abi < PV_N_SUPPORTED_ARCHITECTURES; abi++)
         self->abi_paths[abi] = g_build_filename (self->root_path, fhs_libs[abi], NULL);
     }
+#if defined(__i386__) || defined(__x86_64__)
   else if (pv_per_arch_dirs_supports_scheme (info, PV_PER_ARCH_DIRS_SCHEME_ARCH))
     {
       self->libdl_token_path = g_build_filename (self->root_path, "${LIB}", NULL);
@@ -249,6 +272,14 @@ pv_per_arch_dirs_new (GError **error)
       for (abi = 0; abi < PV_N_SUPPORTED_ARCHITECTURES; abi++)
         self->abi_paths[abi] = g_build_filename (self->root_path, arch_libs[abi], NULL);
     }
+  else if (pv_per_arch_dirs_supports_scheme (info, PV_PER_ARCH_DIRS_SCHEME_LIBQUAL))
+    {
+      self->libdl_token_path = g_build_filename (self->root_path, "${LIB}", NULL);
+
+      for (abi = 0; abi < PV_N_SUPPORTED_ARCHITECTURES; abi++)
+        self->abi_paths[abi] = g_build_filename (self->root_path, libqual_libs[abi], NULL);
+    }
+#endif
   else
     {
       self->libdl_token_path = g_build_filename (self->root_path,
