@@ -1359,15 +1359,29 @@ class Main:
         top: Path,
         writer: TextIO,
         *,
+        can_rename_files: bool = False,
         preserve_mode: bool = True,
         preserve_time: bool = True,
         skip_runtime_files: bool = False
     ) -> Dict[str, str]:
         lc_names: Dict[str, str] = {}
+        # { truncated hash: number of distinct files with this hash }
+        # Note that even if the content is identical, there can be
+        # more than one unique set of permissions for the same content.
+        hashed_names_used: Dict[str, int] = {}
+        # { new name: old name }
+        rename: Dict[str, str] = {}
+        unlink_later: Set[str] = set()
         differ_only_by_case: Set[str] = set()
         not_windows_friendly: Set[str] = set()
+        # { [device, inode]: hex sha256 }
         sha256: Dict[Tuple[int, int], str] = {}
-        paths: Dict[Tuple[int, int], str] = {}
+        # { [device, inode]: hashed name }
+        hashed_names: Dict[Tuple[int, int], str] = {}
+
+        for name in unlink_later:
+            with suppress(FileNotFoundError):
+                (top / name).unlink()
 
         writer.write('#mtree\n')
         writer.write('. type=dir\n')
@@ -1429,7 +1443,9 @@ class Main:
                     fields.append(f'size={stat_info.st_size}')
                     file_id = (stat_info.st_dev, stat_info.st_ino)
                     if stat_info.st_size > 0:
-                        if file_id not in sha256:
+                        if file_id in sha256:
+                            digest = sha256[file_id]
+                        else:
                             hasher = hashlib.sha256()
                             with open(member, 'rb') as f:
                                 while True:
@@ -1440,24 +1456,51 @@ class Main:
 
                                     hasher.update(blob)
 
-                            sha256[file_id] = hasher.hexdigest()
+                            digest = hasher.hexdigest()
+                            sha256[file_id] = digest
 
-                        fields.append(f'sha256={sha256[file_id]}')
+                        short_hash = digest[:2] + '/' + digest[2:8]
+                        fields.append(f'sha256={digest}')
 
-                    if stat_info.st_nlink > 1:
-                        if file_id in paths:
-                            writer.write(
-                                '# hard link to {}\n'.format(
-                                    self.octal_escape(paths[file_id]),
-                                ),
-                            )
-                        else:
-                            paths[file_id] = str(name)
+                        if can_rename_files and (
+                            stat_info.st_nlink > 1
+                            or name in differ_only_by_case
+                            or name in not_windows_friendly
+                            or '/.cache/' in name
+                            or '/__pycache__/' in name
+                            or '/tmp/' in name
+                            or name.endswith((
+                                '.pyc',
+                                '.pyo',
+                                'CACHEDIR.TAG',
+                            ))
+                        ):
+                            # Represent hard-linked files or problematic
+                            # filenames by a semi-content-addressed name.
+                            # In particular this disguises __pycache__/*.pyc,
+                            # which would otherwise be deleted by "helpful"
+                            # file cleaning tools
+                            if file_id in hashed_names:
+                                hashed_name = hashed_names[file_id]
+                            else:
+                                index = hashed_names_used.get(short_hash, 0)
+                                index += 1
+                                hashed_names_used[short_hash] = index
+                                hashed_name = f'{short_hash}-{index}.bin'
+                                hashed_names[file_id] = hashed_name
+
+                            fields.append(f'contents=./{hashed_name}')
+                            rename[hashed_name] = name
+                            unlink_later.add(name)
+                        # else represent ./foo/bar as ./foo/bar
+                    else:
+                        unlink_later.add(name)
 
                 elif stat.S_ISLNK(stat_info.st_mode):
                     fields.append('type=link')
                     fields.append(
                         f'link={self.octal_escape(os.readlink(member))}')
+                    unlink_later.add(name)
                 elif stat.S_ISDIR(stat_info.st_mode):
                     fields.append('type=dir')
                 else:
@@ -1470,19 +1513,27 @@ class Main:
 
                 writer.write(' '.join(fields) + '\n')
 
-            if differ_only_by_case:
+            if differ_only_by_case and not can_rename_files:
                 writer.write('\n')
                 writer.write('# Files whose names differ only by case:\n')
 
                 for name in sorted(differ_only_by_case):
                     writer.write('# {}\n'.format(self.octal_escape(name)))
 
-            if not_windows_friendly:
+            if not_windows_friendly and not can_rename_files:
                 writer.write('\n')
                 writer.write('# Files whose names are not Windows-friendly:\n')
 
                 for name in sorted(not_windows_friendly):
                     writer.write('# {}\n'.format(self.octal_escape(name)))
+
+        for name, original in rename.items():
+            (top / name).parent.mkdir(parents=True, exist_ok=True)
+            (top / original).replace(top / name)
+
+        for name in unlink_later:
+            with suppress(FileNotFoundError):
+                (top / name).unlink()
 
         return lc_names
 
@@ -1493,6 +1544,7 @@ class Main:
             lc_names = self.write_mtree(
                 Path(self.depot),
                 writer,
+                can_rename_files=False,
                 preserve_mode=False,
                 preserve_time=False,
                 skip_runtime_files=True,
@@ -1529,7 +1581,11 @@ class Main:
         with tempfile.TemporaryDirectory(prefix='slr-mtree-') as temp:
             writer = gzip.open(os.path.join(temp, 'usr-mtree.txt.gz'), 'wt')
 
-            lc_names = self.write_mtree(Path(root) / 'files', writer)
+            lc_names = self.write_mtree(
+                Path(root) / 'files',
+                writer,
+                can_rename_files=True,
+            )
 
             if '.ref' not in lc_names:
                 writer.write('./.ref type=file size=0 mode=644\n')
