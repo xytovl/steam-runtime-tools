@@ -981,7 +981,6 @@ class Main:
         ]
         logger.info('%r', argv)
         subprocess.run(argv, check=True)
-        self.prune_runtime(Path(dest))
         self.minimize_runtime(dest)
 
         if self.include_sdk_sysroot:
@@ -1522,6 +1521,9 @@ class Main:
         described by a mtree manifest usr-mtree.txt.gz, which
         pressure-vessel can reconstitute back into the original runtime.
         '''
+
+        # Remove unnecessary files
+        self.prune_runtime(Path(root))
 
         # Generate the manifest
         with tempfile.TemporaryDirectory(prefix='slr-mtree-') as temp:
