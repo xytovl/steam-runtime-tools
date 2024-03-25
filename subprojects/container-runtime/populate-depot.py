@@ -800,27 +800,6 @@ class Main:
 
         self.write_component_versions()
 
-    def ensure_ref(self, path: str) -> None:
-        '''
-        Create $path/files/.ref as an empty regular file.
-
-        This is useful because pressure-vessel would create this file
-        during processing. If it gets committed to the depot, then Steampipe
-        will remove it when superseded.
-        '''
-        ref = os.path.join(path, 'files', '.ref')
-
-        try:
-            statinfo = os.stat(ref, follow_symlinks=False)
-        except FileNotFoundError:
-            with open(ref, 'x'):
-                pass
-        else:
-            if statinfo.st_size > 0 or not stat.S_ISREG(statinfo.st_mode):
-                raise RuntimeError(
-                    'Expected {} to be an empty regular file'.format(path)
-                )
-
     def prune_runtime(self, directory: Path) -> None:
         """
         Remove files that are considered to be unnecessary
@@ -1005,8 +984,6 @@ class Main:
         self.prune_runtime(Path(dest))
         self.write_lookaside(dest)
         self.minimize_runtime(dest)
-
-        self.ensure_ref(dest)
 
         if self.include_sdk_sysroot:
             if self.versioned_directories:
@@ -1585,6 +1562,25 @@ class Main:
             except OSError as e:
                 if e.errno != errno.ENOTEMPTY:
                     raise
+
+        # Create $path/files/.ref as an empty regular file.
+        #
+        # This is useful because pressure-vessel would create this file
+        # during processing. If it gets committed to the depot, then Steampipe
+        # will remove it when superseded.
+
+        ref = os.path.join(root, 'files', '.ref')
+
+        try:
+            statinfo = os.stat(ref, follow_symlinks=False)
+        except FileNotFoundError:
+            with open(ref, 'x'):
+                pass
+        else:
+            if statinfo.st_size > 0 or not stat.S_ISREG(statinfo.st_mode):
+                raise RuntimeError(
+                    'Expected {} to be an empty regular file'.format(root)
+                )
 
     def write_steampipe_config(self) -> None:
         import vdf                          # noqa
