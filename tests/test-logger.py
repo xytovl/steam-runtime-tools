@@ -156,7 +156,7 @@ class TestLogger(BaseTest):
                     'cat',
                 ],
                 stdin=subprocess.PIPE,
-                stdout=STDERR_FILENO,
+                stdout=subprocess.PIPE,
                 stderr=STDERR_FILENO,
             )
 
@@ -167,7 +167,17 @@ class TestLogger(BaseTest):
                 stdin.write(b'hello, world\n')
                 stdin.flush()
 
+            # Wait for the logger to be holding its lock on the log file,
+            # which it signals by closing stdout.
+            stdout = proc.stdout
+            assert stdout is not None
+
+            with stdout:
+                content = stdout.read()
+                self.assertEqual(b'', content)
+
             proc.wait()
+
             # Take an exclusive lock on the log file to give the logger
             # time to exit too
             proc = subprocess.Popen(
