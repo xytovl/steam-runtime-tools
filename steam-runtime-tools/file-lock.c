@@ -60,7 +60,7 @@ _srt_file_lock_acquire (int fd,
         .l_start = 0,
         .l_len = 0
       };
-      const char *type_str = "reading";
+      const char *type_str = "shared";
       int cmd;
       int saved_errno;
 
@@ -95,7 +95,7 @@ _srt_file_lock_acquire (int fd,
       if (flags & SRT_FILE_LOCK_FLAGS_EXCLUSIVE)
         {
           l.l_type = F_WRLCK;
-          type_str = "writing";
+          type_str = "exclusive";
         }
 
       if (TEMP_FAILURE_RETRY (fcntl (fd, cmd, &l)) == 0)
@@ -118,13 +118,13 @@ _srt_file_lock_acquire (int fd,
       if (saved_errno == EACCES || saved_errno == EAGAIN)
         {
           g_set_error (error, G_IO_ERROR, G_IO_ERROR_BUSY,
-                       "Unable to lock %s for %s: file is busy",
-                       path, type_str);
+                       "Unable to acquire %s lock on %s: file is busy",
+                       type_str, path);
           return FALSE;
         }
 
-      return glnx_throw_errno_prefix (error, "Unable to lock %s for %s",
-                                      path, type_str);
+      return glnx_throw_errno_prefix (error, "Unable to acquire %s lock on %s",
+                                      type_str, path);
     }
 
   g_return_val_if_reached (FALSE);
