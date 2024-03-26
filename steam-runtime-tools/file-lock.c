@@ -27,6 +27,7 @@
 
 #include "steam-runtime-tools/file-lock-internal.h"
 #include "steam-runtime-tools/missing-internal.h"
+#include "steam-runtime-tools/utils-internal.h"
 
 /**
  * SrtFileLock:
@@ -185,8 +186,44 @@ srt_file_lock_new (int at_fd,
       return NULL;
     }
 
-  if (!_srt_file_lock_acquire (fd, path, flags, &ofd, error))
-    return NULL;
+  if (_srt_all_bits_set (flags,
+                         SRT_FILE_LOCK_FLAGS_WAIT | SRT_FILE_LOCK_FLAGS_VERBOSE))
+    {
+      g_autoptr(GError) local_error = NULL;
+      gboolean ok;
+
+      ok = _srt_file_lock_acquire (fd, path, flags & ~SRT_FILE_LOCK_FLAGS_WAIT,
+                                   &ofd, &local_error);
+
+      if (!ok && g_error_matches (local_error, G_IO_ERROR, G_IO_ERROR_BUSY))
+        {
+          const char *type_str = "shared";
+
+          g_clear_error (&local_error);
+
+          if (flags & SRT_FILE_LOCK_FLAGS_EXCLUSIVE)
+            type_str = "exclusive";
+
+          g_message ("Waiting for %s lock to be available: %s",
+                     type_str, path);
+
+          ok = _srt_file_lock_acquire (fd, path, flags, &ofd, &local_error);
+
+          if (ok)
+            g_message ("Acquired lock %s, continuing", path);
+        }
+
+      if (!ok)
+        {
+          g_propagate_error (error, g_steal_pointer (&local_error));
+          return NULL;
+        }
+    }
+  else
+    {
+      if (!_srt_file_lock_acquire (fd, path, flags, &ofd, error))
+        return NULL;
+    }
 
   return srt_file_lock_new_take (g_steal_fd (&fd), ofd);
 }

@@ -40,6 +40,9 @@
  * @SRT_FILE_LOCK_FLAGS_PROCESS_ORIENTED: Require a process-oriented lock,
  *  which is released on fork(). By default srt_file_lock_new() uses
  *  an OFD lock if available.
+ * @SRT_FILE_LOCK_FLAGS_VERBOSE: If the lock cannot be acquired immediately,
+ *  log a message before waiting for it and another message when it is
+ *  acquired. Currently ignored if not also using %SRT_FILE_LOCK_FLAGS_WAIT.
  * @SRT_FILE_LOCK_FLAGS_NONE: None of the above
  *
  * Flags affecting how we take a lock on a runtime directory.
@@ -51,6 +54,7 @@ typedef enum
   SRT_FILE_LOCK_FLAGS_EXCLUSIVE = (1 << 2),
   SRT_FILE_LOCK_FLAGS_REQUIRE_OFD = (1 << 3),
   SRT_FILE_LOCK_FLAGS_PROCESS_ORIENTED = (1 << 4),
+  SRT_FILE_LOCK_FLAGS_VERBOSE = (1 << 5),
   SRT_FILE_LOCK_FLAGS_NONE = 0
 } SrtFileLockFlags;
 
