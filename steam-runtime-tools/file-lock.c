@@ -163,6 +163,7 @@ srt_file_lock_new (int at_fd,
   glnx_autofd int fd = -1;
   int open_flags = O_CLOEXEC | O_NOCTTY;
   gboolean ofd;
+  const char *type_str = "shared";
 
   g_return_val_if_fail (path != NULL, NULL);
   g_return_val_if_fail (error == NULL || *error == NULL, NULL);
@@ -176,6 +177,11 @@ srt_file_lock_new (int at_fd,
     open_flags |= O_RDWR;
   else
     open_flags |= O_RDONLY;
+
+  if (flags & SRT_FILE_LOCK_FLAGS_EXCLUSIVE)
+    type_str = "exclusive";
+
+  g_debug ("Acquiring %s lock on %s...", type_str, path);
 
   at_fd = glnx_dirfd_canonicalize (at_fd);
   fd = TEMP_FAILURE_RETRY (openat (at_fd, path, open_flags, 0644));
@@ -197,12 +203,7 @@ srt_file_lock_new (int at_fd,
 
       if (!ok && g_error_matches (local_error, G_IO_ERROR, G_IO_ERROR_BUSY))
         {
-          const char *type_str = "shared";
-
           g_clear_error (&local_error);
-
-          if (flags & SRT_FILE_LOCK_FLAGS_EXCLUSIVE)
-            type_str = "exclusive";
 
           g_message ("Waiting for %s lock to be available: %s",
                      type_str, path);
@@ -224,6 +225,8 @@ srt_file_lock_new (int at_fd,
       if (!_srt_file_lock_acquire (fd, path, flags, &ofd, error))
         return NULL;
     }
+
+  g_debug ("Acquired %s lock on %s: %d", type_str, path, fd);
 
   return srt_file_lock_new_take (g_steal_fd (&fd), ofd);
 }
@@ -263,6 +266,7 @@ srt_file_lock_free (SrtFileLock *self)
   fd = g_steal_fd (&self->fd);
   g_slice_free (SrtFileLock, self);
   /* fd is closed by glnx_autofd if necessary, and that releases the lock */
+  g_debug ("Releasing lock %d", fd);
 }
 
 int
