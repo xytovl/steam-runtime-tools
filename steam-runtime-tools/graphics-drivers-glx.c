@@ -28,6 +28,8 @@
 
 #include "steam-runtime-tools/glib-backports-internal.h"
 
+#include "steam-runtime-tools/graphics-drivers-internal.h"
+
 /**
  * SECTION:graphics-drivers-glx
  * @title: GLX graphics driver enumeration
@@ -49,26 +51,24 @@
 struct _SrtGlxIcd
 {
   /*< private >*/
-  GObject parent;
+  SrtBaseGraphicsModule parent;
   gchar *library_soname;
-  gchar *library_path;
 };
 
 struct _SrtGlxIcdClass
 {
   /*< private >*/
-  GObjectClass parent_class;
+  SrtBaseGraphicsModuleClass parent_class;
 };
 
 enum
 {
   GLX_ICD_PROP_0,
   GLX_ICD_PROP_LIBRARY_SONAME,
-  GLX_ICD_PROP_LIBRARY_PATH,
   N_GLX_ICD_PROPERTIES
 };
 
-G_DEFINE_TYPE (SrtGlxIcd, srt_glx_icd, G_TYPE_OBJECT)
+G_DEFINE_TYPE (SrtGlxIcd, srt_glx_icd, SRT_TYPE_BASE_GRAPHICS_MODULE)
 
 static void
 srt_glx_icd_init (SrtGlxIcd *self)
@@ -87,10 +87,6 @@ srt_glx_icd_get_property (GObject *object,
     {
       case GLX_ICD_PROP_LIBRARY_SONAME:
         g_value_set_string (value, self->library_soname);
-        break;
-
-      case GLX_ICD_PROP_LIBRARY_PATH:
-        g_value_set_string (value, self->library_path);
         break;
 
       default:
@@ -113,11 +109,6 @@ srt_glx_icd_set_property (GObject *object,
         self->library_soname = g_value_dup_string (value);
         break;
 
-      case GLX_ICD_PROP_LIBRARY_PATH:
-        g_return_if_fail (self->library_path == NULL);
-        self->library_path = g_value_dup_string (value);
-        break;
-
       default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
     }
@@ -129,7 +120,6 @@ srt_glx_icd_finalize (GObject *object)
   SrtGlxIcd *self = SRT_GLX_ICD (object);
 
   g_clear_pointer (&self->library_soname, g_free);
-  g_clear_pointer (&self->library_path, g_free);
 
   G_OBJECT_CLASS (srt_glx_icd_parent_class)->finalize (object);
 }
@@ -148,14 +138,6 @@ srt_glx_icd_class_init (SrtGlxIcdClass *cls)
   glx_icd_properties[GLX_ICD_PROP_LIBRARY_SONAME] =
     g_param_spec_string ("library-soname", "Library soname",
                          "SONAME of the GLX ICD library",
-                         NULL,
-                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-                         G_PARAM_STATIC_STRINGS);
-
-  glx_icd_properties[GLX_ICD_PROP_LIBRARY_PATH] =
-    g_param_spec_string ("library-path", "Library absolute path",
-                         "Absolute path to the GLX ICD library as though "
-                         "the sysroot, if any, was the root",
                          NULL,
                          G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
                          G_PARAM_STATIC_STRINGS);
@@ -212,5 +194,5 @@ const gchar *
 srt_glx_icd_get_library_path (SrtGlxIcd *self)
 {
   g_return_val_if_fail (SRT_IS_GLX_ICD (self), NULL);
-  return self->library_path;
+  return SRT_BASE_GRAPHICS_MODULE (self)->library_path;
 }

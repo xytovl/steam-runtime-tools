@@ -32,13 +32,83 @@
 #include "steam-runtime-tools/library-internal.h"
 #include "steam-runtime-tools/resolve-in-sysroot-internal.h"
 
-void
-srt_loadable_clear (SrtLoadable *self)
+enum
 {
-  g_clear_error (&self->error);
+  BASE_PROP_0,
+  BASE_PROP_JSON_PATH,
+  N_BASE_PROPERTIES
+};
+
+static GParamSpec *base_properties[N_BASE_PROPERTIES] = { NULL };
+
+G_DEFINE_TYPE (SrtBaseJsonGraphicsModule,
+               _srt_base_json_graphics_module,
+               SRT_TYPE_BASE_GRAPHICS_MODULE)
+
+static void
+_srt_base_json_graphics_module_init (SrtBaseJsonGraphicsModule *self)
+{
+}
+
+static void
+srt_base_json_graphics_module_constructed (GObject *object)
+{
+  SrtBaseJsonGraphicsModule *self = SRT_BASE_JSON_GRAPHICS_MODULE (object);
+
+  G_OBJECT_CLASS (_srt_base_json_graphics_module_parent_class)->constructed (object);
+
+  g_return_if_fail (self->json_path != NULL);
+  g_return_if_fail (g_path_is_absolute (self->json_path));
+}
+
+static void
+srt_base_json_graphics_module_get_property (GObject *object,
+                                            guint prop_id,
+                                            GValue *value,
+                                            GParamSpec *pspec)
+{
+  SrtBaseJsonGraphicsModule *self = SRT_BASE_JSON_GRAPHICS_MODULE (object);
+
+  switch (prop_id)
+    {
+      case BASE_PROP_JSON_PATH:
+        g_value_set_string (value, self->json_path);
+        break;
+
+      default:
+        G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+    }
+}
+
+static void
+srt_base_json_graphics_module_set_property (GObject *object,
+                                            guint prop_id,
+                                            const GValue *value,
+                                            GParamSpec *pspec)
+{
+  SrtBaseJsonGraphicsModule *self = SRT_BASE_JSON_GRAPHICS_MODULE (object);
+  const char *tmp;
+
+  switch (prop_id)
+    {
+      case BASE_PROP_JSON_PATH:
+        g_return_if_fail (self->json_path == NULL);
+        tmp = g_value_get_string (value);
+        self->json_path = g_canonicalize_filename (tmp, NULL);
+        break;
+
+      default:
+        G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+    }
+}
+
+static void
+srt_base_json_graphics_module_finalize (GObject *object)
+{
+  SrtBaseJsonGraphicsModule *self = SRT_BASE_JSON_GRAPHICS_MODULE (object);
+
   g_clear_pointer (&self->api_version, g_free);
   g_clear_pointer (&self->json_path, g_free);
-  g_clear_pointer (&self->library_path, g_free);
   g_clear_pointer (&self->library_arch, g_free);
   g_clear_pointer (&self->file_format_version, g_free);
   g_clear_pointer (&self->name, g_free);
@@ -55,6 +125,26 @@ srt_loadable_clear (SrtLoadable *self)
   g_clear_pointer (&self->disable_env_var.name, g_free);
   g_clear_pointer (&self->disable_env_var.value, g_free);
   g_clear_pointer (&self->original_json, g_free);
+
+  G_OBJECT_CLASS (_srt_base_json_graphics_module_parent_class)->finalize (object);
+}
+
+SrtBaseJsonGraphicsModule *
+_srt_base_json_graphics_module_new_error (GType type,
+                                          const gchar *json_path,
+                                          SrtLoadableIssues issues,
+                                          const GError *error)
+{
+  g_return_val_if_fail (g_type_is_a (type, SRT_TYPE_BASE_JSON_GRAPHICS_MODULE),
+                        NULL);
+  g_return_val_if_fail (json_path != NULL, NULL);
+  g_return_val_if_fail (error != NULL, NULL);
+
+  return g_object_new (type,
+                       "error", error,
+                       "json-path", json_path,
+                       "issues", issues,
+                       NULL);
 }
 
 /*
@@ -62,9 +152,10 @@ srt_loadable_clear (SrtLoadable *self)
  * srt_vulkan_icd_resolve_library_path() or
  * srt_vulkan_layer_resolve_library_path()
  */
-gchar *
-srt_loadable_resolve_library_path (const SrtLoadable *self)
+static gchar *
+srt_base_json_graphics_module_resolve_library_path (SrtBaseGraphicsModule *base)
 {
+  SrtBaseJsonGraphicsModule *self = SRT_BASE_JSON_GRAPHICS_MODULE (base);
   gchar *dir;
   gchar *ret;
 
@@ -87,41 +178,59 @@ srt_loadable_resolve_library_path (const SrtLoadable *self)
    * a patch to give it the same behaviour as Vulkan instead.
    */
 
-  if (self->library_path == NULL)
+  if (base->library_path == NULL)
     return NULL;
 
-  if (self->library_path[0] == '/')
-    return g_strdup (self->library_path);
+  if (base->library_path[0] == '/')
+    return g_strdup (base->library_path);
 
-  if (strchr (self->library_path, '/') == NULL)
-    return g_strdup (self->library_path);
+  if (strchr (base->library_path, '/') == NULL)
+    return g_strdup (base->library_path);
 
   dir = g_path_get_dirname (self->json_path);
-  ret = g_build_filename (dir, self->library_path, NULL);
+  ret = g_build_filename (dir, base->library_path, NULL);
   g_free (dir);
   g_return_val_if_fail (g_path_is_absolute (ret), ret);
   return ret;
 }
 
-/* See srt_egl_icd_check_error(), srt_vulkan_icd_check_error() */
-gboolean
-srt_loadable_check_error (const SrtLoadable *self,
-                          GError **error)
+static void
+_srt_base_json_graphics_module_class_init (SrtBaseJsonGraphicsModuleClass *cls)
 {
-  if (self->error != NULL && error != NULL)
-    *error = g_error_copy (self->error);
+  GObjectClass *object_class = G_OBJECT_CLASS (cls);
+  SrtBaseGraphicsModuleClass *base_class = SRT_BASE_GRAPHICS_MODULE_CLASS (cls);
 
-  return (self->error == NULL);
+  object_class->constructed = srt_base_json_graphics_module_constructed;
+  object_class->get_property = srt_base_json_graphics_module_get_property;
+  object_class->set_property = srt_base_json_graphics_module_set_property;
+  object_class->finalize = srt_base_json_graphics_module_finalize;
+
+  base_class->resolve_library_path = srt_base_json_graphics_module_resolve_library_path;
+
+  base_properties[BASE_PROP_JSON_PATH] =
+    g_param_spec_string ("json-path", "JSON path",
+                         "Absolute path to JSON file describing this module. "
+                         "If examining a sysroot, this path is set as though "
+                         "the sysroot was the root directory. "
+                         "When constructing the object, a relative path can "
+                         "be given: it will be converted to an absolute path.",
+                         NULL,
+                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+                         G_PARAM_STATIC_STRINGS);
+
+  g_object_class_install_properties (object_class, N_BASE_PROPERTIES,
+                                     base_properties);
 }
 
 /* See srt_egl_icd_write_to_file(), srt_vulkan_icd_write_to_file() and
  * srt_vulkan_layer_write_to_file() */
 gboolean
-srt_loadable_write_to_file (const SrtLoadable *self,
-                            const char *path,
-                            GType which,
-                            GError **error)
+_srt_base_json_graphics_module_write_to_file (SrtBaseJsonGraphicsModule *self,
+                                              const char *path,
+                                              GType which,
+                                              GError **error)
 {
+  SrtBaseGraphicsModule *base = &self->parent;
   JsonBuilder *builder;
   JsonGenerator *generator;
   JsonNode *root;
@@ -143,7 +252,7 @@ srt_loadable_write_to_file (const SrtLoadable *self,
   else
     g_return_val_if_reached (FALSE);
 
-  if (!srt_loadable_check_error (self, error))
+  if (!_srt_base_graphics_module_check_error (base, error))
     {
       g_prefix_error (error,
                       "Cannot save %s metadata to file because it is invalid: ",
@@ -182,7 +291,7 @@ srt_loadable_write_to_file (const SrtLoadable *self,
            json_builder_begin_object (builder);
             {
               json_builder_set_member_name (builder, "library_path");
-              json_builder_add_string_value (builder, self->library_path);
+              json_builder_add_string_value (builder, base->library_path);
 
               json_builder_set_member_name (builder, "api_version");
               json_builder_add_string_value (builder, self->api_version);
@@ -214,7 +323,7 @@ srt_loadable_write_to_file (const SrtLoadable *self,
            json_builder_begin_object (builder);
             {
               json_builder_set_member_name (builder, "library_path");
-              json_builder_add_string_value (builder, self->library_path);
+              json_builder_add_string_value (builder, base->library_path);
             }
            json_builder_end_object (builder);
         }
@@ -251,10 +360,10 @@ srt_loadable_write_to_file (const SrtLoadable *self,
               json_builder_set_member_name (builder, "type");
               json_builder_add_string_value (builder, self->type);
 
-              if (self->library_path != NULL)
+              if (base->library_path != NULL)
                 {
                   json_builder_set_member_name (builder, "library_path");
-                  json_builder_add_string_value (builder, self->library_path);
+                  json_builder_add_string_value (builder, base->library_path);
                 }
 
               if (self->library_arch != NULL)
@@ -410,56 +519,31 @@ _get_library_canonical_path (SrtSubprocessRunner *runner,
 }
 
 static void
-_update_duplicated_value (GType which,
+_update_duplicated_value (SrtBaseGraphicsModule *self,
                           GHashTable *loadable_seen,
-                          const gchar *key,
-                          void *loadable_to_check)
+                          const gchar *key)
 {
   if (key == NULL)
     return;
 
   if (g_hash_table_contains (loadable_seen, key))
     {
-      if (which == SRT_TYPE_VULKAN_ICD)
-        {
-          SrtVulkanIcd *vulkan_icd = g_hash_table_lookup (loadable_seen, key);
-          _srt_vulkan_icd_set_is_duplicated (vulkan_icd, TRUE);
-          _srt_vulkan_icd_set_is_duplicated (loadable_to_check, TRUE);
-        }
-      else if (which == SRT_TYPE_EGL_ICD)
-        {
-          SrtEglIcd *egl_icd = g_hash_table_lookup (loadable_seen, key);
-          _srt_egl_icd_set_is_duplicated (egl_icd, TRUE);
-          _srt_egl_icd_set_is_duplicated (loadable_to_check, TRUE);
-        }
-      else if (which == SRT_TYPE_EGL_EXTERNAL_PLATFORM)
-        {
-          SrtEglExternalPlatform *egl_ext = g_hash_table_lookup (loadable_seen, key);
-          _srt_egl_external_platform_set_is_duplicated (egl_ext, TRUE);
-          _srt_egl_external_platform_set_is_duplicated (loadable_to_check, TRUE);
-        }
-      else if (which == SRT_TYPE_VULKAN_LAYER)
-        {
-          SrtVulkanLayer *vulkan_layer = g_hash_table_lookup (loadable_seen, key);
-          _srt_vulkan_layer_set_is_duplicated (vulkan_layer, TRUE);
-          _srt_vulkan_layer_set_is_duplicated (loadable_to_check, TRUE);
-        }
-      else
-        {
-          g_return_if_reached ();
-        }
+      SrtBaseGraphicsModule *other = g_hash_table_lookup (loadable_seen, key);
+
+      other->issues |= SRT_LOADABLE_ISSUES_DUPLICATED;
+      self->issues |= SRT_LOADABLE_ISSUES_DUPLICATED;
     }
   else
     {
       g_hash_table_replace (loadable_seen,
                             g_strdup (key),
-                            loadable_to_check);
+                            self);
     }
 }
 
 /*
  * @runner: The execution environment
- * @loadable: (inout) (element-type SrtVulkanLayer):
+ * @loadable: (inout) (element-type SrtBaseJsonGraphicsModule):
  *
  * Iterate the provided @loadable list and update their "issues" property
  * to include the SRT_LOADABLE_ISSUES_DUPLICATED bit if they are duplicated.
@@ -487,20 +571,17 @@ _srt_loadable_flag_duplicates (GType which,
 
   for (l = loadable; l != NULL; l = l->next)
     {
+      SrtBaseGraphicsModule *module = l->data;
       g_autofree gchar *resolved_path = NULL;
       const gchar *name = NULL;
+
+      g_assert (G_TYPE_CHECK_INSTANCE_TYPE (module, which));
+      resolved_path = _srt_base_graphics_module_resolve_library_path (module);
 
       if (which == SRT_TYPE_VULKAN_ICD
           || which == SRT_TYPE_EGL_ICD
           || which == SRT_TYPE_EGL_EXTERNAL_PLATFORM)
         {
-          if (which == SRT_TYPE_VULKAN_ICD)
-            resolved_path = srt_vulkan_icd_resolve_library_path (l->data);
-          else if (which == SRT_TYPE_EGL_ICD)
-            resolved_path = srt_egl_icd_resolve_library_path (l->data);
-          else
-            resolved_path = srt_egl_external_platform_resolve_library_path (l->data);
-
           if (resolved_path == NULL)
             continue;
 
@@ -508,7 +589,7 @@ _srt_loadable_flag_duplicates (GType which,
             {
               /* If we don't have the multiarch_tuples just use the
                * resolved_path as is */
-              _update_duplicated_value (which, loadable_seen, resolved_path, l->data);
+              _update_duplicated_value (module, loadable_seen, resolved_path);
             }
           else
             {
@@ -527,13 +608,12 @@ _srt_loadable_flag_duplicates (GType which,
                       continue;
                     }
 
-                  _update_duplicated_value (which, loadable_seen, canonical_path, l->data);
+                  _update_duplicated_value (module, loadable_seen, canonical_path);
                 }
             }
         }
       else if (which == SRT_TYPE_VULKAN_LAYER)
         {
-          resolved_path = srt_vulkan_layer_resolve_library_path (l->data);
           name = srt_vulkan_layer_get_name (l->data);
 
           if (resolved_path == NULL && name == NULL)
@@ -549,7 +629,7 @@ _srt_loadable_flag_duplicates (GType which,
                * a collision happens, we will just consider two layers
                * as duplicated when in reality they weren't. */
               hash_key = g_strdup_printf ("%s//%s", name, resolved_path);
-              _update_duplicated_value (which, loadable_seen, hash_key, l->data);
+              _update_duplicated_value (module, loadable_seen, hash_key);
             }
           else
             {
@@ -576,7 +656,7 @@ _srt_loadable_flag_duplicates (GType which,
                    * event where a collision happens, we will just consider
                    * two layers as duplicated when in reality they weren't. */
                   hash_key = g_strdup_printf ("%s//%s", name, canonical_path);
-                  _update_duplicated_value (which, loadable_seen, hash_key, l->data);
+                  _update_duplicated_value (module, loadable_seen, hash_key);
                 }
             }
         }
@@ -950,8 +1030,8 @@ out:
           icd = srt_vulkan_icd_new (filename, api_version,
                                     library_path, library_arch,
                                     portability_driver, issues);
-          _srt_loadable_take_original_json (&icd->icd,
-                                            g_steal_pointer (&contents));
+          _srt_base_json_graphics_module_take_original_json (SRT_BASE_JSON_GRAPHICS_MODULE (icd),
+                                                             g_steal_pointer (&contents));
         }
       else
         {
@@ -967,8 +1047,8 @@ out:
       if (error == NULL)
         {
           icd = srt_egl_icd_new (filename, library_path, issues);
-          _srt_loadable_take_original_json (&icd->icd,
-                                            g_steal_pointer (&contents));
+          _srt_base_json_graphics_module_take_original_json (SRT_BASE_JSON_GRAPHICS_MODULE (icd),
+                                                             g_steal_pointer (&contents));
         }
       else
         {
@@ -984,8 +1064,8 @@ out:
       if (error == NULL)
         {
           ep = srt_egl_external_platform_new (filename, library_path, issues);
-          _srt_loadable_take_original_json (&ep->module,
-                                            g_steal_pointer (&contents));
+          _srt_base_json_graphics_module_take_original_json (SRT_BASE_JSON_GRAPHICS_MODULE (ep),
+                                                             g_steal_pointer (&contents));
         }
       else
         {
@@ -1001,9 +1081,9 @@ out:
 }
 
 void
-_srt_loadable_set_library_arch (SrtLoadable *self,
-                                const char *library_arch,
-                                const char *min_file_format_version)
+_srt_base_json_graphics_module_set_library_arch (SrtBaseJsonGraphicsModule *self,
+                                                 const char *library_arch,
+                                                 const char *min_file_format_version)
 {
   g_return_if_fail (library_arch != NULL);
   g_return_if_fail (min_file_format_version != NULL);
@@ -1020,8 +1100,8 @@ _srt_loadable_set_library_arch (SrtLoadable *self,
 }
 
 void
-_srt_loadable_take_original_json (SrtLoadable *self,
-                                  gchar *contents)
+_srt_base_json_graphics_module_take_original_json (SrtBaseJsonGraphicsModule *self,
+                                                   gchar *contents)
 {
   g_clear_pointer (&self->original_json, g_free);
   self->original_json = contents;

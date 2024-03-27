@@ -54,21 +54,12 @@
 struct _SrtEglExternalPlatformClass
 {
   /*< private >*/
-  GObjectClass parent_class;
+  SrtBaseJsonGraphicsModuleClass parent_class;
 };
 
-enum
-{
-  EGL_EXT_PLATFORM_PROP_0,
-  EGL_EXT_PLATFORM_PROP_ERROR,
-  EGL_EXT_PLATFORM_PROP_ISSUES,
-  EGL_EXT_PLATFORM_PROP_JSON_PATH,
-  EGL_EXT_PLATFORM_PROP_LIBRARY_PATH,
-  EGL_EXT_PLATFORM_PROP_RESOLVED_LIBRARY_PATH,
-  N_EGL_EXT_PLATFORM_PROPERTIES
-};
-
-G_DEFINE_TYPE (SrtEglExternalPlatform, srt_egl_external_platform, G_TYPE_OBJECT)
+G_DEFINE_TYPE (SrtEglExternalPlatform,
+               srt_egl_external_platform,
+               SRT_TYPE_BASE_JSON_GRAPHICS_MODULE)
 
 static void
 srt_egl_external_platform_init (SrtEglExternalPlatform *self)
@@ -76,165 +67,27 @@ srt_egl_external_platform_init (SrtEglExternalPlatform *self)
 }
 
 static void
-srt_egl_external_platform_get_property (GObject *object,
-                                        guint prop_id,
-                                        GValue *value,
-                                        GParamSpec *pspec)
-{
-  SrtEglExternalPlatform *self = SRT_EGL_EXTERNAL_PLATFORM (object);
-
-  switch (prop_id)
-    {
-      case EGL_EXT_PLATFORM_PROP_ERROR:
-        g_value_set_boxed (value, self->module.error);
-        break;
-
-      case EGL_EXT_PLATFORM_PROP_ISSUES:
-        g_value_set_flags (value, self->module.issues);
-        break;
-
-      case EGL_EXT_PLATFORM_PROP_JSON_PATH:
-        g_value_set_string (value, self->module.json_path);
-        break;
-
-      case EGL_EXT_PLATFORM_PROP_LIBRARY_PATH:
-        g_value_set_string (value, self->module.library_path);
-        break;
-
-      case EGL_EXT_PLATFORM_PROP_RESOLVED_LIBRARY_PATH:
-        g_value_take_string (value, srt_egl_external_platform_resolve_library_path (self));
-        break;
-
-      default:
-        G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
-    }
-}
-
-static void
-srt_egl_external_platform_set_property (GObject *object,
-                                        guint prop_id,
-                                        const GValue *value,
-                                        GParamSpec *pspec)
-{
-  SrtEglExternalPlatform *self = SRT_EGL_EXTERNAL_PLATFORM (object);
-  const char *tmp;
-
-  switch (prop_id)
-    {
-      case EGL_EXT_PLATFORM_PROP_ERROR:
-        g_return_if_fail (self->module.error == NULL);
-        self->module.error = g_value_dup_boxed (value);
-        break;
-
-      case EGL_EXT_PLATFORM_PROP_ISSUES:
-        g_return_if_fail (self->module.issues == 0);
-        self->module.issues = g_value_get_flags (value);
-        break;
-
-      case EGL_EXT_PLATFORM_PROP_JSON_PATH:
-        g_return_if_fail (self->module.json_path == NULL);
-        tmp = g_value_get_string (value);
-        self->module.json_path = g_canonicalize_filename (tmp, NULL);
-        break;
-
-      case EGL_EXT_PLATFORM_PROP_LIBRARY_PATH:
-        g_return_if_fail (self->module.library_path == NULL);
-        self->module.library_path = g_value_dup_string (value);
-        break;
-
-      default:
-        G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
-    }
-}
-
-static void
 srt_egl_external_platform_constructed (GObject *object)
 {
   SrtEglExternalPlatform *self = SRT_EGL_EXTERNAL_PLATFORM (object);
+  SrtBaseGraphicsModule *base = SRT_BASE_GRAPHICS_MODULE (object);
 
-  g_return_if_fail (self->module.json_path != NULL);
-  g_return_if_fail (g_path_is_absolute (self->module.json_path));
-  g_return_if_fail (self->module.api_version == NULL);
+  G_OBJECT_CLASS (srt_egl_external_platform_parent_class)->constructed (object);
 
-  if (self->module.error != NULL)
-    g_return_if_fail (self->module.library_path == NULL);
+  g_return_if_fail (self->parent.api_version == NULL);
+
+  if (base->error != NULL)
+    g_return_if_fail (base->library_path == NULL);
   else
-    g_return_if_fail (self->module.library_path != NULL);
+    g_return_if_fail (base->library_path != NULL);
 }
-
-static void
-srt_egl_external_platform_finalize (GObject *object)
-{
-  SrtEglExternalPlatform *self = SRT_EGL_EXTERNAL_PLATFORM (object);
-
-  srt_loadable_clear (&self->module);
-
-  G_OBJECT_CLASS (srt_egl_external_platform_parent_class)->finalize (object);
-}
-
-static GParamSpec *egl_external_platform_properties[N_EGL_EXT_PLATFORM_PROPERTIES] = { NULL };
 
 static void
 srt_egl_external_platform_class_init (SrtEglExternalPlatformClass *cls)
 {
   GObjectClass *object_class = G_OBJECT_CLASS (cls);
 
-  object_class->get_property = srt_egl_external_platform_get_property;
-  object_class->set_property = srt_egl_external_platform_set_property;
   object_class->constructed = srt_egl_external_platform_constructed;
-  object_class->finalize = srt_egl_external_platform_finalize;
-
-  egl_external_platform_properties[EGL_EXT_PLATFORM_PROP_ERROR] =
-    g_param_spec_boxed ("error", "Error",
-                        "GError describing how this module failed to load, or NULL",
-                        G_TYPE_ERROR,
-                        G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-                        G_PARAM_STATIC_STRINGS);
-
-  egl_external_platform_properties[EGL_EXT_PLATFORM_PROP_ISSUES] =
-    g_param_spec_flags ("issues", "Issues", "Problems with this module",
-                        SRT_TYPE_LOADABLE_ISSUES, SRT_LOADABLE_ISSUES_NONE,
-                        G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-                        G_PARAM_STATIC_STRINGS);
-
-  egl_external_platform_properties[EGL_EXT_PLATFORM_PROP_JSON_PATH] =
-    g_param_spec_string ("json-path", "JSON path",
-                         "Absolute path to JSON file describing this module. "
-                         "If examining a sysroot, this path is set as though "
-                         "the sysroot was the root directory. "
-                         "When constructing the object, a relative path can "
-                         "be given: it will be converted to an absolute path.",
-                         NULL,
-                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-                         G_PARAM_STATIC_STRINGS);
-
-  egl_external_platform_properties[EGL_EXT_PLATFORM_PROP_LIBRARY_PATH] =
-    g_param_spec_string ("library-path", "Library path",
-                         "Library implementing this module, expressed as a "
-                         "basename to be searched for in the default "
-                         "library search path (e.g. libnvidia-egl-wayland.so.1), "
-                         "a relative path containing '/' to be resolved "
-                         "relative to #SrtEglExternalPlatform:json-path (e.g. "
-                         "./libnvidia-egl-wayland.so.1), or an absolute path "
-                         "as though the sysroot (if any) was the root "
-                         "(e.g. /opt/EGL/libnvidia-egl-wayland.so.1)",
-                         NULL,
-                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-                         G_PARAM_STATIC_STRINGS);
-
-  egl_external_platform_properties[EGL_EXT_PLATFORM_PROP_RESOLVED_LIBRARY_PATH] =
-    g_param_spec_string ("resolved-library-path", "Resolved library path",
-                         "Library implementing this module, expressed as a "
-                         "basename to be searched for in the default "
-                         "library search path (e.g. libnvidia-egl-wayland.so.1) "
-                         "or an absolute path as though the sysroot (if any) "
-                         "was the root "
-                         "(e.g. /opt/EGL/libnvidia-egl-wayland.so.1)",
-                         NULL,
-                         G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
-
-  g_object_class_install_properties (object_class, N_EGL_EXT_PLATFORM_PROPERTIES,
-                                     egl_external_platform_properties);
 }
 
 /*
@@ -272,14 +125,10 @@ srt_egl_external_platform_new_error (const gchar *json_path,
                                      SrtLoadableIssues issues,
                                      const GError *error)
 {
-  g_return_val_if_fail (json_path != NULL, NULL);
-  g_return_val_if_fail (error != NULL, NULL);
-
-  return g_object_new (SRT_TYPE_EGL_EXTERNAL_PLATFORM,
-                       "error", error,
-                       "json-path", json_path,
-                       "issues", issues,
-                       NULL);
+  return (SrtEglExternalPlatform *) _srt_base_json_graphics_module_new_error (SRT_TYPE_EGL_EXTERNAL_PLATFORM,
+                                                                              json_path,
+                                                                              issues,
+                                                                              error);
 }
 
 /**
@@ -300,7 +149,7 @@ srt_egl_external_platform_check_error (SrtEglExternalPlatform *self,
 {
   g_return_val_if_fail (SRT_IS_EGL_EXTERNAL_PLATFORM (self), FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
-  return srt_loadable_check_error (&self->module, error);
+  return _srt_base_graphics_module_check_error (SRT_BASE_GRAPHICS_MODULE (self), error);
 }
 
 /**
@@ -315,7 +164,7 @@ const gchar *
 srt_egl_external_platform_get_json_path (SrtEglExternalPlatform *self)
 {
   g_return_val_if_fail (SRT_IS_EGL_EXTERNAL_PLATFORM (self), NULL);
-  return self->module.json_path;
+  return self->parent.json_path;
 }
 
 /**
@@ -336,7 +185,7 @@ const gchar *
 srt_egl_external_platform_get_library_path (SrtEglExternalPlatform *self)
 {
   g_return_val_if_fail (SRT_IS_EGL_EXTERNAL_PLATFORM (self), NULL);
-  return self->module.library_path;
+  return SRT_BASE_GRAPHICS_MODULE (self)->library_path;
 }
 
 /**
@@ -352,24 +201,7 @@ SrtLoadableIssues
 srt_egl_external_platform_get_issues (SrtEglExternalPlatform *self)
 {
   g_return_val_if_fail (SRT_IS_EGL_EXTERNAL_PLATFORM (self), SRT_LOADABLE_ISSUES_UNKNOWN);
-  return self->module.issues;
-}
-
-/*
- * @self: The module
- * @is_duplicated: if %TRUE, this module is a duplicate of another module
- *
- * @self issues is adjusted accordingly to the @is_duplicated value.
- */
-void
-_srt_egl_external_platform_set_is_duplicated (SrtEglExternalPlatform *self,
-                                              gboolean is_duplicated)
-{
-  g_return_if_fail (SRT_IS_EGL_EXTERNAL_PLATFORM (self));
-  if (is_duplicated)
-    self->module.issues |= SRT_LOADABLE_ISSUES_DUPLICATED;
-  else
-    self->module.issues &= ~SRT_LOADABLE_ISSUES_DUPLICATED;
+  return SRT_BASE_GRAPHICS_MODULE (self)->issues;
 }
 
 /**
@@ -397,7 +229,7 @@ gchar *
 srt_egl_external_platform_resolve_library_path (SrtEglExternalPlatform *self)
 {
   g_return_val_if_fail (SRT_IS_EGL_EXTERNAL_PLATFORM (self), NULL);
-  return srt_loadable_resolve_library_path (&self->module);
+  return _srt_base_graphics_module_resolve_library_path (SRT_BASE_GRAPHICS_MODULE (self));
 }
 
 /**
@@ -419,12 +251,16 @@ SrtEglExternalPlatform *
 srt_egl_external_platform_new_replace_library_path (SrtEglExternalPlatform *self,
                                                     const char *path)
 {
+  SrtBaseGraphicsModule *base;
+
   g_return_val_if_fail (SRT_IS_EGL_EXTERNAL_PLATFORM (self), NULL);
 
-  if (self->module.error != NULL)
+  base = SRT_BASE_GRAPHICS_MODULE (self);
+
+  if (base->error != NULL)
     return g_object_ref (self);
 
-  return srt_egl_external_platform_new (self->module.json_path, path, self->module.issues);
+  return srt_egl_external_platform_new (self->parent.json_path, path, base->issues);
 }
 
 /**
@@ -445,7 +281,10 @@ srt_egl_external_platform_write_to_file (SrtEglExternalPlatform *self,
   g_return_val_if_fail (SRT_IS_EGL_EXTERNAL_PLATFORM (self), FALSE);
   g_return_val_if_fail (path != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
-  return srt_loadable_write_to_file (&self->module, path, SRT_TYPE_EGL_EXTERNAL_PLATFORM, error);
+  return _srt_base_json_graphics_module_write_to_file (&self->parent,
+                                                       path,
+                                                       SRT_TYPE_EGL_EXTERNAL_PLATFORM,
+                                                       error);
 }
 
 /**
@@ -457,21 +296,10 @@ srt_egl_external_platform_write_to_file (SrtEglExternalPlatform *self,
 struct _SrtEglIcdClass
 {
   /*< private >*/
-  GObjectClass parent_class;
+  SrtBaseJsonGraphicsModuleClass parent_class;
 };
 
-enum
-{
-  EGL_ICD_PROP_0,
-  EGL_ICD_PROP_ERROR,
-  EGL_ICD_PROP_ISSUES,
-  EGL_ICD_PROP_JSON_PATH,
-  EGL_ICD_PROP_LIBRARY_PATH,
-  EGL_ICD_PROP_RESOLVED_LIBRARY_PATH,
-  N_EGL_ICD_PROPERTIES
-};
-
-G_DEFINE_TYPE (SrtEglIcd, srt_egl_icd, G_TYPE_OBJECT)
+G_DEFINE_TYPE (SrtEglIcd, srt_egl_icd, SRT_TYPE_BASE_JSON_GRAPHICS_MODULE)
 
 static void
 srt_egl_icd_init (SrtEglIcd *self)
@@ -479,165 +307,27 @@ srt_egl_icd_init (SrtEglIcd *self)
 }
 
 static void
-srt_egl_icd_get_property (GObject *object,
-                          guint prop_id,
-                          GValue *value,
-                          GParamSpec *pspec)
-{
-  SrtEglIcd *self = SRT_EGL_ICD (object);
-
-  switch (prop_id)
-    {
-      case EGL_ICD_PROP_ERROR:
-        g_value_set_boxed (value, self->icd.error);
-        break;
-
-      case EGL_ICD_PROP_ISSUES:
-        g_value_set_flags (value, self->icd.issues);
-        break;
-
-      case EGL_ICD_PROP_JSON_PATH:
-        g_value_set_string (value, self->icd.json_path);
-        break;
-
-      case EGL_ICD_PROP_LIBRARY_PATH:
-        g_value_set_string (value, self->icd.library_path);
-        break;
-
-      case EGL_ICD_PROP_RESOLVED_LIBRARY_PATH:
-        g_value_take_string (value, srt_egl_icd_resolve_library_path (self));
-        break;
-
-      default:
-        G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
-    }
-}
-
-static void
-srt_egl_icd_set_property (GObject *object,
-                          guint prop_id,
-                          const GValue *value,
-                          GParamSpec *pspec)
-{
-  SrtEglIcd *self = SRT_EGL_ICD (object);
-  const char *tmp;
-
-  switch (prop_id)
-    {
-      case EGL_ICD_PROP_ERROR:
-        g_return_if_fail (self->icd.error == NULL);
-        self->icd.error = g_value_dup_boxed (value);
-        break;
-
-      case EGL_ICD_PROP_ISSUES:
-        g_return_if_fail (self->icd.issues == 0);
-        self->icd.issues = g_value_get_flags (value);
-        break;
-
-      case EGL_ICD_PROP_JSON_PATH:
-        g_return_if_fail (self->icd.json_path == NULL);
-        tmp = g_value_get_string (value);
-        self->icd.json_path = g_canonicalize_filename (tmp, NULL);
-        break;
-
-      case EGL_ICD_PROP_LIBRARY_PATH:
-        g_return_if_fail (self->icd.library_path == NULL);
-        self->icd.library_path = g_value_dup_string (value);
-        break;
-
-      default:
-        G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
-    }
-}
-
-static void
 srt_egl_icd_constructed (GObject *object)
 {
   SrtEglIcd *self = SRT_EGL_ICD (object);
+  SrtBaseGraphicsModule *base = SRT_BASE_GRAPHICS_MODULE (object);
 
-  g_return_if_fail (self->icd.json_path != NULL);
-  g_return_if_fail (g_path_is_absolute (self->icd.json_path));
-  g_return_if_fail (self->icd.api_version == NULL);
+  G_OBJECT_CLASS (srt_egl_icd_parent_class)->constructed (object);
 
-  if (self->icd.error != NULL)
-    g_return_if_fail (self->icd.library_path == NULL);
+  g_return_if_fail (self->parent.api_version == NULL);
+
+  if (base->error != NULL)
+    g_return_if_fail (base->library_path == NULL);
   else
-    g_return_if_fail (self->icd.library_path != NULL);
+    g_return_if_fail (base->library_path != NULL);
 }
-
-static void
-srt_egl_icd_finalize (GObject *object)
-{
-  SrtEglIcd *self = SRT_EGL_ICD (object);
-
-  srt_loadable_clear (&self->icd);
-
-  G_OBJECT_CLASS (srt_egl_icd_parent_class)->finalize (object);
-}
-
-static GParamSpec *egl_icd_properties[N_EGL_ICD_PROPERTIES] = { NULL };
 
 static void
 srt_egl_icd_class_init (SrtEglIcdClass *cls)
 {
   GObjectClass *object_class = G_OBJECT_CLASS (cls);
 
-  object_class->get_property = srt_egl_icd_get_property;
-  object_class->set_property = srt_egl_icd_set_property;
   object_class->constructed = srt_egl_icd_constructed;
-  object_class->finalize = srt_egl_icd_finalize;
-
-  egl_icd_properties[EGL_ICD_PROP_ERROR] =
-    g_param_spec_boxed ("error", "Error",
-                        "GError describing how this ICD failed to load, or NULL",
-                        G_TYPE_ERROR,
-                        G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-                        G_PARAM_STATIC_STRINGS);
-
-  egl_icd_properties[EGL_ICD_PROP_ISSUES] =
-    g_param_spec_flags ("issues", "Issues", "Problems with this ICD",
-                        SRT_TYPE_LOADABLE_ISSUES, SRT_LOADABLE_ISSUES_NONE,
-                        G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-                        G_PARAM_STATIC_STRINGS);
-
-  egl_icd_properties[EGL_ICD_PROP_JSON_PATH] =
-    g_param_spec_string ("json-path", "JSON path",
-                         "Absolute path to JSON file describing this ICD. "
-                         "If examining a sysroot, this path is set as though "
-                         "the sysroot was the root directory. "
-                         "When constructing the object, a relative path can "
-                         "be given: it will be converted to an absolute path.",
-                         NULL,
-                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-                         G_PARAM_STATIC_STRINGS);
-
-  egl_icd_properties[EGL_ICD_PROP_LIBRARY_PATH] =
-    g_param_spec_string ("library-path", "Library path",
-                         "Library implementing this ICD, expressed as a "
-                         "basename to be searched for in the default "
-                         "library search path (e.g. libEGL_mesa.so.0), "
-                         "a relative path containing '/' to be resolved "
-                         "relative to #SrtEglIcd:json-path (e.g. "
-                         "./libEGL_myvendor.so), or an absolute path "
-                         "as though the sysroot (if any) was the root "
-                         "(e.g. /opt/EGL/libEGL_myvendor.so)",
-                         NULL,
-                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-                         G_PARAM_STATIC_STRINGS);
-
-  egl_icd_properties[EGL_ICD_PROP_RESOLVED_LIBRARY_PATH] =
-    g_param_spec_string ("resolved-library-path", "Resolved library path",
-                         "Library implementing this ICD, expressed as a "
-                         "basename to be searched for in the default "
-                         "library search path (e.g. libEGL_mesa.so.0) "
-                         "or an absolute path as though the sysroot (if any) "
-                         "was the root "
-                         "(e.g. /opt/EGL/libEGL_myvendor.so)",
-                         NULL,
-                         G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
-
-  g_object_class_install_properties (object_class, N_EGL_ICD_PROPERTIES,
-                                     egl_icd_properties);
 }
 
 /*
@@ -675,14 +365,10 @@ srt_egl_icd_new_error (const gchar *json_path,
                        SrtLoadableIssues issues,
                        const GError *error)
 {
-  g_return_val_if_fail (json_path != NULL, NULL);
-  g_return_val_if_fail (error != NULL, NULL);
-
-  return g_object_new (SRT_TYPE_EGL_ICD,
-                       "error", error,
-                       "json-path", json_path,
-                       "issues", issues,
-                       NULL);
+  return (SrtEglIcd *) _srt_base_json_graphics_module_new_error (SRT_TYPE_EGL_ICD,
+                                                                 json_path,
+                                                                 issues,
+                                                                 error);
 }
 
 /**
@@ -702,7 +388,7 @@ srt_egl_icd_check_error (SrtEglIcd *self,
 {
   g_return_val_if_fail (SRT_IS_EGL_ICD (self), FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
-  return srt_loadable_check_error (&self->icd, error);
+  return _srt_base_graphics_module_check_error (SRT_BASE_GRAPHICS_MODULE (self), error);
 }
 
 /**
@@ -717,7 +403,7 @@ const gchar *
 srt_egl_icd_get_json_path (SrtEglIcd *self)
 {
   g_return_val_if_fail (SRT_IS_EGL_ICD (self), NULL);
-  return self->icd.json_path;
+  return self->parent.json_path;
 }
 
 /**
@@ -738,7 +424,7 @@ const gchar *
 srt_egl_icd_get_library_path (SrtEglIcd *self)
 {
   g_return_val_if_fail (SRT_IS_EGL_ICD (self), NULL);
-  return self->icd.library_path;
+  return SRT_BASE_GRAPHICS_MODULE (self)->library_path;
 }
 
 /**
@@ -754,24 +440,7 @@ SrtLoadableIssues
 srt_egl_icd_get_issues (SrtEglIcd *self)
 {
   g_return_val_if_fail (SRT_IS_EGL_ICD (self), SRT_LOADABLE_ISSUES_UNKNOWN);
-  return self->icd.issues;
-}
-
-/*
- * @self: The ICD
- * @is_duplicated: if %TRUE, this ICD is a duplicated of another ICD
- *
- * @self issues is adjusted accordingly to the @is_duplicated value.
- */
-void
-_srt_egl_icd_set_is_duplicated (SrtEglIcd *self,
-                                gboolean is_duplicated)
-{
-  g_return_if_fail (SRT_IS_EGL_ICD (self));
-  if (is_duplicated)
-    self->icd.issues |= SRT_LOADABLE_ISSUES_DUPLICATED;
-  else
-    self->icd.issues &= ~SRT_LOADABLE_ISSUES_DUPLICATED;
+  return SRT_BASE_GRAPHICS_MODULE (self)->issues;
 }
 
 /**
@@ -799,7 +468,7 @@ gchar *
 srt_egl_icd_resolve_library_path (SrtEglIcd *self)
 {
   g_return_val_if_fail (SRT_IS_EGL_ICD (self), NULL);
-  return srt_loadable_resolve_library_path (&self->icd);
+  return _srt_base_graphics_module_resolve_library_path (SRT_BASE_GRAPHICS_MODULE (self));
 }
 
 /**
@@ -821,12 +490,16 @@ SrtEglIcd *
 srt_egl_icd_new_replace_library_path (SrtEglIcd *self,
                                       const char *path)
 {
+  SrtBaseGraphicsModule *base;
+
   g_return_val_if_fail (SRT_IS_EGL_ICD (self), NULL);
 
-  if (self->icd.error != NULL)
+  base = SRT_BASE_GRAPHICS_MODULE (self);
+
+  if (base->error != NULL)
     return g_object_ref (self);
 
-  return srt_egl_icd_new (self->icd.json_path, path, self->icd.issues);
+  return srt_egl_icd_new (self->parent.json_path, path, base->issues);
 }
 
 /**
@@ -847,7 +520,10 @@ srt_egl_icd_write_to_file (SrtEglIcd *self,
   g_return_val_if_fail (SRT_IS_EGL_ICD (self), FALSE);
   g_return_val_if_fail (path != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
-  return srt_loadable_write_to_file (&self->icd, path, SRT_TYPE_EGL_ICD, error);
+  return _srt_base_json_graphics_module_write_to_file (&self->parent,
+                                                       path,
+                                                       SRT_TYPE_EGL_ICD,
+                                                       error);
 }
 
 static void

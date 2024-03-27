@@ -27,9 +27,28 @@
 #pragma once
 
 #include "steam-runtime-tools/steam-runtime-tools.h"
+#include "steam-runtime-tools/glib-backports-internal.h"
 #include "steam-runtime-tools/graphics-internal.h"
+#include "steam-runtime-tools/graphics-drivers-internal.h"
 #include "steam-runtime-tools/subprocess-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
+
+typedef struct _SrtBaseJsonGraphicsModule SrtBaseJsonGraphicsModule;
+typedef struct _SrtBaseJsonGraphicsModuleClass SrtBaseJsonGraphicsModuleClass;
+
+#define SRT_TYPE_BASE_JSON_GRAPHICS_MODULE \
+  (_srt_base_json_graphics_module_get_type ())
+#define SRT_BASE_JSON_GRAPHICS_MODULE(obj) \
+  (G_TYPE_CHECK_INSTANCE_CAST ((obj), SRT_TYPE_BASE_JSON_GRAPHICS_MODULE, SrtBaseJsonGraphicsModule))
+#define SRT_BASE_JSON_GRAPHICS_MODULE_CLASS(cls) \
+  (G_TYPE_CHECK_CLASS_CAST ((cls), SRT_TYPE_BASE_JSON_GRAPHICS_MODULE, SrtBaseJsonGraphicsModuleClass))
+#define SRT_IS_BASE_JSON_GRAPHICS_MODULE(obj) \
+  (G_TYPE_CHECK_INSTANCE_TYPE ((obj), SRT_TYPE_BASE_JSON_GRAPHICS_MODULE))
+#define SRT_IS_BASE_JSON_GRAPHICS_MODULE_CLASS(cls) \
+  (G_TYPE_CHECK_CLASS_TYPE ((cls), SRT_TYPE_BASE_JSON_GRAPHICS_MODULE))
+#define SRT_BASE_JSON_GRAPHICS_MODULE_GET_CLASS(obj) \
+  (G_TYPE_INSTANCE_GET_CLASS((obj), SRT_TYPE_BASE_JSON_GRAPHICS_MODULE, SrtBaseJsonGraphicsModuleClass)
+GType _srt_base_json_graphics_module_get_type (void);
 
 typedef struct
 {
@@ -50,17 +69,12 @@ typedef struct
   gchar *value;
 } EnvironmentVariable;
 
-/* EGL and Vulkan ICDs are actually basically the same, but we don't
- * hard-code that in the API.
- * Vulkan Layers have the same structure too but with some extra fields. */
-typedef struct
+struct _SrtBaseJsonGraphicsModule
 {
-  GError *error;
-  SrtLoadableIssues issues;
+  SrtBaseGraphicsModule parent;
+
   gchar *api_version;   /* Always NULL when found in a SrtEglIcd */
   gchar *json_path;
-  /* Either a filename, or a relative/absolute path in the sysroot */
-  gchar *library_path;
   gchar *library_arch;
   gchar *file_format_version;
   gchar *name;
@@ -82,25 +96,32 @@ typedef struct
   EnvironmentVariable enable_env_var;
   EnvironmentVariable disable_env_var;
   gchar *original_json;
-} SrtLoadable;
+};
+
+struct _SrtBaseJsonGraphicsModuleClass
+{
+  SrtBaseGraphicsModuleClass parent_class;
+};
 
 struct _SrtVulkanIcd
 {
-  GObject parent;
-  SrtLoadable icd;
+  /*< private >*/
+  SrtBaseJsonGraphicsModule parent;
 };
 
 struct _SrtEglIcd
 {
-  GObject parent;
-  SrtLoadable icd;
+  /*< private >*/
+  SrtBaseJsonGraphicsModule parent;
 };
 
 struct _SrtEglExternalPlatform
 {
-  GObject parent;
-  SrtLoadable module;
+  /*< private >*/
+  SrtBaseJsonGraphicsModule parent;
 };
+
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (SrtBaseJsonGraphicsModule, g_object_unref)
 
 static inline void
 device_extension_free (gpointer p)
@@ -123,23 +144,23 @@ instance_extension_free (gpointer p)
   g_slice_free (InstanceExtension, self);
 }
 
-void srt_loadable_clear (SrtLoadable *self);
-gchar *srt_loadable_resolve_library_path (const SrtLoadable *self);
-gboolean srt_loadable_check_error (const SrtLoadable *self,
-                                   GError **error);
-gboolean srt_loadable_write_to_file (const SrtLoadable *self,
-                                     const char *path,
-                                     GType which,
-                                     GError **error);
+SrtBaseJsonGraphicsModule *_srt_base_json_graphics_module_new_error (GType type,
+                                                                     const char *json_path,
+                                                                     SrtLoadableIssues issues,
+                                                                     const GError *error);
+gboolean _srt_base_json_graphics_module_write_to_file (SrtBaseJsonGraphicsModule *self,
+                                                       const char *path,
+                                                       GType which,
+                                                       GError **error);
 void _srt_loadable_flag_duplicates (GType which,
                                     SrtSubprocessRunner *runner,
                                     const char * const *multiarch_tuples,
                                     GList *loadable);
-void _srt_loadable_set_library_arch (SrtLoadable *self,
-                                     const char *library_arch,
-                                     const char *min_file_format_version);
-void _srt_loadable_take_original_json (SrtLoadable *self,
-                                       gchar *contents);
+void _srt_base_json_graphics_module_set_library_arch (SrtBaseJsonGraphicsModule *self,
+                                                      const char *library_arch,
+                                                      const char *min_file_format_version);
+void _srt_base_json_graphics_module_take_original_json (SrtBaseJsonGraphicsModule *self,
+                                                        gchar *contents);
 
 /*
  * A #GCompareFunc that does not sort the members of the directory.
@@ -162,12 +183,3 @@ void load_icd_from_json (GType type,
                          SrtSysroot *sysroot,
                          const char *filename,
                          GList **list);
-
-void _srt_egl_external_platform_set_is_duplicated (SrtEglExternalPlatform *self,
-                                                   gboolean is_duplicated);
-void _srt_egl_icd_set_is_duplicated (SrtEglIcd *self,
-                                     gboolean is_duplicated);
-void _srt_vulkan_icd_set_is_duplicated (SrtVulkanIcd *self,
-                                        gboolean is_duplicated);
-void _srt_vulkan_layer_set_is_duplicated (SrtVulkanLayer *self,
-                                          gboolean is_duplicated);

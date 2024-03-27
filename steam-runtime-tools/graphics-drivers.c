@@ -23,7 +23,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "steam-runtime-tools/graphics.h"
+#include "steam-runtime-tools/graphics-drivers-internal.h"
 
 #include "steam-runtime-tools/glib-backports-internal.h"
 
@@ -38,6 +38,183 @@
 
 #include <gelf.h>
 #include <libelf.h>
+
+enum
+{
+  BASE_PROP_0,
+  BASE_PROP_ERROR,
+  BASE_PROP_ISSUES,
+  BASE_PROP_LIBRARY_PATH,
+  BASE_PROP_RESOLVED_LIBRARY_PATH,
+  N_BASE_PROPERTIES
+};
+
+static GParamSpec *base_properties[N_BASE_PROPERTIES] = { NULL };
+
+G_DEFINE_TYPE (SrtBaseGraphicsModule,
+               _srt_base_graphics_module,
+               G_TYPE_OBJECT)
+
+static void
+_srt_base_graphics_module_init (SrtBaseGraphicsModule *self)
+{
+}
+
+static void
+srt_base_graphics_module_get_property (GObject *object,
+                                       guint prop_id,
+                                       GValue *value,
+                                       GParamSpec *pspec)
+{
+  SrtBaseGraphicsModule *self = SRT_BASE_GRAPHICS_MODULE (object);
+
+  switch (prop_id)
+    {
+      case BASE_PROP_ERROR:
+        g_value_set_boxed (value, self->error);
+        break;
+
+      case BASE_PROP_ISSUES:
+        g_value_set_flags (value, self->issues);
+        break;
+
+      case BASE_PROP_LIBRARY_PATH:
+        g_value_set_string (value, self->library_path);
+        break;
+
+      case BASE_PROP_RESOLVED_LIBRARY_PATH:
+        g_value_take_string (value,
+                             _srt_base_graphics_module_resolve_library_path (self));
+        break;
+
+      default:
+        G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+    }
+}
+
+static void
+srt_base_graphics_module_set_property (GObject *object,
+                                       guint prop_id,
+                                       const GValue *value,
+                                       GParamSpec *pspec)
+{
+  SrtBaseGraphicsModule *self = SRT_BASE_GRAPHICS_MODULE (object);
+
+  switch (prop_id)
+    {
+      case BASE_PROP_ERROR:
+        g_return_if_fail (self->error == NULL);
+        self->error = g_value_dup_boxed (value);
+        break;
+
+      case BASE_PROP_ISSUES:
+        g_return_if_fail (self->issues == 0);
+        self->issues = g_value_get_flags (value);
+        break;
+
+      case BASE_PROP_LIBRARY_PATH:
+        g_return_if_fail (self->library_path == NULL);
+        self->library_path = g_value_dup_string (value);
+        break;
+
+      default:
+        G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+    }
+}
+
+static void
+srt_base_graphics_module_finalize (GObject *object)
+{
+  SrtBaseGraphicsModule *self = SRT_BASE_GRAPHICS_MODULE (object);
+
+  g_clear_error (&self->error);
+  g_clear_pointer (&self->library_path, g_free);
+
+  G_OBJECT_CLASS (_srt_base_graphics_module_parent_class)->finalize (object);
+}
+
+/*
+ * The default implementation of resolve_library_path() assumes
+ * that @library_path is a relative filename, and makes it absolute.
+ */
+static gchar *
+srt_base_graphics_module_default_resolve_library_path (SrtBaseGraphicsModule *self)
+{
+  if (self->library_path == NULL)
+    return NULL;
+
+  return g_canonicalize_filename (self->library_path, NULL);
+}
+
+static void
+_srt_base_graphics_module_class_init (SrtBaseGraphicsModuleClass *cls)
+{
+  GObjectClass *object_class = G_OBJECT_CLASS (cls);
+
+  object_class->get_property = srt_base_graphics_module_get_property;
+  object_class->set_property = srt_base_graphics_module_set_property;
+  object_class->finalize = srt_base_graphics_module_finalize;
+
+  cls->resolve_library_path = srt_base_graphics_module_default_resolve_library_path;
+
+  base_properties[BASE_PROP_ERROR] =
+    g_param_spec_boxed ("error", "Error",
+                        "GError describing how this module failed to load, or NULL",
+                        G_TYPE_ERROR,
+                        G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+                        G_PARAM_STATIC_STRINGS);
+
+  base_properties[BASE_PROP_ISSUES] =
+    g_param_spec_flags ("issues", "Issues", "Problems with this module",
+                        SRT_TYPE_LOADABLE_ISSUES, SRT_LOADABLE_ISSUES_NONE,
+                        G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+                        G_PARAM_STATIC_STRINGS);
+
+  base_properties[BASE_PROP_LIBRARY_PATH] =
+    g_param_spec_string ("library-path", "Library path",
+                         "Library implementing this module",
+                         NULL,
+                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+                         G_PARAM_STATIC_STRINGS);
+
+  base_properties[BASE_PROP_RESOLVED_LIBRARY_PATH] =
+    g_param_spec_string ("resolved-library-path", "Resolved library path",
+                         "Library implementing this module, with relative "
+                         "paths resolved to be absolute",
+                         NULL,
+                         G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+
+  g_object_class_install_properties (object_class, N_BASE_PROPERTIES,
+                                     base_properties);
+}
+
+/*
+ * _srt_base_graphics_module_resolve_library_path:
+ * @self: A graphics module
+ *
+ * Returns: The #SrtBaseGraphicsModule:library-path, but resolved to an
+ *  absolute path if it would otherwise be relative.
+ */
+gchar *
+_srt_base_graphics_module_resolve_library_path (SrtBaseGraphicsModule *self)
+{
+  SrtBaseGraphicsModuleClass *cls;
+
+  g_return_val_if_fail (SRT_IS_BASE_GRAPHICS_MODULE (self), NULL);
+  cls = SRT_BASE_GRAPHICS_MODULE_GET_CLASS (self);
+  return cls->resolve_library_path (self);
+}
+
+/* See srt_egl_icd_check_error(), srt_vulkan_icd_check_error() */
+gboolean
+_srt_base_graphics_module_check_error (SrtBaseGraphicsModule *self,
+                                       GError **error)
+{
+  if (self->error != NULL && error != NULL)
+    *error = g_error_copy (self->error);
+
+  return (self->error == NULL);
+}
 
 static const SrtHelperFlags helper_flags = SRT_HELPER_FLAGS_SEARCH_PATH;
 
