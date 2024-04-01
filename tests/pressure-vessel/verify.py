@@ -138,11 +138,30 @@ class TestPvVerify(BaseTest):
         with tempfile.TemporaryDirectory() as tree:
             (Path(tree) / 'files/bin').mkdir(parents=True)
             (Path(tree) / 'files/bin/env').symlink_to('../usr/bin/env')
+            (Path(tree) / 'files/usr/bin').mkdir(parents=True)
+            (Path(tree) / 'files/33/43').mkdir(parents=True)
+            # Use the smallest non-trivial file (1 byte) as a placeholder
+            # for the real unzip(1) executable.
+            # 334359b9... happens to be the sha256 of '#'.
+            (Path(tree) / 'files/33/43/59b9.bin').write_bytes(b'#')
             self.write_mtree(
                 Path(tree), 'usr-mtree.txt.gz',
                 [
                     './bin type=dir',
                     './bin/env type=link link=../usr/bin/env',
+                    './usr type=dir',
+                    './usr/bin type=dir',
+                    # unzip and zipinfo are hard links to the same file
+                    ('./usr/bin/unzip type=file size=1'
+                     ' sha256='
+                     '334359b90efed75da5f0ada1d5e6b256'
+                     'f4a6bd0aee7eb39c0f90182a021ffc8b'
+                     ' contents=./33/43/59b9.bin'),
+                    ('./usr/bin/zipinfo type=file size=1'
+                     ' sha256='
+                     '334359b90efed75da5f0ada1d5e6b256'
+                     'f4a6bd0aee7eb39c0f90182a021ffc8b'
+                     ' contents=./33/43/59b9.bin'),
                     './empty type=file size=0',
                 ]
             )

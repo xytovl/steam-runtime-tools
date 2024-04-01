@@ -908,6 +908,27 @@ pv_mtree_foreach_verify_cb (PvMtreeEntry *entry,
 
   if (flags & PV_MTREE_APPLY_FLAGS_MINIMIZED_RUNTIME)
     {
+      if (entry->contents != NULL)
+        {
+          g_autofree gchar *ancestor = g_strdup (name);
+          char *slash;
+
+          while (TRUE)
+            {
+              slash = strrchr (ancestor, '/');
+
+              if (slash == NULL)
+                break;
+
+              *slash = '\0';
+
+              if (!g_hash_table_lookup_extended (state->names, ancestor,
+                                                 NULL, NULL))
+                g_hash_table_insert (state->names, g_strdup (ancestor),
+                                     GINT_TO_POINTER (PV_MTREE_ENTRY_FLAGS_OPTIONAL));
+            }
+        }
+
       switch (entry->kind)
         {
           case PV_MTREE_ENTRY_KIND_FILE:
