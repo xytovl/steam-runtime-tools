@@ -31,6 +31,7 @@
 #include "steam-runtime-tools/json-glib-backports-internal.h"
 #include "steam-runtime-tools/json-utils-internal.h"
 
+#include "steam-runtime-tools/graphics-drivers-internal.h"
 /**
  * SECTION:graphics-drivers-vulkan
  * @title: Vulkan graphics driver and layer enumeration
@@ -52,24 +53,19 @@
 struct _SrtVulkanIcdClass
 {
   /*< private >*/
-  GObjectClass parent_class;
+  SrtBaseJsonGraphicsModuleClass parent_class;
 };
 
 enum
 {
   VULKAN_ICD_PROP_0,
   VULKAN_ICD_PROP_API_VERSION,
-  VULKAN_ICD_PROP_ERROR,
-  VULKAN_ICD_PROP_ISSUES,
-  VULKAN_ICD_PROP_JSON_PATH,
-  VULKAN_ICD_PROP_LIBRARY_PATH,
   VULKAN_ICD_PROP_LIBRARY_ARCH,
-  VULKAN_ICD_PROP_RESOLVED_LIBRARY_PATH,
   VULKAN_ICD_PROP_PORTABILITY_DRIVER,
   N_VULKAN_ICD_PROPERTIES
 };
 
-G_DEFINE_TYPE (SrtVulkanIcd, srt_vulkan_icd, G_TYPE_OBJECT)
+G_DEFINE_TYPE (SrtVulkanIcd, srt_vulkan_icd, SRT_TYPE_BASE_JSON_GRAPHICS_MODULE)
 
 static void
 srt_vulkan_icd_init (SrtVulkanIcd *self)
@@ -87,35 +83,15 @@ srt_vulkan_icd_get_property (GObject *object,
   switch (prop_id)
     {
       case VULKAN_ICD_PROP_API_VERSION:
-        g_value_set_string (value, self->icd.api_version);
-        break;
-
-      case VULKAN_ICD_PROP_ERROR:
-        g_value_set_boxed (value, self->icd.error);
-        break;
-
-      case VULKAN_ICD_PROP_ISSUES:
-        g_value_set_flags (value, self->icd.issues);
-        break;
-
-      case VULKAN_ICD_PROP_JSON_PATH:
-        g_value_set_string (value, self->icd.json_path);
-        break;
-
-      case VULKAN_ICD_PROP_LIBRARY_PATH:
-        g_value_set_string (value, self->icd.library_path);
+        g_value_set_string (value, self->parent.api_version);
         break;
 
       case VULKAN_ICD_PROP_LIBRARY_ARCH:
-        g_value_set_string (value, self->icd.library_arch);
-        break;
-
-      case VULKAN_ICD_PROP_RESOLVED_LIBRARY_PATH:
-        g_value_take_string (value, srt_vulkan_icd_resolve_library_path (self));
+        g_value_set_string (value, self->parent.library_arch);
         break;
 
       case VULKAN_ICD_PROP_PORTABILITY_DRIVER:
-        g_value_set_boolean (value, self->icd.portability_driver);
+        g_value_set_boolean (value, self->parent.portability_driver);
         break;
 
       default:
@@ -130,43 +106,21 @@ srt_vulkan_icd_set_property (GObject *object,
                              GParamSpec *pspec)
 {
   SrtVulkanIcd *self = SRT_VULKAN_ICD (object);
-  const char *tmp;
 
   switch (prop_id)
     {
       case VULKAN_ICD_PROP_API_VERSION:
-        g_return_if_fail (self->icd.api_version == NULL);
-        self->icd.api_version = g_value_dup_string (value);
-        break;
-
-      case VULKAN_ICD_PROP_ERROR:
-        g_return_if_fail (self->icd.error == NULL);
-        self->icd.error = g_value_dup_boxed (value);
-        break;
-
-      case VULKAN_ICD_PROP_ISSUES:
-        g_return_if_fail (self->icd.issues == 0);
-        self->icd.issues = g_value_get_flags (value);
-        break;
-
-      case VULKAN_ICD_PROP_JSON_PATH:
-        g_return_if_fail (self->icd.json_path == NULL);
-        tmp = g_value_get_string (value);
-        self->icd.json_path = g_canonicalize_filename (tmp, NULL);
-        break;
-
-      case VULKAN_ICD_PROP_LIBRARY_PATH:
-        g_return_if_fail (self->icd.library_path == NULL);
-        self->icd.library_path = g_value_dup_string (value);
+        g_return_if_fail (self->parent.api_version == NULL);
+        self->parent.api_version = g_value_dup_string (value);
         break;
 
       case VULKAN_ICD_PROP_LIBRARY_ARCH:
-        g_return_if_fail (self->icd.library_arch == NULL);
-        self->icd.library_arch = g_value_dup_string (value);
+        g_return_if_fail (self->parent.library_arch == NULL);
+        self->parent.library_arch = g_value_dup_string (value);
         break;
 
       case VULKAN_ICD_PROP_PORTABILITY_DRIVER:
-        self->icd.portability_driver = g_value_get_boolean (value);
+        self->parent.portability_driver = g_value_get_boolean (value);
         break;
 
       default:
@@ -178,30 +132,20 @@ static void
 srt_vulkan_icd_constructed (GObject *object)
 {
   SrtVulkanIcd *self = SRT_VULKAN_ICD (object);
+  SrtBaseGraphicsModule *base = SRT_BASE_GRAPHICS_MODULE (object);
 
-  g_return_if_fail (self->icd.json_path != NULL);
-  g_return_if_fail (g_path_is_absolute (self->icd.json_path));
+  G_OBJECT_CLASS (srt_vulkan_icd_parent_class)->constructed (object);
 
-  if (self->icd.error != NULL)
+  if (base->error != NULL)
     {
-      g_return_if_fail (self->icd.api_version == NULL);
-      g_return_if_fail (self->icd.library_path == NULL);
+      g_return_if_fail (self->parent.api_version == NULL);
+      g_return_if_fail (base->library_path == NULL);
     }
   else
     {
-      g_return_if_fail (self->icd.api_version != NULL);
-      g_return_if_fail (self->icd.library_path != NULL);
+      g_return_if_fail (self->parent.api_version != NULL);
+      g_return_if_fail (base->library_path != NULL);
     }
-}
-
-static void
-srt_vulkan_icd_finalize (GObject *object)
-{
-  SrtVulkanIcd *self = SRT_VULKAN_ICD (object);
-
-  srt_loadable_clear (&self->icd);
-
-  G_OBJECT_CLASS (srt_vulkan_icd_parent_class)->finalize (object);
 }
 
 static GParamSpec *vulkan_icd_properties[N_VULKAN_ICD_PROPERTIES] = { NULL };
@@ -214,49 +158,10 @@ srt_vulkan_icd_class_init (SrtVulkanIcdClass *cls)
   object_class->get_property = srt_vulkan_icd_get_property;
   object_class->set_property = srt_vulkan_icd_set_property;
   object_class->constructed = srt_vulkan_icd_constructed;
-  object_class->finalize = srt_vulkan_icd_finalize;
 
   vulkan_icd_properties[VULKAN_ICD_PROP_API_VERSION] =
     g_param_spec_string ("api-version", "API version",
                          "Vulkan API version implemented by this ICD",
-                         NULL,
-                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-                         G_PARAM_STATIC_STRINGS);
-
-  vulkan_icd_properties[VULKAN_ICD_PROP_ERROR] =
-    g_param_spec_boxed ("error", "Error",
-                        "GError describing how this ICD failed to load, or NULL",
-                        G_TYPE_ERROR,
-                        G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-                        G_PARAM_STATIC_STRINGS);
-
-  vulkan_icd_properties[VULKAN_ICD_PROP_ISSUES] =
-    g_param_spec_flags ("issues", "Issues", "Problems with this ICD",
-                        SRT_TYPE_LOADABLE_ISSUES, SRT_LOADABLE_ISSUES_NONE,
-                        G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-                        G_PARAM_STATIC_STRINGS);
-
-  vulkan_icd_properties[VULKAN_ICD_PROP_JSON_PATH] =
-    g_param_spec_string ("json-path", "JSON path",
-                         "Absolute path to JSON file describing this ICD. "
-                         "If examining a sysroot, this path is set as though "
-                         "the sysroot was the root directory. "
-                         "When constructing the object, a relative path can "
-                         "be given: it will be converted to an absolute path.",
-                         NULL,
-                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-                         G_PARAM_STATIC_STRINGS);
-
-  vulkan_icd_properties[VULKAN_ICD_PROP_LIBRARY_PATH] =
-    g_param_spec_string ("library-path", "Library path",
-                         "Library implementing this ICD, expressed as a "
-                         "basename to be searched for in the default "
-                         "library search path (e.g. libvulkan_myvendor.so), "
-                         "a relative path containing '/' to be resolved "
-                         "relative to #SrtVulkanIcd:json-path (e.g. "
-                         "./libvulkan_myvendor.so), or an absolute path "
-                         "as though the sysroot (if any) was the root "
-                         "(e.g. /opt/vulkan/libvulkan_myvendor.so)",
                          NULL,
                          G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
                          G_PARAM_STATIC_STRINGS);
@@ -269,17 +174,6 @@ srt_vulkan_icd_class_init (SrtVulkanIcdClass *cls)
                          NULL,
                          G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
                          G_PARAM_STATIC_STRINGS);
-
-  vulkan_icd_properties[VULKAN_ICD_PROP_RESOLVED_LIBRARY_PATH] =
-    g_param_spec_string ("resolved-library-path", "Resolved library path",
-                         "Library implementing this ICD, expressed as a "
-                         "basename to be searched for in the default "
-                         "library search path (e.g. libvulkan_myvendor.so) "
-                         "or an absolute path as though the sysroot, if any, "
-                         "was the root "
-                         "(e.g. /opt/vulkan/libvulkan_myvendor.so)",
-                         NULL,
-                         G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
 
   vulkan_icd_properties[VULKAN_ICD_PROP_PORTABILITY_DRIVER] =
     g_param_spec_boolean ("portability-driver", "Is a portability driver?",
@@ -338,14 +232,10 @@ srt_vulkan_icd_new_error (const gchar *json_path,
                           SrtLoadableIssues issues,
                           const GError *error)
 {
-  g_return_val_if_fail (json_path != NULL, NULL);
-  g_return_val_if_fail (error != NULL, NULL);
-
-  return g_object_new (SRT_TYPE_VULKAN_ICD,
-                       "error", error,
-                       "json-path", json_path,
-                       "issues", issues,
-                       NULL);
+  return (SrtVulkanIcd *) _srt_base_json_graphics_module_new_error (SRT_TYPE_VULKAN_ICD,
+                                                                    json_path,
+                                                                    issues,
+                                                                    error);
 }
 
 /**
@@ -364,7 +254,7 @@ srt_vulkan_icd_check_error (SrtVulkanIcd *self,
 {
   g_return_val_if_fail (SRT_IS_VULKAN_ICD (self), FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
-  return srt_loadable_check_error (&self->icd, error);
+  return _srt_base_graphics_module_check_error (SRT_BASE_GRAPHICS_MODULE (self), error);
 }
 
 /**
@@ -382,7 +272,7 @@ const gchar *
 srt_vulkan_icd_get_api_version (SrtVulkanIcd *self)
 {
   g_return_val_if_fail (SRT_IS_VULKAN_ICD (self), NULL);
-  return self->icd.api_version;
+  return self->parent.api_version;
 }
 
 /**
@@ -397,7 +287,7 @@ const gchar *
 srt_vulkan_icd_get_json_path (SrtVulkanIcd *self)
 {
   g_return_val_if_fail (SRT_IS_VULKAN_ICD (self), NULL);
-  return self->icd.json_path;
+  return self->parent.json_path;
 }
 
 /**
@@ -418,7 +308,7 @@ const gchar *
 srt_vulkan_icd_get_library_path (SrtVulkanIcd *self)
 {
   g_return_val_if_fail (SRT_IS_VULKAN_ICD (self), NULL);
-  return self->icd.library_path;
+  return SRT_BASE_GRAPHICS_MODULE (self)->library_path;
 }
 
 /**
@@ -439,7 +329,7 @@ const gchar *
 srt_vulkan_icd_get_library_arch (SrtVulkanIcd *self)
 {
   g_return_val_if_fail (SRT_IS_VULKAN_ICD (self), NULL);
-  return self->icd.library_arch;
+  return self->parent.library_arch;
 }
 
 /**
@@ -455,24 +345,7 @@ SrtLoadableIssues
 srt_vulkan_icd_get_issues (SrtVulkanIcd *self)
 {
   g_return_val_if_fail (SRT_IS_VULKAN_ICD (self), SRT_LOADABLE_ISSUES_UNKNOWN);
-  return self->icd.issues;
-}
-
-/*
- * @self: The ICD
- * @is_duplicated: if %TRUE, this ICD is a duplicated of another ICD
- *
- * @self issues is adjusted accordingly to the @is_duplicated value.
- */
-void
-_srt_vulkan_icd_set_is_duplicated (SrtVulkanIcd *self,
-                                   gboolean is_duplicated)
-{
-  g_return_if_fail (SRT_IS_VULKAN_ICD (self));
-  if (is_duplicated)
-    self->icd.issues |= SRT_LOADABLE_ISSUES_DUPLICATED;
-  else
-    self->icd.issues &= ~SRT_LOADABLE_ISSUES_DUPLICATED;
+  return SRT_BASE_GRAPHICS_MODULE (self)->issues;
 }
 
 /**
@@ -498,7 +371,7 @@ gchar *
 srt_vulkan_icd_resolve_library_path (SrtVulkanIcd *self)
 {
   g_return_val_if_fail (SRT_IS_VULKAN_ICD (self), NULL);
-  return srt_loadable_resolve_library_path (&self->icd);
+  return _srt_base_graphics_module_resolve_library_path (SRT_BASE_GRAPHICS_MODULE (self));
 }
 
 /**
@@ -519,7 +392,10 @@ srt_vulkan_icd_write_to_file (SrtVulkanIcd *self,
   g_return_val_if_fail (SRT_IS_VULKAN_ICD (self), FALSE);
   g_return_val_if_fail (path != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
-  return srt_loadable_write_to_file (&self->icd, path, SRT_TYPE_VULKAN_ICD, error);
+  return _srt_base_json_graphics_module_write_to_file (&self->parent,
+                                                       path,
+                                                       SRT_TYPE_VULKAN_ICD,
+                                                       error);
 }
 
 /**
@@ -544,17 +420,20 @@ SrtVulkanIcd *
 srt_vulkan_icd_new_replace_library_path (SrtVulkanIcd *self,
                                          const char *path)
 {
+  SrtBaseGraphicsModule *base;
   g_return_val_if_fail (SRT_IS_VULKAN_ICD (self), NULL);
 
-  if (self->icd.error != NULL)
+  base = SRT_BASE_GRAPHICS_MODULE (self);
+
+  if (base->error != NULL)
     return g_object_ref (self);
 
-  return srt_vulkan_icd_new (self->icd.json_path,
-                             self->icd.api_version,
+  return srt_vulkan_icd_new (self->parent.json_path,
+                             self->parent.api_version,
                              path,
-                             self->icd.library_arch,
-                             self->icd.portability_driver,
-                             self->icd.issues);
+                             self->parent.library_arch,
+                             self->parent.portability_driver,
+                             base->issues);
 }
 
 static void
@@ -816,7 +695,9 @@ _srt_vulkan_icd_set_library_arch (SrtVulkanIcd *self,
                                   const char *library_arch)
 {
   g_return_if_fail (SRT_IS_VULKAN_ICD (self));
-  _srt_loadable_set_library_arch (&self->icd, library_arch, "1.0.1");
+  _srt_base_json_graphics_module_set_library_arch (&self->parent,
+                                                   library_arch,
+                                                   "1.0.1");
 }
 
 /**
@@ -828,25 +709,20 @@ _srt_vulkan_icd_set_library_arch (SrtVulkanIcd *self,
 struct _SrtVulkanLayer
 {
   /*< private >*/
-  GObject parent;
-  SrtLoadable layer;
+  SrtBaseJsonGraphicsModule parent;
 };
 
 struct _SrtVulkanLayerClass
 {
   /*< private >*/
-  GObjectClass parent_class;
+  SrtBaseJsonGraphicsModuleClass parent;
 };
 
 enum
 {
   VULKAN_LAYER_PROP_0,
-  VULKAN_LAYER_PROP_ERROR,
-  VULKAN_LAYER_PROP_ISSUES,
-  VULKAN_LAYER_PROP_JSON_PATH,
   VULKAN_LAYER_PROP_NAME,
   VULKAN_LAYER_PROP_TYPE,
-  VULKAN_LAYER_PROP_LIBRARY_PATH,
   VULKAN_LAYER_PROP_LIBRARY_ARCH,
   VULKAN_LAYER_PROP_API_VERSION,
   VULKAN_LAYER_PROP_IMPLEMENTATION_VERSION,
@@ -855,7 +731,7 @@ enum
   N_VULKAN_LAYER_PROPERTIES
 };
 
-G_DEFINE_TYPE (SrtVulkanLayer, srt_vulkan_layer, G_TYPE_OBJECT)
+G_DEFINE_TYPE (SrtVulkanLayer, srt_vulkan_layer, SRT_TYPE_BASE_JSON_GRAPHICS_MODULE)
 
 static void
 srt_vulkan_layer_init (SrtVulkanLayer *self)
@@ -872,48 +748,32 @@ srt_vulkan_layer_get_property (GObject *object,
 
   switch (prop_id)
     {
-      case VULKAN_LAYER_PROP_ERROR:
-        g_value_set_boxed (value, self->layer.error);
-        break;
-
-      case VULKAN_LAYER_PROP_ISSUES:
-        g_value_set_flags (value, self->layer.issues);
-        break;
-
-      case VULKAN_LAYER_PROP_JSON_PATH:
-        g_value_set_string (value, self->layer.json_path);
-        break;
-
       case VULKAN_LAYER_PROP_NAME:
-        g_value_set_string (value, self->layer.name);
+        g_value_set_string (value, self->parent.name);
         break;
 
       case VULKAN_LAYER_PROP_TYPE:
-        g_value_set_string (value, self->layer.type);
-        break;
-
-      case VULKAN_LAYER_PROP_LIBRARY_PATH:
-        g_value_set_string (value, self->layer.library_path);
+        g_value_set_string (value, self->parent.type);
         break;
 
       case VULKAN_LAYER_PROP_LIBRARY_ARCH:
-        g_value_set_string (value, self->layer.library_arch);
+        g_value_set_string (value, self->parent.library_arch);
         break;
 
       case VULKAN_LAYER_PROP_API_VERSION:
-        g_value_set_string (value, self->layer.api_version);
+        g_value_set_string (value, self->parent.api_version);
         break;
 
       case VULKAN_LAYER_PROP_IMPLEMENTATION_VERSION:
-        g_value_set_string (value, self->layer.implementation_version);
+        g_value_set_string (value, self->parent.implementation_version);
         break;
 
       case VULKAN_LAYER_PROP_DESCRIPTION:
-        g_value_set_string (value, self->layer.description);
+        g_value_set_string (value, self->parent.description);
         break;
 
       case VULKAN_LAYER_PROP_COMPONENT_LAYERS:
-        g_value_set_boxed (value, self->layer.component_layers);
+        g_value_set_boxed (value, self->parent.component_layers);
         break;
 
       default:
@@ -928,64 +788,42 @@ srt_vulkan_layer_set_property (GObject *object,
                                GParamSpec *pspec)
 {
   SrtVulkanLayer *self = SRT_VULKAN_LAYER (object);
-  const char *tmp;
 
   switch (prop_id)
     {
-      case VULKAN_LAYER_PROP_ERROR:
-        g_return_if_fail (self->layer.error == NULL);
-        self->layer.error = g_value_dup_boxed (value);
-        break;
-
-      case VULKAN_LAYER_PROP_ISSUES:
-        g_return_if_fail (self->layer.issues == 0);
-        self->layer.issues = g_value_get_flags (value);
-        break;
-
-      case VULKAN_LAYER_PROP_JSON_PATH:
-        g_return_if_fail (self->layer.json_path == NULL);
-        tmp = g_value_get_string (value);
-        self->layer.json_path = g_canonicalize_filename (tmp, NULL);
-        break;
-
       case VULKAN_LAYER_PROP_NAME:
-        g_return_if_fail (self->layer.name == NULL);
-        self->layer.name = g_value_dup_string (value);
+        g_return_if_fail (self->parent.name == NULL);
+        self->parent.name = g_value_dup_string (value);
         break;
 
       case VULKAN_LAYER_PROP_TYPE:
-        g_return_if_fail (self->layer.type == NULL);
-        self->layer.type = g_value_dup_string (value);
-        break;
-
-      case VULKAN_LAYER_PROP_LIBRARY_PATH:
-        g_return_if_fail (self->layer.library_path == NULL);
-        self->layer.library_path = g_value_dup_string (value);
+        g_return_if_fail (self->parent.type == NULL);
+        self->parent.type = g_value_dup_string (value);
         break;
 
       case VULKAN_LAYER_PROP_LIBRARY_ARCH:
-        g_return_if_fail (self->layer.library_arch == NULL);
-        self->layer.library_arch = g_value_dup_string (value);
+        g_return_if_fail (self->parent.library_arch == NULL);
+        self->parent.library_arch = g_value_dup_string (value);
         break;
 
       case VULKAN_LAYER_PROP_API_VERSION:
-        g_return_if_fail (self->layer.api_version == NULL);
-        self->layer.api_version = g_value_dup_string (value);
+        g_return_if_fail (self->parent.api_version == NULL);
+        self->parent.api_version = g_value_dup_string (value);
         break;
 
       case VULKAN_LAYER_PROP_IMPLEMENTATION_VERSION:
-        g_return_if_fail (self->layer.implementation_version == NULL);
-        self->layer.implementation_version = g_value_dup_string (value);
+        g_return_if_fail (self->parent.implementation_version == NULL);
+        self->parent.implementation_version = g_value_dup_string (value);
         break;
 
       case VULKAN_LAYER_PROP_DESCRIPTION:
-        g_return_if_fail (self->layer.description == NULL);
-        self->layer.description = g_value_dup_string (value);
+        g_return_if_fail (self->parent.description == NULL);
+        self->parent.description = g_value_dup_string (value);
         break;
 
       case VULKAN_LAYER_PROP_COMPONENT_LAYERS:
-        g_return_if_fail (self->layer.component_layers == NULL);
-        self->layer.component_layers = g_value_dup_boxed (value);
+        g_return_if_fail (self->parent.component_layers == NULL);
+        self->parent.component_layers = g_value_dup_boxed (value);
         break;
 
       default:
@@ -997,45 +835,34 @@ static void
 srt_vulkan_layer_constructed (GObject *object)
 {
   SrtVulkanLayer *self = SRT_VULKAN_LAYER (object);
+  SrtBaseGraphicsModule *base = SRT_BASE_GRAPHICS_MODULE (object);
 
-  g_return_if_fail (self->layer.json_path != NULL);
-  g_return_if_fail (g_path_is_absolute (self->layer.json_path));
+  G_OBJECT_CLASS (srt_vulkan_layer_parent_class)->constructed (object);
 
-  if (self->layer.error != NULL)
+  if (base->error != NULL)
     {
-      g_return_if_fail (self->layer.name == NULL);
-      g_return_if_fail (self->layer.type == NULL);
-      g_return_if_fail (self->layer.library_path == NULL);
-      g_return_if_fail (self->layer.api_version == NULL);
-      g_return_if_fail (self->layer.implementation_version == NULL);
-      g_return_if_fail (self->layer.description == NULL);
-      g_return_if_fail (self->layer.component_layers == NULL);
+      g_return_if_fail (self->parent.name == NULL);
+      g_return_if_fail (self->parent.type == NULL);
+      g_return_if_fail (self->parent.api_version == NULL);
+      g_return_if_fail (self->parent.implementation_version == NULL);
+      g_return_if_fail (self->parent.description == NULL);
+      g_return_if_fail (self->parent.component_layers == NULL);
     }
   else
     {
-      g_return_if_fail (self->layer.name != NULL);
-      g_return_if_fail (self->layer.type != NULL);
-      g_return_if_fail (self->layer.api_version != NULL);
-      g_return_if_fail (self->layer.implementation_version != NULL);
-      g_return_if_fail (self->layer.description != NULL);
+      g_return_if_fail (self->parent.name != NULL);
+      g_return_if_fail (self->parent.type != NULL);
+      g_return_if_fail (self->parent.api_version != NULL);
+      g_return_if_fail (self->parent.implementation_version != NULL);
+      g_return_if_fail (self->parent.description != NULL);
 
-      if (self->layer.library_path == NULL)
-        g_return_if_fail (self->layer.component_layers != NULL && self->layer.component_layers[0] != NULL);
-      else if (self->layer.component_layers == NULL || self->layer.component_layers[0] == NULL)
-        g_return_if_fail (self->layer.library_path != NULL);
+      if (base->library_path == NULL)
+        g_return_if_fail (self->parent.component_layers != NULL && self->parent.component_layers[0] != NULL);
+      else if (self->parent.component_layers == NULL || self->parent.component_layers[0] == NULL)
+        g_return_if_fail (base->library_path != NULL);
       else
         g_return_if_reached ();
     }
-}
-
-static void
-srt_vulkan_layer_finalize (GObject *object)
-{
-  SrtVulkanLayer *self = SRT_VULKAN_LAYER (object);
-
-  srt_loadable_clear (&self->layer);
-
-  G_OBJECT_CLASS (srt_vulkan_layer_parent_class)->finalize (object);
 }
 
 static GParamSpec *vulkan_layer_properties[N_VULKAN_LAYER_PROPERTIES] = { NULL };
@@ -1048,31 +875,6 @@ srt_vulkan_layer_class_init (SrtVulkanLayerClass *cls)
   object_class->get_property = srt_vulkan_layer_get_property;
   object_class->set_property = srt_vulkan_layer_set_property;
   object_class->constructed = srt_vulkan_layer_constructed;
-  object_class->finalize = srt_vulkan_layer_finalize;
-
-  vulkan_layer_properties[VULKAN_LAYER_PROP_ERROR] =
-    g_param_spec_boxed ("error", "Error",
-                        "GError describing how this layer failed to load, or NULL",
-                        G_TYPE_ERROR,
-                        G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-                        G_PARAM_STATIC_STRINGS);
-
-  vulkan_layer_properties[VULKAN_LAYER_PROP_ISSUES] =
-    g_param_spec_flags ("issues", "Issues", "Problems with this layer",
-                        SRT_TYPE_LOADABLE_ISSUES, SRT_LOADABLE_ISSUES_NONE,
-                        G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-                        G_PARAM_STATIC_STRINGS);
-
-  vulkan_layer_properties[VULKAN_LAYER_PROP_JSON_PATH] =
-    g_param_spec_string ("json-path", "JSON path",
-                         "Absolute path to JSON file describing this layer. "
-                         "If examining a sysroot, this path is set as though "
-                         "the sysroot was the root directory. "
-                         "When constructing the object, a relative path can "
-                         "be given: it will be converted to an absolute path.",
-                         NULL,
-                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-                         G_PARAM_STATIC_STRINGS);
 
   vulkan_layer_properties[VULKAN_LAYER_PROP_NAME] =
     g_param_spec_string ("name", "name",
@@ -1086,20 +888,6 @@ srt_vulkan_layer_class_init (SrtVulkanLayerClass *cls)
     g_param_spec_string ("type", "type",
                          "The type of this layer. It is expected to be either "
                          "GLOBAL or INSTANCE.",
-                         NULL,
-                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-                         G_PARAM_STATIC_STRINGS);
-
-  vulkan_layer_properties[VULKAN_LAYER_PROP_LIBRARY_PATH] =
-    g_param_spec_string ("library-path", "Library path",
-                         "Library implementing this layer, expressed as a "
-                         "basename to be searched for in the default "
-                         "library search path (e.g. vkOverlayLayer.so), "
-                         "a relative path containing '/' to be resolved "
-                         "relative to #SrtVulkanLayer:json-path (e.g. "
-                         "./vkOverlayLayer.so), or an absolute path "
-                         "as though the sysroot (if any) was the root "
-                         "(e.g. /opt/vulkan/vkOverlayLayer.so).",
                          NULL,
                          G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
                          G_PARAM_STATIC_STRINGS);
@@ -1219,14 +1007,10 @@ srt_vulkan_layer_new_error (const gchar *json_path,
                             SrtLoadableIssues issues,
                             const GError *error)
 {
-  g_return_val_if_fail (json_path != NULL, NULL);
-  g_return_val_if_fail (error != NULL, NULL);
-
-  return g_object_new (SRT_TYPE_VULKAN_LAYER,
-                       "error", error,
-                       "json-path", json_path,
-                       "issues", issues,
-                       NULL);
+  return (SrtVulkanLayer *) _srt_base_json_graphics_module_new_error (SRT_TYPE_VULKAN_LAYER,
+                                                                      json_path,
+                                                                      issues,
+                                                                      error);
 }
 
 static void
@@ -1348,15 +1132,15 @@ vulkan_layer_parse_json (const gchar *path,
                                        api_version, implementation_version, description,
                                        component_layers, SRT_LOADABLE_ISSUES_NONE);
 
-  vulkan_layer->layer.file_format_version = g_strdup (file_format_version);
+  vulkan_layer->parent.file_format_version = g_strdup (file_format_version);
 
   if (json_object_has_member (json_layer, "functions"))
     functions_obj = json_object_get_object_member (json_layer, "functions");
   if (functions_obj != NULL)
     {
       g_autoptr(GList) members = NULL;
-      vulkan_layer->layer.functions = g_hash_table_new_full (g_str_hash, g_str_equal,
-                                                             g_free, g_free);
+      vulkan_layer->parent.functions = g_hash_table_new_full (g_str_hash, g_str_equal,
+                                                              g_free, g_free);
       members = json_object_get_members (functions_obj);
       for (l = members; l != NULL; l = l->next)
         {
@@ -1366,7 +1150,7 @@ vulkan_layer_parse_json (const gchar *path,
             g_debug ("The Vulkan layer property 'functions' has an element with an invalid "
                      "value, trying to continue...");
           else
-            g_hash_table_insert (vulkan_layer->layer.functions,
+            g_hash_table_insert (vulkan_layer->parent.functions,
                                  g_strdup (l->data), g_strdup (value));
         }
     }
@@ -1376,8 +1160,8 @@ vulkan_layer_parse_json (const gchar *path,
   if (pre_instance_obj != NULL)
     {
       g_autoptr(GList) members = NULL;
-      vulkan_layer->layer.pre_instance_functions = g_hash_table_new_full (g_str_hash, g_str_equal,
-                                                                          g_free, g_free);
+      vulkan_layer->parent.pre_instance_functions = g_hash_table_new_full (g_str_hash, g_str_equal,
+                                                                           g_free, g_free);
       members = json_object_get_members (pre_instance_obj);
       for (l = members; l != NULL; l = l->next)
         {
@@ -1387,7 +1171,7 @@ vulkan_layer_parse_json (const gchar *path,
             g_debug ("The Vulkan layer property 'pre_instance_functions' has an "
                      "element with an invalid value, trying to continue...");
           else
-            g_hash_table_insert (vulkan_layer->layer.pre_instance_functions,
+            g_hash_table_insert (vulkan_layer->parent.pre_instance_functions,
                                  g_strdup (l->data), g_strdup (value));
         }
     }
@@ -1416,11 +1200,11 @@ vulkan_layer_parse_json (const gchar *path,
             }
           else
             {
-              vulkan_layer->layer.instance_extensions = g_list_prepend (vulkan_layer->layer.instance_extensions,
-                                                                        ie);
+              vulkan_layer->parent.instance_extensions = g_list_prepend (vulkan_layer->parent.instance_extensions,
+                                                                         ie);
             }
         }
-      vulkan_layer->layer.instance_extensions = g_list_reverse (vulkan_layer->layer.instance_extensions);
+      vulkan_layer->parent.instance_extensions = g_list_reverse (vulkan_layer->parent.instance_extensions);
     }
 
   arr_node = json_object_get_member (json_layer, "device_extensions");
@@ -1447,18 +1231,18 @@ vulkan_layer_parse_json (const gchar *path,
             }
           else
             {
-              vulkan_layer->layer.device_extensions = g_list_prepend (vulkan_layer->layer.device_extensions,
-                                                                      de);
+              vulkan_layer->parent.device_extensions = g_list_prepend (vulkan_layer->parent.device_extensions,
+                                                                       de);
             }
         }
     }
 
   _vulkan_layer_parse_json_environment_field ("enable_environment",
-                                              &vulkan_layer->layer.enable_env_var,
+                                              &vulkan_layer->parent.enable_env_var,
                                               json_layer);
 
   _vulkan_layer_parse_json_environment_field ("disable_environment",
-                                              &vulkan_layer->layer.disable_env_var,
+                                              &vulkan_layer->parent.disable_env_var,
                                               json_layer);
 
   return vulkan_layer;
@@ -1783,6 +1567,7 @@ _srt_load_vulkan_layers (const char *sysroot,
 static SrtVulkanLayer *
 vulkan_layer_dup (SrtVulkanLayer *self)
 {
+  SrtBaseGraphicsModule *base;
   GHashTableIter iter;
   gpointer key;
   gpointer value;
@@ -1790,60 +1575,64 @@ vulkan_layer_dup (SrtVulkanLayer *self)
 
   g_return_val_if_fail (SRT_IS_VULKAN_LAYER (self), NULL);
 
-  SrtVulkanLayer *ret = srt_vulkan_layer_new (self->layer.json_path, self->layer.name,
-                                              self->layer.type, self->layer.library_path,
-                                              self->layer.library_arch,
-                                              self->layer.api_version,
-                                              self->layer.implementation_version,
-                                              self->layer.description,
-                                              self->layer.component_layers,
-                                              self->layer.issues);
+  base = SRT_BASE_GRAPHICS_MODULE (self);
 
-  ret->layer.file_format_version = g_strdup (self->layer.file_format_version);
+  SrtVulkanLayer *ret = srt_vulkan_layer_new (self->parent.json_path,
+                                              self->parent.name,
+                                              self->parent.type,
+                                              base->library_path,
+                                              self->parent.library_arch,
+                                              self->parent.api_version,
+                                              self->parent.implementation_version,
+                                              self->parent.description,
+                                              self->parent.component_layers,
+                                              base->issues);
 
-  if (self->layer.functions != NULL)
+  ret->parent.file_format_version = g_strdup (self->parent.file_format_version);
+
+  if (self->parent.functions != NULL)
     {
-      ret->layer.functions = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
-      g_hash_table_iter_init (&iter, self->layer.functions);
+      ret->parent.functions = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
+      g_hash_table_iter_init (&iter, self->parent.functions);
       while (g_hash_table_iter_next (&iter, &key, &value))
-        g_hash_table_insert (ret->layer.functions, g_strdup (key), g_strdup (value));
+        g_hash_table_insert (ret->parent.functions, g_strdup (key), g_strdup (value));
     }
 
-  if (self->layer.pre_instance_functions != NULL)
+  if (self->parent.pre_instance_functions != NULL)
     {
-      ret->layer.pre_instance_functions = g_hash_table_new_full (g_str_hash, g_str_equal,
-                                                                 g_free, g_free);
-      g_hash_table_iter_init (&iter, self->layer.pre_instance_functions);
+      ret->parent.pre_instance_functions = g_hash_table_new_full (g_str_hash, g_str_equal,
+                                                                  g_free, g_free);
+      g_hash_table_iter_init (&iter, self->parent.pre_instance_functions);
       while (g_hash_table_iter_next (&iter, &key, &value))
-        g_hash_table_insert (ret->layer.pre_instance_functions, g_strdup (key), g_strdup (value));
+        g_hash_table_insert (ret->parent.pre_instance_functions, g_strdup (key), g_strdup (value));
     }
 
-  for (l = self->layer.instance_extensions; l != NULL; l = l->next)
+  for (l = self->parent.instance_extensions; l != NULL; l = l->next)
     {
       InstanceExtension *ie = g_slice_new0 (InstanceExtension);
       InstanceExtension *self_ie = l->data;
       ie->name = g_strdup (self_ie->name);
       ie->spec_version = g_strdup (self_ie->spec_version);
-      ret->layer.instance_extensions = g_list_prepend (ret->layer.instance_extensions, ie);
+      ret->parent.instance_extensions = g_list_prepend (ret->parent.instance_extensions, ie);
     }
-  ret->layer.instance_extensions = g_list_reverse (ret->layer.instance_extensions);
+  ret->parent.instance_extensions = g_list_reverse (ret->parent.instance_extensions);
 
-  for (l = self->layer.device_extensions; l != NULL; l = l->next)
+  for (l = self->parent.device_extensions; l != NULL; l = l->next)
     {
       DeviceExtension *de = g_slice_new0 (DeviceExtension);
       DeviceExtension *self_de = l->data;
       de->name = g_strdup (self_de->name);
       de->spec_version = g_strdup (self_de->spec_version);
       de->entrypoints = g_strdupv (self_de->entrypoints);
-      ret->layer.device_extensions = g_list_prepend (ret->layer.device_extensions, de);
+      ret->parent.device_extensions = g_list_prepend (ret->parent.device_extensions, de);
     }
-  ret->layer.device_extensions = g_list_reverse (ret->layer.device_extensions);
+  ret->parent.device_extensions = g_list_reverse (ret->parent.device_extensions);
 
-  ret->layer.enable_env_var.name = g_strdup (self->layer.enable_env_var.name);
-  ret->layer.enable_env_var.value = g_strdup (self->layer.enable_env_var.value);
+  ret->parent.enable_env_var.name = g_strdup (self->parent.enable_env_var.name);
+  ret->parent.enable_env_var.value = g_strdup (self->parent.enable_env_var.value);
 
-  ret->layer.disable_env_var.name = g_strdup (self->layer.disable_env_var.name);
-  ret->layer.disable_env_var.value = g_strdup (self->layer.disable_env_var.value);
+  ret->parent.disable_env_var.name = g_strdup (self->parent.disable_env_var.name);
+  ret->parent.disable_env_var.value = g_strdup (self->parent.disable_env_var.value);
 
   return ret;
 }
@@ -1868,20 +1657,22 @@ SrtVulkanLayer *
 srt_vulkan_layer_new_replace_library_path (SrtVulkanLayer *self,
                                            const gchar *library_path)
 {
+  SrtBaseGraphicsModule *base;
   SrtVulkanLayer *ret = NULL;
 
   g_return_val_if_fail (SRT_IS_VULKAN_LAYER (self), NULL);
   g_return_val_if_fail (library_path != NULL, NULL);
 
-  if (self->layer.error != NULL || self->layer.library_path == NULL)
+  base = SRT_BASE_GRAPHICS_MODULE (self);
+
+  if (base->error != NULL || base->library_path == NULL)
     return g_object_ref (self);
 
   ret = vulkan_layer_dup (self);
   g_return_val_if_fail (ret != NULL, NULL);
 
-  g_free (ret->layer.library_path);
-
-  ret->layer.library_path = g_strdup (library_path);
+  g_free (((SrtBaseGraphicsModule *) ret)->library_path);
+  ((SrtBaseGraphicsModule *) ret)->library_path = g_strdup (library_path);
 
   return ret;
 }
@@ -1904,7 +1695,10 @@ srt_vulkan_layer_write_to_file (SrtVulkanLayer *self,
   g_return_val_if_fail (SRT_IS_VULKAN_LAYER (self), FALSE);
   g_return_val_if_fail (path != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
-  return srt_loadable_write_to_file (&self->layer, path, SRT_TYPE_VULKAN_LAYER, error);
+  return _srt_base_json_graphics_module_write_to_file (&self->parent,
+                                                       path,
+                                                       SRT_TYPE_VULKAN_LAYER,
+                                                       error);
 }
 
 /**
@@ -1920,7 +1714,7 @@ const gchar *
 srt_vulkan_layer_get_json_path (SrtVulkanLayer *self)
 {
   g_return_val_if_fail (SRT_IS_VULKAN_LAYER (self), NULL);
-  return self->layer.json_path;
+  return self->parent.json_path;
 }
 
 /**
@@ -1941,7 +1735,7 @@ const gchar *
 srt_vulkan_layer_get_library_path (SrtVulkanLayer *self)
 {
   g_return_val_if_fail (SRT_IS_VULKAN_LAYER (self), NULL);
-  return self->layer.library_path;
+  return SRT_BASE_GRAPHICS_MODULE (self)->library_path;
 }
 
 /**
@@ -1961,7 +1755,7 @@ const gchar *
 srt_vulkan_layer_get_library_arch (SrtVulkanLayer *self)
 {
   g_return_val_if_fail (SRT_IS_VULKAN_LAYER (self), NULL);
-  return self->layer.library_arch;
+  return self->parent.library_arch;
 }
 
 /**
@@ -1979,7 +1773,7 @@ const gchar *
 srt_vulkan_layer_get_name (SrtVulkanLayer *self)
 {
   g_return_val_if_fail (SRT_IS_VULKAN_LAYER (self), NULL);
-  return self->layer.name;
+  return self->parent.name;
 }
 
 /**
@@ -1997,7 +1791,7 @@ const gchar *
 srt_vulkan_layer_get_description (SrtVulkanLayer *self)
 {
   g_return_val_if_fail (SRT_IS_VULKAN_LAYER (self), NULL);
-  return self->layer.description;
+  return self->parent.description;
 }
 
 /**
@@ -2015,7 +1809,7 @@ const gchar *
 srt_vulkan_layer_get_api_version (SrtVulkanLayer *self)
 {
   g_return_val_if_fail (SRT_IS_VULKAN_LAYER (self), NULL);
-  return self->layer.api_version;
+  return self->parent.api_version;
 }
 
 /**
@@ -2034,7 +1828,7 @@ const gchar *
 srt_vulkan_layer_get_type_value (SrtVulkanLayer *self)
 {
   g_return_val_if_fail (SRT_IS_VULKAN_LAYER (self), NULL);
-  return self->layer.type;
+  return self->parent.type;
 }
 
 /**
@@ -2053,7 +1847,7 @@ const gchar *
 srt_vulkan_layer_get_implementation_version (SrtVulkanLayer *self)
 {
   g_return_val_if_fail (SRT_IS_VULKAN_LAYER (self), NULL);
-  return self->layer.implementation_version;
+  return self->parent.implementation_version;
 }
 
 /**
@@ -2072,7 +1866,7 @@ const char * const *
 srt_vulkan_layer_get_component_layers (SrtVulkanLayer *self)
 {
   g_return_val_if_fail (SRT_IS_VULKAN_LAYER (self), NULL);
-  return (const char * const *) self->layer.component_layers;
+  return (const char * const *) self->parent.component_layers;
 }
 
 /**
@@ -2088,24 +1882,7 @@ SrtLoadableIssues
 srt_vulkan_layer_get_issues (SrtVulkanLayer *self)
 {
   g_return_val_if_fail (SRT_IS_VULKAN_LAYER (self), SRT_LOADABLE_ISSUES_UNKNOWN);
-  return self->layer.issues;
-}
-
-/*
- * @self: The Vulkan layer
- * @is_duplicated: if %TRUE, this layer is a duplicated of another layer
- *
- * @self issues is adjusted accordingly to the @is_duplicated value.
- */
-void
-_srt_vulkan_layer_set_is_duplicated (SrtVulkanLayer *self,
-                                     gboolean is_duplicated)
-{
-  g_return_if_fail (SRT_IS_VULKAN_LAYER (self));
-  if (is_duplicated)
-    self->layer.issues |= SRT_LOADABLE_ISSUES_DUPLICATED;
-  else
-    self->layer.issues &= ~SRT_LOADABLE_ISSUES_DUPLICATED;
+  return SRT_BASE_GRAPHICS_MODULE (self)->issues;
 }
 
 /**
@@ -2131,7 +1908,7 @@ gchar *
 srt_vulkan_layer_resolve_library_path (SrtVulkanLayer *self)
 {
   g_return_val_if_fail (SRT_IS_VULKAN_LAYER (self), NULL);
-  return srt_loadable_resolve_library_path (&self->layer);
+  return _srt_base_graphics_module_resolve_library_path (SRT_BASE_GRAPHICS_MODULE (self));
 }
 
 /**
@@ -2150,18 +1927,15 @@ srt_vulkan_layer_check_error (const SrtVulkanLayer *self,
 {
   g_return_val_if_fail (SRT_IS_VULKAN_LAYER (self), FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
-
-  if (self->layer.error != NULL && error != NULL)
-    *error = g_error_copy (self->layer.error);
-
-  return (self->layer.error == NULL);
+  return _srt_base_graphics_module_check_error (SRT_BASE_GRAPHICS_MODULE (self), error);
 }
 
-/* Same as _srt_vulkan_icd_set_library_arch(), but for layers */
 void
 _srt_vulkan_layer_set_library_arch (SrtVulkanLayer *self,
                                     const char *library_arch)
 {
   g_return_if_fail (SRT_IS_VULKAN_LAYER (self));
-  _srt_loadable_set_library_arch (&self->layer, library_arch, "1.2.1");
+  _srt_base_json_graphics_module_set_library_arch (&self->parent,
+                                                   library_arch,
+                                                   "1.2.1");
 }

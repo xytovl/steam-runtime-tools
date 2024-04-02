@@ -4701,6 +4701,8 @@ setup_json_manifest (PvRuntime *self,
                      GString *search_path,
                      GError **error)
 {
+  SrtBaseGraphicsModule *base = NULL;
+  SrtBaseJsonGraphicsModule *module = NULL;
   SrtVulkanLayer *layer = NULL;
   SrtVulkanIcd *icd = NULL;
   SrtEglIcd *egl = NULL;
@@ -4719,34 +4721,28 @@ setup_json_manifest (PvRuntime *self,
   g_return_val_if_fail (sub_dir != NULL, FALSE);
   g_return_val_if_fail (json_set != NULL, FALSE);
 
+  module = SRT_BASE_JSON_GRAPHICS_MODULE (details->icd);
+  base = &module->parent;
+  loaded = _srt_base_graphics_module_check_error (base, NULL);
+  json_in_provider = module->json_path;
+  library_arch = module->library_arch;
+  original_json = module->original_json;
+
   if (SRT_IS_VULKAN_LAYER (details->icd))
     {
       layer = SRT_VULKAN_LAYER (details->icd);
-      loaded = srt_vulkan_layer_check_error (layer, NULL);
-      json_in_provider = srt_vulkan_layer_get_json_path (layer);
-      library_arch = srt_vulkan_layer_get_library_arch (layer);
     }
   else if (SRT_IS_VULKAN_ICD (details->icd))
     {
       icd = SRT_VULKAN_ICD (details->icd);
-      loaded = srt_vulkan_icd_check_error (icd, NULL);
-      json_in_provider = srt_vulkan_icd_get_json_path (icd);
-      library_arch = srt_vulkan_icd_get_library_arch (icd);
-      original_json = icd->icd.original_json;
     }
   else if (SRT_IS_EGL_ICD (details->icd))
     {
       egl = SRT_EGL_ICD (details->icd);
-      loaded = srt_egl_icd_check_error (egl, NULL);
-      json_in_provider = srt_egl_icd_get_json_path (egl);
-      original_json = egl->icd.original_json;
     }
   else if (SRT_IS_EGL_EXTERNAL_PLATFORM (details->icd))
     {
       ext_platform = SRT_EGL_EXTERNAL_PLATFORM (details->icd);
-      loaded = srt_egl_external_platform_check_error (ext_platform, NULL);
-      json_in_provider = srt_egl_external_platform_get_json_path (ext_platform);
-      original_json = ext_platform->module.original_json;
     }
   else
     {

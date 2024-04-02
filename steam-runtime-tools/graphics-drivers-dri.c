@@ -27,6 +27,7 @@
 
 #include "steam-runtime-tools/glib-backports-internal.h"
 #include "steam-runtime-tools/graphics.h"
+#include "steam-runtime-tools/graphics-drivers-internal.h"
 #include "steam-runtime-tools/graphics-internal.h"
 
 /**
@@ -50,27 +51,24 @@
 struct _SrtDriDriver
 {
   /*< private >*/
-  GObject parent;
-  gchar *library_path;
+  SrtBaseGraphicsModule parent;
   gboolean is_extra;
 };
 
 struct _SrtDriDriverClass
 {
   /*< private >*/
-  GObjectClass parent_class;
+  SrtBaseGraphicsModuleClass parent_class;
 };
 
 enum
 {
   DRI_DRIVER_PROP_0,
-  DRI_DRIVER_PROP_LIBRARY_PATH,
   DRI_DRIVER_PROP_IS_EXTRA,
-  DRI_DRIVER_PROP_RESOLVED_LIBRARY_PATH,
   N_DRI_DRIVER_PROPERTIES
 };
 
-G_DEFINE_TYPE (SrtDriDriver, srt_dri_driver, G_TYPE_OBJECT)
+G_DEFINE_TYPE (SrtDriDriver, srt_dri_driver, SRT_TYPE_BASE_GRAPHICS_MODULE)
 
 static void
 srt_dri_driver_init (SrtDriDriver *self)
@@ -87,16 +85,8 @@ srt_dri_driver_get_property (GObject *object,
 
   switch (prop_id)
     {
-      case DRI_DRIVER_PROP_LIBRARY_PATH:
-        g_value_set_string (value, self->library_path);
-        break;
-
       case DRI_DRIVER_PROP_IS_EXTRA:
         g_value_set_boolean (value, self->is_extra);
-        break;
-
-      case DRI_DRIVER_PROP_RESOLVED_LIBRARY_PATH:
-        g_value_take_string (value, srt_dri_driver_resolve_library_path (self));
         break;
 
       default:
@@ -114,11 +104,6 @@ srt_dri_driver_set_property (GObject *object,
 
   switch (prop_id)
     {
-      case DRI_DRIVER_PROP_LIBRARY_PATH:
-        g_return_if_fail (self->library_path == NULL);
-        self->library_path = g_value_dup_string (value);
-        break;
-
       case DRI_DRIVER_PROP_IS_EXTRA:
         self->is_extra = g_value_get_boolean (value);
         break;
@@ -126,16 +111,6 @@ srt_dri_driver_set_property (GObject *object,
       default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
     }
-}
-
-static void
-srt_dri_driver_finalize (GObject *object)
-{
-  SrtDriDriver *self = SRT_DRI_DRIVER (object);
-
-  g_clear_pointer (&self->library_path, g_free);
-
-  G_OBJECT_CLASS (srt_dri_driver_parent_class)->finalize (object);
 }
 
 static GParamSpec *dri_driver_properties[N_DRI_DRIVER_PROPERTIES] = { NULL };
@@ -147,18 +122,6 @@ srt_dri_driver_class_init (SrtDriDriverClass *cls)
 
   object_class->get_property = srt_dri_driver_get_property;
   object_class->set_property = srt_dri_driver_set_property;
-  object_class->finalize = srt_dri_driver_finalize;
-
-  dri_driver_properties[DRI_DRIVER_PROP_LIBRARY_PATH] =
-    g_param_spec_string ("library-path", "Library path",
-                         "Path to the DRI driver. It may be absolute "
-                         "(e.g. /usr/lib/dri/i965_dri.so) or relative "
-                         "(e.g. custom/dri/i965_dri.so). "
-                         "If absolute, it is set as though the "
-                         "sysroot, if any, was the root",
-                         NULL,
-                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-                         G_PARAM_STATIC_STRINGS);
 
   dri_driver_properties[DRI_DRIVER_PROP_IS_EXTRA] =
     g_param_spec_boolean ("is-extra", "Is extra?",
@@ -166,15 +129,6 @@ srt_dri_driver_class_init (SrtDriDriverClass *cls)
                           FALSE,
                           G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
                           G_PARAM_STATIC_STRINGS);
-
-  dri_driver_properties[DRI_DRIVER_PROP_RESOLVED_LIBRARY_PATH] =
-    g_param_spec_string ("resolved-library-path", "Resolved library path",
-                         "Absolute path to the DRI driver library. This is similar "
-                         "to 'library-path', but is guaranteed to be an "
-                         "absolute path (e.g. /usr/lib/dri/i965_dri.so) "
-                         "as though the sysroot, if any, was the root",
-                         NULL,
-                         G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
 
   g_object_class_install_properties (object_class, N_DRI_DRIVER_PROPERTIES,
                                      dri_driver_properties);
@@ -211,7 +165,7 @@ const gchar *
 srt_dri_driver_get_library_path (SrtDriDriver *self)
 {
   g_return_val_if_fail (SRT_IS_DRI_DRIVER (self), NULL);
-  return self->library_path;
+  return SRT_BASE_GRAPHICS_MODULE (self)->library_path;
 }
 
 /**
@@ -244,7 +198,5 @@ gchar *
 srt_dri_driver_resolve_library_path (SrtDriDriver *self)
 {
   g_return_val_if_fail (SRT_IS_DRI_DRIVER (self), NULL);
-  g_return_val_if_fail (self->library_path != NULL, NULL);
-
-  return g_canonicalize_filename (self->library_path, NULL);
+  return _srt_base_graphics_module_resolve_library_path (SRT_BASE_GRAPHICS_MODULE (self));
 }

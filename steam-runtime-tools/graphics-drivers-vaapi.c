@@ -29,6 +29,7 @@
 #include "steam-runtime-tools/glib-backports-internal.h"
 
 #include "steam-runtime-tools/elf-utils-internal.h"
+#include "steam-runtime-tools/graphics-drivers-internal.h"
 #include "steam-runtime-tools/utils.h"
 #include "steam-runtime-tools/utils-internal.h"
 
@@ -53,8 +54,7 @@
 struct _SrtVaApiDriver
 {
   /*< private >*/
-  GObject parent;
-  gchar *library_path;
+  SrtBaseGraphicsModule parent;
   SrtVaApiVersion version;
   gboolean is_extra;
 };
@@ -62,20 +62,18 @@ struct _SrtVaApiDriver
 struct _SrtVaApiDriverClass
 {
   /*< private >*/
-  GObjectClass parent_class;
+  SrtBaseGraphicsModuleClass parent_class;
 };
 
 enum
 {
   VA_API_DRIVER_PROP_0,
-  VA_API_DRIVER_PROP_LIBRARY_PATH,
   VA_API_DRIVER_PROP_VERSION,
   VA_API_DRIVER_PROP_IS_EXTRA,
-  VA_API_DRIVER_PROP_RESOLVED_LIBRARY_PATH,
   N_VA_API_DRIVER_PROPERTIES
 };
 
-G_DEFINE_TYPE (SrtVaApiDriver, srt_va_api_driver, G_TYPE_OBJECT)
+G_DEFINE_TYPE (SrtVaApiDriver, srt_va_api_driver, SRT_TYPE_BASE_GRAPHICS_MODULE)
 
 static void
 srt_va_api_driver_init (SrtVaApiDriver *self)
@@ -92,20 +90,12 @@ srt_va_api_driver_get_property (GObject *object,
 
   switch (prop_id)
     {
-      case VA_API_DRIVER_PROP_LIBRARY_PATH:
-        g_value_set_string (value, self->library_path);
-        break;
-
       case VA_API_DRIVER_PROP_VERSION:
         g_value_set_enum (value, self->version);
         break;
 
       case VA_API_DRIVER_PROP_IS_EXTRA:
         g_value_set_boolean (value, self->is_extra);
-        break;
-
-      case VA_API_DRIVER_PROP_RESOLVED_LIBRARY_PATH:
-        g_value_take_string (value, srt_va_api_driver_resolve_library_path (self));
         break;
 
       default:
@@ -123,11 +113,6 @@ srt_va_api_driver_set_property (GObject *object,
 
   switch (prop_id)
     {
-      case VA_API_DRIVER_PROP_LIBRARY_PATH:
-        g_return_if_fail (self->library_path == NULL);
-        self->library_path = g_value_dup_string (value);
-        break;
-
       case VA_API_DRIVER_PROP_VERSION:
         /* Construct-only */
         g_return_if_fail (self->version == SRT_VA_API_VERSION_UNKNOWN);
@@ -143,16 +128,6 @@ srt_va_api_driver_set_property (GObject *object,
     }
 }
 
-static void
-srt_va_api_driver_finalize (GObject *object)
-{
-  SrtVaApiDriver *self = SRT_VA_API_DRIVER (object);
-
-  g_clear_pointer (&self->library_path, g_free);
-
-  G_OBJECT_CLASS (srt_va_api_driver_parent_class)->finalize (object);
-}
-
 static GParamSpec *va_api_driver_properties[N_VA_API_DRIVER_PROPERTIES] = { NULL };
 
 static void
@@ -162,18 +137,6 @@ srt_va_api_driver_class_init (SrtVaApiDriverClass *cls)
 
   object_class->get_property = srt_va_api_driver_get_property;
   object_class->set_property = srt_va_api_driver_set_property;
-  object_class->finalize = srt_va_api_driver_finalize;
-
-  va_api_driver_properties[VA_API_DRIVER_PROP_LIBRARY_PATH] =
-    g_param_spec_string ("library-path", "Library path",
-                         "Path to the DRI driver library in provider's namespace. "
-                         "It may be absolute (e.g. /usr/lib/dri/iHD_drv_video.so) "
-                         "or relative (e.g. custom/dri/iHD_drv_video.so). "
-                         "If absolute, it is set as though the "
-                         "sysroot, if any, was the root",
-                         NULL,
-                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-                         G_PARAM_STATIC_STRINGS);
 
   va_api_driver_properties[VA_API_DRIVER_PROP_IS_EXTRA] =
     g_param_spec_boolean ("is-extra", "Is extra?",
@@ -188,16 +151,6 @@ srt_va_api_driver_class_init (SrtVaApiDriverClass *cls)
                        SRT_TYPE_VA_API_VERSION, SRT_VA_API_VERSION_UNKNOWN,
                        G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
                        G_PARAM_STATIC_STRINGS);
-
-  va_api_driver_properties[VA_API_DRIVER_PROP_RESOLVED_LIBRARY_PATH] =
-    g_param_spec_string ("resolved-library-path", "Resolved library path",
-                         "Absolute path to the DRI driver library in provider's "
-                         "namespace. This is similar to 'library-path', but "
-                         "is guaranteed to be an absolute path "
-                         "(e.g. /usr/lib/dri/iHD_drv_video.so) "
-                         "as though the sysroot, if any, was the root",
-                         NULL,
-                         G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
 
   g_object_class_install_properties (object_class, N_VA_API_DRIVER_PROPERTIES,
                                      va_api_driver_properties);
@@ -322,7 +275,7 @@ const gchar *
 srt_va_api_driver_get_library_path (SrtVaApiDriver *self)
 {
   g_return_val_if_fail (SRT_IS_VA_API_DRIVER (self), NULL);
-  return self->library_path;
+  return SRT_BASE_GRAPHICS_MODULE (self)->library_path;
 }
 
 /**
@@ -355,9 +308,7 @@ gchar *
 srt_va_api_driver_resolve_library_path (SrtVaApiDriver *self)
 {
   g_return_val_if_fail (SRT_IS_VA_API_DRIVER (self), NULL);
-  g_return_val_if_fail (self->library_path != NULL, NULL);
-
-  return g_canonicalize_filename (self->library_path, NULL);
+  return _srt_base_graphics_module_resolve_library_path (SRT_BASE_GRAPHICS_MODULE (self));
 }
 
 /**
