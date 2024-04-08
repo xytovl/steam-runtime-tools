@@ -194,11 +194,16 @@ class Environment:
                     check=True,
                 )
 
-    def run_in_suite(self, suite: str, argv: List[str]) -> None:
+    def run_in_suite(
+        self,
+        suite: str,
+        argv: List[str],
+        check: bool = True
+    ) -> None:
         if self.oci_run_argv:
             subprocess.run(
                 self.oci_run_argv + [self.oci_images[suite]] + argv,
-                check=True,
+                check=check,
             )
         else:
             sysroot = self.containers / (suite + '_sysroot')
@@ -212,7 +217,7 @@ class Environment:
                     '--tarball', str(tarball),
                     '--',
                 ] + argv,
-                check=True,
+                check=check,
             )
 
     def run_scout_builds(self, verb: str, args: List[str]) -> None:
@@ -236,46 +241,62 @@ class Environment:
                 elif self.docker:
                     subprocess.run(self.docker + ['pull', image], check=True)
 
+    def setup_one(
+        self,
+        subdir: str,
+        args: List[str],
+        *,
+        check: bool = True,
+        in_suite: str = '',
+    ) -> None:
+        d = self.abs_builddir_parent / subdir
+
+        if (d / 'meson-private' / 'coredata.dat').exists():
+            maybe_wipe = ['--wipe']
+        else:
+            maybe_wipe = []
+
+        argv = [
+            'meson',
+            'setup',
+            str(d),
+        ] + maybe_wipe + args
+
+        if in_suite:
+            self.run_in_suite(in_suite, argv, check=check)
+        else:
+            subprocess.run(argv, check=check)
+
     def setup(self, args: List[str]) -> None:
-        subprocess.run(
-            [
-                'meson',
-                'setup',
-                '--wipe',
-                str(self.abs_builddir_parent / 'host'),
-                '-Db_lundef=false',
-                '-Db_sanitize=address,undefined',
-                '-Dbin=true',
-                # libcurl_compat defaults to false, but for developer builds
-                # we want it true so we can get more test coverage
-                '-Dlibcurl_compat=true',
-                '-Doptimization=g',
-                '-Dprefix=/usr',
-                '-Dpressure_vessel=true',
+        dev_build = [
+            '-Dbin=true',
+            # libcurl_compat defaults to false, but for developer builds
+            # we want it true so we can get more test coverage
+            '-Dlibcurl_compat=true',
+            '-Doptimization=g',
+            '-Dprefix=/usr',
+            '-Dpressure_vessel=true',
+            '-Dwarning_level=3',
+            '-Dwerror=true',
+        ]
+
+        asan_dev_build = dev_build + [
+            '-Db_lundef=false',
+            '-Db_sanitize=address,undefined',
+        ]
+
+        self.setup_one(
+            'host',
+            asan_dev_build + [
                 ('-Dtest_containers_dir='
                  + str(self.abs_builddir_parent / 'containers')),
-                '-Dwarning_level=3',
-                '-Dwerror=true',
             ] + args,
-            check=True,
         )
 
-        subprocess.run(
-            [
-                'meson',
-                'setup',
-                '--wipe',
-                str(self.abs_builddir_parent / 'i386'),
-                '-Db_lundef=false',
-                '-Db_sanitize=address,undefined',
-                '-Dbin=true',
-                '-Dlibcurl_compat=true',
+        self.setup_one(
+            'i386',
+            asan_dev_build + [
                 '-Dmultiarch_tuple=i386-linux-gnu',
-                '-Doptimization=g',
-                '-Dprefix=/usr',
-                '-Dpressure_vessel=true',
-                '-Dwarning_level=3',
-                '-Dwerror=true',
                 '--cross-file=build-aux/meson/i386.txt',
                 '--libdir=lib/i386-linux-gnu',
             ] + args,
@@ -283,95 +304,45 @@ class Environment:
             check=False,
         )
 
-        subprocess.run(
-            [
-                'meson',
-                'setup',
-                '--wipe',
-                str(self.abs_builddir_parent / 'host-no-asan'),
-                '-Dbin=true',
-                '-Dlibcurl_compat=true',
-                '-Doptimization=g',
-                '-Dprefix=/usr',
-                '-Dpressure_vessel=true',
+        self.setup_one(
+            'host-no-asan',
+            dev_build + [
                 ('-Dtest_containers_dir='
                  + str(self.abs_builddir_parent / 'containers')),
-                '-Dwarning_level=3',
-                '-Dwerror=true',
             ] + args,
-            check=True,
         )
 
-        subprocess.run(
-            [
-                'meson',
-                'setup',
-                '--wipe',
-                str(self.abs_builddir_parent / 'coverage'),
+        self.setup_one(
+            'coverage',
+            dev_build + [
                 '-Db_coverage=true',
-                '-Dbin=true',
-                '-Dlibcurl_compat=true',
-                '-Doptimization=g',
-                '-Dpressure_vessel=true',
-                '-Dprefix=/usr',
-                '-Dwarning_level=3',
-                '-Dwerror=true',
             ] + args,
-            check=True,
         )
 
-        subprocess.run(
+        self.setup_one(
+            'doc',
             [
-                'meson',
-                'setup',
-                '--wipe',
-                str(self.abs_builddir_parent / 'doc'),
                 '-Dgtk_doc=enabled',
                 '-Dman=enabled',
                 '-Dpressure_vessel=true',
             ] + args,
-            check=True,
         )
 
-        subprocess.run(
-            [
-                'meson',
-                'setup',
-                '--wipe',
-                str(self.abs_builddir_parent / 'clang'),
+        self.setup_one(
+            'clang',
+            asan_dev_build + [
                 '--native-file=build-aux/meson/clang.txt',
-                '-Db_lundef=false',
-                '-Db_sanitize=address,undefined',
-                '-Dbin=true',
-                '-Dlibcurl_compat=true',
-                '-Doptimization=g',
-                '-Dprefix=/usr',
-                '-Dpressure_vessel=true',
-                '-Dwarning_level=3',
-                '-Dwerror=true',
             ] + args,
-            check=True,
         )
 
         for suite, image in self.oci_images.items():
             if suite == 'scout' or not image:
                 continue
 
-            self.run_in_suite(
-                suite,
-                [
-                    'meson',
-                    'setup',
-                    '--wipe',
-                    str(self.abs_builddir_parent / f'{suite}-x86_64'),
-                    '-Dbin=true',
-                    '-Dlibcurl_compat=true',
-                    '-Doptimization=g',
-                    '-Dprefix=/usr',
-                    '-Dpressure_vessel=true',
-                    '-Dwarning_level=2',
-                    '-Dwerror=true',
-                ] + args,
+            self.setup_one(
+                f'{suite}-x86_64',
+                dev_build + ['-Dwarning_level=2'] + args,
+                in_suite=suite,
             )
 
         self.run_scout_builds('setup', args)

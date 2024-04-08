@@ -45,11 +45,33 @@ else:
 logger = logging.getLogger('scout-builds')
 
 
+def setup_one(args, subdir, options):
+    # type: (typing.Any, str, typing.List[str]) -> None
+    if os.path.exists(
+        os.path.join(
+            args.abs_builddir_parent,
+            subdir,
+            'meson-private',
+            'coredata.dat',
+        )
+    ):
+        maybe_wipe = ['--wipe']
+    else:
+        maybe_wipe = []
+
+    subprocess.check_call(
+        [
+            'meson', 'setup',
+            os.path.join(args.abs_builddir_parent, subdir),
+        ] + maybe_wipe + options,
+        cwd=args.abs_srcdir,
+    )
+
+
 def setup(args):
     # type: (typing.Any) -> None
 
     common_options = [
-        '--wipe',
         '-Dgtk_doc=disabled',
         '-Dlibcurl_compat=true',
         '-Dman=disabled',
@@ -59,28 +81,25 @@ def setup(args):
         '--werror',
     ]
 
-    subprocess.check_call(
-        [
-            'meson', 'setup',
-        ] + common_options + [
+    setup_one(
+        args,
+        'scout-x86_64',
+        common_options + [
             '-Dpressure_vessel=true',
             '--native-file=build-aux/meson/scout.txt',
-            os.path.join(args.abs_builddir_parent, 'scout-x86_64')
         ] + list(args.args),
-        cwd=args.abs_srcdir,
     )
-    subprocess.check_call(
-        [
-            'meson', 'setup',
-        ] + common_options + [
+
+    setup_one(
+        args,
+        'scout-i386',
+        common_options + [
             '-Dbin=false',
             '-Dmultiarch_tuple=i386-linux-gnu',
             '-Dpressure_vessel=false',
             '--cross-file=build-aux/meson/scout-i386.txt',
             '--libdir=lib/i386-linux-gnu',
-            os.path.join(args.abs_builddir_parent, 'scout-i386')
         ] + list(args.args),
-        cwd=args.abs_srcdir,
     )
 
 
