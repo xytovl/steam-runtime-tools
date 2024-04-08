@@ -17,6 +17,11 @@ A complete relocatable build of pressure-vessel also includes several
 independent shared libraries which are not built as subprojects: see
 `pressure-vessel/THIRD-PARTY.md` for details of those.
 
+Several of these projects are managed using `git-subtree(1)`.
+We do not use `git-submodule(1)` because that would make the project
+less self-contained.
+
+
 bubblewrap
 ----------
 
@@ -28,6 +33,30 @@ We build our own copy of bubblewrap so that we can make use of features
 of newer versions even on older host operating systems, and so that we can
 build it with a suitable `DT_RPATH` to be included in relocatable builds
 of pressure-vessel.
+
+To compare with upstream:
+
+    git remote add --no-tags bubblewrap https://github.com/containers/bubblewrap
+    git fetch bubblewrap
+    git diff HEAD:subprojects/bubblewrap bubblewrap/main
+
+To merge from upstream (do this after an upstream release):
+
+    git fetch bubblewrap
+    git subtree merge -P subprojects/bubblewrap bubblewrap/main
+
+If you configure `.git/config` to replace
+
+    tagopt = --no-tags
+
+with
+
+    fetch = refs/tags/*:refs/tags/bubblewrap/*
+
+then you can refer to bubblewrap releases via tag names like
+`bubblewrap/v0.9.0`, and merge them with commands like:
+
+    git subtree merge -P subprojects/bubblewrap bubblewrap/v0.9.0
 
 container-runtime
 -----------------
@@ -60,6 +89,9 @@ libcapsule release management (steam-runtime-tools is its only significant
 user right now), and so that we can build it with a suitable `DT_RPATH`
 to be included in relocatable builds of pressure-vessel.
 
+To compare with upstream or merge from upstream, the procedure is similar
+to bubblewrap (see above).
+
 libglnx
 -------
 
@@ -71,6 +103,9 @@ utility code, and for backports of useful functions from newer GLib releases.
 This is a "copylib", similar to gnulib, which only supports being
 integrated as a subproject.
 
+To compare with upstream or merge from upstream, the procedure is similar
+to bubblewrap (see above).
+
 xisxwayland
 -----------
 
@@ -81,3 +116,6 @@ the X11 display is actually Xwayland.
 
 We build our own copy to give it a wrapper with stable machine-readable
 output (`helpers/is-x-server-xwayland.c`).
+
+To compare with upstream or merge from upstream, the procedure is similar
+to bubblewrap (see above).
