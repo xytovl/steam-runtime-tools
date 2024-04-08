@@ -207,7 +207,7 @@ class Environment:
             )
         else:
             sysroot = self.containers / (suite + '_sysroot')
-            tarball = self.containers / SYSROOT_TAR.format(suite)
+            tarball = self.cache / SYSROOT_TAR.format(suite)
             subprocess.run(
                 [
                     str(self.abs_srcdir / 'build-aux' / 'run-in-sysroot.py'),
