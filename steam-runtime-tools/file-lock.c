@@ -34,6 +34,25 @@
  *
  * A read/write lock compatible with the locks taken out by
  * `bwrap --lock-file FILENAME` and Flatpak.
+ *
+ * More precisely, #SrtFileLock normally attempts to use a Linux open file
+ * description lock, `F_OFD_SETLK(W)`, but falls back to a POSIX
+ * process-oriented `fcntl` lock, `F_SETLK(W)` if taking the OFD lock
+ * fails with `EINVAL` (kernels older than 3.15).
+ * See `fcntl(2)` for technical details of how these locks behave.
+ * In particular, holding an OFD lock conflicts with a POSIX lock and
+ * vice versa, so two processes holding different kinds of lock will
+ * correctly exclude each other.
+ *
+ * If %SRT_FILE_LOCK_FLAGS_PROCESS_ORIENTED is used, #SrtFileLock will
+ * only use POSIX process-oriented `F_SETLK(W)` locks.
+ * Conversely, if %SRT_FILE_LOCK_FLAGS_REQUIRE_OFD is used, then
+ * #SrtFileLock will only use OFD locks, failing on older kernels.
+ * Setting both flags is not allowed.
+ *
+ * It is unspecified whether these locks exclude `flock(2)` locks or not.
+ * Using `flock(1)` or `flock(2)` on the same lock files that are
+ * locked by steam-runtime-tools should be avoided.
  */
 struct _SrtFileLock
 {

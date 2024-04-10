@@ -122,6 +122,12 @@ determined by the options.
     process-associated record lock (**F_SETLK** or **F_SETLKW**) on older
     kernels.
 
+    These locks interact in the expected way with **bwrap**(1),
+    **flatpak**(1) and other parts of **steam-runtime-tools**.
+    It is unspecified whether they exclude the **flock**(2) locks used
+    by util-linux **flock**(1) or not, so using those locks on lock
+    files used by **steam-runtime-tools** should be avoided.
+
 **--lock-wait**
 :   For each **--lock-file** that appears on the command-line after
     this option until a **--no-lock-wait** option is seen, if the file is
