@@ -116,6 +116,25 @@ is a [VDF][] text file with one top-level entry, `manifest`.
         as a layer over a `container-runtime`
         (see [Steam Linux Runtime 1.0 (scout)][scout-on-soldier])
 
+* `filter_exclusive_priority`:
+
+    A positive integer indicating that this tool is mutually exclusive
+    with other similar tools.
+    Compatibility tools that have this field are put together in a group,
+    and when the Steam user interface shows users various options for
+    running games, only the one that has the highest priority in the group
+    is offered.
+    Larger positive numbers are interpreted as higher-priority.
+    This allows Steam to offer only "Steam Linux Runtime 1.0 (scout)"
+    for historical native Linux games (which require/assume the scout ABI),
+    while keeping later SLR branches available internally.
+    Games' metadata can override this field to select a different
+    compatibility tool as higher-priority: for example, when configuring
+    a game that requires "Steam Linux Runtime 3.0 (sniper)", the priority
+    for SLR 3.0 is raised higher than SLR 1.0 so that it will take
+    precedence, resulting in SLR 3.0 being offered in the Steam UI and
+    SLR 1.0 being hidden.
+
 * `require_tool_appid`:
 
     If set, this compatibility tool needs to be wrapped in another
