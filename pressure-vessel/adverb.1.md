@@ -150,6 +150,12 @@ exit status.
     process-associated record lock (**F_SETLK** or **F_SETLKW**) on older
     kernels.
 
+    These locks interact in the expected way with **bwrap**(1),
+    **flatpak**(1) and other parts of **steam-runtime-tools**.
+    It is unspecified whether they exclude the **flock**(2) locks used
+    by util-linux **flock**(1) or not, so using those locks on lock
+    files used by **steam-runtime-tools** should be avoided.
+
 **--pass-fd** *FD*
 :   Pass the file descriptor *FD* (specified as a small positive integer)
     from the parent process to the *COMMAND*. The default is to only pass

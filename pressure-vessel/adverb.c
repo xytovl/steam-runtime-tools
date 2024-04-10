@@ -862,7 +862,8 @@ main (int argc,
 
   /* Set up the initial base logging */
   if (!_srt_util_set_glib_log_handler ("pressure-vessel-adverb",
-                                       G_LOG_DOMAIN, SRT_LOG_FLAGS_NONE,
+                                       G_LOG_DOMAIN,
+                                       SRT_LOG_FLAGS_DIVERT_STDOUT,
                                        &original_stdout, &original_stderr,
                                        error))
     {

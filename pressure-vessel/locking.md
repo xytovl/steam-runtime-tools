@@ -8,11 +8,12 @@ SPDX-License-Identifier: MIT
 
 pressure-vessel uses fcntl locks to guard concurrent access to runtimes.
 They are `F_OFD_SETLK` locks if possible, falling back to POSIX
-process-oriented `F_SETLK` locks on older kernels. See `bwrap-lock.c`
-for full details.
+process-oriented `F_SETLK` locks on older kernels.
+See `steam-runtime-tools/file-lock.c` for full details.
 
 Do not use `flock(2)`, `flock(1)` or `lockf(3)` to interact with
-pressure-vessel. `bwrap --lock-file` or `pressure-vessel-adverb`
+pressure-vessel.
+`bwrap --lock-file`, `pressure-vessel-adverb` or `steam-runtime-supervisor`
 can be used.
 
 Runtimes
