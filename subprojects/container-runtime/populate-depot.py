@@ -1081,12 +1081,16 @@ class Main:
                 content: Dict[str, Any] = dict(
                     manifest=dict(
                         commandline=' '.join(words),
+                        filter_exclusive_priority='1',
                         version='2',
                         use_tool_subprocess_reaper='1',
                     )
                 )
 
                 if runtime.suite != 'scout':
+                    # TODO: Remove this after the general-availability
+                    # version of the Steam client supports the
+                    # filter_exclusive_priority mechanism
                     content['manifest']['unlisted'] = '1'
 
                 content['manifest']['compatmanager_layer_name'] = (
