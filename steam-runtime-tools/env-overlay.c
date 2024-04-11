@@ -248,6 +248,23 @@ _srt_env_overlay_get_vars (SrtEnvOverlay *self)
 }
 
 /*
+ * _srt_env_overlay_contains:
+ * @self: Environment variables to set or unset
+ * @var: (type filename): An environment variable name
+ *
+ * Returns: %TRUE if @var is either set or forced to be unset,
+ *  or %FALSE if it is inherited
+ */
+gboolean
+_srt_env_overlay_contains (SrtEnvOverlay *self,
+                           const char *var)
+{
+  g_return_val_if_fail (self != NULL, FALSE);
+
+  return g_hash_table_lookup_extended (self->values, var, NULL, NULL);
+}
+
+/*
  * _srt_env_overlay_get:
  * @self: Environment variables to set or unset
  * @var: (type filename): An environment variable name
