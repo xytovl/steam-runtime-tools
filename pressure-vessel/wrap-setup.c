@@ -1143,7 +1143,10 @@ bind_and_propagate_from_environ (SrtSysroot *sysroot,
       && (flags & ENV_MOUNT_FLAGS_IF_HOME_SHARED))
     return;
 
-  value = _srt_environ_getenv (current_env, variable);
+  if (_srt_env_overlay_contains (container_env, variable))
+    value = _srt_env_overlay_get (container_env, variable);
+  else
+    value = _srt_environ_getenv (current_env, variable);
 
   if (value == NULL)
     return;
@@ -1246,13 +1249,15 @@ pv_bind_and_propagate_from_environ (SrtSysroot *sysroot,
 
   for (i = 0; i < G_N_ELEMENTS (known_required_env); i++)
     {
+      const char *name = known_required_env[i].name;
+
       if (exports != NULL)
         {
           /* If we're using bubblewrap directly, we can and must make
            * sure that all required directories are bind-mounted */
           bind_and_propagate_from_environ (sysroot, current_env, home_mode,
                                            exports, container_env,
-                                           known_required_env[i].name,
+                                           name,
                                            known_required_env[i].flags);
         }
       else
@@ -1261,10 +1266,10 @@ pv_bind_and_propagate_from_environ (SrtSysroot *sysroot,
            * rely on the fact that any directory available to the parent app
            * is also going to be available to the subsandbox */
           g_return_if_fail (home_mode == PV_HOME_MODE_SHARED);
-          _srt_env_overlay_set (container_env,
-                                known_required_env[i].name,
-                                _srt_environ_getenv (current_env,
-                                                     known_required_env[i].name));
+
+          if (!_srt_env_overlay_contains (container_env, name))
+            _srt_env_overlay_set (container_env, name,
+                                  _srt_environ_getenv (current_env, name));
         }
     }
 }

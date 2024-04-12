@@ -79,6 +79,8 @@ gboolean _srt_env_overlay_pass_matching_pattern_cli (SrtEnvOverlay *self,
                                                      GError **error);
 
 GList *_srt_env_overlay_get_vars (SrtEnvOverlay *self);
+gboolean _srt_env_overlay_contains (SrtEnvOverlay *self,
+                                    const char *var);
 const char *_srt_env_overlay_get (SrtEnvOverlay *self,
                                   const char *var);
 
