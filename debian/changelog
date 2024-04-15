@@ -15,9 +15,18 @@ steam-runtime-tools (0.20240415.0) UNRELEASED; urgency=medium
       + Fix a double-close
       + Fix various compiler warnings, etc.
       + Improve documentation
+  * SLR_soldier, SLR_sniper:
+    - Rename files in *_platform_*/files/ that could cause distribution
+      issues or be deleted by over-zealous cleanup tools
+      (steam-for-linux#10614, steamrt/tasks#422)
+      + non-Windows-friendly filenames (containing :, etc.)
+      + **/__pycache__/*.pyc
+      + **/.cache/**
+      + **/tmp/**
+    - Save some space by using the same mechanism to preserve hard-links
   * Refactoring
 
- -- Simon McVittie <smcv@collabora.com>  Mon, 15 Apr 2024 11:22:32 +0100
+ -- Simon McVittie <smcv@collabora.com>  Mon, 15 Apr 2024 16:04:44 +0100
 
 steam-runtime-tools (0.20240321.1) steamrt; urgency=medium
 
