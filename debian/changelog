@@ -1,6 +1,11 @@
 steam-runtime-tools (0.20240408.0) UNRELEASED; urgency=medium
 
+  * steam-runtime-supervisor:
+    - New tool, a less specialized version of pressure-vessel-adverb
+      (steamrt/tasks#387)
   * pressure-vessel:
+    - Fix a regression in handling of Vulkan layers since 0.20240301.0
+      (steam-runtime#662)
     - Better handling of LD_PRELOAD modules and VDPAU drivers on
       distributions like Clear Linux and Solus that use lib64 and lib32
       directories (steam-runtime#642)
@@ -12,6 +17,10 @@ steam-runtime-tools (0.20240408.0) UNRELEASED; urgency=medium
       + Fix a double-close
       + Fix various compiler warnings, etc.
       + Improve documentation
+    - pv-adverb: Don't corrupt stdout if we emit a debug message during
+      command-line parsing
+  * SteamLinuxRuntime, SLR_soldier, SLR_sniper:
+    - Add filter_exclusive property to tool manifests (steamrt/tasks#426)
   * pv-verify:
     - Don't fail verification for parents of a contents= filename
       (steamrt/tasks#422)
@@ -22,7 +31,7 @@ steam-runtime-tools (0.20240408.0) UNRELEASED; urgency=medium
     - test-logger: Avoid a race condition that could make the test fail
   * Refactoring
 
- -- Simon McVittie <smcv@collabora.com>  Mon, 08 Apr 2024 18:34:47 +0100
+ -- Simon McVittie <smcv@collabora.com>  Mon, 15 Apr 2024 11:22:32 +0100
 
 steam-runtime-tools (0.20240321.0) steamrt; urgency=medium
 
