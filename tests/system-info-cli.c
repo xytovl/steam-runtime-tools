@@ -93,6 +93,19 @@ teardown (Fixture *f,
   g_free (f->builddir);
 }
 
+/* The filesystem used to run tests is not under our control, and on
+ * Docker or Podman it will often be overlayfs. */
+static gboolean
+runtime_issue_name_ignorable (const char *issue)
+{
+  if (g_strcmp0 (issue, "non-unix-filesystem") == 0
+      || g_strcmp0 (issue, "on-network-filesystem") == 0
+      || g_strcmp0 (issue, "on-unknown-filesystem") == 0)
+    return TRUE;
+
+  return FALSE;
+}
+
 /*
  * Test if the expected libraries are available in the
  * running system.
@@ -489,6 +502,7 @@ steam_presence (Fixture *f,
   const gchar *version = NULL;
   const gchar *argv[] = { "steam-runtime-system-info", NULL };
   FakeHome *fake_home;
+  size_t i, n;
 
   fake_home = fake_home_new (NULL);
   fake_home_create_structure (fake_home);
@@ -558,7 +572,15 @@ steam_presence (Fixture *f,
 
   g_assert_true (json_object_has_member (json_sub_object, "issues"));
   array = json_object_get_array_member (json_sub_object, "issues");
-  g_assert_cmpint (json_array_get_length (array), ==, 0);
+  n = json_array_get_length (array);
+
+  for (i = 0; i < n; i++)
+    {
+      const char *issue = json_array_get_string_element (array, i);
+
+      if (!runtime_issue_name_ignorable (issue))
+        g_test_fail_printf ("Unexpected runtime->issues: %s", issue);
+    }
 
   g_assert_false (json_object_has_member (json_sub_object, "overrides"));
   g_assert_true (json_object_has_member (json_sub_object, "pinned_libs_32"));
@@ -592,6 +614,8 @@ steam_issues (Fixture *f,
   const gchar *version = NULL;
   const gchar *argv[] = { "steam-runtime-system-info", NULL };
   FakeHome *fake_home;
+  size_t i, n;
+  SrtRuntimeIssues runtime_issues = SRT_RUNTIME_ISSUES_NONE;
 
   fake_home = fake_home_new (NULL);
   fake_home->create_pinning_libs = FALSE;
@@ -669,11 +693,26 @@ steam_issues (Fixture *f,
 
   g_assert_true (json_object_has_member (json_sub_object, "issues"));
   array = json_object_get_array_member (json_sub_object, "issues");
-  g_assert_cmpint (json_array_get_length (array), ==, 2);
-  g_assert_cmpstr (json_array_get_string_element (array, 0), ==,
-                   "not-runtime");
-  g_assert_cmpstr (json_array_get_string_element (array, 1), ==,
-                   "not-using-newer-host-libraries");
+
+  n = json_array_get_length (array);
+
+  for (i = 0; i < n; i++)
+    {
+      const char *issue = json_array_get_string_element (array, i);
+
+      if (runtime_issue_name_ignorable (issue))
+        continue;
+      else if (g_strcmp0 (issue, "not-runtime") == 0)
+        runtime_issues |= SRT_RUNTIME_ISSUES_NOT_RUNTIME;
+      else if (g_strcmp0 (issue, "not-using-newer-host-libraries") == 0)
+        runtime_issues |= SRT_RUNTIME_ISSUES_NOT_USING_NEWER_HOST_LIBRARIES;
+      else
+        g_test_fail_printf ("Unexpected runtime->issues: %s", issue);
+    }
+
+  g_assert_cmphex (runtime_issues, ==,
+                   (SRT_RUNTIME_ISSUES_NOT_RUNTIME
+                    | SRT_RUNTIME_ISSUES_NOT_USING_NEWER_HOST_LIBRARIES));
 
   g_assert_true (json_object_has_member (json, "driver_environment"));
 
