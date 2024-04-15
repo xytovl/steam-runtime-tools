@@ -483,7 +483,7 @@ _srt_logger_setup (SrtLogger *self,
         }
 
       g_assert (message->len > 0);
-      g_message ("Sending log messages to %s", message->str);
+      g_info ("Sending log messages to %s", message->str);
     }
   else
     {
