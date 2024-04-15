@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20240321.1) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20240321.1) steamrt; urgency=medium
 
   * pressure-vessel:
     - Fix a regression in handling of Vulkan layers since 0.20240301.0
@@ -16,7 +16,7 @@ steam-runtime-tools (0.20240321.1) UNRELEASED; urgency=medium
   * Tests:
     - test-logger: Avoid a race condition that could make the test fail
 
- -- Simon McVittie <smcv@collabora.com>  Mon, 15 Apr 2024 11:30:47 +0100
+ -- Simon McVittie <smcv@collabora.com>  Mon, 15 Apr 2024 11:33:44 +0100
 
 steam-runtime-tools (0.20240321.0) steamrt; urgency=medium
 
