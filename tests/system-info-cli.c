@@ -131,6 +131,8 @@ libraries_presence (Fixture *f,
   g_assert_cmpint (exit_status, ==, 0);
   g_assert_nonnull (output);
 
+  g_test_message ("%s: s-r-s-i output:\n%s\n", G_STRFUNC, output);
+
   node = json_from_string (output, &error);
   g_assert_no_error (error);
   g_assert_nonnull (node);
@@ -261,6 +263,8 @@ libraries_missing (Fixture *f,
   g_assert_cmpint (exit_status, ==, 0);
   g_assert_nonnull (output);
 
+  g_test_message ("%s: s-r-s-i output:\n%s\n", G_STRFUNC, output);
+
   node = json_from_string (output, &error);
   g_assert_no_error (error);
   g_assert_nonnull (node);
@@ -367,6 +371,8 @@ libraries_presence_verbose (Fixture *f,
   g_assert_cmpint (exit_status, ==, 0);
   g_assert_nonnull (output);
 
+  g_test_message ("%s: s-r-s-i output:\n%s\n", G_STRFUNC, output);
+
   node = json_from_string (output, &error);
   g_assert_no_error (error);
   g_assert_nonnull (node);
@@ -432,6 +438,8 @@ no_arguments (Fixture *f,
   g_assert_true (result);
   g_assert_cmpint (exit_status, ==, 0);
   g_assert_nonnull (output);
+
+  g_test_message ("%s: s-r-s-i output:\n%s\n", G_STRFUNC, output);
 
   node = json_from_string (output, &error);
   g_assert_no_error (error);
@@ -506,6 +514,8 @@ steam_presence (Fixture *f,
   g_assert_true (result);
   g_assert_cmpint (exit_status, ==, 0);
   g_assert_nonnull (output);
+
+  g_test_message ("%s: s-r-s-i output:\n%s\n", G_STRFUNC, output);
 
   node = json_from_string (output, &error);
   g_assert_no_error (error);
@@ -605,6 +615,8 @@ steam_issues (Fixture *f,
   g_assert_true (result);
   g_assert_cmpint (exit_status, ==, 0);
   g_assert_nonnull (output);
+
+  g_test_message ("%s: s-r-s-i output:\n%s\n", G_STRFUNC, output);
 
   node = json_from_string (output, &error);
   g_assert_no_error (error);
@@ -848,6 +860,9 @@ test_help_and_version (Fixture *f,
   g_assert_cmpstr (output, !=, "");
   g_assert_nonnull (diagnostics);
 
+  g_test_message ("%s: s-r-s-i output:\n%s\n", G_STRFUNC, output);
+  g_test_message ("%s: s-r-s-i diagnostics:\n%s\n", G_STRFUNC, diagnostics);
+
   if (g_getenv ("SRT_TEST_UNINSTALLED") != NULL)
     g_assert_nonnull (strstr (output, VERSION));
 
@@ -873,6 +888,9 @@ test_help_and_version (Fixture *f,
   g_assert_nonnull (output);
   g_assert_cmpstr (output, !=, "");
   g_assert_nonnull (diagnostics);
+
+  g_test_message ("%s: s-r-s-i output:\n%s\n", G_STRFUNC, output);
+  g_test_message ("%s: s-r-s-i diagnostics:\n%s\n", G_STRFUNC, diagnostics);
 
   g_assert_nonnull (strstr (output, "OPTIONS"));
 }
@@ -922,6 +940,8 @@ test_unblocks_sigchld (Fixture *f,
   g_assert_true (result);
   g_assert_cmpint (exit_status, ==, 0);
   g_assert_nonnull (output);
+
+  g_test_message ("%s: s-r-s-i output:\n%s\n", G_STRFUNC, output);
 
   node = json_from_string (output, &error);
   g_assert_no_error (error);
