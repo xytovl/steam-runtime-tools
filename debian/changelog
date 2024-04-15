@@ -1,3 +1,23 @@
+steam-runtime-tools (0.20240321.1) UNRELEASED; urgency=medium
+
+  * pressure-vessel:
+    - Fix a regression in handling of Vulkan layers since 0.20240301.0
+      (steam-runtime#662)
+    - pv-adverb: Don't corrupt stdout if we emit a debug message during
+      command-line parsing
+  * pv-verify:
+    - Don't fail verification for parents of a contents= filename
+      (steamrt/tasks#422)
+  * SteamLinuxRuntime, SLR_soldier, SLR_sniper:
+    - Add filter_exclusive property to tool manifests (steamrt/tasks#426)
+  * Packaging:
+    - Don't build steam-runtime-tools-ui on Steam Runtime 1½ 'heavy'
+    - Fix some typos in the previous changelog entry
+  * Tests:
+    - test-logger: Avoid a race condition that could make the test fail
+
+ -- Simon McVittie <smcv@collabora.com>  Mon, 15 Apr 2024 11:30:47 +0100
+
 steam-runtime-tools (0.20240321.0) steamrt; urgency=medium
 
   * steam-runtime-system-info:
@@ -9,14 +29,14 @@ steam-runtime-tools (0.20240321.0) steamrt; urgency=medium
     - Emit more specific messages for several common bwrap problems
       (steamrt/tasks#406)
     - Detect several common Flatpak problems (steamrt/tasks#406)
+    - Unset LD_PRELOAD etc. before running srt-bwrap, matching what we will
+      actually do in pressure-vessel (steam-runtime#658)
   * steam-runtime-launch-client:
     - Document --env-fd
   * srt-logger:
     - New tool to divert command output to a log file (with rotation),
       the terminal from which Steam was run (if any), and optionally
       the systemd Journal (steamrt/tasks#393)
-    - Unset LD_PRELOAD etc. before running srt-bwrap, matching what we will
-      actually do in pressure-vessel (steam-runtime#658)
   * steam-runtime-dialog:
     - New tool, a wrapper for zenity-style UIs (steamrt/tasks#376)
   * steam-runtime-dialog-ui:
@@ -24,7 +44,7 @@ steam-runtime-tools (0.20240321.0) steamrt; urgency=medium
   * steam-runtime-launch-options:
     - Use ~/.steam/root/steam-dialog, if available, in preference to zenity
   * pressure-vessel:
-    - Treat $BWRAP as less-preferred than pv-bwrap. The order we try is now:
+    - Treat $BWRAP as less-preferred than srt-bwrap. The order we try is now:
       $PRESSURE_VESSEL_BWRAP > srt-bwrap > $BWRAP > system bwrap
       instead of the previous:
       $PRESSURE_VESSEL_BWRAP > $BWRAP > srt-bwrap > system bwrap
