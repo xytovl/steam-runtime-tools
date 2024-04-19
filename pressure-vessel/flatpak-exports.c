@@ -976,6 +976,17 @@ _exports_path_expose (FlatpakExports *exports,
           g_debug ("skipping export for path %s in unsupported prefix", path);
           return FALSE;
         }
+
+      /* Also don't expose directories that are a parent of a directory
+       * that is "owned" by the sandboxing framework. For example, because
+       * Flatpak controls /run/host and /run/flatpak, we cannot allow
+       * --filesystem=/run, which would prevent us from creating the
+       * contents of /run/host and /run/flatpak. */
+      if (flatpak_has_path_prefix (pv_reserved_paths[i], path))
+        {
+          g_debug ("skipping export for path %s above unsupported prefix", path);
+          return FALSE;
+        }
     }
 
   for (i = 0; flatpak_abs_usrmerged_dirs[i] != NULL; i++)

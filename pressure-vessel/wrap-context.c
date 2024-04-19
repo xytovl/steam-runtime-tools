@@ -1085,6 +1085,13 @@ pv_wrap_context_export_if_allowed (PvWrapContext *self,
                               source, before, after, flags);
           return FALSE;
         }
+
+      if (_srt_get_path_after (reserved_paths[i], path) != NULL)
+        {
+          export_not_allowed (self, path, reserved_paths[i],
+                              source, before, after, flags);
+          return FALSE;
+        }
     }
 
   if (g_strcmp0 (path, host_path) == 0)
