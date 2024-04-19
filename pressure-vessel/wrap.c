@@ -856,9 +856,7 @@ main (int argc,
     }
   while (0);
 
-  pv_bind_and_propagate_from_environ (real_root,
-                                      _srt_const_strv (self->original_environ),
-                                      home_mode,
+  pv_bind_and_propagate_from_environ (self, real_root, home_mode,
                                       exports, container_env);
 
   if (flatpak_subsandbox == NULL)
@@ -917,25 +915,12 @@ main (int argc,
           g_debug ("Processing --filesystem arguments...");
 
           for (i = 0; self->options.filesystems[i] != NULL; i++)
-            {
-              /* We already checked this */
-              g_assert (g_path_is_absolute (self->options.filesystems[i]));
-
-              g_info ("Bind-mounting \"%s\"", self->options.filesystems[i]);
-
-              if (flatpak_has_path_prefix (self->options.filesystems[i], "/overrides"))
-                {
-                  g_warning_once ("The path \"/overrides/\" is reserved and cannot be shared");
-                  continue;
-                }
-
-              if (flatpak_has_path_prefix (self->options.filesystems[i], "/usr"))
-                g_warning_once ("Binding directories that are located under \"/usr/\" "
-                                "is not supported!");
-              flatpak_exports_add_path_expose (exports,
+            pv_wrap_context_export_if_allowed (self, exports,
                                                FLATPAK_FILESYSTEM_MODE_READ_WRITE,
-                                               self->options.filesystems[i]);
-            }
+                                               self->options.filesystems[i],
+                                               self->options.filesystems[i],
+                                               "--filesystem", "", "",
+                                               PV_WRAP_EXPORT_FLAGS_NONE);
         }
 
       /* Make sure the current working directory (the game we are going to

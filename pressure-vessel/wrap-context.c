@@ -6,6 +6,9 @@
 
 #include "pressure-vessel/wrap-context.h"
 
+#include "steam-runtime-tools/glib-backports-internal.h"
+#include "steam-runtime-tools/utils-internal.h"
+
 static Tristate
 tristate_environment (const gchar *name)
 {
@@ -120,6 +123,7 @@ pv_wrap_context_finalize (GObject *object)
 
   pv_wrap_options_clear (&self->options);
 
+  g_clear_pointer (&self->paths_not_exported, g_hash_table_unref);
   g_strfreev (self->original_argv);
   g_strfreev (self->original_environ);
 
@@ -936,5 +940,163 @@ pv_wrap_options_parse_environment_after_argv (PvWrapOptions *self,
       return FALSE;
     }
 
+  return TRUE;
+}
+
+/*
+ * Return %TRUE if @path might appear in `XDG_DATA_DIRS`, etc. as part of
+ * the operating system, and should not trigger warnings on that basis.
+ */
+static gboolean
+is_os_path (const char *path)
+{
+  static const char * const os_paths[] =
+  {
+    "/usr",
+  };
+  size_t i;
+
+  for (i = 0; i < G_N_ELEMENTS (os_paths); i++)
+    {
+      if (_srt_get_path_after (path, os_paths[i]) != NULL)
+        return TRUE;
+    }
+
+  return FALSE;
+}
+
+/*
+ * export_not_allowed:
+ * @self: The context
+ * @path: The path we propose to export
+ * @reserved_path: The reserved path preventing us from exporting @path
+ * @source: The environment variable or --option where we found @path
+ * @before: "...:" to represent other entries in a colon-delimited
+ *  environment variable, or empty
+ * @after: ":..." to represent other entries in a colon-delimited
+ *  environment variable, or empty
+ * @flags: Flags affecting how we log
+ *
+ * Log either a warning or an informational message saying that @path
+ * will not be exported.
+ */
+static void
+export_not_allowed (PvWrapContext *self,
+                    const char *path,
+                    const char *reserved_path,
+                    const char *source,
+                    const char *before,
+                    const char *after,
+                    PvWrapExportFlags flags)
+{
+  GLogLevelFlags log_level;
+
+  if ((flags & PV_WRAP_EXPORT_FLAGS_OS_QUIET) && is_os_path (path))
+    {
+      /* Don't warn loudly about e.g. /usr/share in XDG_DATA_DIRS */
+      log_level = G_LOG_LEVEL_INFO;
+    }
+  else
+    {
+      if (self->paths_not_exported == NULL)
+        self->paths_not_exported = g_hash_table_new_full (g_str_hash,
+                                                          g_str_equal,
+                                                          g_free,
+                                                          NULL);
+
+      if (g_hash_table_lookup_extended (self->paths_not_exported,
+                                        path, NULL, NULL))
+        {
+          /* We already warned about this path, de-escalate subsequent
+           * warnings to INFO level */
+          log_level = G_LOG_LEVEL_INFO;
+        }
+      else
+        {
+          /* Warn the first time */
+          log_level = G_LOG_LEVEL_WARNING;
+          g_hash_table_add (self->paths_not_exported, g_strdup (path));
+        }
+    }
+
+  g_log (G_LOG_DOMAIN, log_level,
+         "Not sharing path %s=\"%s%s%s\" with container because "
+         "\"%s\" is reserved by the container framework",
+         source, before, path, after, reserved_path);
+}
+
+/*
+ * pv_wrap_context_export_if_allowed:
+ * @self: The context
+ * @exports: List of exported paths
+ * @export_mode: Mode with which to add @path
+ * @path: The path we propose to export, as an absolute path within the
+ *  current execution environment
+ * @host_path: @path represented as an absolute path on the host system
+ * @source: The environment variable or --option where we found @path
+ * @before: (nullable): "...:" to represent other entries in a colon-delimited
+ *  environment variable, or empty or %NULL
+ * @after: (nullable): ":..." to represent other entries in a colon-delimited
+ *  environment variable, or empty or %NULL
+ * @flags: Flags affecting how we do it
+ *
+ * If @path can be exported (shared with the container), do so.
+ * Otherwise, log a warning or informational message as appropriate.
+ *
+ * Returns: %TRUE if exporting the path is allowed
+ */
+gboolean
+pv_wrap_context_export_if_allowed (PvWrapContext *self,
+                                   FlatpakExports *exports,
+                                   FlatpakFilesystemMode export_mode,
+                                   const char *path,
+                                   const char *host_path,
+                                   const char *source,
+                                   const char *before,
+                                   const char *after,
+                                   PvWrapExportFlags flags)
+{
+  static const char * const reserved_paths[] =
+  {
+    "/overrides",
+    "/usr",
+    NULL
+  };
+  size_t i;
+
+  g_return_val_if_fail (PV_IS_WRAP_CONTEXT (self), FALSE);
+  g_return_val_if_fail (exports != NULL, FALSE);
+  g_return_val_if_fail (export_mode > FLATPAK_FILESYSTEM_MODE_NONE, FALSE);
+  g_return_val_if_fail (export_mode <= FLATPAK_FILESYSTEM_MODE_LAST, FALSE);
+  g_return_val_if_fail (g_path_is_absolute (path), FALSE);
+  g_return_val_if_fail (g_path_is_absolute (host_path), FALSE);
+  g_return_val_if_fail (source != NULL, FALSE);
+
+  if (before == NULL)
+    before = "";
+
+  if (after == NULL)
+    after = "";
+
+  for (i = 0; reserved_paths[i] != NULL; i++)
+    {
+      if (_srt_get_path_after (path, reserved_paths[i]) != NULL)
+        {
+          export_not_allowed (self, path, reserved_paths[i],
+                              source, before, after, flags);
+          return FALSE;
+        }
+    }
+
+  if (g_strcmp0 (path, host_path) == 0)
+    g_info ("Bind-mounting %s=\"%s%s%s\" into the container",
+            source, before, path, after);
+  else
+    g_info ("Bind-mounting %s=\"%s%s%s\" from the current environment "
+            "as %s=\"%s%s%s\" on the host and in the container",
+            source, before, path, after,
+            source, before, host_path, after);
+
+  flatpak_exports_add_path_expose (exports, export_mode, path);
   return TRUE;
 }

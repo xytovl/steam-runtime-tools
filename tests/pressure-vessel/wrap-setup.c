@@ -1694,10 +1694,13 @@ test_use_home_shared (Fixture *f,
 
   env_bwrap = flatpak_bwrap_new (flatpak_bwrap_empty_env);
 
+  g_clear_pointer (&f->context->original_environ, g_strfreev);
+  f->context->original_environ = _srt_strdupv (mock_environ);
+
   /* Don't crash on warnings here */
   was_fatal = g_log_set_always_fatal (G_LOG_LEVEL_ERROR | G_LOG_LEVEL_CRITICAL);
-  pv_bind_and_propagate_from_environ (f->mock_host,
-                                      mock_environ,
+  pv_bind_and_propagate_from_environ (f->context,
+                                      f->mock_host,
                                       PV_HOME_MODE_SHARED,
                                       env_exports,
                                       container_env);
