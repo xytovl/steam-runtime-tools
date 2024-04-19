@@ -952,6 +952,9 @@ is_os_path (const char *path)
 {
   static const char * const os_paths[] =
   {
+    "/etc",
+    "/run",
+    "/var",
     "/usr",
   };
   size_t i;
