@@ -8,6 +8,7 @@
 
 #include "steam-runtime-tools/glib-backports-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
+#include "pressure-vessel/utils.h"
 
 static Tristate
 tristate_environment (const gchar *name)

@@ -55,6 +55,9 @@
 #include "flatpak-utils-private.h"
 #include "flatpak-error.h"
 
+/* pressure-vessel-specific */
+#include "pressure-vessel/utils.h"
+
 /* To keep this more similar to the original file, we explicitly disable
  * these warnings rather than fixing them */
 #if defined(__GNUC__) && __GNUC__ >= 8
@@ -67,8 +70,6 @@
    flatpak_abs_usrmerged_dirs get the same treatment without having to be listed
    here. */
 const char *dont_export_in[] = {
-  /* This first line is pressure-vessel-specific */
-  "/overrides", "/run/pressure-vessel", "/var/pressure-vessel",
   /*
    * pressure-vessel-specific note:
    * When merging from Flatpak, make sure any new paths here are copied
@@ -891,6 +892,7 @@ _exports_path_expose (FlatpakExports *exports,
                       int             level)
 {
   g_autofree char *canonical = NULL;
+  const char * const *pv_reserved_paths;
   struct stat st;
   struct statfs stfs;
   char *slash;
@@ -961,12 +963,15 @@ _exports_path_expose (FlatpakExports *exports,
   /* Syntactic canonicalization only, no need to use host_fd */
   path = canonical = flatpak_canonicalize_filename (path);
 
-  for (i = 0; dont_export_in[i] != NULL; i++)
+  /* pressure-vessel-specific: Use a longer list of reserved paths */
+  pv_reserved_paths = pv_get_reserved_paths ();
+
+  for (i = 0; pv_reserved_paths[i] != NULL; i++)
     {
       /* Don't expose files in non-mounted dirs like /app or /usr, as
          they are not the same as on the host, and we generally can't
          create the parents for them anyway */
-      if (flatpak_has_path_prefix (path, dont_export_in[i]))
+      if (flatpak_has_path_prefix (path, pv_reserved_paths[i]))
         {
           g_debug ("skipping export for path %s in unsupported prefix", path);
           return FALSE;
