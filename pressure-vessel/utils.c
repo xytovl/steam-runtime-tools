@@ -42,6 +42,50 @@
 #include "flatpak-utils-base-private.h"
 #include "flatpak-utils-private.h"
 
+/*
+ * pv_get_reserved_paths:
+ *
+ * Return reserved directories above or below which user-specified "exports"
+ * are not allowed.
+ *
+ * Returns: (array zero-terminated=1) (transfer none): A NULL-terminated
+ *  array of absolute paths
+ */
+const char * const *
+pv_get_reserved_paths (void)
+{
+  static const char * const paths[] =
+  {
+    /* Reserved by Flatpak-derived code */
+    "/app",
+    /* Conceptually part of /usr */
+    "/bin",
+    /* /dev is managed separately */
+    "/dev",
+    /* /etc is merged from the host, gfx provider and runtime */
+    "/etc",
+    /* Used by pv-runtime */
+    "/overrides",
+    /* Conceptually part of /usr */
+    "/lib",
+    "/lib32",
+    "/lib64",
+    /* Managed separately */
+    "/proc",
+    /* Sockets, /run/pressure-vessel/pv-from-host, etc. */
+    "/run/pressure-vessel",
+    /* Conceptually part of /usr */
+    "/sbin",
+    /* Used to mount the runtime */
+    "/usr",
+    /* Used to mount parts of the graphics stack provider */
+    "/var/pressure-vessel",
+    NULL
+  };
+
+  return paths;
+}
+
 PvWorkaroundFlags
 pv_get_workarounds (SrtBwrapFlags bwrap_flags,
                     const char * const *envp)

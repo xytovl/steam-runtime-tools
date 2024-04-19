@@ -69,6 +69,11 @@
 const char *dont_export_in[] = {
   /* This first line is pressure-vessel-specific */
   "/overrides", "/run/pressure-vessel", "/var/pressure-vessel",
+  /*
+   * pressure-vessel-specific note:
+   * When merging from Flatpak, make sure any new paths here are copied
+   * into pv_get_reserved_paths().
+   */
   "/usr", "/etc", "/app", "/dev", "/proc", NULL
 };
 

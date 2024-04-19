@@ -1059,12 +1059,7 @@ pv_wrap_context_export_if_allowed (PvWrapContext *self,
                                    const char *after,
                                    PvWrapExportFlags flags)
 {
-  static const char * const reserved_paths[] =
-  {
-    "/overrides",
-    "/usr",
-    NULL
-  };
+  const char * const *reserved_paths = pv_get_reserved_paths ();
   size_t i;
 
   g_return_val_if_fail (PV_IS_WRAP_CONTEXT (self), FALSE);
