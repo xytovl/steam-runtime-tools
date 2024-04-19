@@ -48,6 +48,10 @@
  * Return reserved directories above or below which user-specified "exports"
  * are not allowed.
  *
+ * For example, `/var/cache/ldconfig/ld.so.cache` needs to be controlled
+ * by the runtime, so any attempt to export `/var/cache/ldconfig`,
+ * `/var/cache` or `/var` needs to be ignored.
+ *
  * Returns: (array zero-terminated=1) (transfer none): A NULL-terminated
  *  array of absolute paths
  */
@@ -56,6 +60,8 @@ pv_get_reserved_paths (void)
 {
   static const char * const paths[] =
   {
+    /* Reserved by Flatpak-derived code */
+    "/.flatpak-info",
     /* Reserved by Flatpak-derived code */
     "/app",
     /* Conceptually part of /usr */
@@ -72,6 +78,16 @@ pv_get_reserved_paths (void)
     "/lib64",
     /* Managed separately */
     "/proc",
+    /* Reserved by Flatpak-derived code */
+    "/run/flatpak",
+    /* Used to mount the graphics provider if not the host */
+    "/run/gfx",
+    /* Used to mount the host filesystem */
+    "/run/host",
+    /* Used to mount the real host filesystem under FEX-Emu */
+    "/run/interpreter-host",
+    /* Used when running in a Flatpak subsandbox */
+    "/run/parent",
     /* Sockets, /run/pressure-vessel/pv-from-host, etc. */
     "/run/pressure-vessel",
     /* Conceptually part of /usr */
@@ -80,6 +96,8 @@ pv_get_reserved_paths (void)
     "/usr",
     /* Used to mount parts of the graphics stack provider */
     "/var/pressure-vessel",
+    /* We need to manage this for compatibility with ClearLinux ld.so */
+    "/var/cache/ldconfig",
     NULL
   };
 
