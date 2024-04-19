@@ -1,0 +1,36 @@
+# For format see editorconfig.org
+#
+# Copyright 2022-2024 Collabora Ltd.
+# SPDX-License-Identifier: MIT
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+tab_width = 8
+
+[{*.py,*.sh,debian/gitlab-ci.yml,meson.build}]
+indent_size = 4
+indent_style = space
+
+[{*.c,*.cpp,*.h,*.h.in}]
+indent_brace_style = gnu
+indent_size = 2
+indent_style = space
+
+[*.md]
+indent_size = 4
+indent_style = space
+tab_width = 4
+
+[{Makefile,Makefile*.am,debian/rules,*.supp}]
+indent_size = 8
+indent_style = tab
+tab_width = 8
+
+[subprojects/container-runtime/debian/rules]
+indent_size = 8
+indent_style = tab
+tab_width = 8
