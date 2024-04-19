@@ -134,10 +134,13 @@ pv_get_workarounds (SrtBwrapFlags bwrap_flags,
   if (bwrap_flags & SRT_BWRAP_FLAGS_SETUID)
     flags |= PV_WORKAROUND_FLAGS_BWRAP_SETUID;
 
+  /* Reinstate this if workarounds for snapd need to be used by default */
+#if 0
   if (_srt_environ_getenv (envp, "SNAP") != NULL
       && _srt_environ_getenv (envp, "SNAP_NAME") != NULL
       && _srt_environ_getenv (envp, "SNAP_REVISION") != NULL)
     flags |= PV_WORKAROUND_FLAGS_SNAP;
+#endif
 
   if (value != NULL)
     {

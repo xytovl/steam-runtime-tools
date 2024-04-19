@@ -260,7 +260,7 @@ pv_runtime_path_belongs_in_interpreter_root (PvRuntime *self,
         return TRUE;
     }
 
-  /* Special case: when running under Snap we have to use
+  /* Special case: when running under older Snap we have to use
    * /run/pressure-vessel/ldso because /var/pressure-vessel/ldso isn't
    * allowed. We don't expect to be running FEX-Emu under Snap,
    * so it doesn't matter that this would break FEX-Emu. */
