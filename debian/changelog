@@ -1,13 +1,24 @@
-steam-runtime-tools (0.20240415.1) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20240422.0) UNRELEASED; urgency=medium
 
   * srt-logger:
     - Drop severity of log redirection from NOTICE to INFO.
       This means it won't be shown by default.
+  * pressure-vessel:
+    - Don't crash if /var/cache appears in $XDG_DATA_DIRS
+      (steamrt/tasks#434, steam-for-linux#10789)
+    - Generally improve handling of XDG_CONFIG_DIRS entries, XDG_DATA_DIRS
+      entries and other exported directories that are in reserved locations
   * Tests:
     - Fix a unit test failure when running under podman with overlayfs
       storage driver
+  * Internal changes:
+    - Update libglnx to 2024-04-20
+      + Add G_PID_FORMAT backport
+      + Avoid deprecation warnings in g_steal_fd backport
+      + Fix function detection when using -Werror=return-type
+    - .editorconfig: Add
 
- -- Simon McVittie <smcv@collabora.com>  Wed, 17 Apr 2024 17:24:59 +0100
+ -- Simon McVittie <smcv@collabora.com>  Mon, 22 Apr 2024 14:26:20 +0100
 
 steam-runtime-tools (0.20240415.0) steamrt; urgency=medium
 
