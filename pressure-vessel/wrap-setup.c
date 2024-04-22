@@ -1075,7 +1075,6 @@ typedef enum
   ENV_MOUNT_FLAGS_DEPRECATED = (1 << 1),
   ENV_MOUNT_FLAGS_READ_ONLY = (1 << 2),
   ENV_MOUNT_FLAGS_IF_HOME_SHARED = (1 << 3),
-  ENV_MOUNT_FLAGS_USR_QUIET = (1 << 4),
   ENV_MOUNT_FLAGS_NONE = 0
 } EnvMountFlags;
 
@@ -1083,6 +1082,7 @@ typedef struct
 {
   const char *name;
   EnvMountFlags flags;
+  PvWrapExportFlags export_flags;
 } EnvMount;
 
 static const EnvMount known_required_env[] =
@@ -1109,24 +1109,25 @@ static const EnvMount known_required_env[] =
     { "XDG_CONFIG_HOME", ENV_MOUNT_FLAGS_IF_HOME_SHARED },
     { "XDG_CONFIG_DIRS",
       ENV_MOUNT_FLAGS_IF_HOME_SHARED
-      | ENV_MOUNT_FLAGS_COLON_DELIMITED
-      | ENV_MOUNT_FLAGS_USR_QUIET },
+      | ENV_MOUNT_FLAGS_COLON_DELIMITED,
+      PV_WRAP_EXPORT_FLAGS_OS_QUIET },
     { "XDG_DATA_HOME", ENV_MOUNT_FLAGS_IF_HOME_SHARED },
     { "XDG_DATA_DIRS",
       ENV_MOUNT_FLAGS_IF_HOME_SHARED
-      | ENV_MOUNT_FLAGS_COLON_DELIMITED
-      | ENV_MOUNT_FLAGS_USR_QUIET },
+      | ENV_MOUNT_FLAGS_COLON_DELIMITED,
+      PV_WRAP_EXPORT_FLAGS_OS_QUIET },
     { "XDG_STATE_HOME", ENV_MOUNT_FLAGS_IF_HOME_SHARED },
 };
 
 static void
-bind_and_propagate_from_environ (SrtSysroot *sysroot,
-                                 const char * const *current_env,
+bind_and_propagate_from_environ (PvWrapContext *self,
+                                 SrtSysroot *sysroot,
                                  PvHomeMode home_mode,
                                  FlatpakExports *exports,
                                  SrtEnvOverlay *container_env,
                                  const char *variable,
-                                 EnvMountFlags flags)
+                                 EnvMountFlags flags,
+                                 PvWrapExportFlags export_flags)
 {
   g_auto(GStrv) values = NULL;
   FlatpakFilesystemMode mode = FLATPAK_FILESYSTEM_MODE_READ_WRITE;
@@ -1146,7 +1147,7 @@ bind_and_propagate_from_environ (SrtSysroot *sysroot,
   if (_srt_env_overlay_contains (container_env, variable))
     value = _srt_env_overlay_get (container_env, variable);
   else
-    value = _srt_environ_getenv (current_env, variable);
+    value = g_environ_getenv (self->original_environ, variable);
 
   if (value == NULL)
     return;
@@ -1190,27 +1191,16 @@ bind_and_propagate_from_environ (SrtSysroot *sysroot,
       canon = g_canonicalize_filename (values[i], NULL);
       value_host = pv_current_namespace_path_to_host_path (canon);
 
-      if (flatpak_has_path_prefix (canon, "/overrides"))
-        {
-          g_warning_once ("The path \"/overrides/\" is reserved and cannot be shared");
-          continue;
-        }
-
-      if (flatpak_has_path_prefix (canon, "/usr"))
-        {
-          if (!(flags & ENV_MOUNT_FLAGS_USR_QUIET))
-            g_warning_once ("Binding directories that are located under \"/usr/\" is not supported!");
-          else
-            g_debug ("Ignoring %s=\"%s%s%s\" because it is below /usr",
-                     variable, before, values[i], after);
-
-          continue;
-        }
-
-      g_info ("Bind-mounting %s=\"%s%s%s\" from the current env as %s=\"%s%s%s\" in the host",
-              variable, before, values[i], after,
-              variable, before, value_host, after);
-      flatpak_exports_add_path_expose (exports, mode, canon);
+      if (!pv_wrap_context_export_if_allowed (self,
+                                              exports,
+                                              mode,
+                                              canon,
+                                              value_host,
+                                              variable,
+                                              before,
+                                              after,
+                                              export_flags))
+        continue;
 
       if (strcmp (values[i], value_host) != 0)
         {
@@ -1235,8 +1225,8 @@ bind_and_propagate_from_environ (SrtSysroot *sysroot,
  *  a Flatpak subsandbox
  */
 void
-pv_bind_and_propagate_from_environ (SrtSysroot *sysroot,
-                                    const char * const *current_env,
+pv_bind_and_propagate_from_environ (PvWrapContext *self,
+                                    SrtSysroot *sysroot,
                                     PvHomeMode home_mode,
                                     FlatpakExports *exports,
                                     SrtEnvOverlay *container_env)
@@ -1255,10 +1245,11 @@ pv_bind_and_propagate_from_environ (SrtSysroot *sysroot,
         {
           /* If we're using bubblewrap directly, we can and must make
            * sure that all required directories are bind-mounted */
-          bind_and_propagate_from_environ (sysroot, current_env, home_mode,
+          bind_and_propagate_from_environ (self, sysroot, home_mode,
                                            exports, container_env,
                                            name,
-                                           known_required_env[i].flags);
+                                           known_required_env[i].flags,
+                                           known_required_env[i].export_flags);
         }
       else
         {
@@ -1269,7 +1260,7 @@ pv_bind_and_propagate_from_environ (SrtSysroot *sysroot,
 
           if (!_srt_env_overlay_contains (container_env, name))
             _srt_env_overlay_set (container_env, name,
-                                  _srt_environ_getenv (current_env, name));
+                                  g_environ_getenv (self->original_environ, name));
         }
     }
 }

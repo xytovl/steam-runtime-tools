@@ -31,6 +31,8 @@
 #include "steam-runtime-tools/bwrap-internal.h"
 #include "steam-runtime-tools/missing-internal.h"
 
+const char * const *pv_get_reserved_paths (void);
+
 typedef enum
 {
   /* Old (presumably setuid) system copy of bwrap < 0.5.0 with no --perms */

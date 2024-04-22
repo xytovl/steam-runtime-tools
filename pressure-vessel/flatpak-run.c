@@ -88,6 +88,11 @@
 
 #define DEFAULT_SHELL "/bin/sh"
 
+/*
+ * pressure-vessel-specific note:
+ * When merging from Flatpak, make sure any new paths here are copied
+ * into pv_get_reserved_paths().
+ */
 const char * const abs_usrmerged_dirs[] =
 {
   "/bin",

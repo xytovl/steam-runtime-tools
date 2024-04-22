@@ -11,10 +11,26 @@
 #include "steam-runtime-tools/resolve-in-sysroot-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
 
+#include "pressure-vessel/flatpak-exports-private.h"
+
 #include "pressure-vessel/wrap-interactive.h"
 
 typedef struct _PvWrapContext PvWrapContext;
 typedef struct _PvWrapContextClass PvWrapContextClass;
+
+/*
+ * PvWrapExportFlags:
+ * @PV_WRAP_EXPORT_FLAGS_OS_QUIET: Quietly ignore OS paths such as /usr/share
+ *  instead of logging a warning
+ * @PV_WRAP_EXPORT_FLAGS_NONE: None of the above
+ *
+ * Flags affecting how we export paths.
+ */
+typedef enum
+{
+  PV_WRAP_EXPORT_FLAGS_OS_QUIET = (1 << 0),
+  PV_WRAP_EXPORT_FLAGS_NONE = 0
+} PvWrapExportFlags;
 
 typedef enum
 {
@@ -80,6 +96,7 @@ struct _PvWrapContext
 {
   GObject parent_instance;
 
+  GHashTable *paths_not_exported;
   gchar **original_argv;
   gchar **original_environ;
 
@@ -123,3 +140,13 @@ gboolean pv_wrap_options_parse_argv (PvWrapOptions *self,
 gboolean pv_wrap_options_parse_environment_after_argv (PvWrapOptions *self,
                                                        SrtSysroot *interpreter_root,
                                                        GError **error);
+
+gboolean pv_wrap_context_export_if_allowed (PvWrapContext *self,
+                                            FlatpakExports *exports,
+                                            FlatpakFilesystemMode export_mode,
+                                            const char *path,
+                                            const char *host_path,
+                                            const char *source,
+                                            const char *before,
+                                            const char *after,
+                                            PvWrapExportFlags flags);

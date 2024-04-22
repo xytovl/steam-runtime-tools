@@ -30,6 +30,7 @@
 #include "flatpak-bwrap-private.h"
 #include "flatpak-exports-private.h"
 #include "runtime.h"
+#include "wrap-context.h"
 #include "wrap-discord.h"
 #include "wrap-home.h"
 #include "wrap-pipewire.h"
@@ -93,8 +94,8 @@ void pv_wrap_detect_virtualization (SrtSysroot **interpreter_root_out,
 
 void pv_share_temp_dir (FlatpakExports *exports,
                         SrtEnvOverlay *container_env);
-void pv_bind_and_propagate_from_environ (SrtSysroot *sysroot,
-                                         const char * const *current_env,
+void pv_bind_and_propagate_from_environ (PvWrapContext *self,
+                                         SrtSysroot *sysroot,
                                          PvHomeMode home_mode,
                                          FlatpakExports *exports,
                                          SrtEnvOverlay *container_env);
