@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20240422.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20240422.0) steamrt; urgency=medium
 
   * srt-logger:
     - Drop severity of log redirection from NOTICE to INFO.
@@ -18,7 +18,7 @@ steam-runtime-tools (0.20240422.0) UNRELEASED; urgency=medium
       + Fix function detection when using -Werror=return-type
     - .editorconfig: Add
 
- -- Simon McVittie <smcv@collabora.com>  Mon, 22 Apr 2024 14:26:20 +0100
+ -- Simon McVittie <smcv@collabora.com>  Mon, 22 Apr 2024 19:56:26 +0100
 
 steam-runtime-tools (0.20240415.0) steamrt; urgency=medium
 
