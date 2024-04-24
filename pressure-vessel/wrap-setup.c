@@ -34,10 +34,37 @@
 #include <string.h>
 
 #include "bwrap.h"
+#include "exports.h"
 #include "flatpak-run-private.h"
 #include "flatpak-utils-private.h"
 #include "supported-architectures.h"
 #include "utils.h"
+
+/* Taken from Flatpak flatpak-context.c, except where noted.
+ * Last updated: Flatpak 1.14.6 */
+static const char *dont_mount_in_root[] = {
+  ".",
+  "..",
+  "app",
+  "bin",
+  "boot",
+  "dev",
+  "efi",
+  "etc",
+  "lib",
+  "lib32",
+  "lib64",
+  "overrides",    /* pressure-vessel-specific */
+  "proc",
+  "root",
+  "run",
+  "sbin",
+  "sys",
+  "tmp",
+  "usr",
+  "var",
+  NULL
+};
 
 gchar *
 pv_wrap_check_bwrap (gboolean only_prepare,
@@ -334,11 +361,14 @@ pv_export_root_dirs_like_filesystem_host (int root_fd,
         continue;
 
       path = g_build_filename ("/", member, NULL);
-      flatpak_exports_add_path_expose (exports, mode, path);
+
+      /* See flatpak_context_export() for why we downgrade warnings
+       * to debug messages here */
+      pv_exports_expose_quietly (exports, mode, path);
     }
 
   /* For parity with Flatpak's handling of --filesystem=host */
-  flatpak_exports_add_path_expose (exports, mode, "/run/media");
+  pv_exports_expose_or_log (exports, mode, "/run/media");
 
   return TRUE;
 }
@@ -554,9 +584,9 @@ append_preload_internal (GPtrArray *argv,
           else
             {
               g_debug ("%s needs adding to exports", export_path);
-              flatpak_exports_add_path_expose (exports,
-                                               FLATPAK_FILESYSTEM_MODE_READ_ONLY,
-                                               export_path);
+              pv_exports_expose_or_log (exports,
+                                        FLATPAK_FILESYSTEM_MODE_READ_ONLY,
+                                        export_path);
             }
         }
     }
@@ -1030,10 +1060,12 @@ pv_share_temp_dir (FlatpakExports *exports,
   gsize i;
 
   /* Always export /tmp for now. SteamVR uses this as a rendezvous
-   * directory for IPC. */
-  flatpak_exports_add_path_expose (exports,
-                                   FLATPAK_FILESYSTEM_MODE_READ_WRITE,
-                                   "/tmp");
+   * directory for IPC.
+   * Should always succeed, but if it somehow doesn't, make more noise
+   * about this than usual: not sharing /tmp will break expectations. */
+  pv_exports_expose_or_warn (exports,
+                             FLATPAK_FILESYSTEM_MODE_READ_WRITE,
+                             "/tmp");
 
   for (i = 0; i < G_N_ELEMENTS (temp_dir_vars); i++)
     {
@@ -1063,9 +1095,8 @@ pv_share_temp_dir (FlatpakExports *exports,
         }
 
       /* Otherwise, try to share the directory with the container. */
-      flatpak_exports_add_path_expose (exports,
-                                       FLATPAK_FILESYSTEM_MODE_READ_WRITE,
-                                       value);
+      pv_exports_expose_or_log (exports, FLATPAK_FILESYSTEM_MODE_READ_WRITE,
+                                value);
     }
 }
 

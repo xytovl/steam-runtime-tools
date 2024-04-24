@@ -27,3 +27,16 @@
 void pv_export_symlink_targets (FlatpakExports *exports,
                                 const char *source,
                                 const char *log_as);
+void pv_exports_expose_or_log (FlatpakExports *exports,
+                               FlatpakFilesystemMode mode,
+                               const char *path);
+void pv_exports_expose_or_warn (FlatpakExports *exports,
+                                FlatpakFilesystemMode mode,
+                                const char *path);
+void pv_exports_expose_quietly (FlatpakExports *exports,
+                                FlatpakFilesystemMode mode,
+                                const char *path);
+void pv_exports_mask_or_log (FlatpakExports *exports,
+                             const char *path);
+void pv_exports_ensure_dir_or_warn (FlatpakExports *exports,
+                                    const char *path);

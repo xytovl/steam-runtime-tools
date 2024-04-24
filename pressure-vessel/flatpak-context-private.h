@@ -1,5 +1,5 @@
 /*
- * Last updated: Flatpak 1.14.1
+ * Last updated: Flatpak 1.14.6
  *
  * Copyright © 2014-2018 Red Hat, Inc
  * SPDX-License-Identifier: LGPL-2.1-or-later
@@ -70,6 +70,8 @@ typedef enum {
   FLATPAK_CONTEXT_FEATURE_PER_APP_DEV_SHM = 1 << 4,
 } FlatpakContextFeatures;
 
+#if 0
+
 struct FlatpakContext
 {
   FlatpakContextShares   shares;
@@ -103,9 +105,6 @@ FlatpakContext *flatpak_context_new (void);
 void           flatpak_context_free (FlatpakContext *context);
 void           flatpak_context_merge (FlatpakContext *context,
                                       FlatpakContext *other);
-
-#if 0
-
 GOptionEntry  *flatpak_context_get_option_entries (void);
 GOptionGroup  *flatpak_context_get_options (FlatpakContext *context);
 gboolean       flatpak_context_load_metadata (FlatpakContext *context,
@@ -114,9 +113,6 @@ gboolean       flatpak_context_load_metadata (FlatpakContext *context,
 void           flatpak_context_save_metadata (FlatpakContext *context,
                                               gboolean        flatten,
                                               GKeyFile       *metakey);
-
-#endif
-
 void           flatpak_context_allow_host_fs (FlatpakContext *context);
 void           flatpak_context_set_session_bus_policy (FlatpakContext *context,
                                                        const char     *name,
@@ -159,7 +155,6 @@ FlatpakExports *flatpak_context_get_exports_full (FlatpakContext *context,
                                                   gchar         **xdg_dirs_conf,
                                                   gboolean       *home_access_out);
 
-#if 0
 void flatpak_context_append_bwrap_filesystem (FlatpakContext  *context,
                                               FlatpakBwrap    *bwrap,
                                               const char      *app_id,
@@ -175,10 +170,9 @@ gboolean flatpak_context_parse_env_block (FlatpakContext *context,
 gboolean flatpak_context_parse_env_fd (FlatpakContext *context,
                                        int fd,
                                        GError **error);
-#endif
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC (FlatpakContext, flatpak_context_free)
 
-extern const char *dont_mount_in_root[];
+#endif
 
 #endif /* __FLATPAK_CONTEXT_H__ */

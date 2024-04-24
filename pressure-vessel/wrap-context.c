@@ -8,6 +8,8 @@
 
 #include "steam-runtime-tools/glib-backports-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
+
+#include "pressure-vessel/exports.h"
 #include "pressure-vessel/utils.h"
 
 static Tristate
@@ -1103,6 +1105,9 @@ pv_wrap_context_export_if_allowed (PvWrapContext *self,
             source, before, path, after,
             source, before, host_path, after);
 
-  flatpak_exports_add_path_expose (exports, export_mode, path);
+  /* This generally shouldn't fail in practice, because we already checked
+   * against reserved_paths[] above */
+  pv_exports_expose_or_log (exports, export_mode, path);
+
   return TRUE;
 }

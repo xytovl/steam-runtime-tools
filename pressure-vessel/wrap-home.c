@@ -27,6 +27,7 @@
 #include "steam-runtime-tools/glib-backports-internal.h"
 #include "libglnx.h"
 
+#include "exports.h"
 #include "flatpak-utils-base-private.h"
 #include "flatpak-utils-private.h"
 
@@ -69,7 +70,7 @@ use_tmpfs_home (FlatpakExports *exports,
   /* If the logical path to the home dir has a symlink among its ancestors
    * (e.g. /home/user when /home -> var/home exists), make sure the
    * symlink structure gets mirrored in the container */
-  flatpak_exports_add_path_dir (exports, home);
+  pv_exports_ensure_dir_or_warn (exports, home);
 
   /* Mount the tmpfs home directory onto the physical path to real_home,
    * so that it will not conflict with symlinks created by the exports.
@@ -159,7 +160,7 @@ use_fake_home (FlatpakExports *exports,
   /* If the logical path to real_home has a symlink among its ancestors
    * (e.g. /home/user when /home -> var/home exists), make sure the
    * symlink structure gets mirrored in the container */
-  flatpak_exports_add_path_dir (exports, g_get_home_dir ());
+  pv_exports_ensure_dir_or_warn (exports, real_home);
 
   /* Mount the fake home directory onto the physical path to real_home,
    * so that it will not conflict with symlinks created by the exports.
@@ -175,9 +176,8 @@ use_fake_home (FlatpakExports *exports,
   _srt_env_overlay_set (container_env, "XDG_CONFIG_HOME", config);
   _srt_env_overlay_set (container_env, "XDG_DATA_HOME", data);
 
-  flatpak_exports_add_path_expose (exports,
-                                   FLATPAK_FILESYSTEM_MODE_READ_WRITE,
-                                   fake_home);
+  pv_exports_expose_or_log (exports, FLATPAK_FILESYSTEM_MODE_READ_WRITE,
+                            fake_home);
 
   return expose_steam (exports, FLATPAK_FILESYSTEM_MODE_READ_ONLY,
                        PV_HOME_MODE_PRIVATE, real_home, fake_home, error);
@@ -204,7 +204,7 @@ expose_steam (FlatpakExports *exports,
    * a separate Steam library instead, or use bind-mounts.) */
   if (home_mode != PV_HOME_MODE_SHARED)
     {
-      flatpak_exports_add_path_expose (exports, mode, dot_steam);
+      pv_exports_expose_or_log (exports, mode, dot_steam);
     }
   else
     {
@@ -215,7 +215,7 @@ expose_steam (FlatpakExports *exports,
       g_autofree gchar *target = flatpak_resolve_link (dot_steam, NULL);
 
       if (target != NULL)
-        flatpak_exports_add_path_expose (exports, mode, target);
+        pv_exports_expose_or_log (exports, mode, target);
     }
 
   /*
@@ -257,7 +257,7 @@ expose_steam (FlatpakExports *exports,
             }
         }
 
-      flatpak_exports_add_path_expose (exports, mode, dir);
+      pv_exports_expose_or_log (exports, mode, dir);
     }
 
   return TRUE;
@@ -332,14 +332,16 @@ pv_wrap_use_home (PvHomeMode mode,
   switch (mode)
     {
       case PV_HOME_MODE_SHARED:
-        flatpak_exports_add_path_expose (exports,
-                                         FLATPAK_FILESYSTEM_MODE_READ_WRITE,
-                                         real_home);
+        /* If we fail to share the home directory with the container, that
+         * will break expectations, so make more noise about this than
+         * usual */
+        pv_exports_expose_or_warn (exports, FLATPAK_FILESYSTEM_MODE_READ_WRITE,
+                                   real_home);
 
         for (i = 0; i < G_N_ELEMENTS (shared_like_home_absolute); i++)
-          flatpak_exports_add_path_expose (exports,
-                                           FLATPAK_FILESYSTEM_MODE_READ_WRITE,
-                                           shared_like_home_absolute[i]);
+          pv_exports_expose_or_log (exports,
+                                    FLATPAK_FILESYSTEM_MODE_READ_WRITE,
+                                    shared_like_home_absolute[i]);
 
         for (i = 0; i < G_N_ELEMENTS (shared_like_home_relative); i++)
           {
@@ -347,9 +349,8 @@ pv_wrap_use_home (PvHomeMode mode,
 
             path = g_build_filename (real_home, shared_like_home_relative[i],
                                      NULL);
-            flatpak_exports_add_path_expose (exports,
-                                             FLATPAK_FILESYSTEM_MODE_READ_WRITE,
-                                             path);
+            pv_exports_expose_or_log (exports, FLATPAK_FILESYSTEM_MODE_READ_WRITE,
+                                      path);
           }
 
         /* TODO: All of ~/.steam has traditionally been read/write when not

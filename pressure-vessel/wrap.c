@@ -38,6 +38,7 @@
 #include "libglnx.h"
 
 #include "bwrap.h"
+#include "exports.h"
 #include "flatpak-bwrap-private.h"
 #include "flatpak-run-private.h"
 #include "flatpak-utils-base-private.h"
@@ -743,7 +744,7 @@ main (int argc,
    * respect to all the other home-directory-related exports. */
   if (exports != NULL
       && g_file_test ("/home", G_FILE_TEST_EXISTS))
-    flatpak_exports_add_path_tmpfs (exports, "/home");
+    pv_exports_mask_or_log (exports, "/home");
 
   g_debug ("Making home directory available...");
 
@@ -885,9 +886,9 @@ main (int argc,
               if (g_lstat (override, &ignored) == 0)
                 {
                   g_debug ("We are using the host's version of \"libudev.so.1\", trying to bind-mount /run/udev too...");
-                  flatpak_exports_add_path_expose (exports,
-                                                   FLATPAK_FILESYSTEM_MODE_READ_ONLY,
-                                                   "/run/udev");
+                  pv_exports_expose_or_log (exports,
+                                            FLATPAK_FILESYSTEM_MODE_READ_ONLY,
+                                            "/run/udev");
                   break;
                 }
             }
@@ -903,9 +904,9 @@ main (int argc,
             g_warning ("Not sharing %s with container to work around %s",
                        framework_paths->path, framework_paths->bug);
           else
-            flatpak_exports_add_path_expose (exports,
-                                             FLATPAK_FILESYSTEM_MODE_READ_ONLY,
-                                             framework_paths->path);
+            pv_exports_expose_or_log (exports,
+                                      FLATPAK_FILESYSTEM_MODE_READ_ONLY,
+                                      framework_paths->path);
         }
 
       /* Make arbitrary filesystems available. This is not as complete as
@@ -937,13 +938,16 @@ main (int argc,
         }
       else
         {
-          /* If in Flatpak, we assume that cwd_p_host is visible in the
+          /* Inability to share the current working directory is unexpected
+           * and will break assumptions, so warn if that happens.
+           *
+           * If in Flatpak, we assume that cwd_p_host is visible in the
            * current namespace as well as in the host, because it's
            * either in our ~/.var/app/$FLATPAK_ID, or a --filesystem that
            * was exposed from the host. */
-          flatpak_exports_add_path_expose (exports,
-                                           FLATPAK_FILESYSTEM_MODE_READ_WRITE,
-                                           cwd_p_host);
+          pv_exports_expose_or_warn (exports,
+                                     FLATPAK_FILESYSTEM_MODE_READ_WRITE,
+                                     cwd_p_host);
         }
 
       flatpak_bwrap_add_args (bwrap,
@@ -975,12 +979,14 @@ main (int argc,
 
               g_assert (equals != NULL);
 
+              /* $STEAM_RUNTIME is functionally necessary if used, so
+               * always warn if it cannot be exposed */
               if (exports != NULL
                   && g_str_has_prefix (self->options.env_if_host[i],
                                        "STEAM_RUNTIME=/"))
-                flatpak_exports_add_path_expose (exports,
-                                                 FLATPAK_FILESYSTEM_MODE_READ_ONLY,
-                                                 equals + 1);
+                pv_exports_expose_or_warn (exports,
+                                           FLATPAK_FILESYSTEM_MODE_READ_ONLY,
+                                           equals + 1);
 
               *equals = '\0';
 
