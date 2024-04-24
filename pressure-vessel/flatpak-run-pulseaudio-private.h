@@ -1,8 +1,7 @@
 /*
  * Taken from Flatpak
  * Last updated: Flatpak 1.15.8
- *
- * Copyright © 2021 Collabora Ltd.
+ * Copyright © 2014 Red Hat, Inc
  * SPDX-License-Identifier: LGPL-2.1-or-later
  *
  * This program is free software; you can redistribute it and/or
@@ -17,23 +16,22 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library. If not, see <http://www.gnu.org/licenses/>.
+ *
+ * Authors:
+ *       Alexander Larsson <alexl@redhat.com>
  */
 
-#ifndef __FLATPAK_SESSION_HELPER_H__
-#define __FLATPAK_SESSION_HELPER_H__
+#pragma once
 
-#define FLATPAK_SESSION_HELPER_BUS_NAME "org.freedesktop.Flatpak"
+#include "libglnx.h"
 
-#define FLATPAK_SESSION_HELPER_PATH "/org/freedesktop/Flatpak/SessionHelper"
-#define FLATPAK_SESSION_HELPER_INTERFACE "org.freedesktop.Flatpak.SessionHelper"
+#include "flatpak-bwrap-private.h"
+#include "flatpak-common-types-private.h"
+#include "flatpak-context-private.h"
 
-#define FLATPAK_SESSION_HELPER_PATH_DEVELOPMENT "/org/freedesktop/Flatpak/Development"
-#define FLATPAK_SESSION_HELPER_INTERFACE_DEVELOPMENT "org.freedesktop.Flatpak.Development"
+G_BEGIN_DECLS
 
-typedef enum {
-  FLATPAK_HOST_COMMAND_FLAGS_CLEAR_ENV = 1 << 0,
-  FLATPAK_HOST_COMMAND_FLAGS_WATCH_BUS = 1 << 1,
-  FLATPAK_HOST_COMMAND_FLAGS_NONE = 0
-} FlatpakHostCommandFlags;
+void flatpak_run_add_pulseaudio_args (FlatpakBwrap         *bwrap,
+                                      FlatpakContextShares  shares);
 
-#endif
+G_END_DECLS

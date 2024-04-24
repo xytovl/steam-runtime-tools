@@ -35,7 +35,12 @@
 
 #include "bwrap.h"
 #include "exports.h"
+#include "flatpak-run-dbus-private.h"
 #include "flatpak-run-private.h"
+#include "flatpak-run-pulseaudio-private.h"
+#include "flatpak-run-sockets-private.h"
+#include "flatpak-run-wayland-private.h"
+#include "flatpak-run-x11-private.h"
 #include "flatpak-utils-private.h"
 #include "supported-architectures.h"
 #include "utils.h"
@@ -133,12 +138,26 @@ pv_wrap_share_sockets (SrtEnvOverlay *container_env,
                        gboolean using_a_runtime,
                        gboolean is_flatpak_env)
 {
+  FlatpakContextShares shares;
+  FlatpakContextSockets sockets;
   g_autoptr(FlatpakBwrap) sharing_bwrap =
     flatpak_bwrap_new (flatpak_bwrap_empty_env);
   g_auto(GStrv) envp = NULL;
   gsize i;
 
   g_return_val_if_fail (container_env != NULL, NULL);
+
+  /* All potentially relevant sharing flags */
+  shares = (FLATPAK_CONTEXT_SHARED_IPC
+            | FLATPAK_CONTEXT_SHARED_NETWORK);
+  /* We don't currently do anything with SSH_AUTH, PCSC, CUPS or GPG_AGENT.
+   * We also don't use $WAYLAND_SOCKET, which is unsuitable for
+   * pressure-vessel games because it only accepts one connection. */
+  sockets = (FLATPAK_CONTEXT_SOCKET_PULSEAUDIO
+             | FLATPAK_CONTEXT_SOCKET_SESSION_BUS
+             | FLATPAK_CONTEXT_SOCKET_SYSTEM_BUS
+             | FLATPAK_CONTEXT_SOCKET_WAYLAND
+             | FLATPAK_CONTEXT_SOCKET_X11);
 
   /* If these are set by flatpak_run_add_x11_args(), etc., we'll
    * change them from unset to set later.
@@ -158,7 +177,11 @@ pv_wrap_share_sockets (SrtEnvOverlay *container_env,
    * mount our own /tmp/.X11-unix over the top of the OS's. */
   if (using_a_runtime)
     {
-      flatpak_run_add_wayland_args (sharing_bwrap);
+      /* TODO: Try to call flatpak_run_add_socket_args_environment() here
+       * instead of reinventing it */
+      (void) sockets;
+
+      flatpak_run_add_wayland_args (sharing_bwrap, FALSE);
       pv_wrap_add_gamescope_args (sharing_bwrap, container_env);
 
       /* When in a Flatpak container the "DISPLAY" env is equal to ":99.0",
@@ -174,18 +197,13 @@ pv_wrap_share_sockets (SrtEnvOverlay *container_env,
         }
       else
         {
-          flatpak_run_add_x11_args (sharing_bwrap, TRUE,
-                                    (FLATPAK_CONTEXT_SHARED_IPC
-                                     | FLATPAK_CONTEXT_SHARED_NETWORK));
+          flatpak_run_add_x11_args (sharing_bwrap, TRUE, shares);
         }
 
-      flatpak_run_add_pulseaudio_args (sharing_bwrap,
-                                       (FLATPAK_CONTEXT_SHARED_IPC
-                                        | FLATPAK_CONTEXT_SHARED_NETWORK));
+      flatpak_run_add_pulseaudio_args (sharing_bwrap, shares);
       flatpak_run_add_session_dbus_args (sharing_bwrap);
       flatpak_run_add_system_dbus_args (sharing_bwrap);
-      flatpak_run_add_resolved_args (sharing_bwrap);
-      flatpak_run_add_journal_args (sharing_bwrap);
+      flatpak_run_add_socket_args_late (sharing_bwrap, shares);
       pv_wrap_add_pipewire_args (sharing_bwrap, container_env);
       pv_wrap_add_discord_args (sharing_bwrap);
     }

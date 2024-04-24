@@ -1,6 +1,6 @@
 /* vi:set et sw=2 sts=2 cin cino=t0,f0,(0,{s,>2s,n-s,^-s,e-s:
  * Taken from Flatpak
- * Last updated: Flatpak 1.14.8
+ * Last updated: Flatpak 1.15.8
  *
  * Copyright © 2014-2018 Red Hat, Inc
  * SPDX-License-Identifier: LGPL-2.1-or-later
@@ -76,6 +76,9 @@ flatpak_bwrap_new (char **env)
     bwrap->envp = g_strdupv (env);
   else
     bwrap->envp = g_get_environ ();
+
+  bwrap->sync_fds[0] = -1;
+  bwrap->sync_fds[1] = -1;
 
   return bwrap;
 }
@@ -195,6 +198,7 @@ flatpak_bwrap_append_args (FlatpakBwrap *bwrap,
                               other_array->len);
 }
 
+/* Normally private, exported for pressure-vessel */
 int *
 flatpak_bwrap_steal_fds (FlatpakBwrap *bwrap,
                          gsize        *len_out)
@@ -278,7 +282,7 @@ flatpak_bwrap_add_args_data (FlatpakBwrap *bwrap,
   if (!flatpak_buffer_to_sealed_memfd_or_tmpfile (&args_tmpf, name, content, content_size, error))
     return FALSE;
 
-  flatpak_bwrap_add_args_data_fd (bwrap, "--ro-bind-data", glnx_steal_fd (&args_tmpf.fd), path);
+  flatpak_bwrap_add_args_data_fd (bwrap, "--ro-bind-data", g_steal_fd (&args_tmpf.fd), path);
   return TRUE;
 }
 
@@ -380,9 +384,9 @@ flatpak_bwrap_bundle_args (FlatpakBwrap *bwrap,
   if (!flatpak_buffer_to_sealed_memfd_or_tmpfile (&args_tmpf, "bwrap-args", data, data_len, error))
     return FALSE;
 
-  fd = glnx_steal_fd (&args_tmpf.fd);
+  fd = g_steal_fd (&args_tmpf.fd);
 
-  flatpak_debug2 ("bwrap --args %d = ...", fd);
+  g_debug ("bwrap --args %d = ...", fd);
 
   for (i = start; i < end; i++)
     {
@@ -390,11 +394,11 @@ flatpak_bwrap_bundle_args (FlatpakBwrap *bwrap,
         {
           g_autofree char *quoted = g_shell_quote (bwrap->argv->pdata[i]);
 
-          flatpak_debug2 ("    %s", quoted);
+          g_debug ("    %s", quoted);
         }
       else
         {
-          flatpak_debug2 ("    %s", (const char *) bwrap->argv->pdata[i]);
+          g_debug ("    %s", (const char *) bwrap->argv->pdata[i]);
         }
     }
 
@@ -507,14 +511,14 @@ flatpak_bwrap_child_setup (GArray *fd_array,
 {
   int i;
 
+  /* There is a dead-lock in glib versions before 2.60 when it closes
+   * the fds. See:  https://gitlab.gnome.org/GNOME/glib/merge_requests/490
+   * This was hitting the test-suite a lot, so we work around it by using
+   * the G_SPAWN_LEAVE_DESCRIPTORS_OPEN/G_SUBPROCESS_FLAGS_INHERIT_FDS flag
+   * and setting CLOEXEC ourselves.
+   */
   if (close_fd_workaround)
-#if 0
-    flatpak_close_fds_workaround (3);
-#else
-    /* pressure-vessel-specific change for now, but see
-     * https://github.com/flatpak/flatpak/pull/5687 */
     g_fdwalk_set_cloexec (3);
-#endif
 
   /* If no fd_array was specified, don't care. */
   if (fd_array == NULL)
@@ -543,4 +547,30 @@ flatpak_bwrap_child_setup_cb (gpointer user_data)
   GArray *fd_array = user_data;
 
   flatpak_bwrap_child_setup (fd_array, TRUE);
+}
+
+/* Unset FD_CLOEXEC on the array of fds passed in @user_data,
+ * but do not set FD_CLOEXEC on all other fds */
+void
+flatpak_bwrap_child_setup_inherit_fds_cb (gpointer user_data)
+{
+  GArray *fd_array = user_data;
+
+  flatpak_bwrap_child_setup (fd_array, FALSE);
+}
+
+/* Add a --sync-fd argument for bwrap(1). Returns the write end of the pipe on
+ * success, or -1 on error. */
+int
+flatpak_bwrap_add_sync_fd (FlatpakBwrap *bwrap)
+{
+  /* --sync-fd is only allowed once */
+  if (bwrap->sync_fds[1] >= 0)
+    return bwrap->sync_fds[1];
+
+  if (pipe2 (bwrap->sync_fds, O_CLOEXEC) < 0)
+    return -1;
+
+  flatpak_bwrap_add_args_data_fd (bwrap, "--sync-fd", bwrap->sync_fds[0], NULL);
+  return bwrap->sync_fds[1];
 }

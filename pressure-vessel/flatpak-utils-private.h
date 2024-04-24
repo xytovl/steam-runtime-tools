@@ -1,6 +1,6 @@
 /*
  * A cut-down version of common/flatpak-utils from Flatpak
- * Last updated: Flatpak 1.14.8
+ * Last updated: Flatpak 1.15.8
  *
  * Copyright © 2014 Red Hat, Inc
  * SPDX-License-Identifier: LGPL-2.1-or-later
@@ -37,31 +37,16 @@
 #endif
 #include "flatpak-context-private.h"
 #include "flatpak-error.h"
+#include "flatpak-glib-backports-private.h"
 #if 0
-#include "flatpak-utils-http-private.h"
 #include "flatpak-variant-private.h"
 #include "flatpak-dir-private.h"
 #include <ostree.h>
-#include <json-glib/json-glib.h>
 #endif
 
 #define AUTOFS_SUPER_MAGIC 0x0187
 
 #if 0
-#define FLATPAK_ANSI_ALT_SCREEN_ON "\x1b[?1049h"
-#define FLATPAK_ANSI_ALT_SCREEN_OFF "\x1b[?1049l"
-#define FLATPAK_ANSI_HIDE_CURSOR "\x1b[?25l"
-#define FLATPAK_ANSI_SHOW_CURSOR "\x1b[?25h"
-#define FLATPAK_ANSI_BOLD_ON "\x1b[1m"
-#define FLATPAK_ANSI_BOLD_OFF "\x1b[22m"
-#define FLATPAK_ANSI_FAINT_ON "\x1b[2m"
-#define FLATPAK_ANSI_FAINT_OFF "\x1b[22m"
-#define FLATPAK_ANSI_RED "\x1b[31m"
-#define FLATPAK_ANSI_GREEN "\x1b[32m"
-#define FLATPAK_ANSI_COLOR_RESET "\x1b[0m"
-
-#define FLATPAK_ANSI_ROW_N "\x1b[%d;1H"
-#define FLATPAK_ANSI_CLEAR "\x1b[0J"
 
 #define FLATPAK_XA_CACHE_VERSION 2
 /* version 1 added extra data download size */
@@ -80,16 +65,6 @@
 
 #define FLATPAK_SUMMARY_HISTORY_LENGTH_DEFAULT 16
 
-gboolean flatpak_set_tty_echo (gboolean echo);
-void flatpak_get_window_size (int *rows,
-                              int *cols);
-gboolean flatpak_get_cursor_pos (int *row,
-                                 int *col);
-void flatpak_hide_cursor (void);
-void flatpak_show_cursor (void);
-
-void flatpak_enable_raw_mode (void);
-void flatpak_disable_raw_mode (void);
 #endif
 
 /* https://bugzilla.gnome.org/show_bug.cgi?id=766370 */
@@ -112,13 +87,6 @@ gboolean flatpak_fail_error (GError     **error,
                              const char  *fmt,
                              ...) G_GNUC_PRINTF (3, 4);
 
-#if 0
-void flatpak_debug2 (const char *format,
-                     ...) G_GNUC_PRINTF (1, 2);
-#else
-#define flatpak_debug2 g_debug
-#endif
-
 gint flatpak_strcmp0_ptr (gconstpointer a,
                           gconstpointer b);
 
@@ -133,13 +101,10 @@ gboolean  flatpak_has_path_prefix (const char *str,
 const char * flatpak_path_match_prefix (const char *pattern,
                                         const char *path);
 
-void     flatpak_disable_fancy_output (void);
-void     flatpak_enable_fancy_output (void);
-gboolean flatpak_fancy_output (void);
-
 const char * flatpak_get_arch (void);
 const char ** flatpak_get_arches (void);
 gboolean flatpak_is_linux32_arch (const char *arch);
+const char *flatpak_get_compat_arch_reverse (const char *compat_arch);
 
 const char ** flatpak_get_gl_drivers (void);
 gboolean flatpak_extension_matches_reason (const char *extension_id,
@@ -147,33 +112,13 @@ gboolean flatpak_extension_matches_reason (const char *extension_id,
                                            gboolean    default_value);
 
 const char * flatpak_get_bwrap (void);
+gboolean flatpak_bwrap_is_unprivileged (void);
 
 char **flatpak_strv_sort_by_length (const char * const *strv);
 char **flatpak_strv_merge (char   **strv1,
                            char   **strv2);
 char **flatpak_subpaths_merge (char **subpaths1,
                                char **subpaths2);
-
-const char * const *flatpak_get_locale_categories (void);
-char *flatpak_get_lang_from_locale (const char *locale);
-char **flatpak_get_current_locale_langs (void);
-
-gboolean flatpak_write_update_checksum (GOutputStream *out,
-                                        gconstpointer  data,
-                                        gsize          len,
-                                        gsize         *out_bytes_written,
-                                        GChecksum     *checksum,
-                                        GCancellable  *cancellable,
-                                        GError       **error);
-
-
-gboolean flatpak_splice_update_checksum (GOutputStream         * out,
-                                         GInputStream          *in,
-                                         GChecksum             *checksum,
-                                         FlatpakLoadUriProgress progress,
-                                         gpointer progress_data,
-                                         GCancellable          *cancellable,
-                                         GError               **error);
 
 GBytes * flatpak_read_stream (GInputStream * in,
                               gboolean null_terminate,
@@ -257,140 +202,6 @@ gboolean flatpak_remove_dangling_symlinks (GFile        *dir,
                                            GCancellable *cancellable,
                                            GError      **error);
 
-gboolean flatpak_utils_ascii_string_to_unsigned (const gchar *str,
-                                                 guint        base,
-                                                 guint64      min,
-                                                 guint64      max,
-                                                 guint64     *out_num,
-                                                 GError     **error);
-
-
-#if !GLIB_CHECK_VERSION (2, 40, 0)
-static inline gboolean
-g_key_file_save_to_file (GKeyFile    *key_file,
-                         const gchar *filename,
-                         GError     **error)
-{
-  gchar *contents;
-  gboolean success;
-  gsize length;
-
-  contents = g_key_file_to_data (key_file, &length, NULL);
-  success = g_file_set_contents (filename, contents, length, error);
-  g_free (contents);
-
-  return success;
-}
-#endif
-
-#if !GLIB_CHECK_VERSION (2, 50, 0)
-static inline gboolean
-g_key_file_load_from_bytes (GKeyFile     *key_file,
-                            GBytes       *bytes,
-                            GKeyFileFlags flags,
-                            GError      **error)
-{
-  const guchar *data;
-  gsize size;
-
-  data = g_bytes_get_data (bytes, &size);
-  return g_key_file_load_from_data (key_file, (const gchar *) data, size, flags, error);
-}
-#endif
-
-#if !GLIB_CHECK_VERSION (2, 54, 0)
-static inline gboolean
-g_ptr_array_find_with_equal_func (GPtrArray     *haystack,
-                                  gconstpointer  needle,
-                                  GEqualFunc     equal_func,
-                                  guint         *index_)
-{
-  guint i;
-
-  g_return_val_if_fail (haystack != NULL, FALSE);
-
-  if (equal_func == NULL)
-    equal_func = g_direct_equal;
-
-  for (i = 0; i < haystack->len; i++)
-    {
-      if (equal_func (g_ptr_array_index (haystack, i), needle))
-        {
-          if (index_ != NULL)
-            *index_ = i;
-          return TRUE;
-        }
-    }
-
-  return FALSE;
-}
-#endif
-
-#if !GLIB_CHECK_VERSION (2, 56, 0)
-GDateTime *flatpak_g_date_time_new_from_iso8601 (const gchar *text,
-                                                 GTimeZone   *default_tz);
-
-static inline GDateTime *
-g_date_time_new_from_iso8601 (const gchar *text, GTimeZone *default_tz)
-{
-  return flatpak_g_date_time_new_from_iso8601 (text, default_tz);
-}
-#endif
-#endif
-
-
-#if !GLIB_CHECK_VERSION (2, 56, 0)
-typedef void (* GClearHandleFunc) (guint handle_id);
-
-static inline void
-g_clear_handle_id (guint            *tag_ptr,
-                   GClearHandleFunc  clear_func)
-{
-  guint _handle_id;
-
-  _handle_id = *tag_ptr;
-  if (_handle_id > 0)
-    {
-      *tag_ptr = 0;
-      clear_func (_handle_id);
-    }
-}
-#endif
-
-
-#if !GLIB_CHECK_VERSION (2, 58, 0)
-static inline gboolean
-g_hash_table_steal_extended (GHashTable    *hash_table,
-                             gconstpointer  lookup_key,
-                             gpointer      *stolen_key,
-                             gpointer      *stolen_value)
-{
-  if (g_hash_table_lookup_extended (hash_table, lookup_key, stolen_key, stolen_value))
-    {
-      g_hash_table_steal (hash_table, lookup_key);
-      return TRUE;
-    }
-  else
-      return FALSE;
-}
-#endif
-
-#if 0
-#if !GLIB_CHECK_VERSION (2, 62, 0)
-void g_ptr_array_extend (GPtrArray        *array_to_extend,
-                         GPtrArray        *array,
-                         GCopyFunc         func,
-                         gpointer          user_data);
-#endif
-
-#if !GLIB_CHECK_VERSION (2, 68, 0)
-guint g_string_replace (GString     *string,
-                        const gchar *find,
-                        const gchar *replace,
-                        guint        limit);
-#endif
-#endif
-
 gboolean flatpak_g_ptr_array_contains_string (GPtrArray  *array,
                                               const char *str);
 
@@ -413,7 +224,6 @@ g_strv_subset (const gchar * const *strv,
   return NULL;
 }
 
-#if 0
 static inline void
 flatpak_auto_unlock_helper (GMutex **mutex)
 {
@@ -778,23 +588,6 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC (FlatpakRepoTransaction, flatpak_repo_transaction_
 
 #define AUTOLOCK(name) G_GNUC_UNUSED __attribute__((cleanup (flatpak_auto_unlock_helper))) GMutex * G_PASTE (auto_unlock, __LINE__) = flatpak_auto_lock_helper (&G_LOCK_NAME (name))
 
-#if !JSON_CHECK_VERSION (1, 1, 2)
-G_DEFINE_AUTOPTR_CLEANUP_FUNC (JsonArray, json_array_unref)
-G_DEFINE_AUTOPTR_CLEANUP_FUNC (JsonBuilder, g_object_unref)
-G_DEFINE_AUTOPTR_CLEANUP_FUNC (JsonGenerator, g_object_unref)
-G_DEFINE_AUTOPTR_CLEANUP_FUNC (JsonNode, json_node_free)
-G_DEFINE_AUTOPTR_CLEANUP_FUNC (JsonObject, json_object_unref)
-G_DEFINE_AUTOPTR_CLEANUP_FUNC (JsonParser, g_object_unref)
-G_DEFINE_AUTOPTR_CLEANUP_FUNC (JsonPath, g_object_unref)
-G_DEFINE_AUTOPTR_CLEANUP_FUNC (JsonReader, g_object_unref)
-#endif
-#endif
-
-#if !GLIB_CHECK_VERSION (2, 43, 4)
-G_DEFINE_AUTOPTR_CLEANUP_FUNC (GUnixFDList, g_object_unref)
-#endif
-
-#if 0
 /* This uses a weird Auto prefix to avoid conflicts with later added autogenerated autoptr support, per:
  * https://git.gnome.org/browse/glib/commit/?id=1c6cd5f0a3104aa9b62c7f1d3086181f63e71b59
  */
@@ -875,38 +668,6 @@ gboolean flatpak_allocate_tmpdir (int           tmpdir_dfd,
                                   GCancellable *cancellable,
                                   GError      **error);
 
-gboolean flatpak_allow_fuzzy_matching (const char *term);
-
-char * flatpak_prompt (gboolean allow_empty,
-                       const char *prompt,
-                       ...) G_GNUC_PRINTF (2, 3);
-
-char * flatpak_password_prompt (const char *prompt,
-                                ...) G_GNUC_PRINTF (1, 2);
-
-gboolean flatpak_yes_no_prompt (gboolean    default_yes,
-                                const char *prompt,
-                                ...) G_GNUC_PRINTF (2, 3);
-
-long flatpak_number_prompt (gboolean    default_yes,
-                            int         min,
-                            int         max,
-                            const char *prompt,
-                            ...) G_GNUC_PRINTF (4, 5);
-int *flatpak_numbers_prompt (gboolean    default_yes,
-                             int         min,
-                             int         max,
-                             const char *prompt,
-                             ...) G_GNUC_PRINTF (4, 5);
-int *flatpak_parse_numbers (const char *buf,
-                            int         min,
-                            int         max);
-
-void flatpak_format_choices (const char **choices,
-                             const char  *prompt,
-                             ...) G_GNUC_PRINTF (2, 3);
-
-
 static inline void
 flatpak_ostree_progress_finish (OstreeAsyncProgress *progress)
 {
@@ -950,6 +711,10 @@ null_safe_g_ptr_array_unref (gpointer data)
 {
   g_clear_pointer (&data, g_ptr_array_unref);
 }
+
+GStrv flatpak_parse_env_block (const char  *data,
+                               gsize        length,
+                               GError     **error);
 #endif
 
 int flatpak_envp_cmp (const void *p1,
