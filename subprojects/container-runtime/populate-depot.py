@@ -1062,12 +1062,6 @@ class Main:
                     )
                 )
 
-                if runtime.suite != 'scout':
-                    # TODO: Remove this after the general-availability
-                    # version of the Steam client supports the
-                    # filter_exclusive_priority mechanism
-                    content['manifest']['unlisted'] = '1'
-
                 content['manifest']['compatmanager_layer_name'] = (
                     'container-runtime'
                 )
