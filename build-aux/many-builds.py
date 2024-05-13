@@ -123,6 +123,7 @@ class Environment:
 
         oci_run_args = [
             '--rm',
+            '-i',
             '--security-opt', 'label=disable',
             '-v', '/etc/passwd:/etc/passwd:ro',
             '-v', '/etc/group:/etc/group:ro',
@@ -136,6 +137,9 @@ class Environment:
             '-v', '{}:{}'.format(real_builddir, real_builddir),
             '-w', str(self.abs_srcdir),
         ]
+
+        if sys.stdout.isatty() and sys.stderr.isatty():
+            oci_run_args.append('-t')
 
         if real_builddir != self.abs_builddir_parent:
             oci_run_args.extend([
