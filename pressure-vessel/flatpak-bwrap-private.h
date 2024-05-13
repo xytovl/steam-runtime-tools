@@ -62,8 +62,6 @@ void          flatpak_bwrap_add_arg_printf (FlatpakBwrap *bwrap,
 void          flatpak_bwrap_append_argsv (FlatpakBwrap *bwrap,
                                           char        **args,
                                           int           len);
-int *         flatpak_bwrap_steal_fds (FlatpakBwrap *bwrap,
-                                       gsize        *len_out);
 void          flatpak_bwrap_append_bwrap (FlatpakBwrap *bwrap,
                                           FlatpakBwrap *other);       /* Steals the fds */
 void          flatpak_bwrap_append_args (FlatpakBwrap *bwrap,
@@ -100,5 +98,8 @@ void          flatpak_bwrap_child_setup (GArray *fd_array,
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC (FlatpakBwrap, flatpak_bwrap_free)
 
+/* Private in flatpak, made extern for pressure-vessel */
+int *         flatpak_bwrap_steal_fds (FlatpakBwrap *bwrap,
+                                       gsize        *len_out);
 
 #endif /* __FLATPAK_BWRAP_H__ */
