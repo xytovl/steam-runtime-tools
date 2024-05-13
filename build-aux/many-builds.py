@@ -337,6 +337,8 @@ class Environment:
             'clang',
             asan_dev_build + [
                 '--native-file=build-aux/meson/clang.txt',
+                # Workaround for https://github.com/mesonbuild/meson/issues/13211
+                '-Dintrospection=disabled',
             ] + args,
         )
 
