@@ -7868,7 +7868,7 @@ pv_runtime_bind (PvRuntime *self,
                 {
                   g_info ("Hiding \"%s\" from the container so that \"%s/share/%s\" will be used instead",
                           dir, self->overrides_in_container, suffix);
-                  flatpak_exports_add_path_tmpfs (exports, dir);
+                  pv_exports_mask_or_log (exports, dir);
                 }
             }
         }

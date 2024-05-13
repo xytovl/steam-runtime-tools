@@ -1,6 +1,6 @@
 /* vi:set et sw=2 sts=2 cin cino=t0,f0,(0,{s,>2s,n-s,^-s,e-s:
  * Cut-down version of common/flatpak-run.c from Flatpak
- * Last updated: Flatpak 1.14.1
+ * Last updated: Flatpak 1.14.6
  *
  * Copyright © 2017-2022 Collabora Ltd.
  * Copyright © 2014-2022 Red Hat, Inc
@@ -634,7 +634,7 @@ flatpak_run_add_gpg_agent_args (FlatpakBwrap *bwrap)
   g_autofree char * sandbox_agent_socket = NULL;
   g_autoptr(GError) gpgconf_error = NULL;
   g_autoptr(GSubprocess) process = NULL;
-  g_autoptr(GInputStream) base_stream = NULL;
+  GInputStream *base_stream = NULL;
   g_autoptr(GDataInputStream) data_stream = NULL;
 
   process = g_subprocess_new (G_SUBPROCESS_FLAGS_STDOUT_PIPE,
@@ -1327,6 +1327,9 @@ add_bwrap_wrapper (FlatpakBwrap *bwrap,
   if (!flatpak_bwrap_bundle_args (bwrap, 1, -1, FALSE, error))
     return FALSE;
 
+  /* End of options: the next argument will be the executable name */
+  flatpak_bwrap_add_arg (bwrap, "--");
+
   return TRUE;
 }
 
@@ -1906,7 +1909,8 @@ static const ExportData default_exports[] = {
   {"XDG_RUNTIME_DIR", NULL},
 
   /* Some env vars are common enough and will affect the sandbox badly
-     if set on the host. We clear these always. */
+     if set on the host. We clear these always. If updating this list,
+     also update the list in flatpak-run.xml. */
   {"PYTHONPATH", NULL},
   {"PERLLIB", NULL},
   {"PERL5LIB", NULL},
@@ -1923,6 +1927,12 @@ static const ExportData default_exports[] = {
   {"GST_PTP_HELPER", NULL},
   {"GST_PTP_HELPER_1_0", NULL},
   {"GST_INSTALL_PLUGINS_HELPER", NULL},
+  {"KRB5CCNAME", NULL},
+  {"XKB_CONFIG_ROOT", NULL},
+  {"GIO_EXTRA_MODULES", NULL},
+  {"GDK_BACKEND", NULL},
+  {"VK_DRIVER_FILES", NULL},
+  {"VK_ICD_FILENAMES", NULL},
 };
 
 static const ExportData no_ld_so_cache_exports[] = {
@@ -2133,6 +2143,7 @@ flatpak_ensure_data_dir (GFile        *app_id_dir,
   g_autoptr(GFile) fontconfig_cache_dir = g_file_get_child (cache_dir, "fontconfig");
   g_autoptr(GFile) tmp_dir = g_file_get_child (cache_dir, "tmp");
   g_autoptr(GFile) config_dir = g_file_get_child (app_id_dir, "config");
+  g_autoptr(GFile) state_dir = g_file_get_child (app_id_dir, ".local/state");
 
   if (!flatpak_mkdir_p (data_dir, cancellable, error))
     return FALSE;
@@ -2147,6 +2158,9 @@ flatpak_ensure_data_dir (GFile        *app_id_dir,
     return FALSE;
 
   if (!flatpak_mkdir_p (config_dir, cancellable, error))
+    return FALSE;
+
+  if (!flatpak_mkdir_p (state_dir, cancellable, error))
     return FALSE;
 
   return TRUE;
@@ -3246,6 +3260,10 @@ setup_seccomp (FlatpakBwrap   *bwrap,
 
     /* Don't allow faking input to the controlling tty (CVE-2017-5226) */
     {SCMP_SYS (ioctl), EPERM, &SCMP_A1 (SCMP_CMP_MASKED_EQ, 0xFFFFFFFFu, (int) TIOCSTI)},
+    /* In the unlikely event that the controlling tty is a Linux virtual
+     * console (/dev/tty2 or similar), copy/paste operations have an effect
+     * similar to TIOCSTI (CVE-2023-28100) */
+    {SCMP_SYS (ioctl), EPERM, &SCMP_A1 (SCMP_CMP_MASKED_EQ, 0xFFFFFFFFu, (int) TIOCLINUX)},
 
     /* seccomp can't look into clone3()'s struct clone_args to check whether
      * the flags are OK, so we have no choice but to block clone3().
@@ -4715,7 +4733,7 @@ flatpak_run_app (FlatpakDecomposed *app_ref,
   if (!flatpak_bwrap_bundle_args (bwrap, 1, -1, FALSE, error))
     return FALSE;
 
-  flatpak_bwrap_add_arg (bwrap, command);
+  flatpak_bwrap_add_args (bwrap, "--", command, NULL);
 
   if (!add_rest_args (bwrap, app_id,
                       exports, (flags & FLATPAK_RUN_FLAG_FILE_FORWARDING) != 0,

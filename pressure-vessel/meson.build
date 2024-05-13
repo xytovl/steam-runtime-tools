@@ -156,7 +156,6 @@ pressure_vessel_wrap_lib = static_library(
     'exports.c',
     'exports.h',
     'flatpak-common-types-private.h',
-    'flatpak-context.c',
     'flatpak-context-private.h',
     'flatpak-exports.c',
     'flatpak-exports-private.h',

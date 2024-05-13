@@ -1,6 +1,6 @@
 /*
  * Taken from Flatpak
- * Last updated: Flatpak 1.14.1
+ * Last updated: Flatpak 1.14.6
  * Copyright © 2014-2018 Red Hat, Inc
  * SPDX-License-Identifier: LGPL-2.1-or-later
  *
@@ -38,8 +38,6 @@ typedef enum {
 
 typedef struct _FlatpakExports FlatpakExports;
 
-extern const char *dont_export_in[];
-
 void flatpak_exports_free (FlatpakExports *exports);
 FlatpakExports *flatpak_exports_new (void);
 void flatpak_exports_append_bwrap_args (FlatpakExports *exports,
@@ -48,16 +46,20 @@ void flatpak_exports_add_host_etc_expose (FlatpakExports       *exports,
                                           FlatpakFilesystemMode mode);
 void flatpak_exports_add_host_os_expose (FlatpakExports       *exports,
                                          FlatpakFilesystemMode mode);
-void flatpak_exports_add_path_expose (FlatpakExports       *exports,
-                                      FlatpakFilesystemMode mode,
-                                      const char           *path);
-void flatpak_exports_add_path_tmpfs (FlatpakExports *exports,
-                                     const char     *path);
-void flatpak_exports_add_path_expose_or_hide (FlatpakExports       *exports,
-                                              FlatpakFilesystemMode mode,
-                                              const char           *path);
-void flatpak_exports_add_path_dir (FlatpakExports *exports,
-                                   const char     *path);
+gboolean flatpak_exports_add_path_expose (FlatpakExports         *exports,
+                                          FlatpakFilesystemMode   mode,
+                                          const char             *path,
+                                          GError                **error);
+gboolean flatpak_exports_add_path_tmpfs (FlatpakExports  *exports,
+                                         const char      *path,
+                                         GError         **error);
+gboolean flatpak_exports_add_path_expose_or_hide (FlatpakExports         *exports,
+                                                  FlatpakFilesystemMode   mode,
+                                                  const char             *path,
+                                                  GError                **error);
+gboolean flatpak_exports_add_path_dir (FlatpakExports  *exports,
+                                       const char      *path,
+                                       GError         **error);
 
 gboolean flatpak_exports_path_is_visible (FlatpakExports *exports,
                                           const char     *path);

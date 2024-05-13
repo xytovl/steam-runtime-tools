@@ -1,6 +1,6 @@
 /* vi:set et sw=2 sts=2 cin cino=t0,f0,(0,{s,>2s,n-s,^-s,e-s:
  * A cut-down version of common/flatpak-utils from Flatpak
- * Last updated: Flatpak 1.14.1
+ * Last updated: Flatpak 1.14.6
  *
  * Copyright © 1995-1998 Free Software Foundation, Inc.
  * Copyright © 2014-2019 Red Hat, Inc
@@ -656,7 +656,7 @@ load_kernel_module_list (void)
   g_autofree char *modules_data = NULL;
   g_autoptr(GError) error = NULL;
   char *start, *end;
-  
+
   if (!g_file_get_contents ("/proc/modules", &modules_data, NULL, &error))
     {
       g_debug ("Failed to read /proc/modules: %s", error->message);
@@ -5049,6 +5049,10 @@ flatpak_repo_update (OstreeRepo   *repo,
                                                     g_variant_get_data (old_index),
                                                     g_variant_get_size (old_index));
 
+  /* Release the memory-mapped summary index file before replacing it,
+     to avoid failure on filesystems like cifs */
+  g_clear_pointer (&old_index, g_variant_unref);
+
   if (!flatpak_repo_save_summary_index (repo, summary_index, index_digest, index_sig, cancellable, error))
     return FALSE;
 
@@ -5121,6 +5125,7 @@ flatpak_mtree_create_symlink (OstreeRepo         *repo,
 
   g_file_info_set_name (file_info, filename);
   g_file_info_set_file_type (file_info, G_FILE_TYPE_SYMBOLIC_LINK);
+  g_file_info_set_size (file_info, 0);
   g_file_info_set_attribute_uint32 (file_info, "unix::uid", 0);
   g_file_info_set_attribute_uint32 (file_info, "unix::gid", 0);
   g_file_info_set_attribute_uint32 (file_info, "unix::mode", S_IFLNK | 0777);
@@ -9292,6 +9297,125 @@ flatpak_uri_equal (const char *uri1,
     uri2_norm = g_strdup (uri2);
 
   return g_strcmp0 (uri1_norm, uri2_norm) == 0;
+}
+
+static gboolean
+is_char_safe (gunichar c)
+{
+  return g_unichar_isgraph (c) || c == ' ';
+}
+
+static gboolean
+should_hex_escape (gunichar           c,
+                   FlatpakEscapeFlags flags)
+{
+  if ((flags & FLATPAK_ESCAPE_ALLOW_NEWLINES) && c == '\n')
+    return FALSE;
+
+  return !is_char_safe (c);
+}
+
+static void
+append_hex_escaped_character (GString *result,
+                              gunichar c)
+{
+  if (c <= 0xFF)
+    g_string_append_printf (result, "\\x%02X", c);
+  else if (c <= 0xFFFF)
+    g_string_append_printf (result, "\\u%04X", c);
+  else
+    g_string_append_printf (result, "\\U%08X", c);
+}
+
+static char *
+escape_character (gunichar c)
+{
+  g_autoptr(GString) res = g_string_new ("");
+  append_hex_escaped_character (res, c);
+  return g_string_free (g_steal_pointer (&res), FALSE);
+}
+
+char *
+flatpak_escape_string (const char        *s,
+                       FlatpakEscapeFlags flags)
+{
+  g_autoptr(GString) res = g_string_new ("");
+  gboolean did_escape = FALSE;
+
+  while (*s)
+    {
+      gunichar c = g_utf8_get_char_validated (s, -1);
+      if (c == (gunichar)-2 || c == (gunichar)-1)
+        {
+          /* Need to convert to unsigned first, to avoid negative chars becoming
+             huge gunichars. */
+          append_hex_escaped_character (res, (unsigned char)*s++);
+          did_escape = TRUE;
+          continue;
+        }
+      else if (should_hex_escape (c, flags))
+        {
+          append_hex_escaped_character (res, c);
+          did_escape = TRUE;
+        }
+      else if (c == '\\' || (!(flags & FLATPAK_ESCAPE_DO_NOT_QUOTE) && c == '\''))
+        {
+          g_string_append_printf (res, "\\%c", (char) c);
+          did_escape = TRUE;
+        }
+      else
+        g_string_append_unichar (res, c);
+
+      s = g_utf8_find_next_char (s, NULL);
+    }
+
+  if (did_escape && !(flags & FLATPAK_ESCAPE_DO_NOT_QUOTE))
+    {
+      g_string_prepend_c (res, '\'');
+      g_string_append_c (res, '\'');
+    }
+
+  return g_string_free (g_steal_pointer (&res), FALSE);
+}
+
+void
+flatpak_print_escaped_string (const char        *s,
+                              FlatpakEscapeFlags flags)
+{
+  g_autofree char *escaped = flatpak_escape_string (s, flags);
+  g_print ("%s", escaped);
+}
+
+gboolean
+flatpak_validate_path_characters (const char *path,
+                                  GError    **error)
+{
+  while (*path)
+    {
+      gunichar c = g_utf8_get_char_validated (path, -1);
+      if (c == (gunichar)-1 || c == (gunichar)-2)
+        {
+          /* Need to convert to unsigned first, to avoid negative chars becoming
+             huge gunichars. */
+          g_autofree char *escaped_char = escape_character ((unsigned char)*path);
+          g_autofree char *escaped = flatpak_escape_string (path, FLATPAK_ESCAPE_DEFAULT);
+          g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
+                       "Non-UTF8 byte %s in path %s", escaped_char, escaped);
+          return FALSE;
+        }
+      else if (!is_char_safe (c))
+        {
+          g_autofree char *escaped_char = escape_character (c);
+          g_autofree char *escaped = flatpak_escape_string (path, FLATPAK_ESCAPE_DEFAULT);
+          g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
+                       "Non-graphical character %s in path %s", escaped_char, escaped);
+          return FALSE;
+        }
+
+      path = g_utf8_find_next_char (path, NULL);
+    }
+
+  return TRUE;
 }
 
 gboolean

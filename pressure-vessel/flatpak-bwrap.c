@@ -1,6 +1,6 @@
 /* vi:set et sw=2 sts=2 cin cino=t0,f0,(0,{s,>2s,n-s,^-s,e-s:
  * Taken from Flatpak
- * Last updated: Flatpak 1.14.1
+ * Last updated: Flatpak 1.14.6
  *
  * Copyright © 2014-2018 Red Hat, Inc
  * SPDX-License-Identifier: LGPL-2.1-or-later
@@ -83,10 +83,10 @@ void
 flatpak_bwrap_free (FlatpakBwrap *bwrap)
 {
   g_ptr_array_unref (bwrap->argv);
-  g_clear_pointer (&bwrap->runtime_dir_members, g_ptr_array_unref);
   g_array_unref (bwrap->noinherit_fds);
   g_array_unref (bwrap->fds);
   g_strfreev (bwrap->envp);
+  g_clear_pointer (&bwrap->runtime_dir_members, g_ptr_array_unref);
   g_free (bwrap);
 }
 
