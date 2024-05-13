@@ -123,6 +123,7 @@ class Environment:
 
         oci_run_args = [
             '--rm',
+            '--security-opt', 'label=disable',
             '-v', '/etc/passwd:/etc/passwd:ro',
             '-v', '/etc/group:/etc/group:ro',
             '-v', '/etc/resolv.conf:/etc/resolv.conf:ro',
