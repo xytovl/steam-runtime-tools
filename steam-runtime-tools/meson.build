@@ -312,7 +312,7 @@ libsteamrt_compilation = declare_dependency(
   compile_args : ['-D_SRT_COMPILATION'],
 )
 
-if sdl2_dep.found()
+if sdl2_dep.found() and sdl2_ttf_dep.found()
   libsteamrt_ui = static_library(
     'steam-runtime-tools-ui',
     'sdl-utils.c',

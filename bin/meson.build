@@ -138,7 +138,7 @@ srt_bin += executable(
 )
 
 # Different: needs threads and UI
-if sdl2_dep.found()
+if sdl2_dep.found() and sdl2_ttf_dep.found()
   glib_programs += 'dialog-ui'
   srt_bin += executable(
     'steam-runtime-dialog-ui',
