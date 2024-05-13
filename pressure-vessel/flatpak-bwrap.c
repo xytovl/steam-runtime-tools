@@ -1,6 +1,6 @@
 /* vi:set et sw=2 sts=2 cin cino=t0,f0,(0,{s,>2s,n-s,^-s,e-s:
  * Taken from Flatpak
- * Last updated: Flatpak 1.14.6
+ * Last updated: Flatpak 1.14.8
  *
  * Copyright © 2014-2018 Red Hat, Inc
  * SPDX-License-Identifier: LGPL-2.1-or-later
