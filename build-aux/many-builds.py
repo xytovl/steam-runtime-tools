@@ -123,6 +123,9 @@ class Environment:
 
         oci_run_args = [
             '--rm',
+            '-i',
+            '--security-opt', 'label=disable',
+            '--arch', 'x86_64',
             '-v', '/etc/passwd:/etc/passwd:ro',
             '-v', '/etc/group:/etc/group:ro',
             '-v', '/etc/resolv.conf:/etc/resolv.conf:ro',
@@ -135,6 +138,9 @@ class Environment:
             '-v', '{}:{}'.format(real_builddir, real_builddir),
             '-w', str(self.abs_srcdir),
         ]
+
+        if sys.stdout.isatty() and sys.stderr.isatty():
+            oci_run_args.append('-t')
 
         if real_builddir != self.abs_builddir_parent:
             oci_run_args.extend([
@@ -332,6 +338,8 @@ class Environment:
             'clang',
             asan_dev_build + [
                 '--native-file=build-aux/meson/clang.txt',
+                # Workaround for https://github.com/mesonbuild/meson/issues/13211
+                '-Dintrospection=disabled',
             ] + args,
         )
 
