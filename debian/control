@@ -6,7 +6,7 @@ Standards-Version: 3.9.8
 Build-Depends:
  autoconf,
  autoconf-archive <pkg.libcapsule.from-git>,
- automake,
+ automake (>= 1:1.15) | automake-1.15,
  bubblewrap,
  chrpath,
  debhelper,
