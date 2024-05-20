@@ -592,6 +592,7 @@ CLEANFILES             += $(nodist_tests_shim_libnotgles_la_SOURCES)
 
 EXTRA_DIST             += $(top_srcdir)/.version
 EXTRA_DIST             += .reuse/dep5
+EXTRA_DIST             += CONTRIBUTING.md
 EXTRA_DIST             += LICENSES/FSFAP.txt
 EXTRA_DIST             += LICENSES/GPL-2.0-or-later.txt
 EXTRA_DIST             += LICENSES/GPL-3.0-or-later.txt
@@ -601,7 +602,6 @@ EXTRA_DIST             += autogen.sh
 EXTRA_DIST             += build-aux/git-version-gen
 EXTRA_DIST             += ci/gitlab-ci.yml
 EXTRA_DIST             += data/capsule-mkstublib
-EXTRA_DIST             += doc/Building-libcapsule.txt
 EXTRA_DIST             += doc/Strategy.txt
 EXTRA_DIST             += doc/capsule-init-project.xml
 EXTRA_DIST             += doc/capsule-mkstublib.xml
