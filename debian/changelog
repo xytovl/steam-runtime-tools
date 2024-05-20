@@ -1,3 +1,24 @@
+steam-runtime-tools (0.20240520.0) UNRELEASED; urgency=medium
+
+  [ Simon McVittie ]
+  * SteamLinuxRuntime etc.: Allow all SLR branches to show in the UI
+    (steamrt/tasks#426)
+  * pressure-vessel:
+    - Don't enable snapd workarounds by default.
+      Since snapd 2.62, we do not need any special workarounds.
+    - Fix a build regression with GLib 2.80.x
+    - Update Flatpak-derived code to Flatpak 1.14.8.
+      Some error messages are now clearer.
+    - Update libcapsule to v0.20240520.0.
+      No functional changes: we already had the most important changes.
+
+  [ Ryan Gonzalez ]
+  * build: Don't attempt to build UI code if SDL_ttf is missing
+  * build-aux: Improve docker/podman functionality
+  * build-aux: Disable introspection on Clang asan builds
+
+ -- Simon McVittie <smcv@collabora.com>  Mon, 20 May 2024 15:49:58 +0100
+
 steam-runtime-tools (0.20240422.0) steamrt; urgency=medium
 
   * srt-logger:
