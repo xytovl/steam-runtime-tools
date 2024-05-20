@@ -57,16 +57,35 @@ static void
 setup (Fixture *f,
        gconstpointer data)
 {
+  /* Directory containing our executable */
+  gchar *parent = g_path_get_dirname (argv0);
+
   f->srcdir = g_strdup (g_getenv ("G_TEST_SRCDIR"));
   f->builddir = g_strdup (g_getenv ("G_TEST_BUILDDIR"));
 
-  if (f->srcdir == NULL)
-    f->srcdir = g_path_get_dirname (argv0);
+  if (f->srcdir != NULL)
+    {
+      g_test_message ("Source directory \"%s\" from environment", f->srcdir);
+    }
+  else
+    {
+      f->srcdir = g_path_get_dirname (parent);
+      g_test_message ("Source directory \"%s\" near executable", f->srcdir);
+    }
 
-  if (f->builddir == NULL)
-    f->builddir = g_path_get_dirname (argv0);
+  if (f->builddir != NULL)
+    {
+      g_test_message ("Build directory \"%s\" from environment", f->builddir);
+    }
+  else
+    {
+      f->builddir = g_path_get_dirname (parent);
+      g_test_message ("Build directory \"%s\" near executable", f->builddir);
+    }
 
   f->uninstalled = (g_getenv ("CAPSULE_TESTS_UNINSTALLED") != NULL);
+
+  g_free (parent);
 }
 
 static struct

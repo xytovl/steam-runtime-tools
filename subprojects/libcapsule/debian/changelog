@@ -1,3 +1,19 @@
+libcapsule (0.20240520.0-0co1) upstream; urgency=medium
+
+  * utils: Allocate ld_libs on the heap, avoiding a segfault with
+    smaller-than-default RLIMIT_STACK (ValveSoftware/steam-runtime#653)
+  * utils: Mark error messages to be freed automatically
+  * tests: Don't assume zlib has exactly three version components, fixing
+    build-time test failure on distributions circa 2023
+  * tests: Locate test data relative to executable correctly,
+    fixing "as-installed" testing
+  * debian: Require at least automake 1.15, fixing build-time test failure
+    in Steam Runtime 1 'scout' if a newer GLib is backported
+    (steamrt/tasks#112)
+  * CONTRIBUTING.md: Add
+
+ -- Simon McVittie <smcv@collabora.com>  Mon, 20 May 2024 14:27:51 +0100
+
 libcapsule (0.20230928.0-0co1) upstream; urgency=medium
 
   * capture-libs: Don't treat libcrypt.so.1 as part of glibc, to account for
