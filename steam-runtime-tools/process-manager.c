@@ -259,8 +259,6 @@ static void
 termination_data_refresh (TerminationData *data)
 {
   g_autofree gchar *contents = NULL;
-  const char *p;
-  char *endptr;
 
   if (data->error != NULL)
     return;
@@ -309,52 +307,56 @@ termination_data_refresh (TerminationData *data)
    * their parent was one of our descendants and has exited, leaving the
    * child to be reparented to us (their (great)*grandparent) because we
    * are a subreaper. */
-  if (!g_file_get_contents (data->children_file, &contents, NULL, &data->error))
-    return;
 
-  g_debug ("Child tasks: %s", contents);
-
-  for (p = contents;
-       p != NULL && *p != '\0';
-       p = endptr)
+  if (g_file_get_contents (data->children_file, &contents, NULL, &data->error))
     {
-      guint64 maybe_child;
-      int child;
+      const char *p;
+      char *endptr;
 
-      while (*p != '\0' && g_ascii_isspace (*p))
-        p++;
+      g_debug ("Child tasks from %s: %s", data->children_file, contents);
 
-      if (*p == '\0')
-        break;
-
-      maybe_child = g_ascii_strtoull (p, &endptr, 10);
-
-      if (*endptr != '\0' && !g_ascii_isspace (*endptr))
+      for (p = contents;
+           p != NULL && *p != '\0';
+           p = endptr)
         {
-          glnx_throw (&data->error, "Non-numeric string found in %s: %s",
-                      data->children_file, p);
-          return;
+          guint64 maybe_child;
+          int child;
+
+          while (*p != '\0' && g_ascii_isspace (*p))
+            p++;
+
+          if (*p == '\0')
+            break;
+
+          maybe_child = g_ascii_strtoull (p, &endptr, 10);
+
+          if (*endptr != '\0' && !g_ascii_isspace (*endptr))
+            {
+              glnx_throw (&data->error, "Non-numeric string found in %s: %s",
+                          data->children_file, p);
+              return;
+            }
+
+          if (maybe_child > G_MAXINT)
+            {
+              glnx_throw (&data->error, "Out-of-range number found in %s: %s",
+                          data->children_file, p);
+              return;
+            }
+
+          child = (int) maybe_child;
+          g_string_printf (data->buffer, "/proc/%d", child);
+
+          /* If the task is just a thread, it won't have a /proc/%d directory
+           * in its own right. We don't kill threads, only processes. */
+          if (!g_file_test (data->buffer->str, G_FILE_TEST_IS_DIR))
+            {
+              g_debug ("Task %d is a thread, not a process", child);
+              continue;
+            }
+
+          termination_data_signal_child (data, child);
         }
-
-      if (maybe_child > G_MAXINT)
-        {
-          glnx_throw (&data->error, "Out-of-range number found in %s: %s",
-                      data->children_file, p);
-          return;
-        }
-
-      child = (int) maybe_child;
-      g_string_printf (data->buffer, "/proc/%d", child);
-
-      /* If the task is just a thread, it won't have a /proc/%d directory
-       * in its own right. We don't kill threads, only processes. */
-      if (!g_file_test (data->buffer->str, G_FILE_TEST_IS_DIR))
-        {
-          g_debug ("Task %d is a thread, not a process", child);
-          continue;
-        }
-
-      termination_data_signal_child (data, child);
     }
 }
 
