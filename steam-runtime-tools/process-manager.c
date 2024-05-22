@@ -208,6 +208,44 @@ termination_data_clear (TerminationData *data)
 G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC (TerminationData, termination_data_clear)
 
 /*
+ * Sends the configured signal to the given child process, checking the state
+ * of it if the signal was already sent.
+ */
+static void
+termination_data_signal_child (TerminationData *data,
+                               int child)
+{
+  GHashTable *already;
+
+  if (data->sending_signal == 0)
+    return;
+
+  if (data->sending_signal == SIGKILL)
+    already = data->sent_sigkill;
+  else
+    already = data->sent_sigterm;
+
+  if (!g_hash_table_contains (already, GINT_TO_POINTER (child)))
+    {
+      g_debug ("Sending signal %d to process %d",
+               data->sending_signal, child);
+      g_hash_table_add (already, GINT_TO_POINTER (child));
+
+      if (kill (child, data->sending_signal) < 0)
+        g_warning ("Unable to send signal %d to process %d: %s",
+                   data->sending_signal, child, g_strerror (errno));
+
+      /* In case the child is stopped, wake it up to receive the signal */
+      if (kill (child, SIGCONT) < 0)
+        g_warning ("Unable to send SIGCONT to process %d: %s",
+                   child, g_strerror (errno));
+
+      /* When the child terminates, we will get SIGCHLD and come
+       * back to here. */
+    }
+}
+
+/*
  * Do whatever the next step for srt_terminate_all_child_processes() is.
  *
  * First, reap child processes that already exited, without blocking.
@@ -282,7 +320,6 @@ termination_data_refresh (TerminationData *data)
     {
       guint64 maybe_child;
       int child;
-      GHashTable *already;
 
       while (*p != '\0' && g_ascii_isspace (*p))
         p++;
@@ -317,31 +354,7 @@ termination_data_refresh (TerminationData *data)
           continue;
         }
 
-      if (data->sending_signal == 0)
-        break;
-      else if (data->sending_signal == SIGKILL)
-        already = data->sent_sigkill;
-      else
-        already = data->sent_sigterm;
-
-      if (!g_hash_table_contains (already, GINT_TO_POINTER (child)))
-        {
-          g_debug ("Sending signal %d to process %d",
-                   data->sending_signal, child);
-          g_hash_table_add (already, GINT_TO_POINTER (child));
-
-          if (kill (child, data->sending_signal) < 0)
-            g_warning ("Unable to send signal %d to process %d: %s",
-                       data->sending_signal, child, g_strerror (errno));
-
-          /* In case the child is stopped, wake it up to receive the signal */
-          if (kill (child, SIGCONT) < 0)
-            g_warning ("Unable to send SIGCONT to process %d: %s",
-                       child, g_strerror (errno));
-
-          /* When the child terminates, we will get SIGCHLD and come
-           * back to here. */
-        }
+      termination_data_signal_child (data, child);
     }
 }
 
