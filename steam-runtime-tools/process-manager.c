@@ -5,6 +5,8 @@
 
 #include "process-manager-internal.h"
 
+#include <dirent.h>
+#include <fcntl.h>
 #include <sys/prctl.h>
 #include <sys/signalfd.h>
 #include <sys/wait.h>
@@ -217,8 +219,7 @@ termination_data_signal_child (TerminationData *data,
 {
   GHashTable *already;
 
-  if (data->sending_signal == 0)
-    return;
+  g_return_if_fail (data->sending_signal != 0);
 
   if (data->sending_signal == SIGKILL)
     already = data->sent_sigkill;
@@ -246,6 +247,40 @@ termination_data_signal_child (TerminationData *data,
 }
 
 /*
+ * Read the PPid for the given pid from the /proc directory opened in proc_dfd.
+ */
+static gboolean
+termination_data_read_ppid (TerminationData *data,
+                            int proc_dfd,
+                            int pid,
+                            int *out_ppid,
+                            GError **error)
+{
+  g_autofree char *contents = NULL;
+  char *p;
+  gsize len;
+
+  g_string_printf (data->buffer, "%d/status", pid);
+  contents = glnx_file_get_contents_utf8_at (proc_dfd, data->buffer->str, &len,
+                                             NULL, error);
+  if (contents == NULL)
+    return FALSE;
+
+  for (p = contents; p != NULL && *p != '\0'; )
+    {
+      if (sscanf (p, "PPid: %d", out_ppid) >= 1)
+        return TRUE;
+
+      p = strchr (p, '\n');
+      if (p != NULL)
+        p++;
+    }
+
+  return glnx_throw (error, "Failed to find PPid in /proc/%s",
+                     data->buffer->str);
+}
+
+/*
  * Do whatever the next step for srt_terminate_all_child_processes() is.
  *
  * First, reap child processes that already exited, without blocking.
@@ -258,6 +293,7 @@ termination_data_signal_child (TerminationData *data,
 static void
 termination_data_refresh (TerminationData *data)
 {
+  g_autoptr(GError) children_error = NULL;
   g_autofree gchar *contents = NULL;
 
   if (data->error != NULL)
@@ -278,6 +314,7 @@ termination_data_refresh (TerminationData *data)
             }
           else if (errno == ECHILD)
             {
+              /* No child processes remain. */
               data->finished = TRUE;
               return;
             }
@@ -302,13 +339,17 @@ termination_data_refresh (TerminationData *data)
       g_hash_table_remove (data->sent_sigterm, GINT_TO_POINTER (died));
     }
 
+  /* If we are still in the wait_period, nothing more to do yet */
+  if (data->sending_signal == 0)
+    return;
+
   /* See whether we have any remaining children. These could be direct
    * child processes, or they could be children we adopted because
    * their parent was one of our descendants and has exited, leaving the
    * child to be reparented to us (their (great)*grandparent) because we
    * are a subreaper. */
 
-  if (g_file_get_contents (data->children_file, &contents, NULL, &data->error))
+  if (g_file_get_contents (data->children_file, &contents, NULL, &children_error))
     {
       const char *p;
       char *endptr;
@@ -354,6 +395,70 @@ termination_data_refresh (TerminationData *data)
               g_debug ("Task %d is a thread, not a process", child);
               continue;
             }
+
+          termination_data_signal_child (data, child);
+        }
+    }
+  else
+    {
+      g_auto(SrtDirIter) iter = SRT_DIR_ITER_CLEARED;
+      pid_t our_pid = getpid ();
+
+      if (!g_error_matches (children_error, G_FILE_ERROR, G_FILE_ERROR_NOENT))
+        g_warning ("Failed to read %s: %s", data->children_file,
+                    children_error->message);
+
+      g_debug ("Finding children by scanning /proc");
+
+      if (!_srt_dir_iter_init_at (&iter, AT_FDCWD, "/proc",
+                                  SRT_DIR_ITER_FLAGS_ENSURE_DTYPE, NULL,
+                                  &data->error))
+        {
+          glnx_throw_errno_prefix (&data->error, "opening /proc");
+          return;
+        }
+
+      while (TRUE)
+        {
+          g_autoptr(GError) ppid_error = NULL;
+          struct dirent *dent;
+          char *endptr;
+          guint64 maybe_child;
+          int child;
+          int child_ppid;
+
+          if (!_srt_dir_iter_next_dent (&iter, &dent, NULL, &data->error))
+            return;
+          else if (dent == NULL)
+            break;
+
+          if (dent->d_type != DT_DIR)
+            continue;
+
+          maybe_child = g_ascii_strtoull (dent->d_name, &endptr, 10);
+          if (*endptr != '\0')
+            continue;
+
+          if (maybe_child > G_MAXINT)
+            {
+              glnx_throw (&data->error, "Out-of-range pid found in /proc: %s",
+                          dent->d_name);
+              return;
+            }
+
+          child = (int) maybe_child;
+          if (!termination_data_read_ppid (data, iter.real_iter.fd, child,
+                                           &child_ppid, &ppid_error))
+            {
+              // This is likely just because the process died before we got a
+              // chance to check it, so log at the debug level.
+              g_debug ("Inspecting potential child pid %d: %s", child,
+                       ppid_error->message);
+              continue;
+            }
+
+          if (child_ppid != our_pid)
+            continue;
 
           termination_data_signal_child (data, child);
         }
@@ -485,7 +590,9 @@ _srt_subreaper_terminate_all_child_processes (GTimeSpan wait_period,
   data.context = g_main_context_new ();
   data.sent_sigterm = g_hash_table_new (NULL, NULL);
   data.sent_sigkill = g_hash_table_new (NULL, NULL);
-  data.buffer = g_string_new ("/proc/2345678901");
+  /* Big enough to fit either '/proc/<PID>' or '<PID>/status' without
+   * reallocation (the the latter is 1 byte longer than the former). */
+  data.buffer = g_string_new ("2345678901/status");
 
   if (wait_period > 0 && grace_period > 0)
     {
