@@ -221,7 +221,6 @@ static void
 termination_data_refresh (TerminationData *data)
 {
   g_autofree gchar *contents = NULL;
-  gboolean has_child = FALSE;
   const char *p;
   char *endptr;
 
@@ -243,9 +242,8 @@ termination_data_refresh (TerminationData *data)
             }
           else if (errno == ECHILD)
             {
-              /* No child processes at all. We'll double-check this
-               * a bit later. */
-              break;
+              data->finished = TRUE;
+              return;
             }
           else
             {
@@ -319,8 +317,6 @@ termination_data_refresh (TerminationData *data)
           continue;
         }
 
-      has_child = TRUE;
-
       if (data->sending_signal == 0)
         break;
       else if (data->sending_signal == SIGKILL)
@@ -347,9 +343,6 @@ termination_data_refresh (TerminationData *data)
            * back to here. */
         }
     }
-
-  if (!has_child)
-    data->finished = TRUE;
 }
 
 /*
