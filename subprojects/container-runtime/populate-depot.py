@@ -1377,10 +1377,6 @@ class Main:
         # { [device, inode]: hashed name }
         hashed_names: Dict[Tuple[int, int], str] = {}
 
-        for name in unlink_later:
-            with suppress(FileNotFoundError):
-                (top / name).unlink()
-
         writer.write('#mtree\n')
         writer.write('. type=dir\n')
 
