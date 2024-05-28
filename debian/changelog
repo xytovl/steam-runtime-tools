@@ -1,8 +1,10 @@
-steam-runtime-tools (0.20240520.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20240528.0) UNRELEASED; urgency=medium
 
   [ Simon McVittie ]
-  * SteamLinuxRuntime etc.: Allow all SLR branches to show in the UI
-    (steamrt/tasks#426)
+  * SteamLinuxRuntime etc.:
+    - Allow all SLR branches to show in the UI (steamrt/tasks#426)
+    - Don't remove empty files and symlinks when SDK sysroot is enabled
+      (steamrt/tasks#448)
   * pressure-vessel:
     - Don't enable snapd workarounds by default.
       Since snapd 2.62, we do not need any special workarounds.
@@ -11,13 +13,17 @@ steam-runtime-tools (0.20240520.0) UNRELEASED; urgency=medium
       Some error messages are now clearer.
     - Update libcapsule to v0.20240520.0.
       No functional changes: we already had the most important changes.
+  * tests:
+    - Test the SDK sysroot in CI, even for non-protected branches
+      (steamrt/tasks#448)
 
   [ Ryan Gonzalez ]
-  * build: Don't attempt to build UI code if SDL_ttf is missing
-  * build-aux: Improve docker/podman functionality
-  * build-aux: Disable introspection on Clang asan builds
+  * build:
+    - Don't attempt to build UI code if SDL_ttf is missing
+    - build-aux: Improve docker/podman functionality
+    - build-aux: Disable introspection on Clang asan builds
 
- -- Simon McVittie <smcv@collabora.com>  Mon, 20 May 2024 15:49:58 +0100
+ -- Simon McVittie <smcv@collabora.com>  Tue, 28 May 2024 19:19:45 +0100
 
 steam-runtime-tools (0.20240422.0) steamrt; urgency=medium
 
