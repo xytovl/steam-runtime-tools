@@ -1487,14 +1487,17 @@ class Main:
                             rename[hashed_name] = name
                             unlink_later.add(name)
                         # else represent ./foo/bar as ./foo/bar
-                    else:
+                    elif can_rename_files:
                         unlink_later.add(name)
 
                 elif stat.S_ISLNK(stat_info.st_mode):
                     fields.append('type=link')
                     fields.append(
                         f'link={self.octal_escape(os.readlink(member))}')
-                    unlink_later.add(name)
+
+                    if can_rename_files:
+                        unlink_later.add(name)
+
                 elif stat.S_ISDIR(stat_info.st_mode):
                     fields.append('type=dir')
                 else:
@@ -1521,13 +1524,17 @@ class Main:
                 for name in sorted(not_windows_friendly):
                     writer.write('# {}\n'.format(self.octal_escape(name)))
 
-        for name, original in rename.items():
-            (top / name).parent.mkdir(parents=True, exist_ok=True)
-            (top / original).replace(top / name)
+        if can_rename_files:
+            for name, original in rename.items():
+                (top / name).parent.mkdir(parents=True, exist_ok=True)
+                (top / original).replace(top / name)
 
-        for name in unlink_later:
-            with suppress(FileNotFoundError):
-                (top / name).unlink()
+            for name in unlink_later:
+                with suppress(FileNotFoundError):
+                    (top / name).unlink()
+        else:
+            assert not rename, rename
+            assert not unlink_later, unlink_later
 
         return lc_names
 
