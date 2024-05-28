@@ -15,7 +15,6 @@ mkdir -p "$builddir/depot-template/common"
 if [ -n "${IMAGES_DOWNLOAD_URL-}" ] && [ -n "${IMAGES_DOWNLOAD_CREDENTIAL-}" ]; then
     suites="scout soldier"
     set -- \
-        --include-sdk \
         --credential-env IMAGES_DOWNLOAD_CREDENTIAL \
         --images-uri "${IMAGES_DOWNLOAD_URL}"/steamrt-SUITE/snapshots \
         ${NULL+}
@@ -34,6 +33,7 @@ for suite in $suites; do
 
     time python3 ./subprojects/container-runtime/populate-depot.py \
         --depot="$builddir/depots/$suite" \
+        --include-sdk \
         --no-versioned-directories \
         --pressure-vessel-archive "${PRESSURE_VESSEL}" \
         --source-dir="$builddir/depot-template" \
