@@ -18,12 +18,15 @@ steam-runtime-tools (0.20240528.0) UNRELEASED; urgency=medium
       (steamrt/tasks#448)
 
   [ Ryan Gonzalez ]
+  * srt-supervisor:
+    - Be compatible with kernels that do not enable CONFIG_PROC_CHILDREN,
+      such as ChromeOS (steamrt/tasks#445)
   * build:
     - Don't attempt to build UI code if SDL_ttf is missing
     - build-aux: Improve docker/podman functionality
     - build-aux: Disable introspection on Clang asan builds
 
- -- Simon McVittie <smcv@collabora.com>  Tue, 28 May 2024 19:19:45 +0100
+ -- Simon McVittie <smcv@collabora.com>  Wed, 29 May 2024 17:15:11 +0100
 
 steam-runtime-tools (0.20240422.0) steamrt; urgency=medium
 
