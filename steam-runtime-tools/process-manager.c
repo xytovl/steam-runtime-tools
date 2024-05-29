@@ -5,6 +5,8 @@
 
 #include "process-manager-internal.h"
 
+#include <dirent.h>
+#include <fcntl.h>
 #include <sys/prctl.h>
 #include <sys/signalfd.h>
 #include <sys/wait.h>
@@ -208,6 +210,77 @@ termination_data_clear (TerminationData *data)
 G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC (TerminationData, termination_data_clear)
 
 /*
+ * Sends the configured signal to the given child process, checking the state
+ * of it if the signal was already sent.
+ */
+static void
+termination_data_signal_child (TerminationData *data,
+                               int child)
+{
+  GHashTable *already;
+
+  g_return_if_fail (data->sending_signal != 0);
+
+  if (data->sending_signal == SIGKILL)
+    already = data->sent_sigkill;
+  else
+    already = data->sent_sigterm;
+
+  if (!g_hash_table_contains (already, GINT_TO_POINTER (child)))
+    {
+      g_debug ("Sending signal %d to process %d",
+               data->sending_signal, child);
+      g_hash_table_add (already, GINT_TO_POINTER (child));
+
+      if (kill (child, data->sending_signal) < 0)
+        g_warning ("Unable to send signal %d to process %d: %s",
+                   data->sending_signal, child, g_strerror (errno));
+
+      /* In case the child is stopped, wake it up to receive the signal */
+      if (kill (child, SIGCONT) < 0)
+        g_warning ("Unable to send SIGCONT to process %d: %s",
+                   child, g_strerror (errno));
+
+      /* When the child terminates, we will get SIGCHLD and come
+       * back to here. */
+    }
+}
+
+/*
+ * Read the PPid for the given pid from the /proc directory opened in proc_dfd.
+ */
+static gboolean
+termination_data_read_ppid (TerminationData *data,
+                            int proc_dfd,
+                            int pid,
+                            int *out_ppid,
+                            GError **error)
+{
+  g_autofree char *contents = NULL;
+  char *p;
+  gsize len;
+
+  g_string_printf (data->buffer, "%d/status", pid);
+  contents = glnx_file_get_contents_utf8_at (proc_dfd, data->buffer->str, &len,
+                                             NULL, error);
+  if (contents == NULL)
+    return FALSE;
+
+  for (p = contents; p != NULL && *p != '\0'; )
+    {
+      if (sscanf (p, "PPid: %d", out_ppid) >= 1)
+        return TRUE;
+
+      p = strchr (p, '\n');
+      if (p != NULL)
+        p++;
+    }
+
+  return glnx_throw (error, "Failed to find PPid in /proc/%s",
+                     data->buffer->str);
+}
+
+/*
  * Do whatever the next step for srt_terminate_all_child_processes() is.
  *
  * First, reap child processes that already exited, without blocking.
@@ -220,10 +293,8 @@ G_DEFINE_AUTO_CLEANUP_CLEAR_FUNC (TerminationData, termination_data_clear)
 static void
 termination_data_refresh (TerminationData *data)
 {
+  g_autoptr(GError) children_error = NULL;
   g_autofree gchar *contents = NULL;
-  gboolean has_child = FALSE;
-  const char *p;
-  char *endptr;
 
   if (data->error != NULL)
     return;
@@ -243,9 +314,9 @@ termination_data_refresh (TerminationData *data)
             }
           else if (errno == ECHILD)
             {
-              /* No child processes at all. We'll double-check this
-               * a bit later. */
-              break;
+              /* No child processes remain. */
+              data->finished = TRUE;
+              return;
             }
           else
             {
@@ -268,88 +339,130 @@ termination_data_refresh (TerminationData *data)
       g_hash_table_remove (data->sent_sigterm, GINT_TO_POINTER (died));
     }
 
+  /* If we are still in the wait_period, nothing more to do yet */
+  if (data->sending_signal == 0)
+    return;
+
   /* See whether we have any remaining children. These could be direct
    * child processes, or they could be children we adopted because
    * their parent was one of our descendants and has exited, leaving the
    * child to be reparented to us (their (great)*grandparent) because we
    * are a subreaper. */
-  if (!g_file_get_contents (data->children_file, &contents, NULL, &data->error))
-    return;
 
-  g_debug ("Child tasks: %s", contents);
-
-  for (p = contents;
-       p != NULL && *p != '\0';
-       p = endptr)
+  if (g_file_get_contents (data->children_file, &contents, NULL, &children_error))
     {
-      guint64 maybe_child;
-      int child;
-      GHashTable *already;
+      const char *p;
+      char *endptr;
 
-      while (*p != '\0' && g_ascii_isspace (*p))
-        p++;
+      g_debug ("Child tasks from %s: %s", data->children_file, contents);
 
-      if (*p == '\0')
-        break;
-
-      maybe_child = g_ascii_strtoull (p, &endptr, 10);
-
-      if (*endptr != '\0' && !g_ascii_isspace (*endptr))
+      for (p = contents;
+           p != NULL && *p != '\0';
+           p = endptr)
         {
-          glnx_throw (&data->error, "Non-numeric string found in %s: %s",
-                      data->children_file, p);
-          return;
-        }
+          guint64 maybe_child;
+          int child;
 
-      if (maybe_child > G_MAXINT)
-        {
-          glnx_throw (&data->error, "Out-of-range number found in %s: %s",
-                      data->children_file, p);
-          return;
-        }
+          while (*p != '\0' && g_ascii_isspace (*p))
+            p++;
 
-      child = (int) maybe_child;
-      g_string_printf (data->buffer, "/proc/%d", child);
+          if (*p == '\0')
+            break;
 
-      /* If the task is just a thread, it won't have a /proc/%d directory
-       * in its own right. We don't kill threads, only processes. */
-      if (!g_file_test (data->buffer->str, G_FILE_TEST_IS_DIR))
-        {
-          g_debug ("Task %d is a thread, not a process", child);
-          continue;
-        }
+          maybe_child = g_ascii_strtoull (p, &endptr, 10);
 
-      has_child = TRUE;
+          if (*endptr != '\0' && !g_ascii_isspace (*endptr))
+            {
+              glnx_throw (&data->error, "Non-numeric string found in %s: %s",
+                          data->children_file, p);
+              return;
+            }
 
-      if (data->sending_signal == 0)
-        break;
-      else if (data->sending_signal == SIGKILL)
-        already = data->sent_sigkill;
-      else
-        already = data->sent_sigterm;
+          if (maybe_child > G_MAXINT)
+            {
+              glnx_throw (&data->error, "Out-of-range number found in %s: %s",
+                          data->children_file, p);
+              return;
+            }
 
-      if (!g_hash_table_contains (already, GINT_TO_POINTER (child)))
-        {
-          g_debug ("Sending signal %d to process %d",
-                   data->sending_signal, child);
-          g_hash_table_add (already, GINT_TO_POINTER (child));
+          child = (int) maybe_child;
+          g_string_printf (data->buffer, "/proc/%d", child);
 
-          if (kill (child, data->sending_signal) < 0)
-            g_warning ("Unable to send signal %d to process %d: %s",
-                       data->sending_signal, child, g_strerror (errno));
+          /* If the task is just a thread, it won't have a /proc/%d directory
+           * in its own right. We don't kill threads, only processes. */
+          if (!g_file_test (data->buffer->str, G_FILE_TEST_IS_DIR))
+            {
+              g_debug ("Task %d is a thread, not a process", child);
+              continue;
+            }
 
-          /* In case the child is stopped, wake it up to receive the signal */
-          if (kill (child, SIGCONT) < 0)
-            g_warning ("Unable to send SIGCONT to process %d: %s",
-                       child, g_strerror (errno));
-
-          /* When the child terminates, we will get SIGCHLD and come
-           * back to here. */
+          termination_data_signal_child (data, child);
         }
     }
+  else
+    {
+      g_auto(SrtDirIter) iter = SRT_DIR_ITER_CLEARED;
+      pid_t our_pid = getpid ();
 
-  if (!has_child)
-    data->finished = TRUE;
+      if (!g_error_matches (children_error, G_FILE_ERROR, G_FILE_ERROR_NOENT))
+        g_warning ("Failed to read %s: %s", data->children_file,
+                    children_error->message);
+
+      g_debug ("Finding children by scanning /proc");
+
+      if (!_srt_dir_iter_init_at (&iter, AT_FDCWD, "/proc",
+                                  SRT_DIR_ITER_FLAGS_ENSURE_DTYPE, NULL,
+                                  &data->error))
+        {
+          glnx_throw_errno_prefix (&data->error, "opening /proc");
+          return;
+        }
+
+      while (TRUE)
+        {
+          g_autoptr(GError) ppid_error = NULL;
+          struct dirent *dent;
+          char *endptr;
+          guint64 maybe_child;
+          int child;
+          int child_ppid;
+
+          if (!_srt_dir_iter_next_dent (&iter, &dent, NULL, &data->error))
+            return;
+          else if (dent == NULL)
+            break;
+
+          if (dent->d_type != DT_DIR)
+            continue;
+
+          maybe_child = g_ascii_strtoull (dent->d_name, &endptr, 10);
+          if (*endptr != '\0')
+            continue;
+
+          if (maybe_child > G_MAXINT)
+            {
+              glnx_throw (&data->error, "Out-of-range pid found in /proc: %s",
+                          dent->d_name);
+              return;
+            }
+
+          child = (int) maybe_child;
+          if (!termination_data_read_ppid (data, iter.real_iter.fd, child,
+                                           &child_ppid, &ppid_error))
+            {
+              // This is likely just because the process died before we got a
+              // chance to check it, so log at the debug level.
+              g_debug ("Inspecting potential child pid %d: %s", child,
+                       ppid_error->message);
+              continue;
+            }
+
+          if (child_ppid != our_pid)
+            continue;
+
+          termination_data_signal_child (data, child);
+        }
+    }
 }
 
 /*
@@ -477,7 +590,9 @@ _srt_subreaper_terminate_all_child_processes (GTimeSpan wait_period,
   data.context = g_main_context_new ();
   data.sent_sigterm = g_hash_table_new (NULL, NULL);
   data.sent_sigkill = g_hash_table_new (NULL, NULL);
-  data.buffer = g_string_new ("/proc/2345678901");
+  /* Big enough to fit either '/proc/<PID>' or '<PID>/status' without
+   * reallocation (the the latter is 1 byte longer than the former). */
+  data.buffer = g_string_new ("2345678901/status");
 
   if (wait_period > 0 && grace_period > 0)
     {
