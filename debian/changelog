@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20240528.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20240530.0) steamrt; urgency=medium
 
   [ Simon McVittie ]
   * SteamLinuxRuntime etc.:
@@ -26,7 +26,7 @@ steam-runtime-tools (0.20240528.0) UNRELEASED; urgency=medium
     - build-aux: Improve docker/podman functionality
     - build-aux: Disable introspection on Clang asan builds
 
- -- Simon McVittie <smcv@collabora.com>  Wed, 29 May 2024 17:15:11 +0100
+ -- Simon McVittie <smcv@collabora.com>  Thu, 30 May 2024 15:23:51 +0100
 
 steam-runtime-tools (0.20240422.0) steamrt; urgency=medium
 
