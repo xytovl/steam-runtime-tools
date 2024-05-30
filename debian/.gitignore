@@ -3,6 +3,8 @@
 /*.log
 /*.substvars
 /files
+/libsteam-runtime-shim-libcurl-bin/
+/libsteam-runtime-shim-libcurl4/
 /libsteam-runtime-tools-0-0/
 /libsteam-runtime-tools-0-dev/
 /libsteam-runtime-tools-0-doc/
