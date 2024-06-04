@@ -226,7 +226,7 @@ run (int argc,
     {
       const char *executable = NULL;
 
-      if (_srt_find_myself (&executable, NULL, error) != NULL
+      if (_srt_find_myself (&executable, NULL, &local_error) != NULL
           && _srt_logger_run_subprocess (logger, executable,
                                          _srt_const_strv (subproc_environ),
                                          &original_stdout,
