@@ -279,6 +279,31 @@ class TestLogger(BaseTest):
 
             proc.wait()
 
+    def test_journal_fd(self) -> None:
+        proc = subprocess.Popen(
+            self.logger + ['--filename=', '--journal-fd=2'],
+            stdin=subprocess.PIPE,
+            stdout=STDERR_FILENO,
+            stderr=subprocess.PIPE,
+        )
+
+        stdin = proc.stdin
+        assert stdin is not None
+
+        with stdin:
+            stdin.write(b'Hello, world')
+            stdin.flush()
+
+        stderr = proc.stderr
+        assert stderr is not None
+
+        proc.wait()
+
+        with stderr:
+            content = stderr.read()
+            logger.info('%s', content.decode('utf-8', 'replace'))
+            self.assertIn(b'Hello, world', content)
+
     def test_not_buffered(self) -> None:
         '''\
         Messages to stderr or the terminal are not line-buffered.
