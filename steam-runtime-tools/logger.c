@@ -257,6 +257,8 @@ _srt_logger_setup (SrtLogger *self,
 
   if (self->journal_fd >= 0)
     {
+      int result;
+
       g_debug ("logging to existing Journal stream");
       self->use_journal = TRUE;
 
@@ -747,17 +749,42 @@ out:
   return ret;
 }
 
+/*
+ * @self: The logger
+ * @line: (array length=len): Pointer to the beginning or middle of
+ *  a log message
+ * @len: Number of bytes to process
+ *
+ * Send @len bytes of @line to destinations that expect to receive partial
+ * log lines: a terminal (if used), and standard error (if we have no other
+ * suitable destination).
+ */
 static void
-logger_process_line (SrtLogger *self,
-                     const void *line,
-                     size_t len)
+logger_process_partial_line (SrtLogger *self,
+                             const char *line,
+                             size_t len)
 {
   if (self->use_stderr)
     glnx_loop_write (STDERR_FILENO, line, len);
 
   if (self->terminal_fd >= 0)
     glnx_loop_write (self->terminal_fd, line, len);
+}
 
+/*
+ * @self: The logger
+ * @line: (array length=len): Pointer to the beginning of a log message
+ * @len: Number of bytes to process, including the trailing newline
+ *
+ * Send @len bytes of @line to destinations that expect to receive complete
+ * log lines: the systemd Journal (if used), and a rotating
+ * log file (if used).
+ */
+static void
+logger_process_complete_line (SrtLogger *self,
+                              const char *line,
+                              size_t len)
+{
   if (self->journal_fd >= 0)
     glnx_loop_write (self->journal_fd, line, len);
 
@@ -835,6 +862,8 @@ _srt_logger_process (SrtLogger *self,
       if (res < 0)
         return glnx_throw_errno_prefix (error, "Error reading standard input");
 
+      logger_process_partial_line (self, buf + filled, (size_t) res);
+
       /* We never touch the last byte of buf while reading */
       filled += (size_t) res;
       g_assert (filled < sizeof (buf));
@@ -860,7 +889,8 @@ _srt_logger_process (SrtLogger *self,
 
           /* Length of the first logical line, including the newline */
           len = end_of_line - buf + 1;
-          logger_process_line (self, buf, len);
+
+          logger_process_complete_line (self, buf, len);
 
           if (filled > len)
             {
