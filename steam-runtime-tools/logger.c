@@ -93,7 +93,6 @@ _srt_logger_finalize (GObject *object)
   glnx_close_fd (&self->pipe_from_parent);
   glnx_close_fd (&self->file_fd);
   glnx_close_fd (&self->journal_fd);
-  glnx_close_fd (&self->journal_fd);
 
   if (self->terminal_fd > STDERR_FILENO)
     glnx_close_fd (&self->terminal_fd);
