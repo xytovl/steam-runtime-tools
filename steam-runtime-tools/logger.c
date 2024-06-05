@@ -92,7 +92,9 @@ _srt_logger_finalize (GObject *object)
   g_clear_pointer (&self->terminal, g_free);
   glnx_close_fd (&self->pipe_from_parent);
   glnx_close_fd (&self->file_fd);
-  glnx_close_fd (&self->journal_fd);
+
+  if (self->journal_fd > STDERR_FILENO)
+    glnx_close_fd (&self->journal_fd);
 
   if (self->terminal_fd > STDERR_FILENO)
     glnx_close_fd (&self->terminal_fd);
@@ -258,7 +260,13 @@ _srt_logger_setup (SrtLogger *self,
       g_debug ("logging to existing Journal stream");
       self->use_journal = TRUE;
 
-      if (_srt_fd_set_close_on_exec (self->journal_fd) < 0)
+      /* We never want to mark stdin/stdout/stderr as close-on-exec */
+      if (self->journal_fd > STDERR_FILENO)
+        result = _srt_fd_set_close_on_exec (self->journal_fd);
+      else
+        result = _srt_fd_unset_close_on_exec (self->journal_fd);
+
+      if (result < 0)
         return glnx_throw_errno_prefix (error,
                                         "Unable to accept journal fd %d",
                                         self->journal_fd);
