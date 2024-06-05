@@ -279,6 +279,53 @@ class TestLogger(BaseTest):
 
             proc.wait()
 
+    def test_not_buffered(self) -> None:
+        '''\
+        Messages to stderr or the terminal are not line-buffered.
+        '''
+        for args in (
+            ['--no-auto-terminal'],
+            # We use STDERR_FILENO as a mock terminal here.
+            ['--no-auto-terminal', '--terminal-fd=%d' % STDERR_FILENO],
+            [],
+        ):
+            proc = subprocess.Popen(
+                self.logger + ['--filename='] + args,
+                stdin=subprocess.PIPE,
+                stdout=STDERR_FILENO,
+                stderr=subprocess.PIPE,
+            )
+
+            stdin = proc.stdin
+            assert stdin is not None
+
+            stdin.write(b'Prompt> ')
+            stdin.flush()
+
+            stderr = proc.stderr
+            assert stderr is not None
+
+            content = b''
+
+            while True:
+                content += stderr.read(1)
+                logger.info('%s', content.decode('utf-8', 'replace'))
+
+                if b'Prompt> ' in content:
+                    break
+
+            with stdin:
+                stdin.write(b'exit\r\n')
+                stdin.flush()
+
+            proc.wait()
+
+            with stderr:
+                content += stderr.read()
+                logger.info('%s', content.decode('utf-8', 'replace'))
+                self.assertIn(b'Prompt> ', content)
+                self.assertIn(b'exit\r\n', content)
+
     def test_rotation(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             proc = subprocess.Popen(
