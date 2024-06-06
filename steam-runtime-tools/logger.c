@@ -92,8 +92,9 @@ _srt_logger_finalize (GObject *object)
   g_clear_pointer (&self->terminal, g_free);
   glnx_close_fd (&self->pipe_from_parent);
   glnx_close_fd (&self->file_fd);
-  glnx_close_fd (&self->journal_fd);
-  glnx_close_fd (&self->journal_fd);
+
+  if (self->journal_fd > STDERR_FILENO)
+    glnx_close_fd (&self->journal_fd);
 
   if (self->terminal_fd > STDERR_FILENO)
     glnx_close_fd (&self->terminal_fd);
@@ -256,10 +257,18 @@ _srt_logger_setup (SrtLogger *self,
 
   if (self->journal_fd >= 0)
     {
+      int result;
+
       g_debug ("logging to existing Journal stream");
       self->use_journal = TRUE;
 
-      if (_srt_fd_set_close_on_exec (self->journal_fd) < 0)
+      /* We never want to mark stdin/stdout/stderr as close-on-exec */
+      if (self->journal_fd > STDERR_FILENO)
+        result = _srt_fd_set_close_on_exec (self->journal_fd);
+      else
+        result = _srt_fd_unset_close_on_exec (self->journal_fd);
+
+      if (result < 0)
         return glnx_throw_errno_prefix (error,
                                         "Unable to accept journal fd %d",
                                         self->journal_fd);
@@ -282,16 +291,27 @@ _srt_logger_setup (SrtLogger *self,
           g_debug ("Unable to connect to systemd Journal: %s",
                    journal_error->message);
           g_clear_error (&journal_error);
-          self->use_journal = FALSE;
 
-          if (g_log_writer_is_journald (STDERR_FILENO))
-            self->use_stderr = TRUE;
+          /* If stderr was already a journald stream, we might as well
+           * keep using it */
+          if (stderr_is_journal)
+            self->journal_fd = STDERR_FILENO;
+          else
+            self->use_journal = FALSE;
         }
       else
         {
           redirecting = TRUE;
         }
     }
+  else if (stderr_is_journal)
+    {
+      /* Even if self->identifier is empty, we can keep using a pre-existing
+       * journald stream inherited from our parent */
+      g_assert (self->use_journal);
+      self->journal_fd = STDERR_FILENO;
+    }
+
 
   if (self->log_dir == NULL && self->use_file)
     {
@@ -729,17 +749,42 @@ out:
   return ret;
 }
 
+/*
+ * @self: The logger
+ * @line: (array length=len): Pointer to the beginning or middle of
+ *  a log message
+ * @len: Number of bytes to process
+ *
+ * Send @len bytes of @line to destinations that expect to receive partial
+ * log lines: a terminal (if used), and standard error (if we have no other
+ * suitable destination).
+ */
 static void
-logger_process_line (SrtLogger *self,
-                     const void *line,
-                     size_t len)
+logger_process_partial_line (SrtLogger *self,
+                             const char *line,
+                             size_t len)
 {
   if (self->use_stderr)
     glnx_loop_write (STDERR_FILENO, line, len);
 
   if (self->terminal_fd >= 0)
     glnx_loop_write (self->terminal_fd, line, len);
+}
 
+/*
+ * @self: The logger
+ * @line: (array length=len): Pointer to the beginning of a log message
+ * @len: Number of bytes to process, including the trailing newline
+ *
+ * Send @len bytes of @line to destinations that expect to receive complete
+ * log lines: the systemd Journal (if used), and a rotating
+ * log file (if used).
+ */
+static void
+logger_process_complete_line (SrtLogger *self,
+                              const char *line,
+                              size_t len)
+{
   if (self->journal_fd >= 0)
     glnx_loop_write (self->journal_fd, line, len);
 
@@ -817,6 +862,8 @@ _srt_logger_process (SrtLogger *self,
       if (res < 0)
         return glnx_throw_errno_prefix (error, "Error reading standard input");
 
+      logger_process_partial_line (self, buf + filled, (size_t) res);
+
       /* We never touch the last byte of buf while reading */
       filled += (size_t) res;
       g_assert (filled < sizeof (buf));
@@ -842,7 +889,8 @@ _srt_logger_process (SrtLogger *self,
 
           /* Length of the first logical line, including the newline */
           len = end_of_line - buf + 1;
-          logger_process_line (self, buf, len);
+
+          logger_process_complete_line (self, buf, len);
 
           if (filled > len)
             {
