@@ -143,7 +143,7 @@ execvpe_wrapper (char **argv,
                G_SPAWN_ERROR,
                spawn_error_from_errno (saved_errno),
                "Error replacing self with %s: %s",
-               argv[1], g_strerror (saved_errno));
+               argv[0], g_strerror (saved_errno));
 }
 
 static gboolean
