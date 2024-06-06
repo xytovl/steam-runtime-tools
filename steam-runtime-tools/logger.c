@@ -283,7 +283,7 @@ _srt_logger_setup (SrtLogger *self,
           g_clear_error (&journal_error);
           self->use_journal = FALSE;
 
-          if (g_log_writer_is_journald (STDERR_FILENO))
+          if (stderr_is_journal)
             self->use_stderr = TRUE;
         }
       else
