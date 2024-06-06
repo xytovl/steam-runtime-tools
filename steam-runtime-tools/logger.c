@@ -289,16 +289,27 @@ _srt_logger_setup (SrtLogger *self,
           g_debug ("Unable to connect to systemd Journal: %s",
                    journal_error->message);
           g_clear_error (&journal_error);
-          self->use_journal = FALSE;
 
+          /* If stderr was already a journald stream, we might as well
+           * keep using it */
           if (stderr_is_journal)
-            self->use_stderr = TRUE;
+            self->journal_fd = STDERR_FILENO;
+          else
+            self->use_journal = FALSE;
         }
       else
         {
           redirecting = TRUE;
         }
     }
+  else if (stderr_is_journal)
+    {
+      /* Even if self->identifier is empty, we can keep using a pre-existing
+       * journald stream inherited from our parent */
+      g_assert (self->use_journal);
+      self->journal_fd = STDERR_FILENO;
+    }
+
 
   if (self->log_dir == NULL && self->use_file)
     {
