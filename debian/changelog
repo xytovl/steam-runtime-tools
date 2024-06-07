@@ -1,3 +1,15 @@
+steam-runtime-tools (0.20240607.0) UNRELEASED; urgency=medium
+
+  * srt-logger:
+    - Avoid delay when copying log messages to the terminal
+      (steamrt/tasks#447)
+    - Improve error handling
+    - Don't close standard file descriptors if given e.g. --journal-fd=2
+    - More consistently take the Journal code path if stderr is the Journal
+    - Improve test coverage
+
+ -- Simon McVittie <smcv@collabora.com>  Fri, 07 Jun 2024 12:48:47 +0100
+
 steam-runtime-tools (0.20240530.0) steamrt; urgency=medium
 
   [ Simon McVittie ]
