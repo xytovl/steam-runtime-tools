@@ -18,6 +18,7 @@
 #define MEBIBYTE 1024 * 1024
 
 static gboolean opt_auto_terminal = TRUE;
+static gboolean opt_background = FALSE;
 static gboolean opt_exec_fallback = FALSE;
 static gchar *opt_filename = NULL;
 static gchar *opt_identifier = NULL;
@@ -66,6 +67,11 @@ opt_rotate_cb (const char *name,
 
 static const GOptionEntry option_entries[] =
 {
+  { "background", '\0',
+    G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_background,
+    "Run the srt-logger process in the background, not as a child of "
+    "the COMMAND or the parent process",
+    NULL },
   { "exec-fallback", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_exec_fallback,
     "If unable to set up logging, run the wrapped command anyway",
@@ -163,6 +169,7 @@ run (int argc,
   g_autoptr(GOptionContext) option_context = NULL;
   glnx_autofd int original_stdout = -1;
   glnx_autofd int original_stderr = -1;
+  gboolean consume_stdin;
 
   setlocale (LC_ALL, "");
   subproc_environ = g_get_environ ();
@@ -218,8 +225,10 @@ run (int argc,
       argc--;
     }
 
+  consume_stdin = (argc < 2);
 
   logger = _srt_logger_new_take (g_strdup (argv[1]),
+                                 opt_background,
                                  g_steal_pointer (&opt_filename),
                                  g_steal_fd (&opt_log_fd),
                                  g_steal_pointer (&opt_identifier),
@@ -232,12 +241,12 @@ run (int argc,
                                  opt_auto_terminal,
                                  opt_terminal_fd);
 
-  if (argc >= 2)
+  if (opt_background || !consume_stdin)
     {
       const char *executable = NULL;
 
       if (_srt_find_myself (&executable, NULL, &local_error) != NULL
-          && _srt_logger_run_subprocess (logger, executable,
+          && _srt_logger_run_subprocess (logger, executable, consume_stdin,
                                          _srt_const_strv (subproc_environ),
                                          &original_stdout,
                                          &local_error))
@@ -248,7 +257,7 @@ run (int argc,
         }
       else
         {
-          if (!opt_exec_fallback)
+          if (consume_stdin || !opt_exec_fallback)
             {
               g_propagate_error (error, g_steal_pointer (&local_error));
               return FALSE;
@@ -261,6 +270,10 @@ run (int argc,
         }
 
       glnx_close_fd (&original_stdout);
+
+      if (consume_stdin)
+        return TRUE;
+
       execvpe_wrapper (argv + 1, subproc_environ, error);
       return FALSE;
     }

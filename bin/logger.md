@@ -47,9 +47,19 @@ final log messages during shutdown to be recorded.
 
 # OPTIONS
 
+**--background**
+:   Run a new **srt-logger** process in the background (daemonized),
+    instead of having it become a child of the *COMMAND* or the parent
+    process.
+    This can be useful when combined with **steam-runtime-supervisor**,
+    because it is better for the **srt-logger** not to be killed during
+    process termination (if it was, then any buffered log output would
+    be lost).
+
 **--exec-fallback**
 :   If unable to set up logging, run the *COMMAND* anyway.
-    If there is no *COMMAND*, mirror messages received on standard input
+    If there is no *COMMAND*, and **--background** was not used,
+    mirror messages received on standard input
     to standard error by running **cat**(1).
     This option should be used in situations where fault-tolerance is
     more important than logging.
@@ -117,6 +127,8 @@ final log messages during shutdown to be recorded.
     output, that indicates that the logger failed to initialize.
     If this happens, diagnostic messages will be written to standard error
     as usual.
+    This is mainly used to implement **--background**, but can also be used
+    elsewhere.
 
 **--rotate** *BYTES*
 :   If the **--filename** would exceed *BYTES*, rename it to a different
@@ -233,9 +245,32 @@ Any value
     (This is the same encoding used by **bash**(1), **bwrap**(1) and
     **env**(1).)
 
-# EXAMPLE
+# NOTES
+
+If the **srt-logger** is to be combined with **steam-runtime-supervisor**(1)
+or another subreaper that will wait for all of its descendant processes to
+exit, then the **srt-logger** should normally be run "outside" the control
+of the subreaper, using the **--background** option. This avoids situations
+that can cause a deadlock or a loss of log messages.
+
+This is particularly important when using **steam-runtime-supervisor**(1)
+with the **--terminate-timeout** option, or a similar subreaper that will
+terminate all of its child processes.
+
+# EXAMPLES
+
+Run vulkaninfo and send its output to vulkaninfo.txt and the systemd Journal:
 
     ~/.steam/root/ubuntu12_32/steam-runtime/run.sh \
     srt-logger --use-journal -t vulkaninfo -- vulkaninfo
+
+The best way to combine **srt-logger** with **steam-runtime-supervisor**(1)
+is to run the **srt-logger** "outside" the **steam-runtime-supervisor**
+and use **--background**:
+
+    ~/.steam/root/ubuntu12_32/steam-runtime/run.sh \
+    srt-logger --background --use-journal -t supervised-game -- \
+    steam-runtime-supervisor --subreaper --terminate-timeout=5 -- \
+    ./your-game
 
 <!-- vim:set sw=4 sts=4 et: -->

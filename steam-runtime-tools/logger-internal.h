@@ -27,6 +27,7 @@ GType _srt_logger_get_type (void);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC (SrtLogger, g_object_unref)
 
 SrtLogger *_srt_logger_new_take (gchar *argv0,
+                                 gboolean background,
                                  gchar *filename,
                                  int file_fd,
                                  gchar *identifier,
@@ -41,6 +42,7 @@ SrtLogger *_srt_logger_new_take (gchar *argv0,
 
 gboolean _srt_logger_run_subprocess (SrtLogger *self,
                                      const char *logger,
+                                     gboolean consume_stdin,
                                      const char * const *envp,
                                      int *original_stdout,
                                      GError **error);
