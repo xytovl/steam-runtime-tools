@@ -502,12 +502,12 @@ dialog_new(const char *title)
 
     SDL_GetRendererOutputSize(self->renderer, &self->w, &self->h);
 
-    self->title_font = ttf_load_font("sans-serif", "bold",
-                                     (24.0 * self->h) / 480.0);
+    self->title_font = ttf_load_font_family("sans-serif", "bold",
+                                            (24.0 * self->h) / 480.0);
 
     if (self->title_font == NULL) {
-        self->title_font = ttf_load_font("sans-serif", NULL,
-                                         (24.0 * self->h) / 480.0);
+        self->title_font = ttf_load_font_family("sans-serif", NULL,
+                                                (24.0 * self->h) / 480.0);
 
         if (self->title_font != NULL) {
             TTF_SetFontStyle(self->title_font, TTF_STYLE_BOLD);
@@ -519,8 +519,8 @@ dialog_new(const char *title)
         return NULL;
     }
 
-    self->message_font = ttf_load_font("sans-serif", NULL,
-                                       (18.0 * self->h) / 480.0);
+    self->message_font = ttf_load_font_family("sans-serif", NULL,
+                                              (18.0 * self->h) / 480.0);
 
     if (self->message_font == NULL) {
         prefix_sdl_error ("Failed to load message font");

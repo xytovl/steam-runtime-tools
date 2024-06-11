@@ -43,9 +43,9 @@ static bool global_fontconfig_inited = false;
  *
  * Returns: NULL with SDL error set on failure
  */
-TTF_Font *ttf_load_font(const char *family,
-                        const char *style,
-                        int size)
+TTF_Font *ttf_load_font_family(const char *family,
+                               const char *style,
+                               int size)
 {
     __attribute__((cleanup(clear_config))) FcConfig *config = NULL;
     __attribute__((cleanup(clear_pattern))) FcPattern *pattern = NULL;
