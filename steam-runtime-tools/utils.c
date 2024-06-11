@@ -1872,3 +1872,47 @@ _srt_byte_suffix_to_multiplier (const char *suffix)
 
   return 0;
 }
+
+/*
+ * _srt_string_read_fd_until_eof:
+ * @buf: A #GString used as a buffer
+ * @fd: A file descriptor
+ * @error: Used to report error on failure
+ *
+ * Read from @fd and append to @buf until end-of-file is reached.
+ *
+ * On success or failure, @buf has its previous contents, followed by
+ * zero or more bytes that were read from @fd before end-of-file or
+ * an error.
+ *
+ * Returns: %TRUE if end-of-file was reached without any error
+ */
+gboolean
+_srt_string_read_fd_until_eof (GString *buf,
+                               int fd,
+                               GError **error)
+{
+  ssize_t read_result;
+
+  do
+    {
+      size_t len = buf->len;
+
+      g_string_set_size (buf, len + LINE_MAX);
+
+      read_result = TEMP_FAILURE_RETRY (read (fd,
+                                              buf->str + len,
+                                              buf->len - len));
+
+      if (read_result < 0)
+        {
+          g_string_set_size (buf, len);
+          return glnx_throw_errno (error);
+        }
+
+      g_string_set_size (buf, len + (size_t) read_result);
+    }
+  while (read_result != 0);
+
+  return TRUE;
+}

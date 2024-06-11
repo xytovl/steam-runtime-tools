@@ -599,3 +599,7 @@ _srt_fd_unset_close_on_exec (int fd)
 }
 
 goffset _srt_byte_suffix_to_multiplier (const char *suffix);
+
+gboolean _srt_string_read_fd_until_eof (GString *buf,
+                                        int fd,
+                                        GError **error);

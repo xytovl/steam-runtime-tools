@@ -1480,6 +1480,52 @@ test_str_is_integer (Fixture *f,
   g_assert_false (_srt_str_is_integer ("23a"));
 }
 
+static void
+test_string_read_fd_until_eof (Fixture *f,
+                               gconstpointer context)
+{
+  g_autoptr(GError) error = NULL;
+  g_autoptr(GString) buf = NULL;
+  g_auto(SrtPipe) p = _SRT_PIPE_INIT;
+  glnx_autofd int unconnected_socket = -1;
+  gboolean result;
+
+  _srt_pipe_open (&p, &error);
+  g_assert_no_error (error);
+
+  g_assert_no_errno (glnx_loop_write (p.fds[_SRT_PIPE_END_WRITE], "bar\0baz", 7));
+  glnx_close_fd (&p.fds[_SRT_PIPE_END_WRITE]);
+
+  buf = g_string_new ("foo");
+  result = _srt_string_read_fd_until_eof (buf, p.fds[_SRT_PIPE_END_READ], &error);
+  g_assert_no_error (error);
+  g_assert_true (result);
+  g_assert_cmpuint (buf->len, ==, strlen ("foobar0baz"));
+  g_assert_cmpstr (buf->str, ==, "foobar");
+  g_assert_cmpstr (buf->str + strlen ("foobar0"), ==, "baz");
+
+  result = _srt_string_read_fd_until_eof (buf, p.fds[_SRT_PIPE_END_READ], &error);
+  g_assert_no_error (error);
+  g_assert_true (result);
+  g_assert_cmpuint (buf->len, ==, strlen ("foobar0baz"));
+
+  unconnected_socket = socket (AF_INET, SOCK_STREAM, 0);
+  result = _srt_string_read_fd_until_eof (buf, unconnected_socket, &error);
+  g_assert_error (error, G_IO_ERROR, G_IO_ERROR_NOT_CONNECTED);
+  g_assert_false (result);
+  g_assert_cmpuint (buf->len, ==, strlen ("foobar0baz"));
+  g_clear_error (&error);
+
+  if (g_test_undefined ())
+    {
+      result = _srt_string_read_fd_until_eof (buf, -1, &error);
+      g_assert_error (error, G_IO_ERROR, g_io_error_from_errno (EBADF));
+      g_assert_false (result);
+      g_assert_cmpuint (buf->len, ==, strlen ("foobar0baz"));
+      g_clear_error (&error);
+    }
+}
+
 static const char uevent[] =
 "DRIVER=lenovo\n"
 "HID_ID=0003:000017EF:00006009\n"
@@ -1581,6 +1627,8 @@ main (int argc,
               setup, test_same_file, teardown);
   g_test_add ("/utils/str_is_integer", Fixture, NULL,
               setup, test_str_is_integer, teardown);
+  g_test_add ("/utils/string_read_fd_until_eof", Fixture, NULL,
+              setup, test_string_read_fd_until_eof, teardown);
   g_test_add ("/utils/uevent-field", Fixture, NULL,
               setup, test_uevent_field, teardown);
 
