@@ -510,6 +510,7 @@ dialog_new(const char *title)
                                             title_font_size);
 
     if (self->title_font == NULL) {
+        debug("%s, falling back to sans-serif", SDL_GetError());
         self->title_font = ttf_load_font_family("sans-serif", NULL,
                                                 title_font_size);
 
