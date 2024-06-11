@@ -506,11 +506,28 @@ dialog_new(const char *title)
     title_font_size = (24.0 * self->h) / 480.0;
     message_font_size = (18.0 * self->h) / 480.0;
 
-    self->title_font = ttf_load_font_family("sans-serif", "bold",
-                                            title_font_size);
+    self->title_font = ttf_load_steam_ui_font("GoNotoKurrent-Bold.ttf",
+                                              title_font_size);
 
     if (self->title_font == NULL) {
-        debug("%s, falling back to sans-serif", SDL_GetError());
+        debug("%s, falling back to GoNotoKurrent-Regular with artificial bold", SDL_GetError());
+
+        self->title_font = ttf_load_steam_ui_font("GoNotoKurrent-Regular.ttf",
+                                                  title_font_size);
+
+        if (self->title_font != NULL) {
+            TTF_SetFontStyle(self->title_font, TTF_STYLE_BOLD);
+        }
+    }
+
+    if (self->title_font == NULL) {
+        debug("%s, falling back to sans-serif bold", SDL_GetError());
+        self->title_font = ttf_load_font_family("sans-serif", "bold",
+                                                title_font_size);
+    }
+
+    if (self->title_font == NULL) {
+        debug("%s, falling back to sans-serif with artificial bold", SDL_GetError());
         self->title_font = ttf_load_font_family("sans-serif", NULL,
                                                 title_font_size);
 
@@ -524,8 +541,14 @@ dialog_new(const char *title)
         return NULL;
     }
 
-    self->message_font = ttf_load_font_family("sans-serif", NULL,
-                                              message_font_size);
+    self->message_font = ttf_load_steam_ui_font("GoNotoKurrent-Regular.ttf",
+                                                title_font_size);
+
+    if (self->message_font == NULL) {
+        debug("%s, falling back to sans-serif", SDL_GetError());
+        self->message_font = ttf_load_font_family("sans-serif", NULL,
+                                                  message_font_size);
+    }
 
     if (self->message_font == NULL) {
         prefix_sdl_error ("Failed to load message font");
