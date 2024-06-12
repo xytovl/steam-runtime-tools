@@ -58,7 +58,7 @@ class TestLogger(BaseTest):
         else:
             self.skipTest('Not available as an installed-test')
 
-    def test_concurrent_logging(self) -> None:
+    def test_concurrent_logging(self, use_sh_syntax=False) -> None:
         '''
         If there is more than one writer for the same log file, rotation
         is disabled to avoid data loss
@@ -67,11 +67,16 @@ class TestLogger(BaseTest):
             with open(str(Path(tmpdir, 'cat.txt')), 'w'):
                 pass
 
+            args = []
+
+            if use_sh_syntax:
+                args.append('--sh-syntax')
+
             lock_holder = subprocess.Popen(
                 self.logger + [
                     '--filename=log.txt',
                     '--log-directory', tmpdir,
-                ],
+                ] + args,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=STDERR_FILENO,
@@ -82,7 +87,7 @@ class TestLogger(BaseTest):
                     '--filename=log.txt',
                     '--log-directory', tmpdir,
                     '--rotate=50',
-                ],
+                ] + args,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=STDERR_FILENO,
@@ -94,7 +99,15 @@ class TestLogger(BaseTest):
             assert stdout is not None
 
             with stdout:
-                stdout.read()
+                content = stdout.read()
+
+                if use_sh_syntax:
+                    self.assertEqual(
+                        content.split(b'\n')[-2:],
+                        [b'SRT_LOGGER_READY=1', b''],
+                    )
+                else:
+                    self.assertEqual(content, b'')
 
             # Write enough output to the second logger to cause rotation.
             # It won't happen, because the lock_holder is holding a
@@ -112,7 +125,15 @@ class TestLogger(BaseTest):
             assert stdout is not None
 
             with stdout:
-                self.assertEqual(stdout.read(), b'')
+                content = stdout.read()
+
+                if use_sh_syntax:
+                    self.assertEqual(
+                        content.split(b'\n')[-2:],
+                        [b'SRT_LOGGER_READY=1', b''],
+                    )
+                else:
+                    self.assertEqual(content, b'')
 
             proc.wait()
 
@@ -152,6 +173,7 @@ class TestLogger(BaseTest):
                     'SRT_LOG_DIR=' + tmpdir,
                 ] + self.logger + [
                     '--no-auto-terminal',
+                    '--sh-syntax',
                     '--',
                     'cat',
                 ],
@@ -174,7 +196,10 @@ class TestLogger(BaseTest):
 
             with stdout:
                 content = stdout.read()
-                self.assertEqual(b'', content)
+                self.assertEqual(
+                    content.split(b'\n')[-2:],
+                    [b'SRT_LOGGER_READY=1', b''],
+                )
 
             proc.wait()
 
@@ -249,6 +274,7 @@ class TestLogger(BaseTest):
                     '--exec-fallback',
                     '--filename', 'filename',
                     '--log-directory', str(Path(tmpdir, 'nonexistent')),
+                    '--sh-syntax',
                 ],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
@@ -267,6 +293,8 @@ class TestLogger(BaseTest):
 
             with stdout:
                 content = stdout.read()
+                # We failed to start logging, so we do not receive
+                # "SRT_LOGGER_READY=1\n"
                 self.assertEqual(b'', content)
 
             stderr = proc.stderr
@@ -350,6 +378,9 @@ class TestLogger(BaseTest):
                 logger.info('%s', content.decode('utf-8', 'replace'))
                 self.assertIn(b'Prompt> ', content)
                 self.assertIn(b'exit\r\n', content)
+
+    def test_sh_syntax(self) -> None:
+        self.test_concurrent_logging(use_sh_syntax=True)
 
     def test_rotation(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -516,6 +547,7 @@ class TestLogger(BaseTest):
                     'SRT_LOG_TERMINAL=' + str(fake_tty),
                 ] + self.logger + [
                     '--filename=',
+                    '--sh-syntax',
                     '--',
                     'cat',
                 ],
@@ -537,7 +569,11 @@ class TestLogger(BaseTest):
             assert stdout is not None
 
             with stdout:
-                stdout.read()
+                content = stdout.read()
+                self.assertEqual(
+                    content.split(b'\n')[-2:],
+                    [b'SRT_LOGGER_READY=1', b''],
+                )
 
             stderr = proc.stderr
             assert stderr is not None
@@ -563,6 +599,7 @@ class TestLogger(BaseTest):
                     '--filename=log',
                     '--identifier', 'test-srt-logger',
                     '--log-directory', tmpdir,
+                    '--sh-syntax',
                     '--use-journal',
                 ],
                 stdin=subprocess.PIPE,
@@ -583,7 +620,11 @@ class TestLogger(BaseTest):
             assert stdout is not None
 
             with stdout:
-                stdout.read()
+                content = stdout.read()
+                self.assertEqual(
+                    content.split(b'\n')[-2:],
+                    [b'SRT_LOGGER_READY=1', b''],
+                )
 
             stderr = proc.stderr
             assert stderr is not None
