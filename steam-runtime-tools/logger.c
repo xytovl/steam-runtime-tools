@@ -929,8 +929,25 @@ _srt_logger_modify_environ (SrtLogger *self,
   if (self->terminal != NULL)
     envp = g_environ_setenv (envp, "SRT_LOG_TERMINAL", self->terminal, TRUE);
 
-  if (self->journal_fd >= 0)
-    envp = g_environ_setenv (envp, "SRT_LOG_TO_JOURNAL", "1", TRUE);
+  /* SRT_LOG_TO_JOURNAL makes steam-runtime-tools utilities log to the
+   * Journal *exclusively* (without sending their diagnostic messages
+   * to stderr), so only do that if there is no other log destination
+   * active. */
+  if (self->file_fd < 0
+      && self->journal_fd >= 0
+      && self->terminal_fd < 0
+      && !self->use_stderr)
+    {
+      envp = g_environ_setenv (envp, "SRT_LOG_TO_JOURNAL", "1", TRUE);
+    }
+  /* If we are outputting to the Journal and at least one other destination,
+   * ensure that s-r-t utilities will output to our pipe so that we can send
+   * their messages to all destinations. */
+  else if (self->journal_fd >= 0)
+    {
+      envp = g_environ_setenv (envp, "SRT_LOG_TO_JOURNAL", "0", TRUE);
+      envp = g_environ_setenv (envp, "SRT_LOGGER_USE_JOURNAL", "1", TRUE);
+    }
 
   return g_steal_pointer (&envp);
 }

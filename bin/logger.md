@@ -158,12 +158,20 @@ final log messages during shutdown to be recorded.
     terminal device.
     If set to the empty string, the effect is the same as
     **--no-auto-terminal**.
+    If output to the terminal is enabled, **srt-logger** also sets this
+    environment variable for the *COMMAND*.
 
-`SRT_LOG_TO_JOURNAL`
-:   If set to `1`, log to the systemd Journal if available.
+`SRT_LOG_TO_JOURNAL`, `SRT_LOGGER_USE_JOURNAL`
+:   If either is set to `1`, log to the systemd Journal if available.
     As well as redirecting diagnostic output from **srt-logger** itself,
     this has an effect similar to adding
     **--use-journal** to all **srt-logger** invocations.
+    If output to the Journal is enabled, **srt-logger** also sets
+    **SRT_LOGGER_USE_JOURNAL=1** for the *COMMAND*,
+    and may set **SRT_LOG_TO_JOURNAL=0** in order to ensure that child
+    processes that are part of the steam-runtime-tools suite do not write
+    directly to the Journal, which would cause them to bypass the
+    **srt-logger**.
 
 `STEAM_CLIENT_LOG_FOLDER`
 :   A path relative to `~/.steam/steam` to be used as a default log
