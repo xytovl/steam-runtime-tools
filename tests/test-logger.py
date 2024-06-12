@@ -8,6 +8,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 
@@ -53,6 +54,14 @@ class TestLogger(BaseTest):
                     self.top_builddir,
                     'bin',
                     'srt-logger'
+                ),
+            ]
+            self.supervisor = self.command_prefix + [
+                'env',
+                os.path.join(
+                    self.top_builddir,
+                    'bin',
+                    'steam-runtime-supervisor'
                 ),
             ]
         else:
@@ -604,6 +613,94 @@ class TestLogger(BaseTest):
             content = stderr.read()
             logger.info('%s', content.decode('utf-8', 'replace'))
             self.assertIn(b'hello, world\n', content)
+
+    def test_supervisor(self, terminate=False) -> None:
+        '''\
+        srt-logger can be used to log the output of s-r-supervisor.
+
+        steamrt/tasks#460
+        '''
+
+        if terminate:
+            # When sh(1) exits, the supervisor will send SIGTERM to any
+            # other subprocesses (in this case sleep 300) immediately,
+            # then after waiting 1 second it will escalate to SIGKILL.
+            supervisor_args = [
+                '--terminate-timeout=1',
+            ]
+            # The main process leaks a child process so that there is
+            # something for the supervisor to clean up.
+            child_shell_script = (
+                'sleep 300 & echo "Main process <<$$>> exiting"'
+            )
+            # Logger has to put itself in the background so that it will
+            # not be a child of the supervisor, which would cause the
+            # supervisor to send SIGTERM to the logger, resulting in the
+            # loss of any messages that are still buffered in memory, and
+            # then SIGPIPE or EPIPE if the supervisor or any surviving
+            # supervised process tries to send additional log messages.
+        else:
+            # The supervisor will not terminate child processes, but will
+            # just wait passively for them to exit.
+            supervisor_args = []
+            child_shell_script = 'echo "Main process <<$$>> exiting"'
+            # Logger has to put itself in the background so that it will
+            # not be a child of the supervisor, which would cause the
+            # supervisor to wait for the logger to exit; but the logger
+            # cannot exit until the supervisor has finished sending its
+            # diagnostic messages to the supervisor, which is a deadlock.
+
+        start_time = time.time()
+        proc = subprocess.Popen(
+            self.logger + [
+                '--background',
+                '--filename=',
+                '--',
+            ] + self.supervisor + [
+                '--subreaper',
+            ] + supervisor_args + [
+                '--',
+                'sh',
+                '-c', child_shell_script,
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        stdout = proc.stdout
+        assert stdout is not None
+
+        with stdout:
+            content = stdout.read()
+            logger.info('%s', content.decode('utf-8', 'replace'))
+            self.assertEqual(content, b'')
+
+        stderr = proc.stderr
+        assert stderr is not None
+
+        proc.wait()
+
+        with stderr:
+            content = stderr.read()
+            logger.info('%s', content.decode('utf-8', 'replace'))
+            self.assertIn(b'Main process <<', content)
+            self.assertIn(b'>> exiting\n', content)
+
+        end_time = time.time()
+        # The whole test should take less than a second, but allow longer
+        # to accommodate slow/heavily-loaded test systems.
+        # It should certainly not take as long as the 5 minutes that it
+        # will take for the sleep(1) process to exit without being killed.
+        self.assertLess(end_time - start_time, 30)
+
+    def test_supervisor_terminate(self) -> None:
+        '''\
+        srt-logger and s-r-supervisor --terminate-timeout can be combined.
+
+        steamrt/tasks#460
+        '''
+        self.test_supervisor(terminate=True)
 
     def test_terminal(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
