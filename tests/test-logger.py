@@ -446,6 +446,7 @@ class TestLogger(BaseTest):
         ):
             proc = subprocess.Popen(
                 self.logger + ['--filename='] + args,
+                env={**os.environ, 'NO_COLOR': '1'},
                 stdin=subprocess.PIPE,
                 stdout=STDERR_FILENO,
                 stderr=subprocess.PIPE,
@@ -830,6 +831,7 @@ class TestLogger(BaseTest):
                     '--',
                     'cat',
                 ],
+                env={**os.environ, 'NO_COLOR': '1'},
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -881,6 +883,7 @@ class TestLogger(BaseTest):
                     '--sh-syntax',
                     '--use-journal',
                 ],
+                env={**os.environ, 'NO_COLOR': '1'},
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -946,6 +949,7 @@ class TestLogger(BaseTest):
                     '--filename=three',
                     '--log-directory', tmpdir,
                 ],
+                env={**os.environ, 'NO_COLOR': '1'},
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,

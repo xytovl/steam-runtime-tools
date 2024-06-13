@@ -100,6 +100,7 @@ struct _SrtLogger {
   unsigned use_journal : 1;
   unsigned use_stderr : 1;
   unsigned use_terminal : 1;
+  unsigned use_terminal_colors : 1;
   unsigned parse_level_prefix : 1;
 };
 
@@ -516,6 +517,13 @@ _srt_logger_setup (SrtLogger *self,
           g_debug ("unable to find a terminal file descriptor");
           self->use_terminal = FALSE;
         }
+    }
+
+  if (self->use_terminal)
+    {
+      const char *no_color = g_getenv ("NO_COLOR");
+      if (no_color == NULL || g_str_equal (no_color, ""))
+        self->use_terminal_colors = TRUE;
     }
 
   if (self->terminal_fd >= 0 && self->terminal == NULL)
@@ -1063,6 +1071,56 @@ out:
   return ret;
 }
 
+static void
+write_formatted_line (int fd,
+                      int level,
+                      const char *line,
+                      size_t len)
+{
+  static const char ansi_reset[] = "\033[0m";
+  static const char ansi_dim[] = "\033[2m";
+  static const char ansi_bold[] = "\033[1m";
+  static const char ansi_bold_magenta[] = "\033[1;35m";
+  static const char ansi_bold_red[] = "\033[1;31m";
+
+  glnx_loop_write (fd, ansi_reset, strlen (ansi_reset));
+
+  switch (level) {
+    case LOG_DEBUG:
+      glnx_loop_write (fd, ansi_dim, strlen (ansi_dim));
+      break;
+    case LOG_INFO:
+      break;
+    case LOG_NOTICE:
+      glnx_loop_write (fd, ansi_bold, strlen (ansi_bold));
+      break;
+    case LOG_WARNING:
+      glnx_loop_write (fd, ansi_bold_magenta, strlen (ansi_bold_magenta));
+      break;
+    case LOG_ERR:
+    case LOG_CRIT:
+    case LOG_ALERT:
+    case LOG_EMERG:
+      glnx_loop_write (fd, ansi_bold_red, strlen (ansi_bold_red));
+      break;
+    default:
+      g_warning ("Unexpected log level: %d", level);
+      break;
+  }
+
+  if (len > 0 && line[len - 1] == '\n')
+    {
+      glnx_loop_write (fd, line, len - 1);
+      glnx_loop_write (fd, ansi_reset, strlen (ansi_reset));
+      glnx_loop_write (fd, "\n", 1);
+    }
+  else
+    {
+      glnx_loop_write (fd, line, len);
+      glnx_loop_write (fd, ansi_reset, strlen (ansi_reset));
+    }
+}
+
 /*
  * @self: The logger
  * @line: (array length=len): Pointer to the beginning or middle of
@@ -1083,7 +1141,12 @@ logger_process_partial_line (SrtLogger *self,
     glnx_loop_write (STDERR_FILENO, line, len);
 
   if (self->terminal_fd >= 0 && level <= self->terminal_level)
-    glnx_loop_write (self->terminal_fd, line, len);
+    {
+      if (self->use_terminal_colors)
+        write_formatted_line (self->terminal_fd, level, line, len);
+      else
+        glnx_loop_write (self->terminal_fd, line, len);
+    }
 }
 
 /*

@@ -290,6 +290,10 @@ a **#!/bin/sh** script.
 
 # ENVIRONMENT
 
+`NO_COLOR`
+:   If present and non-empty, disables all coloring of logs written to the
+    terminal.
+
 `SRT_LOG`
 :   A sequence of tokens separated by colons, spaces or commas
     affecting how diagnostic output from **srt-logger** itself is recorded.
