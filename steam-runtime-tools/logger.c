@@ -368,7 +368,7 @@ _srt_logger_setup (SrtLogger *self,
       g_debug ("opening new Journal stream: %s", self->identifier);
       self->journal_fd = _srt_journal_stream_fd (self->identifier,
                                                  LOG_INFO,
-                                                 FALSE,
+                                                 TRUE,
                                                  &journal_error);
 
       if (self->journal_fd < 0)
@@ -1165,7 +1165,12 @@ logger_process_complete_line (SrtLogger *self,
                               size_t len)
 {
   if (self->journal_fd >= 0 && level <= self->journal_level)
-    glnx_loop_write (self->journal_fd, line, len);
+    {
+      char prefix[] = {'<', '0', '>'};
+      prefix[1] += level;
+      glnx_loop_write (self->journal_fd, prefix, sizeof (prefix));
+      glnx_loop_write (self->journal_fd, line, len);
+    }
 
   if (self->file_fd >= 0 && level <= self->file_level)
     {
