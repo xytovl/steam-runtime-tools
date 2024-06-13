@@ -588,6 +588,34 @@ logger_child_setup_cb (void *user_data)
                                   LAUNCH_EX_FAILED);
 }
 
+static void
+show_daemonized_logger_pid (GString *status)
+{
+  size_t i;
+
+  for (i = 0; i < status->len; i++)
+    {
+      if ((i == 0 || status->str[i - 1] == '\n')
+          && g_str_has_prefix (status->str + i, "SRT_LOGGER_PID="))
+        {
+          /* Temporarily \0-terminate the line; we'll put back the
+           * newline afterwards */
+          char *newline = strchr (status->str + i, '\n');
+
+          if (newline != NULL)
+            *newline = '\0';
+
+          g_debug ("Background logger subprocess is process %s",
+                   status->str + i + strlen ("SRT_LOGGER_PID="));
+
+          if (newline != NULL)
+            *newline = '\n';
+
+          break;
+        }
+    }
+}
+
 /*
  * _srt_logger_run_subprocess:
  * @self: Parameters for how to carry out logging
@@ -728,6 +756,9 @@ _srt_logger_run_subprocess (SrtLogger *self,
 
   if (strlen (status->str) != status->len)
     return glnx_throw (error, "Status from srt-logger subprocess contains \\0");
+
+  if (self->background && _srt_util_is_debugging ())
+    show_daemonized_logger_pid (status);
 
   if (!_srt_string_ends_with (status, READY_MESSAGE))
     return glnx_throw (error, "Unable to parse status from srt-logger subprocess: %s", status->str);
@@ -952,7 +983,12 @@ _srt_logger_process (SrtLogger *self,
 
   if (self->sh_syntax)
     {
-      if (glnx_loop_write (*original_stdout, READY_MESSAGE, READY_MESSAGE_LEN) < 0)
+      g_autofree gchar *pid_str = NULL;
+
+      pid_str = g_strdup_printf ("SRT_LOGGER_PID=%" G_PID_FORMAT "\n", getpid ());
+
+      if (glnx_loop_write (*original_stdout, pid_str, strlen (pid_str)) < 0
+          || glnx_loop_write (*original_stdout, READY_MESSAGE, READY_MESSAGE_LEN) < 0)
         return glnx_throw_errno_prefix (error, "Unable to report ready");
     }
 

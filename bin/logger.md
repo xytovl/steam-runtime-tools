@@ -130,6 +130,16 @@ final log messages during shutdown to be recorded.
     This is mainly used to implement **--background**, but can also be used
     elsewhere.
 
+    If a line before the last starts with **SRT_LOGGER_PID=**, then it
+    is a shell-style assignment indicating the process ID of the process
+    that is responsible for logging (which might be a daemonized background
+    process).
+    The associated value might be quoted, and will need to be unquoted
+    according to **sh**(1) rules before use,
+    for example with GLib's **g_shell_unquote** or Python's **shlex.split**.
+
+    Other output may be produced in future versions of this tool.
+
 **--rotate** *BYTES*
 :   If the **--filename** would exceed *BYTES*, rename it to a different
     filename (for example `log.txt` becomes `log.previous.txt`)
