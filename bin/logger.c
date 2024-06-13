@@ -253,7 +253,9 @@ run (int argc,
         {
           /* Add SRT_LOG_TERMINAL, SRT_LOG_TO_JOURNAL to the environment
            * to be used for the subprocess */
-          subproc_environ = _srt_logger_modify_environ (logger, subproc_environ);
+          g_autoptr(SrtEnvOverlay) overlay = _srt_logger_get_environ (logger);
+
+          subproc_environ = _srt_env_overlay_apply (overlay, subproc_environ);
         }
       else
         {
