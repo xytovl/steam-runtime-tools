@@ -51,6 +51,10 @@ setup (Fixture *f,
   _srt_env_overlay_set (f->container_env, "STEAM_RUNTIME", NULL);
   _srt_env_overlay_inherit (f->container_env, "LD_PRELOAD");
   _srt_env_overlay_inherit (f->container_env, "FLATPAK_ID");
+  /* These are not syntactically valid shell variables, but they're allowed
+   * as environment variables */
+  _srt_env_overlay_set (f->container_env, "2weird", "starts with digit");
+  _srt_env_overlay_set (f->container_env, " ", "space");
 }
 
 static void
@@ -63,11 +67,32 @@ teardown (Fixture *f,
 }
 
 static void
+dump_envp (const char * const *envp)
+{
+  gsize i;
+
+  g_test_message ("Environment:");
+
+  if (envp == NULL || envp[0] == NULL)
+    {
+      g_test_message ("\t(empty)");
+      return;
+    }
+
+  for (i = 0; envp[i] != NULL; i++)
+    g_test_message ("\t%s", envp[i]);
+
+  g_test_message ("\t.");
+}
+
+static void
 test_apply (Fixture *f,
             gconstpointer context)
 {
   static const char * const expected[] =
   {
+    " =space",                              /* replaced */
+    "2weird=starts with digit",             /* replaced */
     "FLATPAK_ID=com.valvesoftware.Steam",   /* inherited */
     "G_MESSAGES_DEBUG=all",                 /* replaced */
     "LD_AUDIT=audit2.so",                   /* replaced */
@@ -81,6 +106,7 @@ test_apply (Fixture *f,
   envp = g_strdupv ((gchar **) initial_envp);
   envp = _srt_env_overlay_apply (f->container_env, envp);
   qsort (envp, g_strv_length (envp), sizeof (char *), _srt_indirect_strcmp0);
+  dump_envp (_srt_const_strv (envp));
   g_assert_cmpstrv (envp, (gchar **) expected);
 }
 
@@ -109,6 +135,8 @@ test_to_env0 (Fixture *f,
 {
   static const char * const expected[] =
   {
+    " =space",
+    "2weird=starts with digit",
     "G_MESSAGES_DEBUG=all",
     "LD_AUDIT=audit2.so",
     NULL
