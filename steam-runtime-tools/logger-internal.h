@@ -5,9 +5,24 @@
 
 #pragma once
 
+#include <syslog.h>
+
 #include "libglnx.h"
 
 #include "steam-runtime-tools/env-overlay-internal.h"
+
+/* Default least important level to write to files */
+#define SRT_SYSLOG_LEVEL_DEFAULT_FILE LOG_DEBUG
+/* Default least important level to write to the journal */
+#define SRT_SYSLOG_LEVEL_DEFAULT_JOURNAL LOG_DEBUG
+/* Default least important level to write to the terminal */
+#define SRT_SYSLOG_LEVEL_DEFAULT_TERMINAL LOG_INFO
+
+/* Default level to assign to lines with no <N> prefix */
+#define SRT_SYSLOG_LEVEL_DEFAULT_LINE LOG_INFO
+
+gboolean _srt_syslog_level_parse (const char *s,
+                                  int *out_level);
 
 typedef struct _SrtLogger SrtLogger;
 typedef struct _SrtLoggerClass SrtLoggerClass;
@@ -30,17 +45,22 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC (SrtLogger, g_object_unref)
 
 SrtLogger *_srt_logger_new_take (gchar *argv0,
                                  gboolean background,
+                                 int default_line_level,
                                  gchar *filename,
                                  int file_fd,
+                                 int file_level,
                                  gchar *identifier,
                                  gboolean journal,
                                  int journal_fd,
+                                 int journal_level,
                                  gchar *log_dir,
                                  goffset max_bytes,
                                  int original_stderr,
+                                 gboolean parse_level_prefix,
                                  gboolean sh_syntax,
                                  gboolean terminal,
-                                 int terminal_fd);
+                                 int terminal_fd,
+                                 int terminal_level);
 
 gboolean _srt_logger_run_subprocess (SrtLogger *self,
                                      const char *logger,
