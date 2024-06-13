@@ -1916,3 +1916,37 @@ _srt_string_read_fd_until_eof (GString *buf,
 
   return TRUE;
 }
+
+/*
+ * _srt_is_identifier:
+ * @name: A non-%NULL string
+ *
+ * Return whether @name meets the shared syntactic requirements for a POSIX
+ * shell variable, a C identifier, a D-Bus member name, etc.:
+ * an ASCII letter or underscore, followed by zero or more ASCII letters,
+ * digits and/or underscores.
+ *
+ * This function does not impose a length limit like g_dbus_is_member_name(),
+ * and does not check for domain-specific rules such as avoiding C or shell
+ * reserved words.
+ *
+ * Returns: %TRUE if @name is of the required form
+ */
+gboolean
+_srt_is_identifier (const char *name)
+{
+  const char *p;
+
+  g_return_val_if_fail (name != NULL, FALSE);
+
+  if (name[0] != '_' && !g_ascii_isalpha (name[0]))
+    return FALSE;
+
+  for (p = name + 1; *p != '\0'; p++)
+    {
+      if (*p != '_' && !g_ascii_isalnum (*p))
+        return FALSE;
+    }
+
+  return TRUE;
+}

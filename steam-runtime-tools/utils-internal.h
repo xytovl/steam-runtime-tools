@@ -620,3 +620,5 @@ _srt_string_ends_with (const GString *str,
   return (str->len >= len
           && strcmp (str->str + str->len - len, suffix) == 0);
 }
+
+gboolean _srt_is_identifier (const char *name);

@@ -1045,6 +1045,22 @@ test_hash_iter (Fixture *f,
     g_test_message ("(key) -> %s", v);
 }
 
+static void
+test_is_identifier (Fixture *f,
+                    gconstpointer context)
+{
+  g_assert_false (_srt_is_identifier (""));
+  g_assert_true (_srt_is_identifier ("_"));
+  g_assert_true (_srt_is_identifier ("a"));
+  g_assert_true (_srt_is_identifier ("A"));
+  g_assert_false (_srt_is_identifier ("9"));
+  g_assert_true (_srt_is_identifier ("if"));
+  g_assert_false (_srt_is_identifier ("0install"));
+  g_assert_true (_srt_is_identifier ("PATH"));
+  g_assert_true (_srt_is_identifier ("SDL_JOYSTICK_HIDAPI_PS4"));
+  g_assert_true (_srt_is_identifier ("__GLX_VENDOR_LIBRARY_NAME"));
+}
+
 typedef enum
 {
   LOGGING_TEST_BASIC = 0,
@@ -1656,6 +1672,8 @@ main (int argc,
               setup, test_gstring_replace, teardown);
   g_test_add ("/utils/hash-iter", Fixture, NULL,
               setup, test_hash_iter, teardown);
+  g_test_add ("/utils/is-identifier", Fixture, NULL,
+              setup, test_is_identifier, teardown);
   g_test_add ("/utils/logging", Fixture, NULL,
               setup, test_logging, teardown);
   g_test_add ("/utils/recursive_list", Fixture, NULL,
