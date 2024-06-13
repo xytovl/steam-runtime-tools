@@ -54,6 +54,7 @@ typedef enum
 
 int _srt_journal_stream_fd (const char *identifier,
                             int priority,
+                            gboolean enable_level_prefixes,
                             GError **error);
 
 gboolean _srt_util_set_glib_log_handler (const char *prgname,

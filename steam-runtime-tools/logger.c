@@ -284,6 +284,7 @@ _srt_logger_setup (SrtLogger *self,
       g_debug ("opening new Journal stream: %s", self->identifier);
       self->journal_fd = _srt_journal_stream_fd (self->identifier,
                                                  LOG_INFO,
+                                                 FALSE,
                                                  &journal_error);
 
       if (self->journal_fd < 0)

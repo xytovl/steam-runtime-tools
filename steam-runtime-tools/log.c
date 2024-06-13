@@ -111,6 +111,7 @@ no_sd_journal_stream_fd (const char *identifier,
 int
 _srt_journal_stream_fd (const char *identifier,
                         int priority,
+                        gboolean enable_level_prefixes,
                         GError **error)
 {
   glnx_autofd int fd = -1;
@@ -158,7 +159,7 @@ _srt_journal_stream_fd (const char *identifier,
       g_once_init_leave (&our_sd_journal_stream_fd, sym);
     }
 
-  fd = our_sd_journal_stream_fd (identifier, priority, FALSE);
+  fd = our_sd_journal_stream_fd (identifier, priority, enable_level_prefixes);
 
   if (fd < 0)
     {
@@ -189,7 +190,7 @@ _srt_stdio_to_journal (const char *identifier,
 
   g_return_val_if_fail (target_fd >= 0, -1);
 
-  fd = _srt_journal_stream_fd (identifier, priority, error);
+  fd = _srt_journal_stream_fd (identifier, priority, FALSE, error);
 
   if (fd < 0)
     return FALSE;
