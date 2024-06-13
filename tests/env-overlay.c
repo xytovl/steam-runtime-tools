@@ -162,6 +162,98 @@ test_to_env0 (Fixture *f,
   g_assert_null (expected[i]);
 }
 
+static void
+test_to_shell (Fixture *f,
+               gconstpointer context)
+{
+  static const char * const expected_names[] =
+  {
+    "G_MESSAGES_DEBUG",
+    "LD_AUDIT",
+    "STEAM_RUNTIME",
+    "TMPDIR",
+    NULL
+  };
+  static const char * const expected_values[] =
+  {
+    "all",
+    "audit2.so",
+    NULL,
+    NULL,
+  };
+  g_autoptr(SrtEnvOverlay) parsed = NULL;
+  g_autoptr(GList) vars = NULL;
+  g_autofree gchar *sh = _srt_env_overlay_to_shell (f->container_env);
+  g_auto(GStrv) lines = NULL;
+  gsize i;
+  GList *iter;
+
+  g_test_message ("%s", sh);
+
+  /* Parse the resulting shell script, like a subset of eval(1posix) */
+  parsed = _srt_env_overlay_new ();
+  lines = g_strsplit (sh, "\n", -1);
+
+  for (i = 0; lines[i] != NULL; i++)
+    {
+      g_autoptr(GError) error = NULL;
+      gboolean ok;
+      int argc;
+      g_auto(GStrv) argv = NULL;
+      const char *name;
+      const char *value;
+
+      if (lines[i][0] == '\0')
+        continue;
+
+      ok = g_shell_parse_argv (lines[i], &argc, &argv, &error);
+      g_assert_no_error (error);
+      g_assert_true (ok);
+      g_assert_cmpint (argc, ==, 2);
+
+      if (g_strcmp0 (argv[0], "export") == 0)
+        {
+          char *equals = strchr (argv[1], '=');
+
+          g_assert_nonnull (equals);
+          *equals = '\0';
+          name = argv[1];
+          value = equals + 1;
+        }
+      else
+        {
+          g_assert_cmpstr (argv[0], ==, "unset");
+          name = argv[1];
+          value = NULL;
+        }
+
+      g_assert_false (_srt_env_overlay_contains (parsed, name));
+      _srt_env_overlay_set (parsed, name, value);
+    }
+
+  /* Assert that the result is what we expect */
+  vars = _srt_env_overlay_get_vars (parsed);
+
+  for (i = 0, iter = vars;
+       i < G_N_ELEMENTS (expected_names);
+       i++, iter = iter->next)
+    {
+      if (expected_names[i] == NULL)
+        {
+          g_assert_null (iter);
+          break;
+        }
+      else
+        {
+          g_assert_nonnull (iter);
+          g_assert_cmpstr ((const char *) iter->data, ==, expected_names[i]);
+          g_assert_cmpstr (_srt_env_overlay_get (parsed, iter->data),
+                           ==,
+                           expected_values[i]);
+        }
+    }
+}
+
 int
 main (int argc,
       char **argv)
@@ -173,6 +265,8 @@ main (int argc,
               setup, test_apply, teardown);
   g_test_add ("/env-overlay/to-env0", Fixture, NULL,
               setup, test_to_env0, teardown);
+  g_test_add ("/env-overlay/to-shell", Fixture, NULL,
+              setup, test_to_shell, teardown);
 
   return g_test_run ();
 }

@@ -566,6 +566,65 @@ _srt_env_overlay_to_env0 (SrtEnvOverlay *self)
   return g_byte_array_free_to_bytes (arr);
 }
 
+/*
+ * _srt_env_overlay_to_shell:
+ * @self: Variables to set and unset
+ *
+ * Return all of the variables set by @self, as a buffer in a format
+ * that could be evaluated by a POSIX shell using `sh -c` or the
+ * `eval` builtin.
+ *
+ * Variables that are set to a value are output in the form
+ * `export NAME=VALUE` followed by a newline, with *VALUE* quoted if required.
+ *
+ * Variables that are unset are output in the form `unset NAME` followed
+ * by a newline.
+ *
+ * Variables whose names would not be acceptable in shell syntax are ignored.
+ *
+ * Inherited variables are ignored.
+ *
+ * Returns: (transfer full): a shell script
+ */
+gchar *
+_srt_env_overlay_to_shell (SrtEnvOverlay *self)
+{
+  GString *buf = NULL;
+  g_autoptr(GList) vars = NULL;
+  const GList *iter;
+
+  g_return_val_if_fail (self != NULL, NULL);
+
+  buf = g_string_new ("");
+  vars = _srt_env_overlay_get_vars (self);
+
+  for (iter = vars; iter != NULL; iter = iter->next)
+    {
+      const char *name = iter->data;
+      const char *value = g_hash_table_lookup (self->values, name);
+
+      if (!_srt_is_identifier (name))
+        {
+          g_debug ("Cannot export variable \"%s\": not a valid shell variable",
+                   name);
+          continue;
+        }
+
+      if (value != NULL)
+        {
+          g_autofree gchar *escaped = g_shell_quote (value);
+
+          g_string_append_printf (buf, "export %s=%s\n", name, escaped);
+        }
+      else
+        {
+          g_string_append_printf (buf, "unset %s\n", name);
+        }
+    }
+
+  return g_string_free (buf, FALSE);
+}
+
 static gboolean
 opt_env_cb (const char *option_name,
             const gchar *value,
