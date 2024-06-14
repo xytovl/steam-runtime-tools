@@ -33,13 +33,9 @@ endif
 # Ideally we'd use /usr/lib/os-release here, but scout doesn't have that
 suite := $(shell . /etc/os-release; echo $$VERSION_CODENAME)
 is_scout := false
-enabled_unless_heavy := enabled
 ifeq ($(suite),scout)
 export DEB_BUILD_PROFILES += pkg.steamrt.scout
 is_scout := true
-else ifeq ($(suite),heavy)
-export DEB_BUILD_PROFILES += pkg.steamrt.heavy
-enabled_unless_heavy := disabled
 endif
 
 %:
@@ -76,7 +72,7 @@ override_dh_auto_configure:
 		-Dmultiarch_tuple=$(DEB_HOST_MULTIARCH) \
 		-Dpressure_vessel=$(is_scout) \
 		-Dsrcdir=src \
-		-Dui=$(enabled_unless_heavy) \
+		-Dui=enabled \
 		-Dversion=$(DEB_VERSION) \
 		$(meson_options) \
 	; then \
