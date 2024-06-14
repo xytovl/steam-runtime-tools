@@ -26,16 +26,10 @@ Steam games:
 
 - The [traditional Steam Runtime][ldlp],
     implemented in terms of `LD_LIBRARY_PATH`.
-    Instances of this can be found in
-    `~/.steam/root/ubuntu12_32/steam-runtime` and
-    `~/.steam/root/ubuntu12_64/steam-runtime-heavy` in a working Steam
-    installation.
+    In a working Steam installation,
     `~/.steam/root/ubuntu12_32/steam-runtime` provides
     [Steam Runtime 1 'scout'][scout],
-    based on Ubuntu 12.04.
-    `~/.steam/root/ubuntu12_64/steam-runtime-heavy` provides
-    [Steam Runtime 1½ 'heavy'][heavy],
-    based on Debian 8.
+    based on Ubuntu 12.04, as a `LD_LIBRARY_PATH` runtime.
 
 - The [container runtime framework][container runtime],
     implemented in terms of containers launched by the pressure-vessel tool.
@@ -317,7 +311,7 @@ single `ld.so.cache`.
 The operating system should not edit the Steam Runtime in-place or
 attempt to disable it.
 
-For the `LD_LIBRARY_PATH`-based 'scout' and 'heavy' runtimes, the
+For the `LD_LIBRARY_PATH`-based 'scout' runtime, the
 operating system may provide shared libraries that are newer than
 the corresponding libraries in the Steam Runtime, backwards-compatible
 with the Steam Runtime libraries, and have the same `DT_SONAME` ELF header.
@@ -467,7 +461,7 @@ On entry to Steam code, the following environment variables should
 
 * `STEAM_RUNTIME` *(debug) (internal)*
 * `STEAM_RUNTIME_SCOUT` *(debug)*
-* `STEAM_RUNTIME_HEAVY` *(debug)*
+* `STEAM_RUNTIME_HEAVY` *(debug) (obsolete)*
 * `STEAM_RUNTIME_DEBUG` *(debug)*
 * `STEAM_RUNTIME_DEBUG_DIR` *(debug)*
 * `STEAM_RUNTIME_LIBRARY_PATH` *(internal)*
@@ -666,7 +660,6 @@ container runtime on a new distribution, in particular:
 [bubblewrap]: https://github.com/containers/bubblewrap
 [container runtime]: container-runtime.md
 [eudev]: https://github.com/eudev-project/eudev
-[heavy]: https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/heavy/README.md
 [ldlp]: ld-library-path-runtime.md
 [libcapsule]: https://gitlab.collabora.com/vivek/libcapsule
 [libudev0-shim]: https://github.com/archlinux/libudev0-shim

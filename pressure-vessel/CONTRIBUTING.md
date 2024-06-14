@@ -59,7 +59,3 @@ in scout, which are pretty old.
 
 The scout build environment has backports of Python 3.5 and Meson, so we
 can rely on those at build-time.
-
-If we gain a dependency on glibc 2.19 or other newer libraries, we'll have
-to increase the build environment to SteamRT 1½ 'heavy', and backport
-Python 3.5 and Meson to 'heavy'.

@@ -78,8 +78,8 @@ This uses **$SHELL** if available in the container, falling back to
     that is running inside a Steam Linux Runtime container, so that
     the *COMMAND* is run outside the container in approximately the
     same execution environment as the script that launches the Steam client.
-    The Steam Runtime 1 'scout' and Steam Runtime 1½ 'heavy' library
-    stacks that are used to run major components of the Steam client will
+    The Steam Runtime 1 'scout' library stack that is
+    used to run major components of the Steam client will
     usually **not** be present in the **LD_LIBRARY_PATH** for commands
     run like this.
 

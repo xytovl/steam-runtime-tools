@@ -101,15 +101,10 @@ recorded at FOSDEM 2020: [Containers and Steam][].
 
 ## The `heavy` runtime
 
-The `steamwebhelper` component that is used for the Steam user interface
-requires newer libraries than the ones available in `scout`.
-To avoid destabilizing `scout`, it has its own set of libraries,
+Historically, the `steamwebhelper` component that is used for the Steam
+user interface used a newer `LD_LIBRARY_PATH` runtime,
 referred to as Steam Runtime 1½ `heavy`.
-
-This behaves in the same way as the `scout` runtime, but it contains
-fewer libraries (only the ones that are needed for the `steamwebhelper`),
-and it is newer than `scout` (it's based on Debian 8 instead of
-Ubuntu 12.04).
+It is now obsolete and is no longer included in Steam.
 
 Documentation in the `steamrt` "metapackage" provides
 [more information about heavy][heavy].
