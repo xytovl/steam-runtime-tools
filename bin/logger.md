@@ -138,6 +138,13 @@ final log messages during shutdown to be recorded.
     according to **sh**(1) rules before use,
     for example with GLib's **g_shell_unquote** or Python's **shlex.split**.
 
+    If a line before the last starts with **export** or **unset** followed
+    by a space, then it indicates an environment variable that should be
+    set or unset for processes that are writing their output to this
+    logger, to ensure that any **srt-logger** child processes direct their
+    log output to appropriate destinations.
+    The associated value for an **export** might be quoted, as above.
+
     Other output may be produced in future versions of this tool.
 
 **--rotate** *BYTES*

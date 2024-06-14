@@ -984,11 +984,16 @@ _srt_logger_process (SrtLogger *self,
 
   if (self->sh_syntax)
     {
+      g_autoptr(SrtEnvOverlay) overlay = NULL;
+      g_autofree gchar *shell_str = NULL;
       g_autofree gchar *pid_str = NULL;
 
+      overlay = _srt_logger_get_environ (self);
+      shell_str = _srt_env_overlay_to_shell (overlay);
       pid_str = g_strdup_printf ("SRT_LOGGER_PID=%" G_PID_FORMAT "\n", getpid ());
 
-      if (glnx_loop_write (*original_stdout, pid_str, strlen (pid_str)) < 0
+      if (glnx_loop_write (*original_stdout, shell_str, strlen (shell_str)) < 0
+          || glnx_loop_write (*original_stdout, pid_str, strlen (pid_str)) < 0
           || glnx_loop_write (*original_stdout, READY_MESSAGE, READY_MESSAGE_LEN) < 0)
         return glnx_throw_errno_prefix (error, "Unable to report ready");
     }
@@ -1067,7 +1072,11 @@ _srt_logger_get_environ (SrtLogger *self)
 {
   g_autoptr(SrtEnvOverlay) overlay = _srt_env_overlay_new ();
 
-  if (self->terminal != NULL)
+  /* The terminal filename is extremely unlikely to include a newline,
+   * but if it did, that would break our line-oriented output format...
+   * so disallow that. */
+  if (self->terminal != NULL
+      && G_LIKELY (strchr (self->terminal, '\n') == NULL))
     _srt_env_overlay_set (overlay, "SRT_LOG_TERMINAL", self->terminal);
 
   /* SRT_LOG_TO_JOURNAL makes steam-runtime-tools utilities log to the
