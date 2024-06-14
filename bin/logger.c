@@ -170,6 +170,9 @@ run (int argc,
   option_context = g_option_context_new ("[COMMAND [ARGUMENTS...]]");
   g_option_context_add_main_entries (option_context, option_entries, NULL);
 
+  if (_srt_boolean_environment ("SRT_LOGGER_USE_JOURNAL", FALSE))
+    opt_use_journal = TRUE;
+
   if (!g_option_context_parse (option_context, &argc, &argv, error))
     return FALSE;
 
