@@ -831,7 +831,7 @@ class Main:
             *[x for x in usr_share.glob('locale/*') if x.name != 'en'],
         ]
 
-        if self.runtime.suite not in ('scout', 'heavy', 'soldier', 'sniper'):
+        if self.runtime.suite not in ('scout', 'soldier', 'sniper'):
             paths.extend(directory.glob('files/lib/*/dri'))
 
         for path in paths:

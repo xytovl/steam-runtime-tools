@@ -87,7 +87,7 @@ class TestPressureVessel(unittest.TestCase):
         # and the runtime(s).
         self.depot = os.path.abspath('depot')
 
-        # Apt suite used for the runtime (scout, heavy or soldier).
+        # Apt suite used for the runtime (scout, soldier or something newer).
         # Default: scout
         self.suite = os.getenv(
             'TEST_CONTAINER_RUNTIME_SUITE', 'scout'
@@ -538,8 +538,6 @@ class TestPressureVessel(unittest.TestCase):
 
             if self.suite == 'scout':
                 self.assertEqual('1', parsed['os-release']['version_id'])
-            elif self.suite == 'heavy':
-                self.assertEqual('1.5', parsed['os-release']['version_id'])
             elif self.suite == 'soldier':
                 self.assertEqual('2', parsed['os-release']['version_id'])
 
@@ -556,10 +554,6 @@ class TestPressureVessel(unittest.TestCase):
 
         for arch in self.dpkg_architectures:
             if arch == 'i386':
-                if self.suite == 'heavy':
-                    # heavy doesn't fully support i386
-                    continue
-
                 multiarch = 'i386-linux-gnu'
             elif arch == 'amd64':
                 multiarch = 'x86_64-linux-gnu'
