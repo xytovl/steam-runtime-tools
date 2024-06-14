@@ -56,6 +56,16 @@ class TestLogger(BaseTest):
                     'srt-logger'
                 ),
             ]
+            self.logger_procsubst = self.command_prefix + [
+                'env',
+                'G_TEST_BUILDDIR=%s/tests' % self.top_builddir,
+                'G_TEST_SRCDIR=%s/tests' % self.top_srcdir,
+                os.path.join(
+                    self.top_srcdir,
+                    'tests',
+                    'logger-procsubst.sh'
+                ),
+            ]
             self.supervisor = self.command_prefix + [
                 'env',
                 os.path.join(
@@ -460,6 +470,79 @@ class TestLogger(BaseTest):
                 logger.info('%s', content.decode('utf-8', 'replace'))
                 self.assertIn(b'Prompt> ', content)
                 self.assertIn(b'exit\r\n', content)
+
+    def test_process_substitution(self, make_it_fail=False) -> None:
+        '''\
+        The logger can be attached to a shell script via process substitution.
+        '''
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with open(str(Path(tmpdir, 'log.txt')), 'w'):
+                pass
+
+            if make_it_fail:
+                args = ['-d', '/nonexistent']
+            else:
+                args = ['-d', tmpdir]
+
+            # We use STDERR_FILENO as a mock terminal here.
+            args.append('--filename=log.txt')
+            args.append('--no-auto-terminal')
+            args.append('--terminal-fd=%d' % STDERR_FILENO)
+            args.append('--use-journal')
+
+            proc = subprocess.Popen(
+                self.logger_procsubst + args,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+
+            proc.wait()
+
+            stdout = proc.stdout
+            assert stdout is not None
+
+            with stdout:
+                content = stdout.read()
+
+                logger.info('stdout: %s', content.decode('utf-8'))
+
+                if make_it_fail:
+                    self.assertEqual(content, b'emitted from stdout\n')
+
+            stderr = proc.stderr
+            assert stderr is not None
+
+            with stderr:
+                content = stderr.read()
+
+                logger.info('stderr: %s', content.decode('utf-8'))
+
+                if not make_it_fail:
+                    self.assertIn(b'emitted from stdout', content)
+
+                self.assertIn(b'EMITTED FROM STDERR', content)
+
+            # Take an exclusive lock on the log file to give the logger
+            # time to exit too
+            proc = subprocess.Popen(
+                self.test_adverb + [
+                    '--exclusive-lock', str(Path(tmpdir, 'log.txt')),
+                ],
+                stdout=STDERR_FILENO,
+                stderr=STDERR_FILENO,
+            )
+            proc.wait()
+
+            if not make_it_fail:
+                with open(str(Path(tmpdir, 'log.txt')), 'rb') as reader:
+                    content = reader.read()
+                    self.assertIn(b'emitted from stdout\n', content)
+                    self.assertIn(b'EMITTED FROM STDERR\n', content)
+
+    def test_process_substitution_fail(self) -> None:
+        self.test_process_substitution(make_it_fail=True)
 
     def test_sh_syntax(self) -> None:
         self.test_concurrent_logging(use_sh_syntax=True)
