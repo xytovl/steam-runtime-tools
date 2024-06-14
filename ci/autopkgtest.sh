@@ -38,12 +38,6 @@ case "$(. /usr/lib/os-release; echo "${VERSION_CODENAME-${VERSION}}")" in
         set -- python3.5 "$tempdir/autopkgtest/runner/autopkgtest"
         ;;
 
-    (heavy)
-        apt-get install -y python3-debian
-        git clone --branch steam/for-ci "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.steamos.cloud/packaging/autopkgtest.git" "$tempdir/autopkgtest"
-        set -- python3 "$tempdir/autopkgtest/runner/autopkgtest"
-        ;;
-
     (*)
         apt-get install -y python3-debian autopkgtest
         set -- autopkgtest
