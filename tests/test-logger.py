@@ -58,6 +58,77 @@ class TestLogger(BaseTest):
         else:
             self.skipTest('Not available as an installed-test')
 
+    def test_background(self, cat=False, use_sh_syntax=False) -> None:
+        args = []
+
+        if use_sh_syntax:
+            args.append('--sh-syntax')
+
+        if cat:
+            args.append('--')
+            args.extend(self.test_adverb)
+            args.append('--assert-no-children')
+            args.append('--')
+            args.append('cat')
+
+        proc = subprocess.Popen(
+            self.logger + [
+                '--background',
+                '--filename=',
+            ] + args,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        stdin = proc.stdin
+        assert stdin is not None
+
+        stdout = proc.stdout
+        assert stdout is not None
+
+        stderr = proc.stderr
+        assert stderr is not None
+
+        # It daemonizes (but we can't easily wait for this if there's a
+        # cat subprocess)
+        if not cat:
+            proc.wait()
+
+        # We can wait for it to be ready
+        with stdout:
+            content = stdout.read()
+
+            if use_sh_syntax:
+                self.assertEqual(
+                    content.split(b'\n')[-2:],
+                    [b'SRT_LOGGER_READY=1', b''],
+                )
+            else:
+                self.assertEqual(content, b'')
+
+        with stdin:
+            stdin.write(b'hello, world\n')
+
+        with stderr:
+            content = stderr.read()
+            logger.info('stderr: %s', content.decode('utf-8', 'replace'))
+            self.assertIn(b'hello, world\n', content)
+
+        if cat:
+            proc.wait()
+
+        self.assertEqual(proc.returncode, 0)
+
+    def test_background_cat(self) -> None:
+        self.test_background(cat=True)
+
+    def test_background_cat_sh_syntax(self) -> None:
+        self.test_background(cat=True, use_sh_syntax=True)
+
+    def test_background_sh_syntax(self) -> None:
+        self.test_background(use_sh_syntax=True)
+
     def test_concurrent_logging(self, use_sh_syntax=False) -> None:
         '''
         If there is more than one writer for the same log file, rotation
