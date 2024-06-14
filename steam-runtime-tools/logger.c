@@ -953,6 +953,9 @@ _srt_logger_process (SrtLogger *self,
                      GError **error)
 {
   char buf[LINE_MAX + 1] = { 0 };
+  /* The portion of the filled buffer that has already been given to
+   * logger_process_partial_line (always <= filled) */
+  size_t already_processed_partial_line = 0;
   size_t filled = 0;
   ssize_t res;
 
@@ -1009,16 +1012,21 @@ _srt_logger_process (SrtLogger *self,
       if (res < 0)
         return glnx_throw_errno_prefix (error, "Error reading standard input");
 
-      logger_process_partial_line (self, buf + filled, (size_t) res);
-
       /* We never touch the last byte of buf while reading */
       filled += (size_t) res;
       g_assert (filled < sizeof (buf));
 
       while (filled > 0)
         {
-          char *end_of_line = memchr (buf, '\n', filled);
+          char *end_of_line = NULL;
           size_t len;
+
+          g_assert (already_processed_partial_line <= filled);
+
+          /* Skip the parts of the line we know don't have a newline */
+          end_of_line = memchr (buf + already_processed_partial_line,
+                                '\n',
+                                filled - already_processed_partial_line);
 
           /* If we have read LINE_MAX bytes with no newline, or we reached
            * EOF with no newline at the end, give up and truncate it;
@@ -1037,7 +1045,16 @@ _srt_logger_process (SrtLogger *self,
           /* Length of the first logical line, including the newline */
           len = end_of_line - buf + 1;
 
+          /* Since already_processed_partial_line is covering parts that have
+           * no newline (because otherwise, it wouldn't be partially
+           * processed!), it should always be less than len, which includes the
+           * trailing newline. */
+          g_assert (already_processed_partial_line < len);
+          logger_process_partial_line (self,
+                                       buf + already_processed_partial_line,
+                                       len - already_processed_partial_line);
           logger_process_complete_line (self, buf, len);
+          already_processed_partial_line = 0;
 
           if (filled > len)
             {
@@ -1050,6 +1067,16 @@ _srt_logger_process (SrtLogger *self,
               /* All bytes have been drained */
               filled = 0;
             }
+        }
+
+      if (filled > already_processed_partial_line)
+        {
+          /* There is still some leftover content in the buffer that doesn't
+           * make up a complete line; process it now */
+          logger_process_partial_line (self,
+                                       buf + already_processed_partial_line,
+                                       filled - already_processed_partial_line);
+          already_processed_partial_line = filled;
         }
     }
   while (res > 0);
