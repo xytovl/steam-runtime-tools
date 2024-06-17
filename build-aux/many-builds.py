@@ -152,7 +152,6 @@ class Environment:
 
         self.oci_images = {
             'scout': 'registry.gitlab.steamos.cloud/steamrt/scout/sdk:beta',
-            'heavy': '',
             'soldier': (
                 'registry.gitlab.steamos.cloud/steamrt/soldier/sdk:beta'
             ),
@@ -180,7 +179,7 @@ class Environment:
                 if not self.oci_images[suite]:
                     continue
 
-                if suite in ('scout', 'heavy'):
+                if suite == 'scout':
                     version = 'latest-steam-client-public-beta'
                 else:
                     version = 'latest-container-runtime-public-beta'

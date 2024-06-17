@@ -11,15 +11,15 @@ echo "Acquire::Languages \"none\";" > /etc/apt/apt.conf.d/90nolanguages
 echo 'force-unsafe-io' > /etc/dpkg/dpkg.cfg.d/autopkgtest
 
 if [ -e "$STEAMRT_CI_APT_AUTH_CONF" ]; then
-    # We can't use /etc/apt/auth.conf.d in scout or heavy, only in >= soldier.
+    # We can't use /etc/apt/auth.conf.d in scout, only in >= soldier.
     # It can be root:root in apt >= 1.5~beta2 (>= soldier) or in
-    # apt << 1.1~exp8 (scout and heavy).
+    # apt << 1.1~exp8 (scout).
     chown root:root "$STEAMRT_CI_APT_AUTH_CONF"
     chmod 0600 "$STEAMRT_CI_APT_AUTH_CONF"
 
     # shellcheck source=/dev/null
     case "$(. /usr/lib/os-release; echo "${VERSION_CODENAME-${VERSION}}")" in
-        (*scout*|heavy)
+        (*scout*)
             ln -fns "$STEAMRT_CI_APT_AUTH_CONF" /etc/apt/auth.conf
             ;;
         (*)
@@ -31,12 +31,6 @@ fi
 
 # shellcheck source=/dev/null
 case "$(. /usr/lib/os-release; echo "${VERSION_CODENAME-${VERSION}}")" in
-    (heavy)
-        if [ -n "${HEAVY_APT_SOURCES_FILE-}" ]; then
-            cp "${HEAVY_APT_SOURCES_FILE}" /etc/apt/sources.list
-        fi
-        ;;
-
     (soldier)
         if [ -n "${SOLDIER_APT_SOURCES_FILE-}" ]; then
             cp "${SOLDIER_APT_SOURCES_FILE}" /etc/apt/sources.list

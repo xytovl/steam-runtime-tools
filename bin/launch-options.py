@@ -53,7 +53,6 @@ assert sys.version_info >= (3, 4), 'Python 3.4+ is required for this script'
 # variously referred to as 'linux' or 'ubuntu12_32' by Steam.
 RUNTIMES = [
     'scout',    # Steam Runtime 1 'scout', based on Ubuntu 12.04
-    'heavy',    # Steam Runtime 1½ 'heavy', based on Debian 8
     'soldier',  # Steam Runtime 2 'soldier', based on Debian 10
     'sniper',   # Steam Runtime 3 'sniper', based on Debian 11
     'medic',    # Steam Runtime 4 'medic', provisionally based on Debian 12
@@ -233,12 +232,7 @@ class LdlpRuntime(Runtime):
             logger.debug('Failed to get LDLP runtime version', exc_info=True)
             version = ''
 
-        if version.startswith('steam-runtime-heavy_'):
-            version = 'heavy ' + version[len('steam-runtime-heavy_'):]
-
-            if not self.provides:
-                self.provides = 'heavy'
-        elif version.startswith('steam-runtime_'):
+        if version.startswith('steam-runtime_'):
             version = 'scout ' + version[len('steam-runtime_'):]
 
             if not self.provides:
@@ -313,7 +307,6 @@ class ContainerRuntime(Runtime):
 
         return {
             'scout': 1,
-            'heavy': 1.5,
             'soldier': 2,
             'sniper': 3,
             'medic': 4,
@@ -1242,7 +1235,7 @@ class Gui:
 
                 continue
 
-            if member in ('steam-runtime', 'steam-runtime-heavy'):
+            if member == 'steam-runtime':
                 logger.debug(
                     'Discovered possible LD_LIBRARY_PATH runtime: %s', path,
                 )

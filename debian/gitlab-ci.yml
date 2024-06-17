@@ -43,10 +43,6 @@ variables:
     SCOUT_DOCKER_IMAGE: steamrt/scout/sdk:beta
     SCOUT_I386_DOCKER_IMAGE: steamrt/scout/sdk/i386:beta
     SCOUT_APT_SOURCES_FILE: 'ci/scout.sources.list'
-    # There's no public Docker image for heavy right now
-    HEAVY_DOCKER_REGISTRY: ''
-    HEAVY_DOCKER_IMAGE: ''
-    HEAVY_APT_SOURCES_FILE: ''
     SOLDIER_DOCKER_REGISTRY: '${CI_REGISTRY}'
     SOLDIER_DOCKER_IMAGE: steamrt/soldier/sdk:beta
     SOLDIER_APT_SOURCES_FILE: ''
@@ -145,14 +141,6 @@ package:i386:
     variables:
         BUILD_IMAGE: '${SCOUT_DOCKER_REGISTRY}/${SCOUT_I386_DOCKER_IMAGE}'
         STEAM_CI_DEB_BUILD: any     # debuild --build=any, aka -B
-
-package:heavy:
-    extends: .build_deb
-    rules:
-        - if: '$HEAVY_DOCKER_REGISTRY != "" && $HEAVY_DOCKER_IMAGE != ""'
-    variables:
-        BUILD_IMAGE: '${HEAVY_DOCKER_REGISTRY}/${HEAVY_DOCKER_IMAGE}'
-        STEAM_CI_DEB_BUILD: full
 
 package:soldier:
     extends: .build_deb
