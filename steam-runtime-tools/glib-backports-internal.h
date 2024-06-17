@@ -26,11 +26,6 @@
 
 #include <libglnx.h>
 
-#if !GLIB_CHECK_VERSION(2, 70, 0)
-/* In GLib 2.34 to 2.68, this was available under a misleading name */
-#define g_spawn_check_wait_status g_spawn_check_exit_status
-#endif
-
 #if !GLIB_CHECK_VERSION(2, 64, 0)
 #if defined(G_HAVE_ISO_VARARGS) && (!defined(G_ANALYZER_ANALYZING) || !G_ANALYZER_ANALYZING)
 #define g_warning_once(...) \
@@ -59,4 +54,9 @@ guint my_g_string_replace (GString *string,
                            const gchar *find,
                            const gchar *replace,
                            guint limit);
+#endif
+
+#if !GLIB_CHECK_VERSION(2, 70, 0)
+/* In GLib 2.34 to 2.68, this was available under a misleading name */
+#define g_spawn_check_wait_status g_spawn_check_exit_status
 #endif
