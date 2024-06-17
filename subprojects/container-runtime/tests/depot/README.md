@@ -55,7 +55,7 @@ Testing a different runtime
 ---------------------------
 
 If you have a different runtime unpacked into `depot/`, for example
-in `depot/heavy/files`, set the environment variables
+in `depot/soldier/files`, set the environment variables
 `TEST_CONTAINER_RUNTIME_SUITE` (the default is `scout`) and/or
 `TEST_CONTAINER_RUNTIME_ARCHITECTURES` (the default is `amd64,i386`).
 
@@ -63,7 +63,7 @@ If using `autopkgtest`, you will need to set the environment variables
 in the test system, like this:
 
     autopkgtest \
-    --env=TEST_CONTAINER_RUNTIME_SUITE=heavy \
+    --env=TEST_CONTAINER_RUNTIME_SUITE=soldier \
     --env=TEST_CONTAINER_RUNTIME_ARCHITECTURES=amd64 \
     ...
 
