@@ -1,3 +1,14 @@
+steam-runtime-tools (0.20240618.0) UNRELEASED; urgency=medium
+
+  * srt-logger:
+    - Don't set SRT_LOG_TO_JOURNAL if there are other log destinations
+      (steamrt/tasks#466)
+  * Documentation, CI, build-aux:
+    - Update to reflect removal of Steam Runtime 1½ 'heavy'
+      (steamrt/tasks#468)
+
+ -- Simon McVittie <smcv@collabora.com>  Tue, 18 Jun 2024 13:47:20 +0100
+
 steam-runtime-tools (0.20240610.0) steamrt; urgency=medium
 
   * srt-logger:
