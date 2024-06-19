@@ -4,8 +4,11 @@
 
 import logging
 import os
+import os.path
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -37,6 +40,8 @@ class TestDialogUi(BaseTest):
                 'steam-runtime-dialog-ui',
             ),
         ]
+
+        self.home = Path(os.path.expanduser('~'))
 
     def test_error(self) -> None:
         proc = subprocess.Popen(
@@ -149,6 +154,62 @@ class TestDialogUi(BaseTest):
 
         proc.wait()
         self.assertEqual(proc.returncode, 0)
+
+    def test_steam_fonts(self) -> None:
+        fonts_rel = '.steam/steam/clientui/fonts'
+        regular_base = 'GoNotoKurrent-Regular.ttf'
+        bold_base = 'GoNotoKurrent-Bold.ttf'
+        regular_src = self.home / fonts_rel / regular_base
+        bold_src = self.home / fonts_rel / bold_base
+
+        if not regular_src.exists():
+            self.skipTest(
+                'Please copy ~/%s/%s from a Steam installation' % (
+                    fonts_rel, regular_base,
+                )
+            )
+
+        if not bold_src.exists():
+            self.skipTest(
+                'Please copy ~/%s/%s from a Steam installation' % (
+                    fonts_rel, bold_base,
+                )
+            )
+
+        with tempfile.TemporaryDirectory() as temp_str:
+            temp = Path(temp_str)
+            fonts_dir = temp / fonts_rel
+            fonts_dir.mkdir(parents=True)
+            regular = fonts_dir / regular_base
+            bold = fonts_dir / bold_base
+            shutil.copy(regular_src, regular)
+            shutil.copy(bold_src, bold)
+
+            for test_case in [
+                "Using Steam's fonts",
+                "Using Steam's regular font only",
+                'Using system sans-serif font',
+            ]:
+                if test_case == "Using Steam's regular font only":
+                    bold.unlink()
+
+                if test_case == 'Using system sans-serif font':
+                    regular.unlink()
+
+                proc = subprocess.Popen(
+                    [
+                        'env',
+                        'HOME=' + temp_str,
+                    ] + self.dialog_ui + [
+                        '--info',
+                        "--text=%s [\u0d9e]" % test_case,
+                        "--title=%s [\u0d9e]" % test_case,
+                    ],
+                    stdout=STDERR_FILENO,
+                    stderr=STDERR_FILENO,
+                )
+                proc.wait()
+                self.assertEqual(proc.returncode, 0)
 
     def tearDown(self) -> None:
         super().tearDown()
