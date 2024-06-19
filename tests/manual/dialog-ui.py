@@ -135,12 +135,17 @@ class TestDialogUi(BaseTest):
         stdin = proc.stdin
         assert stdin is not None
 
-        with stdin:
-            time.sleep(5)
-            stdin.write(b'pulsate:false\n')
-            stdin.write(b'100\n')
-            stdin.write(b'#Press any key or mouse or gamepad button to exit\n')
-            stdin.flush()
+        try:
+            with stdin:
+                time.sleep(5)
+                stdin.write(b'pulsate:false\n')
+                stdin.write(b'100\n')
+                stdin.write(
+                    b'#Press any key or mouse or gamepad button to exit\n'
+                )
+                stdin.flush()
+        except BrokenPipeError:
+            pass
 
         proc.wait()
         self.assertEqual(proc.returncode, 0)
