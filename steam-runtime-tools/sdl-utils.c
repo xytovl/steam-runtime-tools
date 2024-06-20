@@ -6,7 +6,11 @@
 #include "sdl-utils-internal.h"
 #include "sdl-ttf-utils-internal.h"
 
+#include <errno.h>
+#include <pwd.h>
 #include <stdbool.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include <dbus/dbus.h>
 #include <fontconfig/fontconfig.h>
@@ -38,14 +42,101 @@ static bool global_ttf_inited = false;
 static bool global_fontconfig_inited = false;
 
 /*
+ * Like SDL_strdup, but sets error if it returns NULL.
+ */
+static inline char *sdl_strdup_or_set_error(const char *s)
+{
+    char *ret;
+
+    if (s == NULL) {
+        SDL_InvalidParamError("s");
+        return NULL;
+    }
+
+    ret = SDL_strdup(s);
+
+    if (ret == NULL) {
+        SDL_OutOfMemory();
+    }
+
+    return ret;
+}
+
+/*
+ * Like g_get_home_dir(), but with SDL_malloc and SDL_SetError.
+ */
+static char *get_home_dir(char *buf,
+                          size_t len)
+{
+    const char *home = NULL;
+    struct passwd pwd;
+    struct passwd *result;
+    uid_t uid;
+
+    home = SDL_getenv("HOME");
+
+    if (home != NULL) {
+        return sdl_strdup_or_set_error(home);
+    }
+
+    uid = getuid();
+
+    if (getpwuid_r(uid, &pwd, buf, len, &result) != 0) {
+        SDL_SetError("Failed to look up uid %lu: %s", (unsigned long) uid, strerror(errno));
+        return NULL;
+    }
+
+    if (result == NULL) {
+        SDL_SetError("uid %lu not found in system user database", (unsigned long) uid);
+        return NULL;
+    }
+
+    if (result->pw_dir == NULL) {
+        SDL_SetError("uid %lu has no home directory", (unsigned long) uid);
+    }
+
+    return sdl_strdup_or_set_error(result->pw_dir);
+}
+
+TTF_Font *ttf_load_steam_ui_font(const char *basename,
+                                 int size)
+{
+    __attribute__((cleanup(clear_font))) TTF_Font *font = NULL;
+    __attribute__((cleanup(clear_sdl_free))) char *home = NULL;
+    autofree char *filename = NULL;
+    /* Arbitrary size, probably enough for a line from /etc/passwd */
+    char buf[4096];
+
+    home = get_home_dir(buf, sizeof(buf));
+
+    if (home == NULL) {
+        return NULL;
+    }
+
+    if (asprintf(&filename, "%s/.steam/steam/clientui/fonts/%s", home, basename) < 0) {
+        SDL_SetError("%s", strerror(errno));
+        return NULL;
+    }
+
+    font = TTF_OpenFontIndex(filename, size, 0);
+
+    if (font == NULL) {
+        SDL_SetError ("Couldn't load font \"%s\" #0", filename);
+        return NULL;
+    }
+
+    return steal_pointer(&font);
+}
+
+/*
  * Use fontconfig and SDL_ttf to load @family in style @style.
  * (Is it really meant to be this complicated?)
  *
  * Returns: NULL with SDL error set on failure
  */
-TTF_Font *ttf_load_font(const char *family,
-                        const char *style,
-                        int size)
+TTF_Font *ttf_load_font_family(const char *family,
+                               const char *style,
+                               int size)
 {
     __attribute__((cleanup(clear_config))) FcConfig *config = NULL;
     __attribute__((cleanup(clear_pattern))) FcPattern *pattern = NULL;

@@ -25,6 +25,11 @@ void global_shutdown_sdl (void);
 #define prefix_sdl_error(format, ...) \
   SDL_SetError(format ": %s", ## __VA_ARGS__, SDL_GetError())
 
+static inline void clear_sdl_free(char **p)
+{
+    clear_pointer(p, SDL_free);
+}
+
 static inline void clear_renderer(SDL_Renderer **p)
 {
     clear_pointer(p, SDL_DestroyRenderer);
