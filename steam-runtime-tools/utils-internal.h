@@ -603,3 +603,20 @@ goffset _srt_byte_suffix_to_multiplier (const char *suffix);
 gboolean _srt_string_read_fd_until_eof (GString *buf,
                                         int fd,
                                         GError **error);
+
+/*
+ * _srt_string_ends_with:
+ * @str: A #GString
+ * @suffix: A suffix
+ *
+ * Returns: %TRUE if @str ends with @suffix
+ */
+static inline gboolean
+_srt_string_ends_with (const GString *str,
+                       const char *suffix)
+{
+  size_t len = strlen (suffix);
+
+  return (str->len >= len
+          && strcmp (str->str + str->len - len, suffix) == 0);
+}

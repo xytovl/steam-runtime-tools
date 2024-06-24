@@ -1480,6 +1480,45 @@ test_str_is_integer (Fixture *f,
   g_assert_false (_srt_str_is_integer ("23a"));
 }
 
+static const struct
+{
+  const char *str;
+  ssize_t len;
+  const char *suffix;
+  gboolean expected;
+} string_ends[] =
+{
+  { "", 0, "", TRUE },
+  { "bar", -1, "bar", TRUE },
+  { "foobar", -1, "bar", TRUE },
+  { "foobar", -1, "BAR", FALSE },
+  { "foo\0bar", 7, "ar", TRUE },
+  { "foo\0bar", 7, "aa", FALSE },
+};
+
+static void
+test_string_ends_with (Fixture *f,
+                       gconstpointer context)
+{
+  size_t i;
+
+  for (i = 0; i < G_N_ELEMENTS (string_ends); i++)
+    {
+      g_autoptr(GString) str = NULL;
+      gboolean result;
+
+      str = g_string_new_len (string_ends[i].str, string_ends[i].len);
+      result = _srt_string_ends_with (str, string_ends[i].suffix);
+      g_test_message ("#%zu \"%s\" ends with \"%s\": %c, expected: %c",
+                      i,
+                      string_ends[i].len < 0 ? string_ends[i].str : "<not null-terminated>",
+                      string_ends[i].suffix,
+                      result ? 'y' : 'n',
+                      string_ends[i].expected ? 'y' : 'n');
+      g_assert_cmpint (result, ==, string_ends[i].expected);
+    }
+}
+
 static void
 test_string_read_fd_until_eof (Fixture *f,
                                gconstpointer context)
@@ -1627,6 +1666,8 @@ main (int argc,
               setup, test_same_file, teardown);
   g_test_add ("/utils/str_is_integer", Fixture, NULL,
               setup, test_str_is_integer, teardown);
+  g_test_add ("/utils/string_ends_with", Fixture, NULL,
+              setup, test_string_ends_with, teardown);
   g_test_add ("/utils/string_read_fd_until_eof", Fixture, NULL,
               setup, test_string_read_fd_until_eof, teardown);
   g_test_add ("/utils/uevent-field", Fixture, NULL,
