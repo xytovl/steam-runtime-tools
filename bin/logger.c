@@ -25,6 +25,7 @@ static int opt_journal_fd = -1;
 static gchar *opt_log_directory = NULL;
 static int opt_log_fd = -1;
 static goffset opt_max_bytes = 8 * MEBIBYTE;
+static gboolean opt_sh_syntax = FALSE;
 static int opt_terminal_fd = -1;
 static gboolean opt_use_journal = FALSE;
 static unsigned opt_verbose = 0;
@@ -99,6 +100,11 @@ static const GOptionEntry option_entries[] =
     "Rotate log.txt to log.previous.txt after logging this many bytes, "
     "with optional MB, MiB (= M), kB or KiB (= K) suffix [default: 8M]",
     "BYTES" },
+  { "sh-syntax", '\0',
+    G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_sh_syntax,
+    "Print shell expressions ending with \"SRT_LOGGER_READY=1\\n\" on "
+    "standard output when ready",
+    NULL },
   { "terminal-fd", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_INT, &opt_terminal_fd,
     "An open file descriptor pointing to the terminal",
@@ -222,6 +228,7 @@ run (int argc,
                                  g_steal_pointer (&opt_log_directory),
                                  opt_max_bytes,
                                  g_steal_fd (&original_stderr),
+                                 opt_sh_syntax,
                                  opt_auto_terminal,
                                  opt_terminal_fd);
 

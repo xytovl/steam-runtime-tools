@@ -108,6 +108,16 @@ final log messages during shutdown to be recorded.
     Otherwise, if `$SRT_LOG_TERMINAL` is set, the default is to copy logged
     messages to that terminal.
 
+**--sh-syntax**
+:   Write machine-readable output to standard output.
+    The output format is line-oriented, can be parsed by **eval**(1posix),
+    and on success the last line will be exactly **SRT_LOGGER_READY=1**
+    followed by a newline.
+    When this option is used, if standard output is closed without any
+    output, that indicates that the logger failed to initialize.
+    If this happens, diagnostic messages will be written to standard error
+    as usual.
+
 **--rotate** *BYTES*
 :   If the **--filename** would exceed *BYTES*, rename it to a different
     filename (for example `log.txt` becomes `log.previous.txt`)

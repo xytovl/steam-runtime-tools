@@ -35,6 +35,7 @@ SrtLogger *_srt_logger_new_take (gchar *argv0,
                                  gchar *log_dir,
                                  goffset max_bytes,
                                  int original_stderr,
+                                 gboolean sh_syntax,
                                  gboolean terminal,
                                  int terminal_fd);
 
