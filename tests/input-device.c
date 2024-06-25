@@ -977,7 +977,7 @@ static const GuessTest guess_tests[] =
       .keys = {
           /* 0x00-0xff */ ZEROx8, ZEROx8, ZEROx8, ZEROx8,
           /* ABC, XYZ, TL, TR, TL2, TR2, select, start, mode, thumbl,
-           * thumbr */
+           * thumbr; note that C and Z don't physically exist */
           /* 0x100 */ ZEROx4, 0x00, 0x00, 0xff, 0x7f,
       },
     },
