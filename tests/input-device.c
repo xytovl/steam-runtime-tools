@@ -628,6 +628,7 @@ typedef struct
   guint16 vendor_id;
   guint16 product_id;
   guint16 version;
+  guint16 usb_device_version;
   guint8 ev[(EV_MAX + 1) / 8];
   guint8 keys[(KEY_MAX + 1) / 8];
   guint8 abs[(ABS_MAX + 1) / 8];
