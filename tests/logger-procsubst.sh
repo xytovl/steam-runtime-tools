@@ -19,28 +19,28 @@ debug () {
 redirect_log () {
     local SRT_LOGGER_PID
     local SRT_LOGGER_READY
-    local fifo_dir
+    local fifo
     local from_stdout
     local to_stdin
 
-    fifo_dir=$(mktemp -d)
-    mkfifo "$fifo_dir/status"
+    fifo=$("$G_TEST_BUILDDIR/../bin/srt-logger" --mkfifo)
 
     exec {to_stdin}> >(
         # blocks until parent opens the fifo for reading, then allows
         # the srt-logger to proceed
-        exec > "$fifo_dir/status"
+        exec > "$fifo"
 
         exec "$G_TEST_BUILDDIR/../bin/srt-logger" --background --sh-syntax "$@"
     )
 
     # blocks until child opens the fifo for writing, then allows the
     # parent to proceed
-    exec {from_stdout}< "$fifo_dir/status"
+    exec {from_stdout}< "$fifo"
 
     # the temporary directory no longer needs to exist after both sides
     # have opened it
-    rm -fr "$fifo_dir"
+    rm -f "$fifo"
+    rmdir "${fifo%/*}"
 
     debug "Reading from child stdout $from_stdout"
     output="$(cat <&${from_stdout})"

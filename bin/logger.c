@@ -13,6 +13,8 @@
 #include "steam-runtime-tools/logger-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
 
+#include "logger-mkfifo.h"
+
 #define THIS_PROGRAM "srt-logger"
 
 #define MEBIBYTE 1024 * 1024
@@ -26,6 +28,7 @@ static int opt_journal_fd = -1;
 static gchar *opt_log_directory = NULL;
 static int opt_log_fd = -1;
 static goffset opt_max_bytes = 8 * MEBIBYTE;
+static gboolean opt_mkfifo = FALSE;
 static gboolean opt_sh_syntax = FALSE;
 static int opt_terminal_fd = -1;
 static gboolean opt_use_journal = FALSE;
@@ -97,6 +100,10 @@ static const GOptionEntry option_entries[] =
     G_OPTION_FLAG_NONE, G_OPTION_ARG_INT, &opt_log_fd,
     "An open file descriptor pointing to the --filename",
     "FD" },
+  { "mkfifo", '\0',
+    G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_mkfifo,
+    "Instead of logging, create a fifo(7) and output its absolute path.",
+    NULL },
   { "no-auto-terminal", '\0',
     G_OPTION_FLAG_REVERSE, G_OPTION_ARG_NONE, &opt_auto_terminal,
     "Don't try to discover a terminal automatically.",
@@ -212,6 +219,9 @@ run (int argc,
     return FALSE;
 
   _srt_unblock_signals ();
+
+  if (opt_mkfifo)
+    return srt_logger_mkfifo (original_stdout, argc, argv, error);
 
   /* Ignore SIGPIPE so that on error writing to any log sink, we continue
    * to try to write to the others (if any). If we are running a subprocess,

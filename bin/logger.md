@@ -19,6 +19,8 @@ srt-logger - record logs
 [**--**]
 [*COMMAND* [*ARGUMENTS...*]]
 
+**srt-logger --mkfifo**
+
 # DESCRIPTION
 
 If run without a *COMMAND*, **srt-logger** reads from standard input
@@ -109,6 +111,23 @@ final log messages during shutdown to be recorded.
     **--filename** in the **--log-directory**.
     If this is done, it is likely to lead to unintended results and
     potentially loss of log messages during log rotation.
+
+**--mkfifo**
+:   Instead of carrying out logging, create a **fifo**(7) (named pipe)
+    in a subdirectory of any appropriate location, write its path to
+    standard output followed by a newline and exit.
+    This option cannot be combined with any other options.
+    It is primarily intended for use in portable shell scripts, to avoid
+    relying on external **mktemp**(1) and **mkfifo**(1) commands.
+    If the fifo is successfully created, the caller is responsible for
+    deleting both the fifo itself and its parent directory after use.
+    If **srt-logger** fails to create a fifo, no cleanup is required.
+    The current implementation for this option creates a subdirectory
+    with a random name in either **$XDG_RUNTIME_DIR**, **$TMPDIR**
+    or **/tmp**, similar to **mktemp -d**, then creates the fifo inside
+    that subdirectory.
+    If one of those directories cannot hold fifo objects, **srt-logger**
+    will show a warning and fall back to the next.
 
 **--no-auto-terminal**
 :   Don't copy logged messages to the terminal, if any.
@@ -235,6 +254,12 @@ are written to standard error.
 Additionally, if a terminal has been selected for logging, the same
 log messages are copied to that terminal.
 
+If **srt-logger --mkfifo** was used, then the only output on standard
+output is the absolute path to the fifo.
+
+Unstructured human-readable diagnostic messages are written to standard
+error if appropriate.
+
 # EXIT STATUS
 
 The exit status is similar to **env**(1):
@@ -261,6 +286,14 @@ Any value
 :   The *COMMAND* was killed by signal *n*.
     (This is the same encoding used by **bash**(1), **bwrap**(1) and
     **env**(1).)
+
+If invoked as **srt-logger --mkfifo**, instead the exit status is:
+
+0
+:   The fifo was created successfully.
+
+Any other value
+:   An error was encountered.
 
 # NOTES
 

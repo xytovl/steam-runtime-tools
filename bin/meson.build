@@ -87,6 +87,7 @@ srt_bin += executable(
   'srt-logger',
   sources: [
     'logger.c',
+    'logger-mkfifo.c',
   ],
   c_args : srt_c_args,
   dependencies : [
