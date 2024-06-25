@@ -633,7 +633,7 @@ typedef struct
   guint8 abs[(ABS_MAX + 1) / 8];
   guint8 rel[(REL_MAX + 1) / 8];
   guint8 ff[(FF_MAX + 1) / 8];
-  guint8 props[INPUT_PROP_MAX / 8];
+  guint8 props[(INPUT_PROP_MAX + 1) / 8];
   SrtInputDeviceTypeFlags expected;
   const char *todo;
   size_t hid_report_descriptor_length;
