@@ -2075,6 +2075,10 @@ static const GuessTest guess_tests[] =
     {
       .name = "Wiimote - Classic Controller",
       .eviocgname = "Nintendo Wii Remote Classic Controller",
+      .bus_type = 0x0005,
+      .vendor_id = 0x057e,
+      .product_id = 0x0306,
+      .version = 0x0600,
       .expected = (SRT_INPUT_DEVICE_TYPE_FLAGS_JOYSTICK
                    | SRT_INPUT_DEVICE_TYPE_FLAGS_HAS_KEYS),
       /* SYN, KEY, ABS */
