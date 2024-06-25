@@ -1,5 +1,6 @@
 usr/bin/steam-runtime-identify-library-abi
 usr/bin/steam-runtime-steam-remote
 usr/bin/steam-runtime-urlopen
+usr/libexec/steam-runtime-tools-0/logger-0.bash
 usr/libexec/steam-runtime-tools-0/srt-bwrap
 usr/libexec/steam-runtime-tools-0/srt-logger

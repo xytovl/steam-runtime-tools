@@ -66,6 +66,16 @@ class TestLogger(BaseTest):
                     'logger-procsubst.sh'
                 ),
             ]
+            self.logger_0 = self.command_prefix + [
+                'env',
+                'G_TEST_BUILDDIR=%s/tests' % self.top_builddir,
+                'G_TEST_SRCDIR=%s/tests' % self.top_srcdir,
+                os.path.join(
+                    self.top_srcdir,
+                    'tests',
+                    'logger-0.sh'
+                ),
+            ]
             self.supervisor = self.command_prefix + [
                 'env',
                 os.path.join(
@@ -471,10 +481,17 @@ class TestLogger(BaseTest):
                 self.assertIn(b'Prompt> ', content)
                 self.assertIn(b'exit\r\n', content)
 
-    def test_process_substitution(self, make_it_fail=False) -> None:
+    def test_process_substitution(
+        self,
+        make_it_fail=False,
+        script=[],
+    ) -> None:
         '''\
         The logger can be attached to a shell script via process substitution.
         '''
+
+        if not script:
+            script = self.logger_procsubst
 
         with tempfile.TemporaryDirectory() as tmpdir:
             with open(str(Path(tmpdir, 'log.txt')), 'w'):
@@ -492,7 +509,7 @@ class TestLogger(BaseTest):
             args.append('--use-journal')
 
             proc = subprocess.Popen(
-                self.logger_procsubst + args,
+                script + args,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -543,6 +560,15 @@ class TestLogger(BaseTest):
 
     def test_process_substitution_fail(self) -> None:
         self.test_process_substitution(make_it_fail=True)
+
+    def test_process_substitution_0(self) -> None:
+        self.test_process_substitution(script=self.logger_0)
+
+    def test_process_substitution_0_fail(self) -> None:
+        self.test_process_substitution(
+            make_it_fail=True,
+            script=self.logger_0,
+        )
 
     def test_sh_syntax(self) -> None:
         self.test_concurrent_logging(use_sh_syntax=True)

@@ -177,6 +177,18 @@ foreach script : sh_scripts
   )
 endforeach
 
+libexec_data = [
+  'logger-0.bash',
+]
+
+foreach file : libexec_data
+  install_data(
+    file,
+    install_dir : pkglibexecdir,
+    install_mode : 'rw-r--r--',
+  )
+endforeach
+
 libexec_scripts = [
   'launch-options.py',
 ]

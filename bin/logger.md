@@ -19,6 +19,9 @@ srt-logger - record logs
 [**--**]
 [*COMMAND* [*ARGUMENTS...*]]
 
+**source "${STEAM_RUNTIME}/usr/libexec/steam-runtime-tools-0/logger-0.bash"**
+[*OPTIONS*]
+
 **srt-logger --mkfifo**
 
 # DESCRIPTION
@@ -46,6 +49,16 @@ files used by **steam-runtime-tools** should be avoided.
 The name of this tool intentionally does not include **steam** so that
 it will not be killed by commands like **pkill steam**, allowing any
 final log messages during shutdown to be recorded.
+
+The convenience shell script fragment
+**usr/libexec/steam-runtime-tools-0/logger-0.bash**
+sets up a **srt-logger** instance to absorb log messages from a **bash**(1)
+script as a background subprocess, and sets appropriate environment variables
+for the rest of the script.
+This implies **--background**, and does not support
+**--exec-fallback**, **--sh-syntax** or a *COMMAND*.
+It makes use of **bash**(1) features and therefore cannot be used from
+a **#!/bin/sh** script.
 
 # OPTIONS
 
@@ -231,6 +244,10 @@ final log messages during shutdown to be recorded.
     directly to the Journal, which would cause them to bypass the
     **srt-logger**.
 
+`SRT_LOGGER`
+:   If set, **logger-0.bash** will use this instead of locating an
+    adjacent **srt-logger** executable automatically.
+
 `STEAM_CLIENT_LOG_FOLDER`
 :   A path relative to `~/.steam/steam` to be used as a default log
     directory if `$SRT_LOG_DIR` is unset.
@@ -322,5 +339,38 @@ and use **--background**:
     srt-logger --background --use-journal -t supervised-game -- \
     steam-runtime-supervisor --subreaper --terminate-timeout=5 -- \
     ./your-game
+
+In a **bash**(1) script that will run in the Steam Runtime 1 'scout'
+`LD_LIBRARY_PATH` environment, or on the host system with no particular
+compatibility tools:
+
+    #!/usr/bin/env bash
+    set -eu
+
+    # ... early setup ...
+
+    runtime="${STEAM_RUNTIME-"${STEAM_RUNTIME_SCOUT-"$HOME/.steam/root/ubuntu12_32/steam-runtime"}"}"
+
+    if ! source "$runtime/usr/libexec/steam-runtime-tools-0/logger-0.bash" -t this-script
+    then
+        echo "Unable to set up log files, continuing anyway" >&2
+    fi
+
+    # ... now everything written to stdout or stderr will be logged ...
+
+In a **bash**(1) script that will run in the Steam Linux Runtime 2.0 'soldier'
+or 3.0 'sniper' environment, this can be simplified to:
+
+    #!/bin/bash
+    set -eu
+
+    # ... early setup ...
+
+    if ! source "/usr/libexec/steam-runtime-tools-0/logger-0.bash" -t this-script
+    then
+        echo "Unable to set up log files, continuing anyway" >&2
+    fi
+
+    # ... now everything written to stdout or stderr will be logged ...
 
 <!-- vim:set sw=4 sts=4 et: -->
