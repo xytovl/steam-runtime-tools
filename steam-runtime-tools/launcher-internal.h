@@ -53,10 +53,6 @@ typedef enum
   ),
 } PvLaunchFlags;
 
-#if !GLIB_CHECK_VERSION (2, 47, 92)
-G_DEFINE_AUTOPTR_CLEANUP_FUNC (PvLauncher1Skeleton, g_object_unref)
-#endif
-
 /* Format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx */
 #define PV_UUID_STRLEN 36
 
