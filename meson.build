@@ -288,7 +288,6 @@ glib = dependency('glib-2.0', version : glib_required)
 gobject = dependency('gobject-2.0', version : glib_required)
 gio = dependency('gio-2.0', version : glib_required)
 gio_unix = dependency('gio-unix-2.0', version : glib_required)
-glib_tap_support = glib.version().version_compare('>=2.38')
 
 json_glib = dependency(
   'json-glib-1.0',

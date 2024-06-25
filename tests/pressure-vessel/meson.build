@@ -101,25 +101,14 @@ foreach test_info : compiled_tests
     include_directories : pv_include_dirs,
     install : false,
   )
-
-  if glib_tap_support
-    test(
-      test_name, exe,
-      args : ['--tap'],
-      depends : test_depends,
-      env : test_env,
-      protocol : 'tap',
-      suite : ['pressure-vessel'],
-    )
-  else
-    test(
-      test_name, exe,
-      depends : test_depends,
-      env : test_env,
-      suite : ['pressure-vessel'],
-    )
-  endif
-
+  test(
+    test_name, exe,
+    args : ['--tap'],
+    depends : test_depends,
+    env : test_env,
+    protocol : 'tap',
+    suite : ['pressure-vessel'],
+  )
 endforeach
 
 foreach test_name : tests

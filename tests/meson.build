@@ -453,25 +453,15 @@ foreach test_info : tests
     ]
   endif
 
-  if glib_tap_support
-    test(
-      test_name,
-      exe,
-      args : ['--tap'],
-      depends : test_depends,
-      env : test_env,
-      protocol : 'tap',
-      timeout : timeout,
-    )
-  else
-    test(
-      test_name,
-      exe,
-      depends : test_depends,
-      env : test_env,
-      timeout : timeout,
-    )
-  endif
+  test(
+    test_name,
+    exe,
+    args : ['--tap'],
+    depends : test_depends,
+    env : test_env,
+    protocol : 'tap',
+    timeout : timeout,
+  )
 endforeach
 
 lint_scripts = [
