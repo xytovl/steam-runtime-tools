@@ -1263,17 +1263,15 @@ populate_ld_preload (Fixture *f,
       if (preloads[i].warning != NULL)
         {
           old_fatal_mask = g_log_set_always_fatal (G_LOG_FATAL_MASK | G_LOG_LEVEL_CRITICAL);
-#if GLIB_CHECK_VERSION(2, 34, 0)
-          /* We can't check for the message during unit testing when
-           * compiling with GLib 2.32 from scout, but we can check for it
-           * in developer builds against a newer GLib. Note that this
-           * assumes pressure-vessel doesn't define G_LOG_USE_STRUCTURED,
-           * but that's a GLib 2.50 feature which we are unlikely to use
-           * while we are still building against scout. */
+          /* Note that this assumes pressure-vessel doesn't define
+           * G_LOG_USE_STRUCTURED, because g_test_expect_message() only
+           * works for the old unstructured logging API.
+           * If we want to start using G_LOG_USE_STRUCTURED, then we'll
+           * have to introduce some design-for-test to allow this warning
+           * to be trapped. */
           g_test_expect_message ("pressure-vessel",
                                  G_LOG_LEVEL_WARNING,
                                  preloads[i].warning);
-#endif
         }
 
       pv_wrap_append_preload (argv,
@@ -1288,9 +1286,7 @@ populate_ld_preload (Fixture *f,
       /* If we modified the fatal mask, put back the old value. */
       if (preloads[i].warning != NULL)
         {
-#if GLIB_CHECK_VERSION(2, 34, 0)
           g_test_assert_expected_messages ();
-#endif
           g_log_set_always_fatal (old_fatal_mask);
         }
     }
