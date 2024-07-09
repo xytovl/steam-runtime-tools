@@ -19,6 +19,11 @@ srt-logger - record logs
 [**--**]
 [*COMMAND* [*ARGUMENTS...*]]
 
+**source "${STEAM_RUNTIME}/usr/libexec/steam-runtime-tools-0/logger-0.bash"**
+[*OPTIONS*]
+
+**srt-logger --mkfifo**
+
 # DESCRIPTION
 
 If run without a *COMMAND*, **srt-logger** reads from standard input
@@ -44,6 +49,16 @@ files used by **steam-runtime-tools** should be avoided.
 The name of this tool intentionally does not include **steam** so that
 it will not be killed by commands like **pkill steam**, allowing any
 final log messages during shutdown to be recorded.
+
+The convenience shell script fragment
+**usr/libexec/steam-runtime-tools-0/logger-0.bash**
+sets up a **srt-logger** instance to absorb log messages from a **bash**(1)
+script as a background subprocess, and sets appropriate environment variables
+for the rest of the script.
+This implies **--background**, and does not support
+**--exec-fallback**, **--sh-syntax** or a *COMMAND*.
+It makes use of **bash**(1) features and therefore cannot be used from
+a **#!/bin/sh** script.
 
 # OPTIONS
 
@@ -110,6 +125,23 @@ final log messages during shutdown to be recorded.
     If this is done, it is likely to lead to unintended results and
     potentially loss of log messages during log rotation.
 
+**--mkfifo**
+:   Instead of carrying out logging, create a **fifo**(7) (named pipe)
+    in a subdirectory of any appropriate location, write its path to
+    standard output followed by a newline and exit.
+    This option cannot be combined with any other options.
+    It is primarily intended for use in portable shell scripts, to avoid
+    relying on external **mktemp**(1) and **mkfifo**(1) commands.
+    If the fifo is successfully created, the caller is responsible for
+    deleting both the fifo itself and its parent directory after use.
+    If **srt-logger** fails to create a fifo, no cleanup is required.
+    The current implementation for this option creates a subdirectory
+    with a random name in either **$XDG_RUNTIME_DIR**, **$TMPDIR**
+    or **/tmp**, similar to **mktemp -d**, then creates the fifo inside
+    that subdirectory.
+    If one of those directories cannot hold fifo objects, **srt-logger**
+    will show a warning and fall back to the next.
+
 **--no-auto-terminal**
 :   Don't copy logged messages to the terminal, if any.
     If standard error is a terminal, the default is to copy logged messages
@@ -137,6 +169,13 @@ final log messages during shutdown to be recorded.
     The associated value might be quoted, and will need to be unquoted
     according to **sh**(1) rules before use,
     for example with GLib's **g_shell_unquote** or Python's **shlex.split**.
+
+    If a line before the last starts with **export** or **unset** followed
+    by a space, then it indicates an environment variable that should be
+    set or unset for processes that are writing their output to this
+    logger, to ensure that any **srt-logger** child processes direct their
+    log output to appropriate destinations.
+    The associated value for an **export** might be quoted, as above.
 
     Other output may be produced in future versions of this tool.
 
@@ -205,6 +244,10 @@ final log messages during shutdown to be recorded.
     directly to the Journal, which would cause them to bypass the
     **srt-logger**.
 
+`SRT_LOGGER`
+:   If set, **logger-0.bash** will use this instead of locating an
+    adjacent **srt-logger** executable automatically.
+
 `STEAM_CLIENT_LOG_FOLDER`
 :   A path relative to `~/.steam/steam` to be used as a default log
     directory if `$SRT_LOG_DIR` is unset.
@@ -227,6 +270,12 @@ are written to standard error.
 
 Additionally, if a terminal has been selected for logging, the same
 log messages are copied to that terminal.
+
+If **srt-logger --mkfifo** was used, then the only output on standard
+output is the absolute path to the fifo.
+
+Unstructured human-readable diagnostic messages are written to standard
+error if appropriate.
 
 # EXIT STATUS
 
@@ -255,6 +304,14 @@ Any value
     (This is the same encoding used by **bash**(1), **bwrap**(1) and
     **env**(1).)
 
+If invoked as **srt-logger --mkfifo**, instead the exit status is:
+
+0
+:   The fifo was created successfully.
+
+Any other value
+:   An error was encountered.
+
 # NOTES
 
 If the **srt-logger** is to be combined with **steam-runtime-supervisor**(1)
@@ -282,5 +339,38 @@ and use **--background**:
     srt-logger --background --use-journal -t supervised-game -- \
     steam-runtime-supervisor --subreaper --terminate-timeout=5 -- \
     ./your-game
+
+In a **bash**(1) script that will run in the Steam Runtime 1 'scout'
+`LD_LIBRARY_PATH` environment, or on the host system with no particular
+compatibility tools:
+
+    #!/usr/bin/env bash
+    set -eu
+
+    # ... early setup ...
+
+    runtime="${STEAM_RUNTIME-"${STEAM_RUNTIME_SCOUT-"$HOME/.steam/root/ubuntu12_32/steam-runtime"}"}"
+
+    if ! source "$runtime/usr/libexec/steam-runtime-tools-0/logger-0.bash" -t this-script
+    then
+        echo "Unable to set up log files, continuing anyway" >&2
+    fi
+
+    # ... now everything written to stdout or stderr will be logged ...
+
+In a **bash**(1) script that will run in the Steam Linux Runtime 2.0 'soldier'
+or 3.0 'sniper' environment, this can be simplified to:
+
+    #!/bin/bash
+    set -eu
+
+    # ... early setup ...
+
+    if ! source "/usr/libexec/steam-runtime-tools-0/logger-0.bash" -t this-script
+    then
+        echo "Unable to set up log files, continuing anyway" >&2
+    fi
+
+    # ... now everything written to stdout or stderr will be logged ...
 
 <!-- vim:set sw=4 sts=4 et: -->

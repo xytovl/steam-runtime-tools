@@ -984,11 +984,16 @@ _srt_logger_process (SrtLogger *self,
 
   if (self->sh_syntax)
     {
+      g_autoptr(SrtEnvOverlay) overlay = NULL;
+      g_autofree gchar *shell_str = NULL;
       g_autofree gchar *pid_str = NULL;
 
+      overlay = _srt_logger_get_environ (self);
+      shell_str = _srt_env_overlay_to_shell (overlay);
       pid_str = g_strdup_printf ("SRT_LOGGER_PID=%" G_PID_FORMAT "\n", getpid ());
 
-      if (glnx_loop_write (*original_stdout, pid_str, strlen (pid_str)) < 0
+      if (glnx_loop_write (*original_stdout, shell_str, strlen (shell_str)) < 0
+          || glnx_loop_write (*original_stdout, pid_str, strlen (pid_str)) < 0
           || glnx_loop_write (*original_stdout, READY_MESSAGE, READY_MESSAGE_LEN) < 0)
         return glnx_throw_errno_prefix (error, "Unable to report ready");
     }
@@ -1053,23 +1058,26 @@ _srt_logger_process (SrtLogger *self,
 }
 
 /*
- * _srt_logger_modify_environ:
+ * _srt_logger_get_environ:
  * @self: The logger
- * @envp: (array zero-terminated=1) (transfer full): The environment to
- *  be used for the subprocess
  *
- * Modify the environment to be used for a subprocess, as if via
- * g_environ_setenv(), so that it will inherit the terminal and Journal
+ * Return modifications to be made to the environment to be used for a
+ * subprocess so that it will inherit the terminal and Journal
  * settings from this logger.
  *
- * Returns: (array zero-terminated=1) (transfer full): The new environment
+ * Returns: (transfer full): Modifications to the environment
  */
-gchar **
-_srt_logger_modify_environ (SrtLogger *self,
-                            gchar **envp)
+SrtEnvOverlay *
+_srt_logger_get_environ (SrtLogger *self)
 {
-  if (self->terminal != NULL)
-    envp = g_environ_setenv (envp, "SRT_LOG_TERMINAL", self->terminal, TRUE);
+  g_autoptr(SrtEnvOverlay) overlay = _srt_env_overlay_new ();
+
+  /* The terminal filename is extremely unlikely to include a newline,
+   * but if it did, that would break our line-oriented output format...
+   * so disallow that. */
+  if (self->terminal != NULL
+      && G_LIKELY (strchr (self->terminal, '\n') == NULL))
+    _srt_env_overlay_set (overlay, "SRT_LOG_TERMINAL", self->terminal);
 
   /* SRT_LOG_TO_JOURNAL makes steam-runtime-tools utilities log to the
    * Journal *exclusively* (without sending their diagnostic messages
@@ -1080,16 +1088,16 @@ _srt_logger_modify_environ (SrtLogger *self,
       && self->terminal_fd < 0
       && !self->use_stderr)
     {
-      envp = g_environ_setenv (envp, "SRT_LOG_TO_JOURNAL", "1", TRUE);
+      _srt_env_overlay_set (overlay, "SRT_LOG_TO_JOURNAL", "1");
     }
   /* If we are outputting to the Journal and at least one other destination,
    * ensure that s-r-t utilities will output to our pipe so that we can send
    * their messages to all destinations. */
   else if (self->journal_fd >= 0)
     {
-      envp = g_environ_setenv (envp, "SRT_LOG_TO_JOURNAL", "0", TRUE);
-      envp = g_environ_setenv (envp, "SRT_LOGGER_USE_JOURNAL", "1", TRUE);
+      _srt_env_overlay_set (overlay, "SRT_LOG_TO_JOURNAL", "0");
+      _srt_env_overlay_set (overlay, "SRT_LOGGER_USE_JOURNAL", "1");
     }
 
-  return g_steal_pointer (&envp);
+  return g_steal_pointer (&overlay);
 }

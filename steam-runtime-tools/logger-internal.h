@@ -7,6 +7,8 @@
 
 #include "libglnx.h"
 
+#include "steam-runtime-tools/env-overlay-internal.h"
+
 typedef struct _SrtLogger SrtLogger;
 typedef struct _SrtLoggerClass SrtLoggerClass;
 
@@ -51,5 +53,4 @@ gboolean _srt_logger_process (SrtLogger *self,
                               int *original_stdout,
                               GError **error);
 
-gchar **_srt_logger_modify_environ (SrtLogger *self,
-                                    gchar **envp);
+SrtEnvOverlay *_srt_logger_get_environ (SrtLogger *self);

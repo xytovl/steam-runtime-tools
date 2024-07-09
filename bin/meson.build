@@ -81,11 +81,13 @@ foreach bin_name : json_programs
 endforeach
 
 # Slightly different: different prefix (so that `pkill steam` will leave
-# it running for long enough to finish writing its log!)
+# it running for long enough to finish writing its log!),
+# and install in libexecdir
 srt_bin += executable(
   'srt-logger',
   sources: [
     'logger.c',
+    'logger-mkfifo.c',
   ],
   c_args : srt_c_args,
   dependencies : [
@@ -94,8 +96,9 @@ srt_bin += executable(
     libsteamrt_static_dep,
   ],
   install : true,
-  build_rpath : bin_rpath,
-  install_rpath : bin_rpath,
+  install_dir : pkglibexecdir,
+  build_rpath : pkglibexec_rpath,
+  install_rpath : pkglibexec_rpath,
 )
 
 # Slightly different: needs threads and pv_include_dirs
@@ -171,6 +174,18 @@ foreach script : sh_scripts
     rename : ['steam-runtime-' + script],
     install_dir : get_option('bindir'),
     install_mode : 'rwxr-xr-x',
+  )
+endforeach
+
+libexec_data = [
+  'logger-0.bash',
+]
+
+foreach file : libexec_data
+  install_data(
+    file,
+    install_dir : pkglibexecdir,
+    install_mode : 'rw-r--r--',
   )
 endforeach
 
