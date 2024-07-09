@@ -38,6 +38,7 @@
 #include "steam-runtime-tools/file-lock-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
 
+static gboolean opt_assert_no_children = FALSE;
 static gchar *opt_exclusive_lock = NULL;
 static gboolean opt_print_version = FALSE;
 static gboolean opt_ignore_sigchld = FALSE;
@@ -48,6 +49,9 @@ static gboolean opt_show_signal_dispositions = FALSE;
 
 static GOptionEntry options[] =
 {
+  { "assert-no-children", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE,
+    &opt_assert_no_children,
+    "Assert that we have no child processes", NULL },
   { "exclusive-lock", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_FILENAME,
     &opt_exclusive_lock,
     "Take an exclusive lock on PATH", "PATH" },
@@ -164,6 +168,23 @@ main (int argc,
     }
 
   ret = EX_OSERR;
+
+  if (opt_assert_no_children)
+    {
+      pid_t child;
+      int wstatus;
+
+      child = waitpid (-1, &wstatus, WNOHANG);
+      saved_errno = errno;
+
+      if (child == (pid_t) -1 && saved_errno == ECHILD)
+        g_printerr ("# OK: no child processes\n");
+      else if (child == (pid_t) -1)
+        g_error ("%s", g_strerror (saved_errno));
+      else
+        g_error ("Should not have had any child processes! (%" G_PID_FORMAT ")",
+                 child);
+    }
 
   if (opt_block_sigchld || opt_unblock_sigchld)
     {

@@ -18,6 +18,9 @@
 #include "steam-runtime-tools/missing-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
 
+static const char READY_MESSAGE[] = "SRT_LOGGER_READY=1\n";
+#define READY_MESSAGE_LEN (sizeof (READY_MESSAGE) - 1)
+
 struct _SrtLogger {
   GObject parent;
   const char *prgname;
@@ -28,13 +31,15 @@ struct _SrtLogger {
   gchar *new_filename;
   gchar *log_dir;
   gchar *terminal;
+  int child_ready_to_parent;
   int pipe_from_parent;
-  int original_stdout;
   int original_stderr;
   int file_fd;
   int journal_fd;
   int terminal_fd;
   goffset max_bytes;
+  unsigned background : 1;
+  unsigned sh_syntax : 1;
   unsigned use_file : 1;
   unsigned use_journal : 1;
   unsigned use_stderr : 1;
@@ -51,8 +56,8 @@ G_DEFINE_TYPE (SrtLogger, _srt_logger, G_TYPE_OBJECT)
 static void
 _srt_logger_init (SrtLogger *self)
 {
+  self->child_ready_to_parent = -1;
   self->pipe_from_parent = -1;
-  self->original_stdout = -1;
   self->original_stderr = -1;
   self->file_fd = -1;
   self->journal_fd = -1;
@@ -90,6 +95,7 @@ _srt_logger_finalize (GObject *object)
   g_clear_pointer (&self->previous_filename, g_free);
   g_clear_pointer (&self->new_filename, g_free);
   g_clear_pointer (&self->terminal, g_free);
+  glnx_close_fd (&self->child_ready_to_parent);
   glnx_close_fd (&self->pipe_from_parent);
   glnx_close_fd (&self->file_fd);
 
@@ -113,6 +119,7 @@ _srt_logger_class_init (SrtLoggerClass *cls)
 /*
  * _srt_logger_new_take:
  * @argv0: (transfer full): Command that is being logged, or %NULL
+ * @background: If true, run srt-logger in the background
  * @filename: (transfer full): Basename of log file, or %NULL
  * @file_fd: Existing file descriptor pointing to @filename, or -1
  * @identifier: (transfer full): syslog identifier that is being logged, or %NULL
@@ -121,6 +128,7 @@ _srt_logger_class_init (SrtLoggerClass *cls)
  * @log_dir: (transfer full): Directory for logs, or %NULL
  * @max_bytes: Rotate file-based log when it would exceed this
  * @original_stderr: Original stderr before setting up logging, or -1
+ * @sh_syntax: If true, write `SRT_LOGGER_READY=1\n` to stdout when ready
  * @terminal: If true, try to log to the terminal
  * @terminal_fd: Existing file descriptor for the terminal, or -1
  *
@@ -128,6 +136,7 @@ _srt_logger_class_init (SrtLoggerClass *cls)
  */
 SrtLogger *
 _srt_logger_new_take (char *argv0,
+                      gboolean background,
                       char *filename,
                       int file_fd,
                       char *identifier,
@@ -136,12 +145,14 @@ _srt_logger_new_take (char *argv0,
                       char *log_dir,
                       goffset max_bytes,
                       int original_stderr,
+                      gboolean sh_syntax,
                       gboolean terminal,
                       int terminal_fd)
 {
   SrtLogger *self = g_object_new (SRT_TYPE_LOGGER, NULL);
 
   self->argv0 = argv0;
+  self->background = !!background;
   self->filename = filename;
   self->file_fd = file_fd;
   self->identifier = identifier;
@@ -151,6 +162,7 @@ _srt_logger_new_take (char *argv0,
   self->use_file = TRUE;
   self->use_journal = !!journal;
   self->original_stderr = original_stderr;
+  self->sh_syntax = !!sh_syntax;
   self->use_terminal = !!terminal;
   self->terminal_fd = terminal_fd;
   return g_steal_pointer (&self);
@@ -521,12 +533,42 @@ logger_child_setup_cb (void *user_data)
 
   g_fdwalk_set_cloexec (3);
 
-  if (dup2 (self->pipe_from_parent, STDIN_FILENO) != STDIN_FILENO)
+  if (self->background)
+    {
+      pid_t pid;
+
+      pid = setsid ();
+
+      if (pid == (pid_t) -1)
+        _srt_async_signal_safe_error (self->prgname,
+                                      "Unable to create new session",
+                                      LAUNCH_EX_FAILED);
+
+      pid = fork ();
+
+      if (pid == (pid_t) -1)
+        _srt_async_signal_safe_error (self->prgname,
+                                      "Unable to create daemonized process",
+                                      LAUNCH_EX_FAILED);
+
+      if (pid != 0)
+        {
+          /* Intermediate process exits, causing the child to be
+           * reparented to init.
+           * Our parent reads from the pipe child_ready_to_parent
+           * to know when the child is ready, and whether it was
+           * successful. */
+          _exit (0);
+        }
+    }
+
+  if (self->pipe_from_parent >= 0 &&
+      dup2 (self->pipe_from_parent, STDIN_FILENO) != STDIN_FILENO)
     _srt_async_signal_safe_error (self->prgname,
                                   "Unable to assign file descriptor",
                                   LAUNCH_EX_FAILED);
 
-  if (dup2 (self->original_stdout, STDOUT_FILENO) != STDOUT_FILENO)
+  if (dup2 (self->child_ready_to_parent, STDOUT_FILENO) != STDOUT_FILENO)
     _srt_async_signal_safe_error (self->prgname,
                                   "Unable to assign file descriptor",
                                   LAUNCH_EX_FAILED);
@@ -547,12 +589,41 @@ logger_child_setup_cb (void *user_data)
                                   LAUNCH_EX_FAILED);
 }
 
+static void
+show_daemonized_logger_pid (GString *status)
+{
+  size_t i;
+
+  for (i = 0; i < status->len; i++)
+    {
+      if ((i == 0 || status->str[i - 1] == '\n')
+          && g_str_has_prefix (status->str + i, "SRT_LOGGER_PID="))
+        {
+          /* Temporarily \0-terminate the line; we'll put back the
+           * newline afterwards */
+          char *newline = strchr (status->str + i, '\n');
+
+          if (newline != NULL)
+            *newline = '\0';
+
+          g_debug ("Background logger subprocess is process %s",
+                   status->str + i + strlen ("SRT_LOGGER_PID="));
+
+          if (newline != NULL)
+            *newline = '\n';
+
+          break;
+        }
+    }
+}
+
 /*
  * _srt_logger_run_subprocess:
  * @self: Parameters for how to carry out logging
  * @logger: Path to the srt-logger executable
- * @argv: Command to run
  * @envp: Environment variables
+ * @original_stdout: (inout): Pointer to a fd that is the current process's
+ *  original standard output
  * @error: Error indicator, see GLib documentation
  *
  * Attempt to run a subprocess capturing the current process's standard
@@ -561,30 +632,37 @@ logger_child_setup_cb (void *user_data)
 gboolean
 _srt_logger_run_subprocess (SrtLogger *self,
                             const char *logger,
+                            gboolean consume_stdin,
                             const char * const *envp,
                             int *original_stdout,
                             GError **error)
 {
   g_autoptr(GPtrArray) logger_argv = NULL;
+  g_autoptr(GString) status = NULL;
   g_auto(SrtPipe) child_pipe = _SRT_PIPE_INIT;
+  g_auto(SrtPipe) ready_pipe = _SRT_PIPE_INIT;
   GPid pid;
   int i;
 
+  g_return_val_if_fail (self->child_ready_to_parent < 0, FALSE);
   g_return_val_if_fail (self->pipe_from_parent < 0, FALSE);
-  g_return_val_if_fail (self->original_stdout < 0, FALSE);
 
   if (!_srt_logger_setup (self, error))
     return FALSE;
 
-  if (!_srt_pipe_open (&child_pipe, error))
+  if (!consume_stdin && !_srt_pipe_open (&child_pipe, error))
+    return FALSE;
+
+  if (!_srt_pipe_open (&ready_pipe, error))
     return FALSE;
 
   logger_argv = g_ptr_array_new_with_free_func (g_free);
   self->prgname = g_get_prgname ();
   self->pipe_from_parent = _srt_pipe_steal (&child_pipe, _SRT_PIPE_END_READ);
-  self->original_stdout = g_steal_fd (original_stdout);
+  self->child_ready_to_parent = _srt_pipe_steal (&ready_pipe, _SRT_PIPE_END_WRITE);
 
   g_ptr_array_add (logger_argv, g_strdup (logger));
+  g_ptr_array_add (logger_argv, g_strdup ("--sh-syntax"));
 
   if (self->max_bytes > 0 && _srt_boolean_environment ("SRT_LOG_ROTATION", TRUE))
     g_ptr_array_add (logger_argv,
@@ -626,30 +704,82 @@ _srt_logger_run_subprocess (SrtLogger *self,
 
   g_ptr_array_add (logger_argv, NULL);
 
+  GSpawnFlags spawn_flags;
+
+  spawn_flags = (G_SPAWN_SEARCH_PATH
+                 | G_SPAWN_DO_NOT_REAP_CHILD
+                 | G_SPAWN_LEAVE_DESCRIPTORS_OPEN);
+
+  if (consume_stdin)
+    spawn_flags |= G_SPAWN_CHILD_INHERITS_STDIN;
+
   if (!g_spawn_async (self->log_dir,
                       (char **) logger_argv->pdata,
                       (char **) envp,
-                      (G_SPAWN_SEARCH_PATH
-                       | G_SPAWN_DO_NOT_REAP_CHILD
-                       | G_SPAWN_LEAVE_DESCRIPTORS_OPEN),
+                      spawn_flags,
                       logger_child_setup_cb, self,
                       &pid,
                       error))
     return FALSE;
 
-  g_debug ("Opened logger subprocess %" G_PID_FORMAT ", will redirect output to it",
-           pid);
-  /* These are only needed in the child */
-  glnx_close_fd (&self->pipe_from_parent);
-  glnx_close_fd (&self->original_stdout);
-
-  for (i = STDOUT_FILENO; i <= STDERR_FILENO; i++)
+  if (self->background)
     {
-      if (dup2 (child_pipe.fds[_SRT_PIPE_END_WRITE], i) != i)
+      pid_t result;
+      int wstatus;
+
+      g_debug ("Opened daemonized logger subprocess");
+      /* Reap the intermediate process, allowing the daemonized logger
+       * subprocess to be reparented to init or the nearest subreaper */
+      result = TEMP_FAILURE_RETRY (waitpid (pid, &wstatus, 0));
+
+      if (result == (pid_t) -1)
         return glnx_throw_errno_prefix (error,
-                                        "Unable to make fd %d a copy of %d",
-                                        i,
-                                        child_pipe.fds[_SRT_PIPE_END_WRITE]);
+                                        "Unable to wait for intermediate child process %" G_PID_FORMAT,
+                                        pid);
+
+      g_assert (result == pid);
+    }
+  else
+    {
+      g_debug ("Opened logger subprocess %" G_PID_FORMAT ", will redirect output to it",
+               pid);
+    }
+
+  /* These are only needed in the child */
+  glnx_close_fd (&self->child_ready_to_parent);
+  glnx_close_fd (&self->pipe_from_parent);
+
+  /* Wait for child to finish setup */
+  status = g_string_new ("");
+
+  if (!_srt_string_read_fd_until_eof (status, ready_pipe.fds[_SRT_PIPE_END_READ], error))
+    return glnx_prefix_error (error, "Unable to read status from srt-logger subprocess");
+
+  if (strlen (status->str) != status->len)
+    return glnx_throw (error, "Status from srt-logger subprocess contains \\0");
+
+  if (self->background && _srt_util_is_debugging ())
+    show_daemonized_logger_pid (status);
+
+  if (!_srt_string_ends_with (status, READY_MESSAGE))
+    return glnx_throw (error, "Unable to parse status from srt-logger subprocess: %s", status->str);
+
+  if (self->sh_syntax
+      && glnx_loop_write (*original_stdout, status->str, status->len) < 0)
+    return glnx_throw_errno_prefix (error, "Unable to report ready");
+
+  glnx_close_fd (original_stdout);
+
+  if (!consume_stdin)
+    {
+      for (i = STDOUT_FILENO; i <= STDERR_FILENO; i++)
+        {
+          if (dup2 (child_pipe.fds[_SRT_PIPE_END_WRITE], i) != i)
+            return glnx_throw_errno_prefix (error,
+                                            "Unable to make fd %d a copy of %d",
+                                            i,
+                                            child_pipe.fds[_SRT_PIPE_END_WRITE]);
+        }
     }
 
   return TRUE;
@@ -850,6 +980,17 @@ _srt_logger_process (SrtLogger *self,
                                             &shared_lock)) != 0))
         return glnx_throw_errno_prefix (error, "Unable to take shared lock on %s",
                                         self->filename);
+    }
+
+  if (self->sh_syntax)
+    {
+      g_autofree gchar *pid_str = NULL;
+
+      pid_str = g_strdup_printf ("SRT_LOGGER_PID=%" G_PID_FORMAT "\n", getpid ());
+
+      if (glnx_loop_write (*original_stdout, pid_str, strlen (pid_str)) < 0
+          || glnx_loop_write (*original_stdout, READY_MESSAGE, READY_MESSAGE_LEN) < 0)
+        return glnx_throw_errno_prefix (error, "Unable to report ready");
     }
 
   glnx_close_fd (original_stdout);
