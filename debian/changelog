@@ -24,6 +24,9 @@ steam-runtime-tools (0.20240709.0) UNRELEASED; urgency=medium
       font if those are not available (steamrt/tasks#462)
   * pressure-vessel:
     - Update Flatpak-derived code to Flatpak 1.15.8
+    - Add a developer-only mechanism to pick up custom CA certificates
+      from the (Debian-compatible, e.g. Arch) host system
+      (steamrt/tasks#416)
   * tests:
     - Expand test data for game controllers (steamrt/tasks#287)
 
@@ -32,7 +35,7 @@ steam-runtime-tools (0.20240709.0) UNRELEASED; urgency=medium
     - Preparations for passing through priority prefixes to the
       systemd Journal (steamrt/tasks#444)
 
- -- Simon McVittie <smcv@collabora.com>  Tue, 09 Jul 2024 19:56:36 +0100
+ -- Simon McVittie <smcv@collabora.com>  Tue, 09 Jul 2024 20:07:10 +0100
 
 steam-runtime-tools (0.20240610.0) steamrt; urgency=medium
 
