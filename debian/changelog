@@ -1,13 +1,6 @@
 steam-runtime-tools (0.20240709.0) UNRELEASED; urgency=medium
 
   [ Simon McVittie ]
-  * Require GLib 2.58.x.
-    We now have a backport of GLib 2.58.x in Steam public betas' version
-    of Steam Runtime 1 'scout', and the same version is bundled with
-    relocatable pressure-vessel releases.
-    Users of `build-aux/many-builds.py` will need to run
-    `build-aux/many-builds.py deps` to download the new scout release
-    before they can continue to compile steam-runtime-tools.
   * srt-logger:
     - Don't set SRT_LOG_TO_JOURNAL if there are other log destinations
       (steamrt/tasks#466)
@@ -22,11 +15,25 @@ steam-runtime-tools (0.20240709.0) UNRELEASED; urgency=medium
     - Try to use the "GoNotoKurrent" fonts provided by the Steam UI
       for better glyph repertoire, falling back to the system sans-serif
       font if those are not available (steamrt/tasks#462)
+  * s-r-launch-options:
+    - Remove support for obsolete Steam Runtime 1½ 'heavy'
   * pressure-vessel:
     - Update Flatpak-derived code to Flatpak 1.15.8
     - Add a developer-only mechanism to pick up custom CA certificates
       from the (Debian-compatible, e.g. Arch) host system
       (steamrt/tasks#416)
+  * build:
+    - Remove support for obsolete Steam Runtime 1½ 'heavy'
+    - Require GLib 2.58.x.
+      We now have a backport of GLib 2.58.x in Steam public betas' version
+      of Steam Runtime 1 'scout', and the same version is bundled with
+      relocatable pressure-vessel releases.
+      Users of `build-aux/many-builds.py` will need to run
+      `build-aux/many-builds.py deps` to download the new scout release
+      before they can continue to compile steam-runtime-tools.
+    - debian: Require SDL2_ttf for all packaged builds
+  * documentation:
+    - Mostly stop mentioning obsolete Steam Runtime 1½ 'heavy'
   * tests:
     - Expand test data for game controllers (steamrt/tasks#287)
 
