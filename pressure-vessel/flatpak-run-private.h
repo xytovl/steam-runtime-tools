@@ -1,6 +1,6 @@
 /*
  * Cut-down version of common/flatpak-run-private.h from Flatpak
- * Last updated: Flatpak 1.14.8
+ * Last updated: Flatpak 1.15.8
  *
  * Copyright © 2017-2022 Collabora Ltd.
  * Copyright © 2014-2022 Red Hat, Inc
@@ -35,6 +35,7 @@
 #include "flatpak-common-types-private.h"
 #include "flatpak-context-private.h"
 #include "flatpak-bwrap-private.h"
+#include "flatpak-metadata-private.h"
 #include "flatpak-utils-private.h"
 #include "flatpak-exports-private.h"
 #include "steam-runtime-tools/glib-backports-internal.h"
@@ -44,86 +45,6 @@ gboolean flatpak_run_in_transient_unit (const char *owner,
                                         const char *prefix,
                                         const char *appid,
                                         GError    **error);
-
-/* See flatpak-metadata(5) */
-
-#define FLATPAK_METADATA_GROUP_APPLICATION "Application"
-#define FLATPAK_METADATA_GROUP_RUNTIME "Runtime"
-#define FLATPAK_METADATA_KEY_COMMAND "command"
-#define FLATPAK_METADATA_KEY_NAME "name"
-#define FLATPAK_METADATA_KEY_REQUIRED_FLATPAK "required-flatpak"
-#define FLATPAK_METADATA_KEY_RUNTIME "runtime"
-#define FLATPAK_METADATA_KEY_SDK "sdk"
-#define FLATPAK_METADATA_KEY_TAGS "tags"
-
-#define FLATPAK_METADATA_GROUP_CONTEXT "Context"
-#define FLATPAK_METADATA_KEY_SHARED "shared"
-#define FLATPAK_METADATA_KEY_SOCKETS "sockets"
-#define FLATPAK_METADATA_KEY_FILESYSTEMS "filesystems"
-#define FLATPAK_METADATA_KEY_PERSISTENT "persistent"
-#define FLATPAK_METADATA_KEY_DEVICES "devices"
-#define FLATPAK_METADATA_KEY_FEATURES "features"
-#define FLATPAK_METADATA_KEY_UNSET_ENVIRONMENT "unset-environment"
-
-#define FLATPAK_METADATA_GROUP_INSTANCE "Instance"
-#define FLATPAK_METADATA_KEY_INSTANCE_PATH "instance-path"
-#define FLATPAK_METADATA_KEY_INSTANCE_ID "instance-id"
-#define FLATPAK_METADATA_KEY_ORIGINAL_APP_PATH "original-app-path"
-#define FLATPAK_METADATA_KEY_APP_PATH "app-path"
-#define FLATPAK_METADATA_KEY_APP_COMMIT "app-commit"
-#define FLATPAK_METADATA_KEY_APP_EXTENSIONS "app-extensions"
-#define FLATPAK_METADATA_KEY_ARCH "arch"
-#define FLATPAK_METADATA_KEY_BRANCH "branch"
-#define FLATPAK_METADATA_KEY_FLATPAK_VERSION "flatpak-version"
-#define FLATPAK_METADATA_KEY_ORIGINAL_RUNTIME_PATH "original-runtime-path"
-#define FLATPAK_METADATA_KEY_RUNTIME_PATH "runtime-path"
-#define FLATPAK_METADATA_KEY_RUNTIME_COMMIT "runtime-commit"
-#define FLATPAK_METADATA_KEY_RUNTIME_EXTENSIONS "runtime-extensions"
-#define FLATPAK_METADATA_KEY_SESSION_BUS_PROXY "session-bus-proxy"
-#define FLATPAK_METADATA_KEY_SYSTEM_BUS_PROXY "system-bus-proxy"
-#define FLATPAK_METADATA_KEY_EXTRA_ARGS "extra-args"
-#define FLATPAK_METADATA_KEY_SANDBOX "sandbox"
-#define FLATPAK_METADATA_KEY_BUILD "build"
-#define FLATPAK_METADATA_KEY_DEVEL "devel"
-
-#define FLATPAK_METADATA_GROUP_SESSION_BUS_POLICY "Session Bus Policy"
-#define FLATPAK_METADATA_GROUP_SYSTEM_BUS_POLICY "System Bus Policy"
-#define FLATPAK_METADATA_GROUP_PREFIX_POLICY "Policy "
-#define FLATPAK_METADATA_GROUP_ENVIRONMENT "Environment"
-
-#define FLATPAK_METADATA_GROUP_PREFIX_EXTENSION "Extension "
-#define FLATPAK_METADATA_KEY_ADD_LD_PATH "add-ld-path"
-#define FLATPAK_METADATA_KEY_AUTODELETE "autodelete"
-#define FLATPAK_METADATA_KEY_DIRECTORY "directory"
-#define FLATPAK_METADATA_KEY_DOWNLOAD_IF "download-if"
-#define FLATPAK_METADATA_KEY_ENABLE_IF "enable-if"
-#define FLATPAK_METADATA_KEY_AUTOPRUNE_UNLESS "autoprune-unless"
-#define FLATPAK_METADATA_KEY_MERGE_DIRS "merge-dirs"
-#define FLATPAK_METADATA_KEY_NO_AUTODOWNLOAD "no-autodownload"
-#define FLATPAK_METADATA_KEY_SUBDIRECTORIES "subdirectories"
-#define FLATPAK_METADATA_KEY_SUBDIRECTORY_SUFFIX "subdirectory-suffix"
-#define FLATPAK_METADATA_KEY_LOCALE_SUBSET "locale-subset"
-#define FLATPAK_METADATA_KEY_VERSION "version"
-#define FLATPAK_METADATA_KEY_VERSIONS "versions"
-
-#define FLATPAK_METADATA_KEY_COLLECTION_ID "collection-id"
-
-#define FLATPAK_METADATA_GROUP_EXTRA_DATA "Extra Data"
-#define FLATPAK_METADATA_KEY_EXTRA_DATA_CHECKSUM "checksum"
-#define FLATPAK_METADATA_KEY_EXTRA_DATA_INSTALLED_SIZE "installed-size"
-#define FLATPAK_METADATA_KEY_EXTRA_DATA_NAME "name"
-#define FLATPAK_METADATA_KEY_EXTRA_DATA_SIZE "size"
-#define FLATPAK_METADATA_KEY_EXTRA_DATA_URI "uri"
-#define FLATPAK_METADATA_KEY_NO_RUNTIME "NoRuntime"
-
-#define FLATPAK_METADATA_GROUP_EXTENSION_OF "ExtensionOf"
-#define FLATPAK_METADATA_KEY_PRIORITY "priority"
-#define FLATPAK_METADATA_KEY_REF "ref"
-#define FLATPAK_METADATA_KEY_TAG "tag"
-
-#define FLATPAK_METADATA_GROUP_DCONF "X-DConf"
-#define FLATPAK_METADATA_KEY_DCONF_PATHS "paths"
-#define FLATPAK_METADATA_KEY_DCONF_MIGRATE_PATH "migrate-path"
 
 #if 0
 void     flatpak_run_extend_ld_path       (FlatpakBwrap       *bwrap,
@@ -146,6 +67,7 @@ gboolean flatpak_run_add_environment_args (FlatpakBwrap       *bwrap,
                                            GFile              *app_id_dir,
                                            GPtrArray          *previous_app_id_dirs,
                                            int                 per_app_dir_lock_fd,
+                                           const char         *instance_id,
                                            FlatpakExports    **exports_out,
                                            GCancellable       *cancellable,
                                            GError            **error);
@@ -153,19 +75,11 @@ char **  flatpak_run_get_minimal_env (gboolean devel,
                                       gboolean use_ld_so_cache);
 void     flatpak_run_apply_env_default (FlatpakBwrap *bwrap,
                                         gboolean      use_ld_so_cache);
-#endif
-
-void     flatpak_run_apply_env_appid (FlatpakBwrap *bwrap,
-                                      GFile        *app_dir);
-#if 0
 void      flatpak_run_apply_env_vars (FlatpakBwrap   *bwrap,
                                       FlatpakContext *context);
 FlatpakContext *flatpak_app_compute_permissions (GKeyFile *app_metadata,
                                                  GKeyFile *runtime_metadata,
                                                  GError  **error);
-#endif
-GFile *flatpak_get_data_dir (const char *app_id);
-#if 0
 gboolean flatpak_ensure_data_dir (GFile        *app_id_dir,
                                   GCancellable *cancellable,
                                   GError      **error);
@@ -197,50 +111,37 @@ gboolean flatpak_run_add_app_info_args (FlatpakBwrap       *bwrap,
                                         char              **app_info_path_out,
                                         int                 instance_id_fd,
                                         char              **host_instance_id_host_dir_out,
+                                        char              **host_instance_id_host_private_dir_out,
+                                        char              **instance_id_out,
                                         GError            **error);
 
-gboolean flatpak_run_app (FlatpakDecomposed  *app_ref,
-                          FlatpakDeploy      *app_deploy,
-                          const char         *custom_app_path,
-                          FlatpakContext     *extra_context,
-                          const char         *custom_runtime,
-                          const char         *custom_runtime_version,
-                          const char         *custom_runtime_commit,
-                          const char         *custom_usr_path,
-                          int                 parent_pid,
-                          FlatpakRunFlags     flags,
-                          const char         *cwd,
-                          const char         *custom_command,
-                          char               *args[],
-                          int                 n_args,
-                          int                 instance_id_fd,
-                          char              **instance_dir_out,
-                          GCancellable       *cancellable,
-                          GError            **error);
+gboolean flatpak_run_app (FlatpakDecomposed   *app_ref,
+                          FlatpakDeploy       *app_deploy,
+                          const char          *custom_app_path,
+                          FlatpakContext      *extra_context,
+                          const char          *custom_runtime,
+                          const char          *custom_runtime_version,
+                          const char          *custom_runtime_commit,
+                          const char          *custom_usr_path,
+                          int                  parent_pid,
+                          FlatpakRunFlags      flags,
+                          const char          *cwd,
+                          const char          *custom_command,
+                          char                *args[],
+                          int                  n_args,
+                          int                  instance_id_fd,
+                          const char * const  *run_environ,
+                          char               **instance_dir_out,
+                          GCancellable        *cancellable,
+                          GError             **error);
+
 #endif
 
-extern const char * const *flatpak_abs_usrmerged_dirs;
-
-gboolean flatpak_run_parse_x11_display (const char  *display,
-                                        int         *family,
-                                        char       **x11_socket,
-                                        char       **remote_host,
-                                        char       **original_display_nr,
-                                        GError     **error);
-
+/* Normally private, exported for pressure-vessel */
 int open_namespace_fd_if_needed (const char *path,
                                  const char *other_path);
 
-void flatpak_run_add_x11_args (FlatpakBwrap         *bwrap,
-                               gboolean              allowed,
-                               FlatpakContextShares  shares);
-gboolean flatpak_run_add_wayland_args (FlatpakBwrap *bwrap);
-void flatpak_run_add_pulseaudio_args (FlatpakBwrap         *bwrap,
-                                      FlatpakContextShares  shares);
-void flatpak_run_add_resolved_args (FlatpakBwrap *bwrap);
-void flatpak_run_add_journal_args (FlatpakBwrap *bwrap);
-gboolean flatpak_run_add_system_dbus_args (FlatpakBwrap *app_bwrap);
-gboolean flatpak_run_add_session_dbus_args (FlatpakBwrap *app_bwrap);
+/* Normally private, exported for pressure-vessel */
 void flatpak_run_add_font_path_args (FlatpakBwrap *bwrap);
 void flatpak_run_add_icon_path_args (FlatpakBwrap *bwrap);
 

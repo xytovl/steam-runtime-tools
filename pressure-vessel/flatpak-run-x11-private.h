@@ -1,7 +1,7 @@
 /*
  * Taken from Flatpak
  * Last updated: Flatpak 1.15.8
- * Copyright © 2019 Red Hat, Inc
+ * Copyright © 2014 Red Hat, Inc
  * SPDX-License-Identifier: LGPL-2.1-or-later
  *
  * This program is free software; you can redistribute it and/or
@@ -21,23 +21,25 @@
  *       Alexander Larsson <alexl@redhat.com>
  */
 
-#ifndef __FLATPAK_UTILS_BASE_H__
-#define __FLATPAK_UTILS_BASE_H__
+#pragma once
 
-#include <glib.h>
-#include <gio/gio.h>
+#include "libglnx.h"
 
-#ifndef G_DBUS_METHOD_INVOCATION_HANDLED
-# define G_DBUS_METHOD_INVOCATION_HANDLED TRUE
-# define G_DBUS_METHOD_INVOCATION_UNHANDLED FALSE
-#endif
+#include "flatpak-bwrap-private.h"
+#include "flatpak-common-types-private.h"
+#include "flatpak-context-private.h"
 
-char *flatpak_get_timezone (void);
+G_BEGIN_DECLS
 
-char * flatpak_readlink (const char *path,
-                         GError    **error);
-char * flatpak_resolve_link (const char *path,
-                             GError    **error);
-char * flatpak_canonicalize_filename (const char *path);
+void flatpak_run_add_x11_args (FlatpakBwrap         *bwrap,
+                               gboolean              allowed,
+                               FlatpakContextShares  shares);
 
-#endif /* __FLATPAK_UTILS_BASE_H__ */
+gboolean flatpak_run_parse_x11_display (const char  *display,
+                                        int         *family,
+                                        char       **x11_socket,
+                                        char       **remote_host,
+                                        char       **original_display_nr,
+                                        GError     **error);
+
+G_END_DECLS

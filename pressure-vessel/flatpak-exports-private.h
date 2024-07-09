@@ -1,6 +1,6 @@
 /*
  * Taken from Flatpak
- * Last updated: Flatpak 1.14.8
+ * Last updated: Flatpak 1.15.8
  * Copyright © 2014-2018 Red Hat, Inc
  * SPDX-License-Identifier: LGPL-2.1-or-later
  *
@@ -84,5 +84,7 @@ void flatpak_exports_take_host_fd (FlatpakExports *exports,
                                    int             fd);
 void flatpak_exports_set_test_flags (FlatpakExports *exports,
                                      FlatpakExportsTestFlags flags);
+
+extern const char * const *flatpak_abs_usrmerged_dirs;
 
 #endif /* __FLATPAK_EXPORTS_H__ */
