@@ -37,10 +37,6 @@
 #include <steam-runtime-tools/json-utils-internal.h>
 #include <steam-runtime-tools/utils-internal.h>
 
-#if !GLIB_CHECK_VERSION(2, 43, 4)
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(GDBusProxy, g_object_unref)
-#endif
-
 static gboolean opt_print_version = FALSE;
 
 static const GOptionEntry option_entries[] =

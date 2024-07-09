@@ -283,23 +283,12 @@ add_project_arguments(
   language : 'c',
 )
 
-glib = dependency(
-  'glib-2.0',
-  version : '>= 2.32',
-)
-glib_tap_support = glib.version().version_compare('>=2.38')
-gobject = dependency(
-  'gobject-2.0',
-  version : '>= 2.32',
-)
-gio = dependency(
-  'gio-2.0',
-  version : '>= 2.32',
-)
-gio_unix = dependency(
-  'gio-unix-2.0',
-  version : '>= 2.32',
-)
+glib_required = '>= 2.58'
+glib = dependency('glib-2.0', version : glib_required)
+gobject = dependency('gobject-2.0', version : glib_required)
+gio = dependency('gio-2.0', version : glib_required)
+gio_unix = dependency('gio-unix-2.0', version : glib_required)
+
 json_glib = dependency(
   'json-glib-1.0',
   version : '>= 1.0',

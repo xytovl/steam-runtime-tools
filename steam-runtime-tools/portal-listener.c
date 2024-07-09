@@ -282,7 +282,6 @@ on_name_lost (GDBusConnection *connection,
   srt_portal_listener_check_ready (self);
 }
 
-#if GLIB_CHECK_VERSION(2, 34, 0)
 /*
  * Callback for GDBusServer::allow-mechanism.
  * Only allow the (most secure) EXTERNAL authentication mechanism,
@@ -295,7 +294,6 @@ allow_external_cb (G_GNUC_UNUSED GDBusAuthObserver *observer,
 {
   return (g_strcmp0 (mechanism, "EXTERNAL") == 0);
 }
-#endif
 
 /*
  * Callback for GDBusServer::authorize-authenticated-peer.
@@ -351,10 +349,8 @@ observer_new (void)
 {
   g_autoptr(AutoDBusAuthObserver) observer = g_dbus_auth_observer_new ();
 
-#if GLIB_CHECK_VERSION(2, 34, 0)
   g_signal_connect (observer, "allow-mechanism",
                     G_CALLBACK (allow_external_cb), NULL);
-#endif
   g_signal_connect (observer, "authorize-authenticated-peer",
                     G_CALLBACK (authorize_authenticated_peer_cb), NULL);
 
