@@ -107,6 +107,8 @@ class TestLogger(BaseTest):
                         [b'SRT_LOGGER_READY=1', b''],
                     )
                 else:
+                    # Without --sh-syntax there is no output at all,
+                    # and in particular we don't see SRT_LOGGER_READY
                     self.assertEqual(content, b'')
 
             # Write enough output to the second logger to cause rotation.
@@ -685,7 +687,7 @@ class TestLogger(BaseTest):
             assert stdout is not None
 
             with stdout:
-                stdout.read()
+                self.assertEqual(stdout.read(), b'')
 
             stderr = proc.stderr
             assert stderr is not None
