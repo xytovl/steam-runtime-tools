@@ -120,7 +120,6 @@ g_ascii_string_to_unsigned (const gchar *str,
 }
 #endif
 
-#if 0
 #if !GLIB_CHECK_VERSION (2, 56, 0)
 /* All this code is backported directly from GLib 2.76.2 except where noted */
 
@@ -489,7 +488,6 @@ out:
       g_time_zone_unref (tz);
     return datetime;
 }
-#endif
 #endif
 
 #if !GLIB_CHECK_VERSION (2, 58, 0)

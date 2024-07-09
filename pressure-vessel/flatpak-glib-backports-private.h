@@ -65,7 +65,6 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC (GUnixFDList, g_object_unref)
 #endif
 
 #if !GLIB_CHECK_VERSION (2, 54, 0)
-#if 0   /* steam-runtime-tools has its own copy of this */
 static inline gboolean
 g_ptr_array_find_with_equal_func (GPtrArray     *haystack,
                                   gconstpointer  needle,
@@ -91,7 +90,6 @@ g_ptr_array_find_with_equal_func (GPtrArray     *haystack,
 
   return FALSE;
 }
-#endif
 
 /* We're non-specific about the error behaviour, so this is good enough */
 #define G_NUMBER_PARSER_ERROR (G_IO_ERROR)
@@ -124,7 +122,6 @@ g_clear_handle_id (guint            *tag_ptr,
     }
 }
 
-#if 0
 GDateTime *flatpak_g_date_time_new_from_iso8601 (const gchar *text,
                                                  GTimeZone   *default_tz);
 
@@ -133,7 +130,6 @@ g_date_time_new_from_iso8601 (const gchar *text, GTimeZone *default_tz)
 {
   return flatpak_g_date_time_new_from_iso8601 (text, default_tz);
 }
-#endif
 #endif
 
 #if !GLIB_CHECK_VERSION (2, 58, 0)
