@@ -550,8 +550,9 @@ logger_child_setup_cb (void *user_data)
  * _srt_logger_run_subprocess:
  * @self: Parameters for how to carry out logging
  * @logger: Path to the srt-logger executable
- * @argv: Command to run
  * @envp: Environment variables
+ * @original_stdout: (inout): Pointer to a fd that is the current process's
+ *  original standard output
  * @error: Error indicator, see GLib documentation
  *
  * Attempt to run a subprocess capturing the current process's standard
