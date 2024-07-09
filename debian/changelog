@@ -16,6 +16,8 @@ steam-runtime-tools (0.20240709.0) UNRELEASED; urgency=medium
       (steamrt/tasks#460, steamrt/tasks#461)
     - Add --background, which should be used when combining srt-logger
       with a subreaper (steamrt/tasks#460)
+    - Add ${pkglibexecdir}/logger-0.bash, a convenience binding for use
+      in bash scripts (steamrt/tasks#461)
   * s-r-dialog-ui:
     - Try to use the "GoNotoKurrent" fonts provided by the Steam UI
       for better glyph repertoire, falling back to the system sans-serif
@@ -30,7 +32,7 @@ steam-runtime-tools (0.20240709.0) UNRELEASED; urgency=medium
     - Preparations for passing through priority prefixes to the
       systemd Journal (steamrt/tasks#444)
 
- -- Simon McVittie <smcv@collabora.com>  Tue, 09 Jul 2024 19:10:04 +0100
+ -- Simon McVittie <smcv@collabora.com>  Tue, 09 Jul 2024 19:56:36 +0100
 
 steam-runtime-tools (0.20240610.0) steamrt; urgency=medium
 
