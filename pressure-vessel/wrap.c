@@ -629,9 +629,6 @@ main (int argc,
       if (_srt_util_is_debugging ())
         flags |= PV_RUNTIME_FLAGS_VERBOSE;
 
-      if (self->options.import_ca_certs)
-        flags |= PV_RUNTIME_FLAGS_IMPORT_CA_CERTS;
-
       if (self->options.import_vulkan_layers)
         flags |= PV_RUNTIME_FLAGS_IMPORT_VULKAN_LAYERS;
 
