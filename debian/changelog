@@ -19,9 +19,6 @@ steam-runtime-tools (0.20240709.0) UNRELEASED; urgency=medium
     - Remove support for obsolete Steam Runtime 1½ 'heavy'
   * pressure-vessel:
     - Update Flatpak-derived code to Flatpak 1.15.8
-    - Add a developer-only mechanism to pick up custom CA certificates
-      from the (Debian-compatible, e.g. Arch) host system
-      (steamrt/tasks#416)
   * build:
     - Remove support for obsolete Steam Runtime 1½ 'heavy'
     - Require GLib 2.58.x.
