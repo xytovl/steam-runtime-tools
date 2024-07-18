@@ -7858,9 +7858,10 @@ pv_runtime_bind (PvRuntime *self,
             {
               const char *dir = search_path[j];
 
-              /* We are mounting our own runtime over /usr anyway, so
-               * ignore those */
-              if (flatpak_has_path_prefix (dir, "/usr"))
+              /* We are mounting our own runtime over /etc and /usr anyway,
+               * so ignore those */
+              if (flatpak_has_path_prefix (dir, "/usr")
+                  || flatpak_has_path_prefix (dir, "/etc"))
                 continue;
 
               /* Otherwise, if the directory exists, mask it */
