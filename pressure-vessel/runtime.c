@@ -5431,9 +5431,45 @@ collect_core_libraries_patterns (GPtrArray *patterns)
 }
 
 /*
+ * @self: The runtime
+ * @pathp: (inout): A candidate path for /usr/lib/gconv
+ *  or similar in the graphics stack provider, which may be "stolen"
+ *  on success
+ * @gconv_in_provider: Map { owned string => itself } representing a set
+ *  of paths to /usr/lib/gconv or equivalent in the graphics stack provider
+ *
+ * Returns: %TRUE if the path `*pathp` was suitable
+ */
+static gboolean
+pv_runtime_try_gconv_dir (PvRuntime *self,
+                          gchar **pathp,
+                          GHashTable *gconv_in_provider)
+{
+  /* Quietly short-circuit if already added, for example in the common case
+   * where the path we derived from the realpath() of libc.so.6 matches
+   * /usr/${LIB}/gconv */
+  if (g_hash_table_contains (gconv_in_provider, *pathp))
+    return TRUE;
+
+  g_debug ("Checking for gconv in %s", *pathp);
+
+  if (_srt_sysroot_test (self->provider->in_current_ns, *pathp,
+                         SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY, NULL))
+    {
+      g_debug ("... yes");
+      g_hash_table_add (gconv_in_provider, g_steal_pointer (pathp));
+      return TRUE;
+    }
+
+  g_debug ("... no");
+  return FALSE;
+}
+
+/*
  * pv_runtime_collect_libc_family:
  * @self: The runtime
  * @arch: Architecture of @libc_symlink
+ * @system_info: A #SrtSystemInfo
  * @bwrap:
  * @libc_symlink: The symlink created by capsule-capture-libs,
  *  relative to /overrides.
@@ -5448,6 +5484,7 @@ collect_core_libraries_patterns (GPtrArray *patterns)
 static gboolean
 pv_runtime_collect_libc_family (PvRuntime *self,
                                 RuntimeArchitecture *arch,
+                                SrtSystemInfo *system_info,
                                 FlatpakBwrap *bwrap,
                                 const char *libc_symlink,
                                 const char *ld_so_in_runtime,
@@ -5468,7 +5505,9 @@ pv_runtime_collect_libc_family (PvRuntime *self,
   };
   G_GNUC_UNUSED g_autoptr(SrtProfilingTimer) libc_timer =
     _srt_profiling_start ("glibc");
+  g_autoptr(GError) local_error = NULL;
   g_autofree char *libc_target = NULL;
+  g_autofree char *libdl_lib = NULL;
 
   g_return_val_if_fail (self->provider != NULL, FALSE);
   g_return_val_if_fail (bwrap != NULL || self->mutable_sysroot != NULL, FALSE);
@@ -5482,6 +5521,31 @@ pv_runtime_collect_libc_family (PvRuntime *self,
                                      arch->libdir_relative_to_overrides,
                                      NULL, patterns, G_N_ELEMENTS (patterns), error))
     return FALSE;
+
+  libdl_lib = srt_system_info_dup_libdl_lib (system_info,
+                                             arch->details->tuple,
+                                             &local_error);
+
+  if (libdl_lib == NULL)
+    {
+      g_debug ("Unable to determine libdl ${LIB}: %s", local_error->message);
+      g_clear_error (&local_error);
+    }
+  else
+    {
+      g_autofree gchar *dir = g_build_filename ("/usr", libdl_lib, "gconv", NULL);
+
+      /* On some host OSs, the hard-coded path used to dlopen gconv modules
+       * does not actually match the realpath() of the directory containing
+       * libc.so.6 (for example on Void Linux, /usr/lib64 -> lib is a symlink,
+       * but 64-bit gconv modules are loaded via /usr/lib64 and not /usr/lib).
+       * Use /usr/${LIB}/gconv as a better guess at what the hard-coded path
+       * might be. For example, this resolves to /usr/lib64/gconv on
+       * Void Linux, which would mean we mount both /usr/lib64/gconv (here)
+       * and /usr/lib/gconv (below), ensuring that whichever one glibc
+       * actually wants to load, it'll work. */
+      pv_runtime_try_gconv_dir (self, &dir, gconv_in_provider);
+    }
 
   libc_target = glnx_readlinkat_malloc (self->overrides_fd, libc_symlink,
                                         NULL, NULL);
@@ -5532,15 +5596,10 @@ pv_runtime_collect_libc_family (PvRuntime *self,
         gconv_prefix = "/";
 
       gconv_dir_in_provider = g_build_filename (gconv_prefix, dir, "gconv", NULL);
-      g_debug ("Checking for gconv in %s", gconv_dir_in_provider);
 
-      if (_srt_sysroot_test (self->provider->in_current_ns,
-                             gconv_dir_in_provider,
-                             SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY, NULL))
-        {
-          g_hash_table_add (gconv_in_provider, g_steal_pointer (&gconv_dir_in_provider));
-          found = TRUE;
-        }
+      if (pv_runtime_try_gconv_dir (self, &gconv_dir_in_provider,
+                                    gconv_in_provider))
+        found = TRUE;
 
       if (!found)
         {
@@ -5564,16 +5623,9 @@ pv_runtime_collect_libc_family (PvRuntime *self,
 
           g_clear_pointer (&gconv_dir_in_provider, g_free);
           gconv_dir_in_provider = g_build_filename (gconv_prefix, dir, "gconv", NULL);
-          g_debug ("Checking for gconv (after removing hwcaps subdirectories) in %s",
-                   gconv_dir_in_provider);
-
-          if (_srt_sysroot_test (self->provider->in_current_ns,
-                                 gconv_dir_in_provider,
-                                 SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY, NULL))
-            {
-              g_hash_table_add (gconv_in_provider, g_steal_pointer (&gconv_dir_in_provider));
-              found = TRUE;
-            }
+          if (pv_runtime_try_gconv_dir (self, &gconv_dir_in_provider,
+                                        gconv_in_provider))
+            found = TRUE;
         }
 
       if (!found)
@@ -7378,7 +7430,8 @@ pv_runtime_use_provider_graphics_stack (PvRuntime *self,
           if (fstatat (self->overrides_fd, libc_symlink, &stat_buf, AT_SYMLINK_NOFOLLOW) == 0
               && S_ISLNK (stat_buf.st_mode))
             {
-              if (!pv_runtime_collect_libc_family (self, arch, bwrap,
+              if (!pv_runtime_collect_libc_family (self, arch,
+                                                   arch_system_info, bwrap,
                                                    libc_symlink, ld_so_in_runtime,
                                                    gconv_in_provider,
                                                    error))
