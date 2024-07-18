@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20240709.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20240718.0) steamrt; urgency=medium
 
   [ Simon McVittie ]
   * srt-logger:
@@ -40,7 +40,7 @@ steam-runtime-tools (0.20240709.0) UNRELEASED; urgency=medium
     - Preparations for passing through priority prefixes to the
       systemd Journal (steamrt/tasks#444)
 
- -- Simon McVittie <smcv@collabora.com>  Thu, 18 Jul 2024 12:14:48 +0100
+ -- Simon McVittie <smcv@collabora.com>  Thu, 18 Jul 2024 12:40:43 +0100
 
 steam-runtime-tools (0.20240610.0) steamrt; urgency=medium
 
