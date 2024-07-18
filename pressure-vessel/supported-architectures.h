@@ -31,6 +31,10 @@
 #define PV_N_SUPPORTED_ARCHITECTURES 1
 #endif
 
+/* Currently the 0'th architecture is always the primary one
+ * (x86_64 on x86) */
+#define PV_PRIMARY_ARCHITECTURE 0
+
 #if defined(__i386__) || defined(__x86_64__)
 #define PV_N_SUPPORTED_ARCHITECTURES_AS_EMULATOR_HOST 1 /* AArch64 */
 #else
