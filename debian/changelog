@@ -18,6 +18,7 @@ steam-runtime-tools (0.20240709.0) UNRELEASED; urgency=medium
   * s-r-launch-options:
     - Remove support for obsolete Steam Runtime 1½ 'heavy'
   * pressure-vessel:
+    - Avoid spurious warnings about masking /etc/vulkan/*.d
     - Update Flatpak-derived code to Flatpak 1.15.8
   * build:
     - Remove support for obsolete Steam Runtime 1½ 'heavy'
@@ -39,7 +40,7 @@ steam-runtime-tools (0.20240709.0) UNRELEASED; urgency=medium
     - Preparations for passing through priority prefixes to the
       systemd Journal (steamrt/tasks#444)
 
- -- Simon McVittie <smcv@collabora.com>  Tue, 09 Jul 2024 20:07:10 +0100
+ -- Simon McVittie <smcv@collabora.com>  Thu, 18 Jul 2024 12:14:48 +0100
 
 steam-runtime-tools (0.20240610.0) steamrt; urgency=medium
 
