@@ -1,3 +1,13 @@
+steam-runtime-tools (0.20240722.0) UNRELEASED; urgency=medium
+
+  * pressure-vessel:
+    - Try to provide /usr/${LIB}/gconv in the container.
+      This fixes 64-bit games' use of iconv, and therefore indirectly
+      Easy Anti-Cheat, on Void Linux
+      (steamrt/tasks#477, ValveSoftware/steam-runtime#680)
+
+ -- Simon McVittie <smcv@collabora.com>  Mon, 22 Jul 2024 12:15:27 +0100
+
 steam-runtime-tools (0.20240718.0) steamrt; urgency=medium
 
   [ Simon McVittie ]
