@@ -1558,6 +1558,65 @@ test_remap_ld_preload_flatpak_no_runtime (Fixture *f,
 }
 
 /*
+ * Test that the table of supported architectures is internally consistent
+ */
+static void
+test_supported_archs (Fixture *f,
+                      gconstpointer context)
+{
+  gsize i;
+
+#if defined(__i386__) || defined(__x86_64__)
+
+  /* The primary architecture is x86_64, followed by i386
+   * (implicitly secondary) */
+  g_assert_cmpint (PV_N_SUPPORTED_ARCHITECTURES, ==, 2);
+  g_assert_cmpstr (pv_multiarch_tuples[PV_PRIMARY_ARCHITECTURE], ==,
+                   SRT_ABI_X86_64);
+  g_assert_cmpstr (pv_multiarch_tuples[1], ==, SRT_ABI_I386);
+
+  /* We also support running x86 on an aarch64 emulator host */
+  g_assert_cmpint (PV_N_SUPPORTED_ARCHITECTURES_AS_EMULATOR_HOST, ==, 1);
+  g_assert_cmpstr (pv_multiarch_as_emulator_tuples[0], ==, SRT_ABI_AARCH64);
+
+#else /* !x86 */
+
+  /* The only supported architecture is the one we were compiled for */
+  g_assert_cmpint (PV_N_SUPPORTED_ARCHITECTURES, ==, 1);
+#if defined(__aarch64__)
+  g_assert_cmpstr (pv_multiarch_tuples[PV_PRIMARY_ARCHITECTURE], ==,
+                   SRT_ABI_AARCH64);
+#else /* !aarch64 */
+  g_assert_cmpstr (pv_multiarch_tuples[PV_PRIMARY_ARCHITECTURE], ==,
+                   _SRT_MULTIARCH);
+#endif /* !aarch64 */
+
+#endif /* !x86 */
+
+  /* multiarch_details and multiarch_tuples are in the same order */
+  for (i = 0; i < PV_N_SUPPORTED_ARCHITECTURES; i++)
+    {
+      const PvMultiarchDetails *details = &pv_multiarch_details[i];
+
+      g_assert_cmpstr (pv_multiarch_tuples[i], ==, details->tuple);
+    }
+
+  /* The array of tuples has one extra element, to make it a GStrv */
+  g_assert_cmpstr (pv_multiarch_tuples[i], ==, NULL);
+
+  /* Emulator host details and tuples are also in the same order */
+  for (i = 0; i < PV_N_SUPPORTED_ARCHITECTURES_AS_EMULATOR_HOST; i++)
+    {
+      const PvMultiarchDetails *details = &pv_multiarch_as_emulator_details[i];
+
+      g_assert_cmpstr (pv_multiarch_as_emulator_tuples[i], ==, details->tuple);
+    }
+
+  /* Array of tuples has one extra element, again */
+  g_assert_cmpstr (pv_multiarch_as_emulator_tuples[i], ==, NULL);
+}
+
+/*
  * Test that pv_wrap_use_home(PV_HOME_MODE_SHARED) makes nearly everything
  * available.
  */
@@ -1869,6 +1928,8 @@ main (int argc,
               setup_ld_preload, test_remap_ld_preload_no_runtime, teardown);
   g_test_add ("/remap-ld-preload-flatpak-no-runtime", Fixture, NULL,
               setup_ld_preload, test_remap_ld_preload_flatpak_no_runtime, teardown);
+  g_test_add ("/supported-archs", Fixture, NULL,
+              setup, test_supported_archs, teardown);
   g_test_add ("/use-home/shared", Fixture, NULL,
               setup, test_use_home_shared, teardown);
   g_test_add ("/use-host-os", Fixture, NULL,

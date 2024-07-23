@@ -6427,10 +6427,20 @@ pv_runtime_handle_alias (PvRuntime *self,
       target = g_build_filename ("/lib", arch->details->tuple, soname, NULL);
       g_info ("Found %s in runtime's /lib: %s", soname, target);
     }
-  else
+  else if (arch->multiarch_index == PV_PRIMARY_ARCHITECTURE)
     {
       return glnx_throw (error, "The expected library %s is missing from both the runtime "
                          "and the \"overrides\" directory", soname);
+    }
+  else
+    {
+      /* Not an error: for runtimes that only have full coverage of the
+       * primary architecture (in practice x86_64) and not secondary
+       * architectures (in practice i386), it's OK that e.g. libbz2.so.1.0
+       * only exists for the primary architecture */
+      g_debug ("%s not supported on secondary architecture %s by this runtime",
+               soname, arch->details->tuple);
+      return TRUE;
     }
 
   target_base = glnx_basename (target);
