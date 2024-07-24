@@ -35,6 +35,7 @@
 #include "steam-runtime-tools/file-lock-internal.h"
 #include "steam-runtime-tools/graphics-internal.h"
 #include "steam-runtime-tools/graphics-drivers-json-based-internal.h"
+#include "steam-runtime-tools/log-internal.h"
 #include "steam-runtime-tools/profiling-internal.h"
 #include "steam-runtime-tools/resolve-in-sysroot-internal.h"
 #include "steam-runtime-tools/system-info-internal.h"
@@ -2352,8 +2353,12 @@ pv_runtime_get_capsule_capture_libs (PvRuntime *self,
                                          self->runtime_files_fd,
                                          self->runtime_files);
 
+  flatpak_bwrap_add_arg (ret, arch->capsule_capture_libs);
+
+  if (_srt_util_get_log_flags () & SRT_LOG_FLAGS_LEVEL)
+    flatpak_bwrap_add_arg (ret, "--level-prefix");
+
   flatpak_bwrap_add_args (ret,
-                          arch->capsule_capture_libs,
                           "--remap-link-prefix", remap_app,
                           "--remap-link-prefix", remap_usr,
                           "--remap-link-prefix", remap_lib,
