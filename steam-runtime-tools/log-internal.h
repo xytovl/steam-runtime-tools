@@ -41,6 +41,7 @@ typedef enum
   SRT_LOG_FLAGS_DIVERT_STDOUT = (1 << 6),
   SRT_LOG_FLAGS_OPTIONALLY_JOURNAL = (1 << 7),
   SRT_LOG_FLAGS_JOURNAL = (1 << 8),
+  SRT_LOG_FLAGS_LEVEL = (1 << 9),
   SRT_LOG_FLAGS_NONE = 0
 } SrtLogFlags;
 
@@ -68,3 +69,4 @@ gboolean _srt_util_restore_saved_fd (int saved_fd,
                                      GError **error);
 gboolean _srt_util_is_verbose (void);
 gboolean _srt_util_is_debugging (void);
+SrtLogFlags _srt_util_get_log_flags (void);

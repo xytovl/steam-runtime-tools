@@ -184,13 +184,15 @@ static gboolean
 _srt_stdio_to_journal (const char *identifier,
                        int target_fd,
                        int priority,
+                       gboolean enable_level_prefixes,
                        GError **error)
 {
   glnx_autofd int fd = -1;
 
   g_return_val_if_fail (target_fd >= 0, -1);
 
-  fd = _srt_journal_stream_fd (identifier, priority, FALSE, error);
+  fd = _srt_journal_stream_fd (identifier, priority,
+                               enable_level_prefixes, error);
 
   if (fd < 0)
     return FALSE;
@@ -313,6 +315,7 @@ log_handler (const gchar *log_domain,
              gpointer user_data)
 {
   g_autofree gchar *timestamp_prefix = NULL;
+  int priority = get_level_priority (log_level);
 
   if (log_settings.flags & SRT_LOG_FLAGS_TIMESTAMP)
     {
@@ -331,17 +334,37 @@ log_handler (const gchar *log_domain,
       log_settings.journal_send ("GLIB_DOMAIN=%s", log_domain,
                                  "MESSAGE=%s: %s",
                                  get_level_prefix (log_level), message,
-                                 "PRIORITY=%d", get_level_priority (log_level),
+                                 "PRIORITY=%d", priority,
                                  "SYSLOG_IDENTIFIER=%s", log_settings.prgname,
                                  NULL);
     }
 
   if (log_settings.journal_send == NULL)
     {
-      g_printerr ("%s%s[%d]: %s: %s%s",
+      g_autoptr(GString) edited_message = NULL;
+      const char *print_message = message;
+      char priority_prefix[] = { '<', '0', '>', '\0' };
+
+      if (log_settings.flags & SRT_LOG_FLAGS_LEVEL)
+        priority_prefix[1] += priority;
+      else
+        priority_prefix[0] = '\0';
+
+      if (G_UNLIKELY (strchr (message, '\n') != NULL))
+        {
+          g_autofree gchar *replacement = NULL;
+
+          replacement = g_strdup_printf ("%s%s", log_settings.newline, priority_prefix);
+          edited_message = g_string_new (message);
+          g_string_replace (edited_message, "\n", replacement, 0);
+          print_message = edited_message->str;
+        }
+
+      g_printerr ("%s%s%s[%d]: %s: %s%s",
+                  priority_prefix,
                   (timestamp_prefix ?: ""),
                   log_settings.prgname, log_settings.pid,
-                  get_level_prefix (log_level), message,
+                  get_level_prefix (log_level), print_message,
                   log_settings.newline);
     }
 
@@ -375,6 +398,9 @@ log_handler (const gchar *log_domain,
  *  enable %SRT_LOG_FLAGS_JOURNAL.
  * @SRT_LOG_FLAGS_JOURNAL: Try to write log messages to the systemd
  *  Journal, and redirect standard output and standard error there.
+ * @SRT_LOG_FLAGS_LEVEL: When emitting diagnostic messages, prepend a
+ *  priority marker compatible with `systemd-cat --level-prefix=1` and
+ *  `srt-logger --parse-level-prefix`, for example `<4>` for warnings
  * @SRT_LOG_FLAGS_NONE: None of the above
  *
  * Flags affecting logging.
@@ -388,6 +414,7 @@ static const GDebugKey log_enable[] =
   { "diffable", SRT_LOG_FLAGS_DIFFABLE },
   { "pid", SRT_LOG_FLAGS_PID },
   { "timing", SRT_LOG_FLAGS_TIMING },
+  { "level", SRT_LOG_FLAGS_LEVEL },
 
   /* Intentionally no way to set
    * - SRT_LOG_FLAGS_DIVERT_STDOUT
@@ -541,7 +568,9 @@ set_up_output (int fd,
         }
 
       /* Unstructured text on stdout/stderr becomes unstructured messages */
-      if (_srt_stdio_to_journal (log_settings.prgname, fd, priority, &local_error))
+      if (_srt_stdio_to_journal (log_settings.prgname, fd, priority,
+                                 (log_settings.flags & SRT_LOG_FLAGS_LEVEL) != 0,
+                                 &local_error))
         {
           /* No need to redirect stdout to stderr if stdout is already a
            * separate Journal stream */
@@ -660,6 +689,9 @@ _srt_util_set_glib_log_handler (const char *prgname,
 
   flags |= g_parse_debug_string (log_env, log_enable, log_env_n_keys);
 
+  if (_srt_boolean_environment ("SRT_LOG_LEVEL_PREFIX", FALSE))
+    flags |= SRT_LOG_FLAGS_LEVEL;
+
   /* Specifically setting SRT_LOG_TO_JOURNAL=0 does the opposite */
   if (!_srt_boolean_environment ("SRT_LOG_TO_JOURNAL", TRUE))
     flags &= ~SRT_LOG_FLAGS_JOURNAL;
@@ -727,4 +759,10 @@ gboolean
 _srt_util_is_debugging (void)
 {
   return !!(log_settings.flags & SRT_LOG_FLAGS_DEBUG);
+}
+
+SrtLogFlags
+_srt_util_get_log_flags (void)
+{
+  return log_settings.flags;
 }

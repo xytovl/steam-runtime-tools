@@ -1443,5 +1443,10 @@ _srt_logger_get_environ (SrtLogger *self)
       _srt_env_overlay_set (overlay, "SRT_LOGGER_USE_JOURNAL", "1");
     }
 
+  if (self->parse_level_prefix)
+    _srt_env_overlay_set (overlay, "SRT_LOG_LEVEL_PREFIX", "1");
+  else
+    _srt_env_overlay_set (overlay, "SRT_LOG_LEVEL_PREFIX", "0");
+
   return g_steal_pointer (&overlay);
 }
