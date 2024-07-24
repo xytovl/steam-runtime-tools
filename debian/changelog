@@ -1,5 +1,6 @@
 steam-runtime-tools (0.20240724.0) UNRELEASED; urgency=medium
 
+  [ Simon McVittie ]
   * pressure-vessel:
     - Try to provide /usr/${LIB}/gconv in the container.
       This fixes 64-bit games' use of iconv, and therefore indirectly
@@ -8,7 +9,23 @@ steam-runtime-tools (0.20240724.0) UNRELEASED; urgency=medium
     - Don't warn if library aliases are missing from secondary
       architectures (steamrt/tasks#367)
 
- -- Simon McVittie <smcv@collabora.com>  Wed, 24 Jul 2024 15:48:30 +0100
+  [ Ryan Gonzalez ]
+  * srt-logger:
+    - Add --parse-level-prefix option to parse systemd-cat-style priority
+      level prefixes (steamrt/tasks#444)
+    - New --default-level option sets the log priority to be assumed for
+      lines that do not have a prefix (or for all lines if
+      --parse-level-prefix is not used), defaulting to INFO
+    - New --file-level, --journal-level, --terminal-level options limit
+      the messages logged to each destination.
+      By default all messages go to the log file, and to the Journal
+      if used.
+      By default messages of INFO level or higher go to the terminal
+      (therefore DEBUG messages are excluded).
+    - Color messages that are logged to the terminal based on their level,
+      similar to journalctl
+
+ -- Simon McVittie <smcv@collabora.com>  Wed, 24 Jul 2024 19:51:14 +0100
 
 steam-runtime-tools (0.20240718.0) steamrt; urgency=medium
 
