@@ -32,8 +32,18 @@ static gboolean opt_mkfifo = FALSE;
 static gboolean opt_sh_syntax = FALSE;
 static int opt_terminal_fd = -1;
 static gboolean opt_use_journal = FALSE;
+static gboolean opt_parse_level_prefix = FALSE;
+static int opt_file_level = SRT_SYSLOG_LEVEL_DEFAULT_FILE;
+static int opt_journal_level = SRT_SYSLOG_LEVEL_DEFAULT_JOURNAL;
+static int opt_terminal_level = SRT_SYSLOG_LEVEL_DEFAULT_TERMINAL;
+static int opt_default_line_level = SRT_SYSLOG_LEVEL_DEFAULT_LINE;
 static unsigned opt_verbose = 0;
 static gboolean opt_version = FALSE;
+
+const char opt_file_level_name[] = "file-level";
+const char opt_journal_level_name[] = "journal-level";
+const char opt_terminal_level_name[] = "terminal-level";
+const char opt_default_line_level_name[] = "default-level";
 
 static gboolean
 opt_verbose_cb (const char *name,
@@ -65,6 +75,41 @@ opt_rotate_cb (const char *name,
     }
 
   opt_max_bytes = i64 * unit;
+  return TRUE;
+}
+
+static gboolean
+opt_level_cb (const char *name,
+              const char *value,
+              gpointer data,
+              GError **error)
+{
+  static const char flag_prefix[] = "--";
+  int *out_level = NULL;
+
+  if (!g_str_has_prefix (name, flag_prefix))
+    g_error ("Unexpected level option: %s", name);
+
+  name += strlen (flag_prefix);
+
+  if (g_str_equal (name, opt_file_level_name))
+    out_level = &opt_file_level;
+  else if (g_str_equal (name, opt_journal_level_name))
+    out_level = &opt_journal_level;
+  else if (g_str_equal (name, opt_terminal_level_name))
+    out_level = &opt_terminal_level;
+  else if (g_str_equal (name, opt_default_line_level_name))
+    out_level = &opt_default_line_level;
+  else
+    g_error ("Unexpected level option: --%s", name);
+
+  if (!_srt_syslog_level_parse (value, out_level))
+    {
+      g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
+                   "Invalid log level: %s", value);
+      return FALSE;
+    }
+
   return TRUE;
 }
 
@@ -125,6 +170,26 @@ static const GOptionEntry option_entries[] =
   { "use-journal", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_use_journal,
     "Also log to the systemd Journal.", NULL },
+  { "parse-level-prefix", '\0',
+    G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_parse_level_prefix,
+    "Enable parsing of level prefixes (<N>) in log lines",
+    NULL },
+  { opt_default_line_level_name, '\0',
+    G_OPTION_FLAG_NONE, G_OPTION_ARG_CALLBACK, &opt_level_cb,
+    "Assume the given log level for lines lacking a level prefix",
+    "LEVEL" },
+  { opt_file_level_name, '\0',
+    G_OPTION_FLAG_NONE, G_OPTION_ARG_CALLBACK, &opt_level_cb,
+    "Only log lines with at least the given importance to the filesystem",
+    "LEVEL" },
+  { opt_journal_level_name, '\0',
+    G_OPTION_FLAG_NONE, G_OPTION_ARG_CALLBACK, &opt_level_cb,
+    "Only log lines with at least the given importance to the journal",
+    "LEVEL" },
+  { opt_terminal_level_name, '\0',
+    G_OPTION_FLAG_NONE, G_OPTION_ARG_CALLBACK, &opt_level_cb,
+    "Only log lines with at least the given importance to the terminal",
+    "LEVEL" },
   { "verbose", 'v',
     G_OPTION_FLAG_NO_ARG, G_OPTION_ARG_CALLBACK, &opt_verbose_cb,
     "Be more verbose. If given twice, log debug messages too.", NULL },
@@ -239,17 +304,22 @@ run (int argc,
 
   logger = _srt_logger_new_take (g_strdup (argv[1]),
                                  opt_background,
+                                 opt_default_line_level,
                                  g_steal_pointer (&opt_filename),
                                  g_steal_fd (&opt_log_fd),
+                                 opt_file_level,
                                  g_steal_pointer (&opt_identifier),
                                  opt_use_journal,
                                  g_steal_fd (&opt_journal_fd),
+                                 opt_journal_level,
                                  g_steal_pointer (&opt_log_directory),
                                  opt_max_bytes,
                                  g_steal_fd (&original_stderr),
+                                 opt_parse_level_prefix,
                                  opt_sh_syntax,
                                  opt_auto_terminal,
-                                 opt_terminal_fd);
+                                 opt_terminal_fd,
+                                 opt_terminal_level);
 
   if (opt_background || !consume_stdin)
     {

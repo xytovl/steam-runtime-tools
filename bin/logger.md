@@ -202,6 +202,86 @@ a **#!/bin/sh** script.
 :   Write messages to the systemd Journal if possible, even if no
     **--journal-fd** was given.
 
+**--parse-level-prefix**
+:   If any log lines begin with a syslog priority prefix (an less-than `<`,
+    a level number 0-7, and a greater-than `>`), then strip that prefix off of
+    the line and use the number within as the line's log level. This is a
+    limited subset of RFC 5424's syslog message format, with the following
+    supported levels (available from C via the `LOG_*` constants in
+    **syslog**(3)), in order of most to least important:
+
+    | Level number | Name      |
+    | ------------ | --------- |
+    | 0            | emergency |
+    | 1            | alert     |
+    | 2            | critical  |
+    | 3            | error     |
+    | 4            | warning   |
+    | 5            | notice    |
+    | 6            | info      |
+    | 7            | debug     |
+
+    If an entire log line is `<remaining-lines-assume-level=N>`, where *N* is a
+    level number from 0-7 as mentioned above, then subsequent lines will be
+    logged with the level *N* and will not have any specific prefixes from them
+    parsed.
+
+    For example, given these lines:
+
+    ```
+    <5>abc
+    def
+    <remaining-lines-assume-level=4>
+    ghi
+    <3>jkl
+    ```
+
+    - The first line will be logged as `abc` with log level 5 / notice.
+    - The second line will be logged as `def` with the log level given to
+      **--default-level**.
+    - The third line will not be logged but will instead direct the logger to
+      use the level 4 / warning for all lines that follow.
+    - The fourth line will be logged as `ghi` with log level 4 / warning.
+    - The fifth line will be logged as `<3>jkl` with log level 3 / error.
+
+**--default-level=**_LEVEL_
+:   Use the given level as the default level for all log lines, unless
+    **--parse-level-prefix** is given and the line has its own prefix. The given
+    level must be one of the following numbers, corresponding names (in any
+    case), or aliases:
+
+    | Level number | Name      | Alias | Alias |
+    | ------------ | --------- | ----- | ----- |
+    | 0            | emergency | emerg |       |
+    | 1            | alert     | alert |       |
+    | 2            | critical  | crit  |       |
+    | 3            | error     | err   | e     |
+    | 4            | warning   | warn  | w     |
+    | 5            | notice    |       | n     |
+    | 6            | info      |       | i     |
+    | 7            | debug     |       | d     |
+
+    Defaults to `info`.
+
+**--file-level=**_LEVEL_
+:   Only send log lines to the log file from **--log-fd** or **--filename** that
+    have a log level at or more important than _LEVEL_, parsed in the same
+    format as **--default-level**.
+
+    Defaults to `debug` (which will effectively write everything).
+
+**--journal-level=**_LEVEL_
+:   Only send log lines to the systemd journal that have a log level at or more
+    important than _LEVEL_, parsed in the same format as **--default-level**.
+
+    Defaults to `debug` (which will effectively write everything).
+
+**--terminal-level=**_LEVEL_
+:   Only send log lines to the terminal that have a log level at or more
+    important than _LEVEL_, parsed in the same format as **--default-level**.
+
+    Defaults to `info`.
+
 **--verbose**, **-v**
 :   Be more verbose. If used twice, debug messages are shown.
 
@@ -209,6 +289,10 @@ a **#!/bin/sh** script.
 :   Print version information in YAML format.
 
 # ENVIRONMENT
+
+`NO_COLOR`
+:   If present and non-empty, disables all coloring of logs written to the
+    terminal.
 
 `SRT_LOG`
 :   A sequence of tokens separated by colons, spaces or commas

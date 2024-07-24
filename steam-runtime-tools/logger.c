@@ -21,6 +21,58 @@
 static const char READY_MESSAGE[] = "SRT_LOGGER_READY=1\n";
 #define READY_MESSAGE_LEN (sizeof (READY_MESSAGE) - 1)
 
+typedef const char *const SyslogLevelNames[3];
+
+static const SyslogLevelNames syslog_level_names[] = {
+  [LOG_EMERG]   = { "emerg",   "emergency"     },
+  [LOG_ALERT]   = { "alert"                    },
+  [LOG_CRIT]    = { "crit",    "critical"      },
+  [LOG_ERR]     = { "err",     "error",    "e" },
+  [LOG_WARNING] = { "warning", "warn",     "w" },
+  [LOG_NOTICE]  = { "notice",              "n" },
+  [LOG_INFO]    = { "info",                "i" },
+  [LOG_DEBUG]   = { "debug",               "d" }
+};
+
+/* Ensure there are no gaps. */
+G_STATIC_ASSERT (G_N_ELEMENTS (syslog_level_names) == LOG_DEBUG + 1);
+
+gboolean
+_srt_syslog_level_parse (const char *s,
+                         int *out_level)
+{
+  int level, name;
+
+  if (g_ascii_isdigit (*s))
+    {
+      guint64 out;
+
+      if (!g_ascii_string_to_unsigned (s, 10, 0, G_N_ELEMENTS (syslog_level_names) - 1, &out, NULL))
+        return FALSE;
+
+      *out_level = (int) out;
+      return TRUE;
+    }
+
+  for (level = 0; level < G_N_ELEMENTS (syslog_level_names); level++)
+    {
+      const SyslogLevelNames *names = &syslog_level_names[level];
+
+      for (name = 0;
+           name < G_N_ELEMENTS (*names) && (*names)[name] != NULL;
+           name++)
+        {
+          if (g_ascii_strcasecmp ((*names)[name], s) == 0)
+            {
+              *out_level = level;
+              return TRUE;
+            }
+        }
+    }
+
+  return FALSE;
+}
+
 struct _SrtLogger {
   GObject parent;
   const char *prgname;
@@ -38,12 +90,18 @@ struct _SrtLogger {
   int journal_fd;
   int terminal_fd;
   goffset max_bytes;
+  int default_level;
+  int file_level;
+  int journal_level;
+  int terminal_level;
   unsigned background : 1;
   unsigned sh_syntax : 1;
   unsigned use_file : 1;
   unsigned use_journal : 1;
   unsigned use_stderr : 1;
   unsigned use_terminal : 1;
+  unsigned use_terminal_colors : 1;
+  unsigned parse_level_prefix : 1;
 };
 
 struct _SrtLoggerClass
@@ -63,6 +121,10 @@ _srt_logger_init (SrtLogger *self)
   self->journal_fd = -1;
   self->terminal_fd = -1;
   self->max_bytes = -1;
+  self->default_level = SRT_SYSLOG_LEVEL_DEFAULT_LINE;
+  self->file_level = SRT_SYSLOG_LEVEL_DEFAULT_FILE;
+  self->journal_level = SRT_SYSLOG_LEVEL_DEFAULT_JOURNAL;
+  self->terminal_level = SRT_SYSLOG_LEVEL_DEFAULT_TERMINAL;
 }
 
 /* We need to have the log open read/write, otherwise the kernel won't let
@@ -137,34 +199,44 @@ _srt_logger_class_init (SrtLoggerClass *cls)
 SrtLogger *
 _srt_logger_new_take (char *argv0,
                       gboolean background,
+                      int default_line_level,
                       char *filename,
                       int file_fd,
+                      int file_level,
                       char *identifier,
                       gboolean journal,
                       int journal_fd,
+                      int journal_level,
                       char *log_dir,
                       goffset max_bytes,
                       int original_stderr,
+                      gboolean parse_level_prefix,
                       gboolean sh_syntax,
                       gboolean terminal,
-                      int terminal_fd)
+                      int terminal_fd,
+                      int terminal_level)
 {
   SrtLogger *self = g_object_new (SRT_TYPE_LOGGER, NULL);
 
   self->argv0 = argv0;
   self->background = !!background;
+  self->default_level = default_line_level;
   self->filename = filename;
   self->file_fd = file_fd;
+  self->file_level = file_level;
   self->identifier = identifier;
   self->journal_fd = journal_fd;
+  self->journal_level = journal_level;
   self->log_dir = log_dir;
   self->max_bytes = max_bytes;
   self->use_file = TRUE;
   self->use_journal = !!journal;
   self->original_stderr = original_stderr;
+  self->parse_level_prefix = !!parse_level_prefix;
   self->sh_syntax = !!sh_syntax;
   self->use_terminal = !!terminal;
   self->terminal_fd = terminal_fd;
+  self->terminal_level = terminal_level;
   return g_steal_pointer (&self);
 }
 
@@ -296,7 +368,7 @@ _srt_logger_setup (SrtLogger *self,
       g_debug ("opening new Journal stream: %s", self->identifier);
       self->journal_fd = _srt_journal_stream_fd (self->identifier,
                                                  LOG_INFO,
-                                                 FALSE,
+                                                 TRUE,
                                                  &journal_error);
 
       if (self->journal_fd < 0)
@@ -445,6 +517,13 @@ _srt_logger_setup (SrtLogger *self,
           g_debug ("unable to find a terminal file descriptor");
           self->use_terminal = FALSE;
         }
+    }
+
+  if (self->use_terminal)
+    {
+      const char *no_color = g_getenv ("NO_COLOR");
+      if (no_color == NULL || g_str_equal (no_color, ""))
+        self->use_terminal_colors = TRUE;
     }
 
   if (self->terminal_fd >= 0 && self->terminal == NULL)
@@ -696,6 +775,27 @@ _srt_logger_run_subprocess (SrtLogger *self,
                        g_strdup_printf ("--terminal-fd=%d", self->terminal_fd));
     }
 
+  if (self->parse_level_prefix)
+    g_ptr_array_add (logger_argv, g_strdup ("--parse-level-prefix"));
+
+  if (self->default_level != SRT_SYSLOG_LEVEL_DEFAULT_LINE)
+    g_ptr_array_add (logger_argv,
+                     g_strdup_printf ("--default-level=%s",
+                                      syslog_level_names[self->default_level][0]));
+
+  if (self->file_level != SRT_SYSLOG_LEVEL_DEFAULT_FILE)
+    g_ptr_array_add (logger_argv,
+                     g_strdup_printf ("--file-level=%s",
+                                      syslog_level_names[self->file_level][0]));
+  if (self->journal_level != SRT_SYSLOG_LEVEL_DEFAULT_JOURNAL)
+    g_ptr_array_add (logger_argv,
+                     g_strdup_printf ("--journal-level=%s",
+                                      syslog_level_names[self->journal_level][0]));
+  if (self->terminal_level != SRT_SYSLOG_LEVEL_DEFAULT_TERMINAL)
+    g_ptr_array_add (logger_argv,
+                     g_strdup_printf ("--terminal-level=%s",
+                                      syslog_level_names[self->terminal_level][0]));
+
   if (_srt_util_is_verbose ())
     g_ptr_array_add (logger_argv, g_strdup ("-v"));
 
@@ -783,6 +883,97 @@ _srt_logger_run_subprocess (SrtLogger *self,
     }
 
   return TRUE;
+}
+
+/*
+ * @self: The logger
+ * @buf: Pointer to the beginning of a partial log message to parse
+ * @len: Number of bytes to process, including the trailing newline if this is
+ * a complete line
+ * @out_level: (out): Pointer to the target of the parsed level
+ *
+ * Attempt to parse a log level prefix (`<N>`) or directive
+ * (`<remaining-lines-assume-level=N>`) from the given line. If the presence of
+ * a prefix cannot be determined because not enough data is available, return
+ * -1 and leave @out_level all as-is. Otherwise, return the length of the parsed
+ * prefix to be stripped off of the line (0 if there was no prefix), set
+ * @out_level to contain the log level to use for the line. If the entire input
+ * was consumed, then the return value will be equal to @len.
+ *
+ * Returns: the length of the parsed prefix, or -1 if not enough data is
+ * available
+ * */
+static ssize_t
+logger_parse_level_prefix (SrtLogger *self,
+                           const char *buf,
+                           size_t len,
+                           int *out_level)
+{
+  static const char remaining_lines_prefix[] = "remaining-lines-assume-level=";
+
+  const char *buf_start = buf;
+  gboolean stop_parsing_prefix = FALSE;
+  int level = LOG_DEBUG;
+
+  if (!self->parse_level_prefix)
+    {
+      *out_level = self->default_level;
+      return 0;
+    }
+
+  if (len == 0)
+    return -1;
+
+  if (*buf++ != '<')
+    goto unprefixed;
+  len--;
+
+  if (strncmp (buf, remaining_lines_prefix,
+               MIN (strlen (remaining_lines_prefix), len)) == 0)
+    {
+      if (len < strlen (remaining_lines_prefix))
+        return -1;
+
+      stop_parsing_prefix = TRUE;
+      buf += strlen (remaining_lines_prefix);
+      len -= strlen (remaining_lines_prefix);
+    }
+
+  if (len == 0)
+    return -1;
+  if (!g_ascii_isdigit (*buf))
+    goto unprefixed;
+  level = *buf++ - '0';
+  len--;
+
+  if (level >= G_N_ELEMENTS (syslog_level_names))
+    goto unprefixed;
+
+  if (len == 0)
+    return -1;
+  if (*buf++ != '>')
+    goto unprefixed;
+  len--;
+
+  if (stop_parsing_prefix)
+    {
+      if (len == 0)
+        return -1;
+      else if (*buf != '\n')
+        goto unprefixed;
+      buf++;
+      len--;
+
+      self->default_level = level;
+      self->parse_level_prefix = FALSE;
+    }
+
+  *out_level = level;
+  return buf - buf_start;
+
+unprefixed:
+  *out_level = self->default_level;
+  return 0;
 }
 
 /*
@@ -880,6 +1071,56 @@ out:
   return ret;
 }
 
+static void
+write_formatted_line (int fd,
+                      int level,
+                      const char *line,
+                      size_t len)
+{
+  static const char ansi_reset[] = "\033[0m";
+  static const char ansi_dim[] = "\033[2m";
+  static const char ansi_bold[] = "\033[1m";
+  static const char ansi_bold_magenta[] = "\033[1;35m";
+  static const char ansi_bold_red[] = "\033[1;31m";
+
+  glnx_loop_write (fd, ansi_reset, strlen (ansi_reset));
+
+  switch (level) {
+    case LOG_DEBUG:
+      glnx_loop_write (fd, ansi_dim, strlen (ansi_dim));
+      break;
+    case LOG_INFO:
+      break;
+    case LOG_NOTICE:
+      glnx_loop_write (fd, ansi_bold, strlen (ansi_bold));
+      break;
+    case LOG_WARNING:
+      glnx_loop_write (fd, ansi_bold_magenta, strlen (ansi_bold_magenta));
+      break;
+    case LOG_ERR:
+    case LOG_CRIT:
+    case LOG_ALERT:
+    case LOG_EMERG:
+      glnx_loop_write (fd, ansi_bold_red, strlen (ansi_bold_red));
+      break;
+    default:
+      g_warning ("Unexpected log level: %d", level);
+      break;
+  }
+
+  if (len > 0 && line[len - 1] == '\n')
+    {
+      glnx_loop_write (fd, line, len - 1);
+      glnx_loop_write (fd, ansi_reset, strlen (ansi_reset));
+      glnx_loop_write (fd, "\n", 1);
+    }
+  else
+    {
+      glnx_loop_write (fd, line, len);
+      glnx_loop_write (fd, ansi_reset, strlen (ansi_reset));
+    }
+}
+
 /*
  * @self: The logger
  * @line: (array length=len): Pointer to the beginning or middle of
@@ -892,14 +1133,20 @@ out:
  */
 static void
 logger_process_partial_line (SrtLogger *self,
+                             int level,
                              const char *line,
                              size_t len)
 {
-  if (self->use_stderr)
+  if (self->use_stderr && level <= self->terminal_level)
     glnx_loop_write (STDERR_FILENO, line, len);
 
-  if (self->terminal_fd >= 0)
-    glnx_loop_write (self->terminal_fd, line, len);
+  if (self->terminal_fd >= 0 && level <= self->terminal_level)
+    {
+      if (self->use_terminal_colors)
+        write_formatted_line (self->terminal_fd, level, line, len);
+      else
+        glnx_loop_write (self->terminal_fd, line, len);
+    }
 }
 
 /*
@@ -913,13 +1160,19 @@ logger_process_partial_line (SrtLogger *self,
  */
 static void
 logger_process_complete_line (SrtLogger *self,
+                              int level,
                               const char *line,
                               size_t len)
 {
-  if (self->journal_fd >= 0)
-    glnx_loop_write (self->journal_fd, line, len);
+  if (self->journal_fd >= 0 && level <= self->journal_level)
+    {
+      char prefix[] = {'<', '0', '>'};
+      prefix[1] += level;
+      glnx_loop_write (self->journal_fd, prefix, sizeof (prefix));
+      glnx_loop_write (self->journal_fd, line, len);
+    }
 
-  if (self->file_fd >= 0)
+  if (self->file_fd >= 0 && level <= self->file_level)
     {
       struct stat stat_buf;
 
@@ -952,7 +1205,12 @@ _srt_logger_process (SrtLogger *self,
                      int *original_stdout,
                      GError **error)
 {
+  ssize_t parsed_level_prefix_size = -1;
+  int line_level;
   char buf[LINE_MAX + 1] = { 0 };
+  /* The portion of the filled buffer that has already been given to
+   * logger_process_partial_line (always <= filled) */
+  size_t already_processed_partial_line = 0;
   size_t filled = 0;
   ssize_t res;
 
@@ -1002,6 +1260,8 @@ _srt_logger_process (SrtLogger *self,
 
   do
     {
+      gboolean line_overflowed_buffer = FALSE;
+
       res = TEMP_FAILURE_RETRY (read (STDIN_FILENO,
                                       buf + filled,
                                       sizeof (buf) - filled - 1));
@@ -1009,16 +1269,21 @@ _srt_logger_process (SrtLogger *self,
       if (res < 0)
         return glnx_throw_errno_prefix (error, "Error reading standard input");
 
-      logger_process_partial_line (self, buf + filled, (size_t) res);
-
       /* We never touch the last byte of buf while reading */
       filled += (size_t) res;
       g_assert (filled < sizeof (buf));
 
       while (filled > 0)
         {
-          char *end_of_line = memchr (buf, '\n', filled);
+          char *end_of_line = NULL;
           size_t len;
+
+          g_assert (already_processed_partial_line <= filled);
+
+          /* Skip the parts of the line we know don't have a newline */
+          end_of_line = memchr (buf + already_processed_partial_line,
+                                '\n',
+                                filled - already_processed_partial_line);
 
           /* If we have read LINE_MAX bytes with no newline, or we reached
            * EOF with no newline at the end, give up and truncate it;
@@ -1029,6 +1294,7 @@ _srt_logger_process (SrtLogger *self,
                 {
                   end_of_line = &buf[filled];
                   *end_of_line = '\n';
+                  line_overflowed_buffer = TRUE;
                 }
               else
                 break;
@@ -1037,7 +1303,52 @@ _srt_logger_process (SrtLogger *self,
           /* Length of the first logical line, including the newline */
           len = end_of_line - buf + 1;
 
-          logger_process_complete_line (self, buf, len);
+          if (already_processed_partial_line > 0)
+            {
+              /* It shouldn't be possible to have processed part of the line
+               * without first having parsed the log level */
+              g_assert (parsed_level_prefix_size >= 0);
+
+              /* Since already_processed_partial_line is covering parts that
+               * have no newline (because otherwise, it wouldn't be partially
+               * processed!), it should always be less than len, which includes
+               * the trailing newline */
+              g_assert (already_processed_partial_line < len);
+
+              logger_process_partial_line (self,
+                                           line_level,
+                                           buf + already_processed_partial_line,
+                                           len - already_processed_partial_line);
+              already_processed_partial_line = 0;
+            }
+          else
+            {
+              if (parsed_level_prefix_size < 0)
+                {
+                  parsed_level_prefix_size =
+                    logger_parse_level_prefix (self, buf, len, &line_level);
+                  /* This should never fail due to lack of data, because we
+                   * already know the line is complete and will end with
+                   * newline. */
+                  g_assert (parsed_level_prefix_size >= 0);
+                }
+
+              if (parsed_level_prefix_size < len)
+                logger_process_partial_line (self,
+                                             line_level,
+                                             buf + parsed_level_prefix_size,
+                                             len - parsed_level_prefix_size);
+            }
+
+          if (parsed_level_prefix_size < len)
+            logger_process_complete_line (self,
+                                          line_level,
+                                          buf + parsed_level_prefix_size,
+                                          len - parsed_level_prefix_size);
+
+          /* If this is from a single line that overflowed, maintain the same
+           * log level for the next read */
+          parsed_level_prefix_size = line_overflowed_buffer ? 0 : -1;
 
           if (filled > len)
             {
@@ -1049,6 +1360,39 @@ _srt_logger_process (SrtLogger *self,
             {
               /* All bytes have been drained */
               filled = 0;
+            }
+        }
+
+      if (filled > already_processed_partial_line)
+        {
+          /* There is still some leftover content in the buffer that doesn't
+           * make up a complete line; we can process it now as long as we know
+           * that we've parsed the line's level prefix. Otherwise, we need to
+           * to keep buffering until then.
+           * */
+
+          if (parsed_level_prefix_size < 0)
+            {
+              g_assert (already_processed_partial_line == 0);
+
+              parsed_level_prefix_size = logger_parse_level_prefix (self,
+                                                                    buf,
+                                                                    filled,
+                                                                    &line_level);
+              if (parsed_level_prefix_size >= 0)
+                already_processed_partial_line += parsed_level_prefix_size;
+            }
+
+          if (parsed_level_prefix_size >= 0
+              /* This condition needs to be rechecked here, because
+               * already_processed_partial_line mgiht have been modified by the
+               * block above. */
+              && filled > already_processed_partial_line)
+            {
+              logger_process_partial_line (self, line_level,
+                                           buf + already_processed_partial_line,
+                                           filled - already_processed_partial_line);
+              already_processed_partial_line = filled;
             }
         }
     }

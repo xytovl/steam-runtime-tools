@@ -3,8 +3,12 @@
 #
 # SPDX-License-Identifier: MIT
 
+import enum
+import io
 import logging
 import os
+import re
+import select
 import subprocess
 import sys
 import tempfile
@@ -33,6 +37,11 @@ LAUNCH_EX_CANNOT_INVOKE = 126
 LAUNCH_EX_NOT_FOUND = 127
 STDOUT_FILENO = 1
 STDERR_FILENO = 2
+
+
+def wrap_process_io(process_io: 'typing.Optional[typing.IO[bytes]]') -> io.TextIOWrapper:
+    assert process_io is not None
+    return io.TextIOWrapper(process_io)
 
 
 class TestLogger(BaseTest):
@@ -446,6 +455,7 @@ class TestLogger(BaseTest):
         ):
             proc = subprocess.Popen(
                 self.logger + ['--filename='] + args,
+                env={**os.environ, 'NO_COLOR': '1'},
                 stdin=subprocess.PIPE,
                 stdout=STDERR_FILENO,
                 stderr=subprocess.PIPE,
@@ -830,6 +840,7 @@ class TestLogger(BaseTest):
                     '--',
                     'cat',
                 ],
+                env={**os.environ, 'NO_COLOR': '1'},
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -881,6 +892,7 @@ class TestLogger(BaseTest):
                     '--sh-syntax',
                     '--use-journal',
                 ],
+                env={**os.environ, 'NO_COLOR': '1'},
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -946,6 +958,7 @@ class TestLogger(BaseTest):
                     '--filename=three',
                     '--log-directory', tmpdir,
                 ],
+                env={**os.environ, 'NO_COLOR': '1'},
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -995,11 +1008,214 @@ class TestLogger(BaseTest):
                 logger.info('tty output: %s', content)
                 self.assertIn('hello, world\n', content)
 
+    def test_level_prefixes(self) -> None:
+        LEVEL_LINES = [
+                'emergency message\n',
+                'alert message\n',
+                'crit message\n',
+                'err message\n',
+                'warning message\n',
+                'notice message\n',
+                'info message\n',
+                'debug message\n',
+        ]
+
+        UNPREFIXED_LINE = 'default level message\n'
+
+        INVALID_LINES = [
+            '<invalid prefix message\n',
+            '<5invalid prefix message\n',
+        ]
+
+        def prepend_level(level: int, line: str) -> str:
+            return '<{}>{}'.format(level, line)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            journal_path = Path(tmpdir, 'journal.txt')
+            terminal_path = Path(tmpdir, 'terminal.txt')
+            with journal_path.open('w') as journal, \
+                    terminal_path.open('w') as terminal:
+                proc = subprocess.Popen(
+                    self.logger + [
+                        '--parse-level-prefix',
+                        '--default-level=notice',
+                        '--file-level=debug',
+                        '--journal-level=info',
+                        '--terminal-level=err',
+                        '--filename=log.txt',
+                        '--log-directory', tmpdir,
+                        '--journal-fd={}'.format(journal.fileno()),
+                        '--terminal-fd={}'.format(terminal.fileno()),
+                    ],
+                    env={**os.environ, 'NO_COLOR': '1'},
+                    pass_fds=(journal.fileno(), terminal.fileno(),),
+                    stdin=subprocess.PIPE,
+                )
+
+            with wrap_process_io(proc.stdin) as stdin:
+                for i, line in enumerate(LEVEL_LINES):
+                    stdin.write(prepend_level(i, line))
+                for line in INVALID_LINES:
+                    stdin.write(line)
+                stdin.write(UNPREFIXED_LINE)
+
+            self.assertEqual(proc.wait(), 0)
+
+            contents = Path(tmpdir, 'log.txt').read_text()
+            for i, line in enumerate(LEVEL_LINES):
+                self.assertIn(line, contents)
+                self.assertNotIn(prepend_level(i, line), contents)
+            self.assertIn(UNPREFIXED_LINE, contents)
+
+            contents = journal_path.read_text()
+            for i, line in enumerate(LEVEL_LINES[:7]):
+                self.assertIn(prepend_level(i, line), contents)
+            for line in LEVEL_LINES[7:]:
+                self.assertNotIn(line, contents)
+            for line in (*INVALID_LINES, UNPREFIXED_LINE):
+                self.assertIn(prepend_level(5, line), contents)
+
+            contents = terminal_path.read_text()
+            for line in LEVEL_LINES[:4]:
+                self.assertIn(line, contents)
+            for line in (*LEVEL_LINES[4:], *INVALID_LINES, UNPREFIXED_LINE):
+                self.assertNotIn(line, contents)
+
+    def test_remaining_lines_level(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            journal_path = Path(tmpdir, 'journal.txt')
+
+            with journal_path.open('w') as journal:
+                proc = subprocess.Popen(
+                    self.logger + [
+                        '--parse-level-prefix',
+                        '--default-level=notice',
+                        '--journal-level=debug',
+                        '--journal-fd={}'.format(journal.fileno()),
+                    ],
+                    pass_fds=(journal.fileno(),),
+                    stdin=subprocess.PIPE,
+                )
+
+            with wrap_process_io(proc.stdin) as stdin:
+                stdin.write('<6>foo\n')
+                stdin.write('<remaining-lines-assume-level=5>\n')
+                stdin.write('<2>bar\n')
+
+            self.assertEqual(proc.wait(), 0)
+
+            contents = journal_path.read_text()
+            self.assertIn('<6>foo\n', contents)
+            self.assertIn('<5><2>bar\n', contents)
+
+    def test_level_prefix_buffering(self) -> None:
+        # Use a pipe here instead of stderr, so it'll be easier to debug
+        # srt-logger via printf.
+        terminal_rd, terminal_wr = os.pipe()
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            journal_path = Path(tmpdir, 'journal.txt')
+            with journal_path.open('w+') as journal, \
+                    os.fdopen(terminal_wr, 'wb') as terminal:
+                proc = subprocess.Popen(
+                    self.logger + [
+                        '--parse-level-prefix',
+                        '--default-level=I',
+                        '--journal-level=7',
+                        '--terminal-level=notice',
+                        '--journal-fd={}'.format(journal.fileno()),
+                        '--terminal-fd={}'.format(terminal.fileno()),
+                    ],
+                    bufsize=0,
+                    env={**os.environ, 'NO_COLOR': '1'},
+                    pass_fds=(journal.fileno(), terminal.fileno()),
+                    stdin=subprocess.PIPE,
+                )
+
+            assert proc.stdin is not None
+            with proc.stdin as stdin, \
+                    os.fdopen(terminal_rd, 'rb', buffering=0) as terminal:
+                for b in b'<4>w':
+                    stdin.write(bytes([b]))
+                    time.sleep(0.05)
+                stdin.write(b'arning')
+
+                buffer = b''
+                while b'warning' not in buffer:
+                    buffer += terminal.read(10)
+                    logging.info('buffer=%s', buffer)
+
+                stdin.write(b'\n')
+                buffer = b''
+                while b'\n' not in buffer:
+                    buffer += terminal.read(10)
+                    logging.info('buffer=%s', buffer)
+
+                stdin.write(b'unprefixed notice\n')
+                stdin.write(b'<7>journal only debug\n')
+
+                stdin.write(b'<remaining-lines-')
+                stdin.write(b'assume-level=5>\n')
+
+                stdin.write(b'<7>actually a notice\n')
+                stdin.close()
+
+                rest = terminal.read()
+                self.assertIn(b'<7>actually a notice', rest)
+                self.assertNotIn(b'unprefixed notice', rest)
+                self.assertNotIn(b'journal only debug', rest)
+
+            self.assertEqual(proc.wait(), 0)
+
+            contents = journal_path.read_text()
+            self.assertIn('<4>warning\n', contents)
+            self.assertIn('<6>unprefixed notice\n', contents)
+            self.assertIn('<7>journal only debug\n', contents)
+            self.assertIn('<5><7>actually a notice\n', contents)
+
+
+    def test_level_colors(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            journal_path = Path(tmpdir, 'journal.txt')
+            terminal_path = Path(tmpdir, 'terminal.txt')
+            with journal_path.open('w') as journal, \
+                    terminal_path.open('w') as terminal:
+                proc = subprocess.Popen(
+                    self.logger + [
+                        '--parse-level-prefix',
+                        '--terminal-level=notice',
+                        '--filename=log.txt',
+                        '--log-directory', tmpdir,
+                        '--journal-fd={}'.format(journal.fileno()),
+                        '--terminal-fd={}'.format(terminal.fileno()),
+                    ],
+                    env={**os.environ, 'NO_COLOR': ''},
+                    pass_fds=(journal.fileno(), terminal.fileno(),),
+                    stdin=subprocess.PIPE,
+                )
+
+            with wrap_process_io(proc.stdin) as stdin:
+                stdin.write('<0>a message\n')
+
+            self.assertEqual(proc.wait(), 0)
+
+            contents = terminal_path.read_text()
+            # Ensure that the line has some color applied to it that is reset
+            # afterwards.
+            self.assertRegex(contents, '\033\\[[^0].*a message.*\033\\[0m')
+
+            contents = journal_path.read_text()
+            self.assertNotIn('\033', contents)
+
+            contents = Path(tmpdir, 'log.txt').read_text()
+            self.assertNotIn('\033', contents)
+
     def test_wrong_options(self) -> None:
         for option in (
             '--an-unknown-option',
             '--filename=not/allowed',
             '--filename=.not-allowed',
+            '--default-level=invalid',
         ):
             proc = subprocess.Popen(
                 self.logger + [
