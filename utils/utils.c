@@ -725,3 +725,43 @@ _capsule_basename (const char *path)
   assert( ret[0] == '/' );
   return ret + 1;
 }
+
+/*
+ * capsule_logv:
+ * @severity: A `syslog.h` severity constant such as `LOG_ERR`
+ * @fmt: A printf-style format string
+ * @ap: Arguments for @fmt
+ *
+ * Log the message @fmt, substituting the given arguments.
+ * A newline is appended automatically and should not be included in @fmt.
+ *
+ * Unlike `errx()` and `g_error()`, this does not immediately exit,
+ * even if the severity indicates a fatal error (the caller must do that,
+ * if desired).
+ */
+void
+capsule_logv( int severity, const char *fmt, va_list ap )
+{
+    /* libcapsule tools are single-threaded, so it's an acceptable
+     * simplification that we do not emit the whole message atomically. */
+    vfprintf( stderr, fmt, ap );
+    fputc( '\n', stderr );
+}
+
+/*
+ * capsule_log:
+ * @severity: A `syslog.h` severity constant such as `LOG_ERR`
+ * @fmt: A printf-style format string
+ * @...: Arguments for @fmt
+ *
+ * Same as capsule_logv(), but with varargs.
+ */
+void
+capsule_log( int severity, const char *fmt, ... )
+{
+    va_list ap;
+
+    va_start( ap, fmt );
+    capsule_logv( severity, fmt, ap );
+    va_end( ap );
+}
