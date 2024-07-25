@@ -39,6 +39,7 @@
 
 #include "steam-runtime-tools/glib-backports-internal.h"
 #include "steam-runtime-tools/input-device-internal.h"
+#include "steam-runtime-tools/logger-internal.h"
 #include "steam-runtime-tools/runtime-internal.h"
 #include "steam-runtime-tools/steam-internal.h"
 #include "steam-runtime-tools/utils-internal.h"
@@ -1581,6 +1582,78 @@ test_string_read_fd_until_eof (Fixture *f,
     }
 }
 
+struct
+{
+  const char *input;
+  int expected;
+} syslog_level_tests[] =
+{
+  { "emerg", LOG_EMERG },
+  { "EmErGeNcY", LOG_EMERG },
+  { "ALERT", LOG_ALERT },
+  { "crit", LOG_CRIT },
+  { "critical", LOG_CRIT },
+  { "err", LOG_ERR },
+  { "error", LOG_ERR },
+  { "e", LOG_ERR },
+  { "warning", LOG_WARNING },
+  { "warn", LOG_WARNING },
+  { "W", LOG_WARNING },
+  { "notice", LOG_NOTICE },
+  { "n", LOG_NOTICE },
+  { "info", LOG_INFO },
+  { "i", LOG_INFO },
+  { "debug", LOG_DEBUG },
+  { "d", LOG_DEBUG },
+  { "-1", -1 },
+  { "0", LOG_EMERG },
+  { "1", LOG_ALERT },
+  { "2", LOG_CRIT },
+  { "3", LOG_ERR },
+  { "4", LOG_WARNING },
+  { "5", LOG_NOTICE },
+  { "6", LOG_INFO },
+  { "7", LOG_DEBUG },
+  { "8", -1 },
+  { "9", -1 },
+  { "666", -1 },
+  { "errata", -1 },
+  { "", -1 },
+};
+
+static void
+test_syslog_level_parse (Fixture *f,
+                         gconstpointer context)
+{
+  gsize i;
+
+  for (i = 0; i < G_N_ELEMENTS (syslog_level_tests); i++)
+    {
+      const char *input = syslog_level_tests[i].input;
+      int expected = syslog_level_tests[i].expected;
+      int actual = -2;
+      gboolean ok;
+
+      ok = _srt_syslog_level_parse (input, &actual);
+
+      if (ok)
+        g_test_message ("parse syslog level \"%s\" => %d", input, actual);
+      else
+        g_test_message ("parse syslog level \"%s\" => failed", input);
+
+      if (expected < 0)
+        {
+          g_assert_cmpint (actual, ==, -2);   /* untouched */
+          g_assert_false (ok);
+        }
+      else
+        {
+          g_assert_cmpint (actual, ==, expected);
+          g_assert_true (ok);
+        }
+    }
+}
+
 static const char uevent[] =
 "DRIVER=lenovo\n"
 "HID_ID=0003:000017EF:00006009\n"
@@ -1688,6 +1761,8 @@ main (int argc,
               setup, test_string_ends_with, teardown);
   g_test_add ("/utils/string_read_fd_until_eof", Fixture, NULL,
               setup, test_string_read_fd_until_eof, teardown);
+  g_test_add ("/utils/syslog_level_parse", Fixture, NULL,
+              setup, test_syslog_level_parse, teardown);
   g_test_add ("/utils/uevent-field", Fixture, NULL,
               setup, test_uevent_field, teardown);
 
