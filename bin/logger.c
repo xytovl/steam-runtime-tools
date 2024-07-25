@@ -87,6 +87,11 @@ opt_level_cb (const char *name,
   static const char flag_prefix[] = "--";
   int *out_level = NULL;
 
+  /* Call g_ascii_strtoull() for its side-effect of avoiding
+   * https://gitlab.gnome.org/GNOME/glib/-/issues/3418
+   * when we parse the value below */
+  g_ascii_strtoull ("0", NULL, 10);
+
   if (!g_str_has_prefix (name, flag_prefix))
     g_error ("Unexpected level option: %s", name);
 
