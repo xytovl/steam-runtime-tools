@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20240724.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20240725.0) steamrt; urgency=medium
 
   [ Simon McVittie ]
   * pressure-vessel:
@@ -25,7 +25,7 @@ steam-runtime-tools (0.20240724.0) UNRELEASED; urgency=medium
     - Color messages that are logged to the terminal based on their level,
       similar to journalctl
 
- -- Simon McVittie <smcv@collabora.com>  Wed, 24 Jul 2024 19:51:14 +0100
+ -- Simon McVittie <smcv@collabora.com>  Thu, 25 Jul 2024 12:16:24 +0100
 
 steam-runtime-tools (0.20240718.0) steamrt; urgency=medium
 
