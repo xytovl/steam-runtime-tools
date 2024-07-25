@@ -22,7 +22,8 @@
 #define SRT_SYSLOG_LEVEL_DEFAULT_LINE LOG_INFO
 
 gboolean _srt_syslog_level_parse (const char *s,
-                                  int *out_level);
+                                  int *out_level,
+                                  GError **error);
 
 typedef struct _SrtLogger SrtLogger;
 typedef struct _SrtLoggerClass SrtLoggerClass;

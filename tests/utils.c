@@ -1629,25 +1629,29 @@ test_syslog_level_parse (Fixture *f,
 
   for (i = 0; i < G_N_ELEMENTS (syslog_level_tests); i++)
     {
+      g_autoptr(GError) local_error = NULL;
       const char *input = syslog_level_tests[i].input;
       int expected = syslog_level_tests[i].expected;
       int actual = -2;
       gboolean ok;
 
-      ok = _srt_syslog_level_parse (input, &actual);
+      ok = _srt_syslog_level_parse (input, &actual, &local_error);
 
       if (ok)
         g_test_message ("parse syslog level \"%s\" => %d", input, actual);
       else
-        g_test_message ("parse syslog level \"%s\" => failed", input);
+        g_test_message ("parse syslog level \"%s\" => failed: %s",
+                        input, local_error->message);
 
       if (expected < 0)
         {
+          g_assert_nonnull (local_error);
           g_assert_cmpint (actual, ==, -2);   /* untouched */
           g_assert_false (ok);
         }
       else
         {
+          g_assert_no_error (local_error);
           g_assert_cmpint (actual, ==, expected);
           g_assert_true (ok);
         }

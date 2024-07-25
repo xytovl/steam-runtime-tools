@@ -39,7 +39,8 @@ G_STATIC_ASSERT (G_N_ELEMENTS (syslog_level_names) == LOG_DEBUG + 1);
 
 gboolean
 _srt_syslog_level_parse (const char *s,
-                         int *out_level)
+                         int *out_level,
+                         GError **error)
 {
   int level, name;
 
@@ -47,7 +48,7 @@ _srt_syslog_level_parse (const char *s,
     {
       guint64 out;
 
-      if (!g_ascii_string_to_unsigned (s, 10, 0, G_N_ELEMENTS (syslog_level_names) - 1, &out, NULL))
+      if (!g_ascii_string_to_unsigned (s, 10, 0, G_N_ELEMENTS (syslog_level_names) - 1, &out, error))
         return FALSE;
 
       *out_level = (int) out;
@@ -70,6 +71,8 @@ _srt_syslog_level_parse (const char *s,
         }
     }
 
+  g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
+               "Not a recognised log level");
   return FALSE;
 }
 
