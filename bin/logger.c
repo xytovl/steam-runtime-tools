@@ -84,6 +84,7 @@ opt_level_cb (const char *name,
               gpointer data,
               GError **error)
 {
+  g_autoptr(GError) local_error = NULL;
   static const char flag_prefix[] = "--";
   int *out_level = NULL;
 
@@ -103,10 +104,11 @@ opt_level_cb (const char *name,
   else
     g_error ("Unexpected level option: --%s", name);
 
-  if (!_srt_syslog_level_parse (value, out_level))
+  if (!_srt_syslog_level_parse (value, out_level, &local_error))
     {
       g_set_error (error, G_OPTION_ERROR, G_OPTION_ERROR_BAD_VALUE,
-                   "Invalid log level: %s", value);
+                   "Invalid log level \"%s\": %s",
+                   value, local_error->message);
       return FALSE;
     }
 
