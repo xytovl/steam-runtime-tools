@@ -1,7 +1,8 @@
-steam-runtime-tools (0.20240726.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20240726.0) steamrt; urgency=medium
 
   * all tools:
-    - Optionally prepend a priority level marker to each diagnostic message
+    - Optionally prepend a priority level marker to each diagnostic
+      message (steamrt/tasks#444)
   * srt-logger:
     - Add an early call to g_ascii_strtoull() to avoid an apparent
       GLib bug (steamrt/tasks#481)
@@ -12,7 +13,7 @@ steam-runtime-tools (0.20240726.0) UNRELEASED; urgency=medium
     - Add test coverage for _srt_syslog_level_parse()
       (steamrt/tasks#481)
 
- -- Simon McVittie <smcv@collabora.com>  Fri, 26 Jul 2024 13:57:08 +0100
+ -- Simon McVittie <smcv@collabora.com>  Fri, 26 Jul 2024 15:18:01 +0100
 
 steam-runtime-tools (0.20240725.0) steamrt; urgency=medium
 
