@@ -614,4 +614,6 @@ if get_option('installed_tests')
   )
 endif
 
+subdir('manual')
+
 # vim:set sw=2 sts=2 et:
