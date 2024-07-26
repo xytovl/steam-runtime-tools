@@ -1,6 +1,6 @@
 /* vi:set et sw=2 sts=2 cin cino=t0,f0,(0,{s,>2s,n-s,^-s,e-s:
  * Taken from Flatpak
- * Last updated: Flatpak 1.15.8
+ * Last updated: Flatpak 1.15.9
  * Copyright © 2014-2019 Red Hat, Inc
  * SPDX-License-Identifier: LGPL-2.1-or-later
  *
@@ -241,6 +241,10 @@ out:
  */
 gboolean
 flatpak_run_add_wayland_args (FlatpakBwrap *bwrap,
+#if 0
+                              const char   *app_id,
+                              const char   *instance_id,
+#endif
                               gboolean      inherit_wayland_socket)
 {
   const char *wayland_display;

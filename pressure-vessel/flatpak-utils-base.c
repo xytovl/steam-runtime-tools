@@ -1,6 +1,6 @@
 /* vi:set et sw=2 sts=2 cin cino=t0,f0,(0,{s,>2s,n-s,^-s,e-s:
  * Taken from Flatpak
- * Last updated: Flatpak 1.15.8
+ * Last updated: Flatpak 1.15.9
  * Copyright © 2019 Red Hat, Inc
  * SPDX-License-Identifier: LGPL-2.1-or-later
  *
@@ -31,17 +31,23 @@
 #include <gio/gio.h>
 #include "libglnx.h"
 
-/* To keep this more similar to the original file, we explicitly disable
- * this warning rather than fixing it */
-#pragma GCC diagnostic ignored "-Wshadow"
+const char *
+flatpak_get_tzdir (void)
+{
+  const gchar *tzdir;
+
+  tzdir = getenv ("TZDIR");
+  if (tzdir)
+    return tzdir;
+
+  return "/usr/share/zoneinfo";
+}
 
 char *
 flatpak_get_timezone (void)
 {
   g_autofree gchar *symlink = NULL;
   gchar *etc_timezone = NULL;
-  const gchar *tzdir;
-  const gchar *default_tzdir = "/usr/share/zoneinfo";
 
   symlink = flatpak_resolve_link ("/etc/localtime", NULL);
   if (symlink != NULL)
@@ -49,22 +55,12 @@ flatpak_get_timezone (void)
       /* Resolve relative path */
       g_autofree gchar *canonical = flatpak_canonicalize_filename (symlink);
       char *canonical_suffix;
+      const gchar *tzdir = flatpak_get_tzdir ();
 
       /* Strip the prefix and slashes if possible. */
-
-      tzdir = getenv ("TZDIR");
-      if (tzdir != NULL && g_str_has_prefix (canonical, tzdir))
+      if (g_str_has_prefix (canonical, tzdir))
         {
           canonical_suffix = canonical + strlen (tzdir);
-          while (*canonical_suffix == '/')
-            canonical_suffix++;
-
-          return g_strdup (canonical_suffix);
-        }
-
-      if (g_str_has_prefix (canonical, default_tzdir))
-        {
-          canonical_suffix = canonical + strlen (default_tzdir);
           while (*canonical_suffix == '/')
             canonical_suffix++;
 

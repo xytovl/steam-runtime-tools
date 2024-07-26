@@ -1,6 +1,6 @@
 /*
  * Taken from Flatpak
- * Last updated: Flatpak 1.15.8
+ * Last updated: Flatpak 1.15.9
  * Copyright © 2019 Red Hat, Inc
  * SPDX-License-Identifier: LGPL-2.1-or-later
  *
@@ -32,7 +32,9 @@
 # define G_DBUS_METHOD_INVOCATION_UNHANDLED FALSE
 #endif
 
-char *flatpak_get_timezone (void);
+const char * flatpak_get_tzdir (void);
+
+char * flatpak_get_timezone (void);
 
 char * flatpak_readlink (const char *path,
                          GError    **error);
