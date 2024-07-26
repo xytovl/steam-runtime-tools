@@ -478,6 +478,11 @@ static void
 _srt_constructor (void)
 {
   g_return_if_fail (_srt_check_not_setuid ());
+
+  /* Call g_ascii_strtoull() for its side-effect of initializing GLib's
+   * cached C locale, avoiding
+   * https://gitlab.gnome.org/GNOME/glib/-/issues/3418 in future calls */
+  g_ascii_strtoull ("0", NULL, 10);
 }
 
 /*
