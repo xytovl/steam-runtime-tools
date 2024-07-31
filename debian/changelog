@@ -1,3 +1,11 @@
+steam-runtime-tools (0.20240731.0) UNRELEASED; urgency=medium
+
+  * all tools:
+    - Apply steamrt/tasks#481 workaround globally, so that we can rely on it
+      everywhere
+
+ -- Simon McVittie <smcv@collabora.com>  Wed, 31 Jul 2024 16:00:30 +0100
+
 steam-runtime-tools (0.20240726.0) steamrt; urgency=medium
 
   * all tools:
