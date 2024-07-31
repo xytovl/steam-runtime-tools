@@ -3062,6 +3062,118 @@ bind_gfx_provider (PvRuntime *self,
   return TRUE;
 }
 
+static FlatpakBwrap *
+pv_runtime_import_ca_certs (PvRuntime *self,
+                            GError **error)
+{
+  static const char ca_path[] = "/etc/ssl/certs";
+  static const char * const required_names[] =
+  {
+    /* /etc/ssl/certs/ca-certificates.crt is assumed to be an
+     * OpenSSL-compatible CAfile (concatenation of all trusted root certs),
+     * also used by other TLS libraries like GNUTLS */
+    "ca-certificates.crt",
+    /* /etc/ssl/certs/ is assumed to be an OpenSSL-compatible CApath
+     * (one file per trusted root cert with names based on a truncated
+     * hash), mainly only used by OpenSSL. This is the hash for
+     * "ISRG Root X1", the root CA behind Let's Encrypt, which happens
+     * to be the CA used to sign repo.steampowered.com at the time
+     * of writing... */
+    "4042bcee.0",
+    /* ... and this is the hash for "DigiCert High Assurance EV Root CA"
+     * which happens to be the CA used to sign store.steampowered.com.
+     * If both are present, then we assume all the other common CAs
+     * are too. */
+    "244b5494.0",
+    /* Get these hashes from:
+     * openssl x509 -noout -subject_hash -in /path/to/cert.crt */
+  };
+  gboolean found[G_N_ELEMENTS (required_names)] = { FALSE };
+  g_autoptr(FlatpakBwrap) bwrap = flatpak_bwrap_new (flatpak_bwrap_empty_env);
+  g_auto(SrtDirIter) iter = SRT_DIR_ITER_CLEARED;
+  glnx_autofd int dirfd = -1;
+  struct dirent *dent;
+  size_t i;
+
+  flatpak_bwrap_add_args (bwrap,
+                          "--tmpfs", ca_path,
+                          NULL);
+
+  /* This is a developer-facing rather than end-user-facing flag, so
+   * for simplicity this assumes that the runtime is Debian-based, and
+   * that the host OS has also been set up to be compatible with
+   * Debian's layout for CA certificates (like Arch is). */
+  dirfd = _srt_sysroot_open (self->host_root,
+                             ca_path,
+                             (SRT_RESOLVE_FLAGS_MUST_BE_DIRECTORY
+                              | SRT_RESOLVE_FLAGS_READABLE),
+                             NULL,
+                             error);
+
+  if (dirfd < 0)
+    return NULL;
+
+  /* Check that we have a minimal Debian-compatible layout. If we don't,
+   * we'll just fail and the caller will have to deal with that. */
+
+  if (!_srt_dir_iter_init_take_fd (&iter, &dirfd,
+                                   SRT_DIR_ITER_FLAGS_NONE,
+                                   self->arbitrary_dirent_order,
+                                   error))
+    return NULL;
+
+  while (_srt_dir_iter_next_dent (&iter, &dent, NULL, NULL) && dent != NULL)
+    {
+      const char *member = dent->d_name;
+
+      if (g_str_equal (member, "ca-certificates.crt")
+          || g_str_has_suffix (member, ".0"))
+        {
+          g_autoptr(GError) local_error = NULL;
+          g_autofree gchar *logical_path = NULL;
+          g_autofree gchar *resolved = NULL;
+          glnx_autofd int fd = -1;
+
+          logical_path = g_build_filename (ca_path, member, NULL);
+          fd = _srt_sysroot_open (self->host_root,
+                                  logical_path,
+                                  (SRT_RESOLVE_FLAGS_READABLE
+                                   | SRT_RESOLVE_FLAGS_MUST_BE_REGULAR
+                                   | SRT_RESOLVE_FLAGS_RETURN_ABSOLUTE),
+                                  &resolved,
+                                  &local_error);
+
+          if (fd < 0)
+            {
+              g_warning ("%s", local_error->message);
+              continue;
+            }
+
+          if (!pv_runtime_bind_into_container (self, bwrap,
+                                               resolved, NULL, 0,
+                                               logical_path,
+                                               PV_RUNTIME_EMULATION_ROOTS_BOTH,
+                                               error))
+            return NULL;
+
+          for (i = 0; i < G_N_ELEMENTS (required_names); i++)
+            {
+              if (g_str_equal (member, required_names[i]))
+                found[i] = TRUE;
+            }
+        }
+    }
+
+  for (i = 0; i < G_N_ELEMENTS (required_names); i++)
+    {
+      if (!found[i])
+        return glnx_null_throw (error, "Required filename %s/%s not found",
+                                ca_path, required_names[i]);
+    }
+
+  return g_steal_pointer (&bwrap);
+}
+
 static gboolean
 bind_runtime_base (PvRuntime *self,
                    FlatpakExports *exports,
@@ -3423,6 +3535,20 @@ bind_runtime_base (PvRuntime *self,
               g_clear_error (&local_error);
             }
         }
+    }
+
+  if (self->flags & PV_RUNTIME_FLAGS_IMPORT_CA_CERTS)
+    {
+      g_autoptr(FlatpakBwrap) ca_args = NULL;
+      g_autoptr(GError) local_error = NULL;
+
+      ca_args = pv_runtime_import_ca_certs (self, &local_error);
+
+      if (ca_args != NULL)
+        flatpak_bwrap_append_bwrap (bwrap, ca_args);
+      else
+        g_warning ("Not importing host CA certificates: %s",
+                   local_error->message);
     }
 
   return TRUE;
