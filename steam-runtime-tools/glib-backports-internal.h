@@ -26,6 +26,13 @@
 
 #include <libglnx.h>
 
+#if !GLIB_CHECK_VERSION(2, 60, 0)
+/* This is actually present in 2.58.x, but it's buggy:
+ * https://gitlab.gnome.org/GNOME/glib/-/issues/1589 */
+#define g_log_writer_is_journald(fd) my_g_fd_is_journal(fd)
+gboolean my_g_fd_is_journal (int output_fd);
+#endif
+
 #if !GLIB_CHECK_VERSION(2, 64, 0)
 #if defined(G_HAVE_ISO_VARARGS) && (!defined(G_ANALYZER_ANALYZING) || !G_ANALYZER_ANALYZING)
 #define g_warning_once(...) \
