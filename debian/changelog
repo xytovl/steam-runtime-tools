@@ -1,10 +1,18 @@
-steam-runtime-tools (0.20240731.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20240801.0) UNRELEASED; urgency=medium
 
+  * pressure-vessel:
+    - Add a mechanism to take CA certificates from the host
+      (steamrt/tasks#416)
+    - Update Flatpak-derived files from 1.15.9
+  * srt-logger:
+    - Avoid using buggy g_log_writer_is_journald() implementation in GLib
+      2.58.x, fixing automatic redirection of messages to the Journal
+      (steamrt/tasks#461)
   * all tools:
     - Apply steamrt/tasks#481 workaround globally, so that we can rely on it
       everywhere
 
- -- Simon McVittie <smcv@collabora.com>  Wed, 31 Jul 2024 16:00:30 +0100
+ -- Simon McVittie <smcv@collabora.com>  Thu, 01 Aug 2024 17:11:38 +0100
 
 steam-runtime-tools (0.20240726.0) steamrt; urgency=medium
 
