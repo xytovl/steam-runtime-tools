@@ -1,6 +1,6 @@
 /*
  * Taken from Flatpak
- * Last updated: Flatpak 1.15.8
+ * Last updated: Flatpak 1.15.9
  * Copyright © 2014 Red Hat, Inc
  * SPDX-License-Identifier: LGPL-2.1-or-later
  *
@@ -33,6 +33,10 @@ G_BEGIN_DECLS
 
 gboolean
 flatpak_run_add_wayland_args (FlatpakBwrap *bwrap,
+#if 0
+                              const char   *app_id,
+                              const char   *instance_id,
+#endif
                               gboolean      inherit_wayland_socket);
 
 G_END_DECLS

@@ -1,6 +1,6 @@
 /* vi:set et sw=2 sts=2 cin cino=t0,f0,(0,{s,>2s,n-s,^-s,e-s:
  * Cut-down version of common/flatpak-run.c from Flatpak
- * Last updated: Flatpak 1.15.8
+ * Last updated: Flatpak 1.15.9
  *
  * Copyright © 2017-2022 Collabora Ltd.
  * Copyright © 2014-2022 Red Hat, Inc
@@ -62,12 +62,16 @@
 #include <gio/gio.h>
 #include "libglnx.h"
 
+#if 0
+#include "flatpak-dbus-generated.h"
+#endif
 #include "flatpak-run-dbus-private.h"
 #include "flatpak-run-private.h"
 #include "flatpak-run-sockets-private.h"
 #include "flatpak-utils-base-private.h"
 #if 0
 #include "flatpak-dir-private.h"
+#include "flatpak-dir-utils-private.h"
 #include "flatpak-instance-private.h"
 #endif
 #include "flatpak-systemd-dbus-generated.h"
@@ -82,6 +86,12 @@
 #define DEFAULT_SHELL "/bin/sh"
 
 #if 0
+
+typedef FlatpakSessionHelper AutoFlatpakSessionHelper;
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (AutoFlatpakSessionHelper, g_object_unref)
+
+typedef XdpDbusDocuments AutoXdpDbusDocuments;
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (AutoXdpDbusDocuments, g_object_unref)
 
 static int
 flatpak_extension_compare_by_path (gconstpointer _a,
@@ -1629,12 +1639,14 @@ add_tzdata_args (FlatpakBwrap *bwrap,
   /* Check for runtime /usr/share/zoneinfo */
   if (runtime_zoneinfo != NULL && g_file_query_exists (runtime_zoneinfo, NULL))
     {
+      const char *tzdir = flatpak_get_tzdir ();
+
       /* Check for host /usr/share/zoneinfo */
-      if (g_file_test ("/usr/share/zoneinfo", G_FILE_TEST_IS_DIR))
+      if (g_file_test (tzdir, G_FILE_TEST_IS_DIR))
         {
           /* Here we assume the host timezone file exist in the host data */
           flatpak_bwrap_add_args (bwrap,
-                                  "--ro-bind", "/usr/share/zoneinfo", "/usr/share/zoneinfo",
+                                  "--ro-bind", tzdir, "/usr/share/zoneinfo",
                                   "--symlink", localtime_content, "/etc/localtime",
                                   NULL);
         }
@@ -2182,6 +2194,16 @@ flatpak_run_setup_usr_links (FlatpakBwrap *bwrap,
     }
 }
 
+/* Directories in /sys to share with the sandbox if accessible. */
+static const char *const sysfs_dirs[] =
+{
+  "/sys/block",
+  "/sys/bus",
+  "/sys/class",
+  "/sys/dev",
+  "/sys/devices"
+};
+
 gboolean
 flatpak_run_setup_base_argv (FlatpakBwrap   *bwrap,
                              GFile          *runtime_files,
@@ -2201,6 +2223,7 @@ flatpak_run_setup_base_argv (FlatpakBwrap   *bwrap,
   gboolean parent_expose_pids = (flags & FLATPAK_RUN_FLAG_PARENT_EXPOSE_PIDS) != 0;
   gboolean parent_share_pids = (flags & FLATPAK_RUN_FLAG_PARENT_SHARE_PIDS) != 0;
   gboolean bwrap_unprivileged = flatpak_bwrap_is_unprivileged ();
+  gsize i;
 
   /* Disable recursive userns for all flatpak processes, as we need this
    * to guarantee that the sandbox can't restructure the filesystem.
@@ -2269,15 +2292,20 @@ flatpak_run_setup_base_argv (FlatpakBwrap   *bwrap,
                           "--perms", "0700", "--dir", run_dir,
                           "--setenv", "XDG_RUNTIME_DIR", run_dir,
                           "--symlink", "../run", "/var/run",
-                          "--ro-bind", "/sys/block", "/sys/block",
-                          "--ro-bind", "/sys/bus", "/sys/bus",
-                          "--ro-bind", "/sys/class", "/sys/class",
-                          "--ro-bind", "/sys/dev", "/sys/dev",
-                          "--ro-bind", "/sys/devices", "/sys/devices",
                           "--ro-bind-try", "/proc/self/ns/user", "/run/.userns",
                           /* glib uses this like /etc/timezone */
                           "--symlink", "/etc/timezone", "/var/db/zoneinfo",
                           NULL);
+
+  for (i = 0; i < G_N_ELEMENTS (sysfs_dirs); i++)
+    {
+      const char *dir = sysfs_dirs[i];
+
+      if (access (dir, R_OK|X_OK) == 0)
+        flatpak_bwrap_add_args (bwrap, "--ro-bind", dir, dir, NULL);
+      else
+        g_info ("Not sharing %s with sandbox: %s", dir, g_strerror (errno));
+    }
 
   if (flags & FLATPAK_RUN_FLAG_DIE_WITH_PARENT)
     flatpak_bwrap_add_args (bwrap,
