@@ -218,8 +218,10 @@ run_ok([$CAPSULE_CAPTURE_LIBS_TOOL, '--remap-link-prefix=/opt/=/OPT/',
 $target = readlink "$libdir/libc.so.6";
 diag("Expecting: $libdir/libc.so.6 -> $LIBDIR/libc.so.6");
 diag("Actual:    $libdir/libc.so.6 -> $target");
-like($target, qr{^$LIBDIR/libc\.so\.6$},
-     "$libdir/libc.so.6 is a symlink to the real libc.so.6");
+like($target, $libc_re,
+     "$libdir/libc.so.6 is a symlink to the real libc.so.6 in some form");
+is(abs_path("$libdir/libc.so.6"), $libc_realpath,
+   "$libdir/libc.so.6 canonicalizes to $libc_realpath");
 
 run_ok(['rm', '-fr', $libdir]);
 mkdir($libdir);

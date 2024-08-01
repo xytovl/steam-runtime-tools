@@ -538,7 +538,6 @@ capture_one( const char *soname, const capture_options *options,
         const char *needed_name = provider->needed[i].name;
         const char *needed_path_in_provider = provider->needed[i].path;
         const char *needed_basename;
-        bool remapped_prefix = false;
 
         if( !needed_name )
         {
@@ -763,18 +762,14 @@ capture_one( const char *soname, const capture_options *options,
                                target + strlen( remap_prefix[j].from ) );
                     free( target );
                     target = tmp;
-                    remapped_prefix = true;
                 }
             }
         }
-
-        // If we don't have the link target option and we didn't remap the
-        // prefix, we just set the target to the needed path in provider
-        // without following the eventual link chain
-        if( !remapped_prefix && option_link_target == NULL )
+        else
         {
-            if( target != NULL )
-                free( target );
+            /* No need to remap anything or canonicalize the path,
+             * because we're going to use it from the same view of the
+             * filesystem that we're currently in. */
             target = xstrdup( needed_path_in_provider );
         }
 
