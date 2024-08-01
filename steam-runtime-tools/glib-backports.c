@@ -39,6 +39,42 @@
 
 #include <glib-object.h>
 
+#if !GLIB_CHECK_VERSION(2, 60, 0)
+/* This is actually a copy of the internal GLib function used to
+ * implement g_log_writer_is_journald(), rather the public wrapper,
+ * adapted to use GLib functions (rather than having to reimplement
+ * them for use in gio-launch-desktop, as in GLib's version). */
+gboolean
+my_g_fd_is_journal (int output_fd)
+{
+  /* FIXME: Use the new journal API for detecting whether we’re writing to the
+   * journal. See: https://github.com/systemd/systemd/issues/2473
+   */
+  union {
+    struct sockaddr_storage storage;
+    struct sockaddr sa;
+    struct sockaddr_un un;
+  } addr;
+  socklen_t addr_len;
+  int err;
+
+  if (output_fd < 0)
+    return 0;
+
+  /* Namespaced journals start with `/run/systemd/journal.${name}/` (see
+   * `RuntimeDirectory=systemd/journal.%i` in `systemd-journald@.service`. The
+   * default journal starts with `/run/systemd/journal/`. */
+  memset (&addr, 0, sizeof (addr));
+  addr_len = sizeof(addr);
+  err = getpeername (output_fd, &addr.sa, &addr_len);
+  if (err == 0 && addr.storage.ss_family == AF_UNIX)
+    return (g_str_has_prefix (addr.un.sun_path, "/run/systemd/journal/") ||
+            g_str_has_prefix (addr.un.sun_path, "/run/systemd/journal."));
+
+  return 0;
+}
+#endif
+
 #if !GLIB_CHECK_VERSION(2, 68, 0)
 /*
  * g_string_replace:
