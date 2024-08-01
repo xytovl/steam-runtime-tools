@@ -298,6 +298,8 @@ static void usage (int code)
   fprintf( fh, "even-if-older:PATTERN\n"
                "\tCapture PATTERN, even if the version in CONTAINER\n"
                "\tappears newer\n" );
+  fprintf( fh, "quiet:PATTERN\n"
+               "\tCapture PATTERN, but don't warn for non-fatal issues\n" );
   fprintf( fh, "gl:\n"
                "\tShortcut for even-if-older:if-exists:soname:libGL.so.1,\n"
                "\teven-if-older:if-exists:soname-match:libGLX_*.so.0, and\n"
@@ -328,7 +330,32 @@ typedef enum
   CAPTURE_FLAG_DEPENDENCIES = ( 1 << 3 ),
   CAPTURE_FLAG_IF_SAME_ABI = ( 1 << 4 ),
   CAPTURE_FLAG_IF_EXACT_SONAME = ( 1 << 5 ),
+  CAPTURE_FLAG_QUIET = ( 1 << 6 ),
 } capture_flags;
+
+static void maybe_warn( capture_flags flags, const char *fmt, ... ) __attribute__((__format__(__printf__, 2, 3)));
+
+static void
+maybe_warn( capture_flags flags, const char *fmt, ... )
+{
+    va_list ap;
+
+    va_start( ap, fmt );
+
+    if( flags & CAPTURE_FLAG_QUIET )
+    {
+        if( debug_flags & DEBUG_TOOL )
+        {
+            capsule_logv( LOG_DEBUG, fmt, ap );
+        }
+    }
+    else
+    {
+        capsule_logv( LOG_WARNING, fmt, ap );
+    }
+
+    va_end( ap );
+}
 
 typedef struct
 {
@@ -457,8 +484,9 @@ capture_one( const char *soname, const capture_options *options,
         {
             if( ( options->flags & CAPTURE_FLAG_IF_EXISTS ) )
             {
-                capsule_warn( "Unable to obtain the library %s DT_SONAME, ignoring",
-                              soname );
+                maybe_warn( options->flags,
+                            "Unable to obtain the library %s DT_SONAME, ignoring",
+                            soname );
                 return true;
             }
 
@@ -473,8 +501,9 @@ capture_one( const char *soname, const capture_options *options,
         {
             if( ( options->flags & CAPTURE_FLAG_IF_EXISTS ) )
             {
-                capsule_warn( "%s has an unexpected DT_SONAME, ignoring: %s",
-                              soname, dt_soname );
+                maybe_warn( options->flags,
+                            "%s has an unexpected DT_SONAME, ignoring: %s",
+                            soname, dt_soname );
                 return true;
             }
 
@@ -490,8 +519,9 @@ capture_one( const char *soname, const capture_options *options,
     {
         if( ( options->flags & CAPTURE_FLAG_IF_EXISTS ) && local_code == ENOENT )
         {
-            capsule_warn( "Dependencies of %s not found, ignoring: %s",
-                          soname, local_message );
+            maybe_warn( options->flags,
+                        "Dependencies of %s not found, ignoring: %s",
+                        soname, local_message );
             _capsule_clear( &local_message );
             return true;
         }
@@ -1121,6 +1151,15 @@ capture_pattern( const char *pattern, const capture_options *options,
 
         new_options.flags &= ~CAPTURE_FLAG_DEPENDENCIES;
         return capture_pattern( pattern + strlen( "no-dependencies:" ),
+                                &new_options, code, message );
+    }
+
+    if( strstarts( pattern, "quiet:" ) )
+    {
+        capture_options new_options = *options;
+
+        new_options.flags |= CAPTURE_FLAG_QUIET;
+        return capture_pattern( pattern + strlen( "quiet:" ),
                                 &new_options, code, message );
     }
 
