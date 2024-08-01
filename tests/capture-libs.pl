@@ -572,6 +572,23 @@ SKIP: {
                            '>&2');
     ok($result, 'library of wrong ABI ignored when using if-same-abi');
     ok(! -e "$libdir/libxml2.so.2");
+
+    # If we use --level-prefix and repeat the failing case, there's a
+    # marker for the severity level
+    run_ok(['rm', '-fr', $libdir]);
+    mkdir($libdir);
+    $result = run_verbose([qw(bwrap --ro-bind / / --ro-bind /), $host,
+                           '--bind', $libdir, $libdir,
+                           qw(--dev-bind /dev /dev),
+                           $CAPSULE_CAPTURE_LIBS_TOOL,
+                           '--level-prefix', '--link-target=/',
+                           "--dest=$libdir", "--provider=$host",
+                           "path:/usr/lib/$other_multiarch/libxml2.so.2"],
+                           '>', \$stdout, '2>', \$stderr);
+    ok(! $result, 'library of wrong ABI yields an error');
+    ok(! -e "$libdir/libxml2.so.2");
+    is($stdout, '', 'no machine-readable output');
+    like($stderr, qr{^<3>\Q$CAPSULE_CAPTURE_LIBS_BASENAME\E: }m, 'stderr has severity prefix');
 };
 
 SKIP: {
