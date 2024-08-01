@@ -514,6 +514,8 @@ SKIP: {
 SKIP: {
     my $multiarch;
     my $other_multiarch;
+    my $stdout;
+    my $stderr;
 
     # For simplicity, we only consider this case on x86.
     skip "$ENV{CAPSULE_TESTS_GNU_HOST} not x86_64 or i386", 1
@@ -538,9 +540,11 @@ SKIP: {
                            $CAPSULE_CAPTURE_LIBS_TOOL, '--link-target=/',
                            "--dest=$libdir", "--provider=$host",
                            "path:/usr/lib/$other_multiarch/libxml2.so.2"],
-                           '>&2');
+                           '>', \$stdout, '2>', \$stderr);
     ok(! $result, 'library of wrong ABI yields an error');
     ok(! -e "$libdir/libxml2.so.2");
+    is($stdout, '', 'no machine-readable output');
+    like($stderr, qr{^\Q$CAPSULE_CAPTURE_LIBS_BASENAME\E: }m, 'stderr shows error message');
 
     # ... but when we're dealing with a glob match, other ABIs are silently
     # ignored.
