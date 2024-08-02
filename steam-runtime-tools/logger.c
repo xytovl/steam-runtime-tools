@@ -86,6 +86,7 @@ struct _SrtLogger {
   gchar *new_filename;
   gchar *log_dir;
   gchar *terminal;
+  struct stat file_stat;
   int child_ready_to_parent;
   int pipe_from_parent;
   int original_stderr;
@@ -473,6 +474,11 @@ _srt_logger_setup (SrtLogger *self,
       if (self->file_fd < 0)
         return glnx_throw_errno_prefix (error,
                                         "Unable to open \"%s\"",
+                                        self->filename);
+
+      if (fstat (self->file_fd, &self->file_stat) < 0)
+        return glnx_throw_errno_prefix (error,
+                                        "Unable to stat \"%s\"",
                                         self->filename);
 
       message = g_string_new (g_get_prgname ());
@@ -1020,6 +1026,7 @@ _srt_logger_try_rotate (SrtLogger *self,
   struct flock exclusive_lock = EXCLUSIVE_LOCK;
   struct flock shared_lock = SHARED_LOCK;
   glnx_autofd int new_fd = -1;
+  struct stat new_stat;
   gboolean ret = FALSE;
 
   g_debug ("Trying to rotate log file %s", self->filename);
@@ -1069,6 +1076,14 @@ _srt_logger_try_rotate (SrtLogger *self,
       goto out;
     }
 
+  if (fstat (new_fd, &new_stat) < 0)
+    {
+      glnx_throw_errno_prefix (error,
+                               "Unable to stat \"%s\"",
+                               self->new_filename);
+      goto out;
+    }
+
   if (TEMP_FAILURE_RETRY (rename (self->new_filename, self->filename)) != 0)
     {
       glnx_throw_errno_prefix (error, "Unable to rename %s to %s",
@@ -1078,6 +1093,7 @@ _srt_logger_try_rotate (SrtLogger *self,
 
   glnx_close_fd (&self->file_fd);
   self->file_fd = g_steal_fd (&new_fd);
+  memcpy (&self->file_stat, &new_stat, sizeof (new_stat));
   ret = TRUE;
 
 out:
@@ -1198,20 +1214,49 @@ logger_process_complete_line (SrtLogger *self,
 
   if (self->file_fd >= 0 && level <= self->file_level)
     {
-      struct stat stat_buf;
-
-      if (self->max_bytes > 0
-          && self->filename != NULL
-          && fstat (self->file_fd, &stat_buf) == 0
-          && (stat_buf.st_size + len) > self->max_bytes)
+      if (self->filename != NULL)
         {
-          g_autoptr(GError) local_error = NULL;
+          gboolean log_file_still_exists = FALSE;
+          struct stat current_stat;
 
-          if (!_srt_logger_try_rotate (self, &local_error))
+          if (TEMP_FAILURE_RETRY (stat (self->filename, &current_stat)) == 0)
+            log_file_still_exists = _srt_is_same_stat (&current_stat,
+                                                       &self->file_stat);
+          else if (errno != ENOENT)
+            _srt_log_warning ("Unable to stat log file: %s",
+                              g_strerror (errno));
+
+          if (!log_file_still_exists)
             {
-              _srt_log_warning ("Unable to rotate log file: %s",
-                                local_error->message);
-              self->max_bytes = 0;
+              /* The log file is either deleted or replaced, probably by a
+               * developer who wanted to clear the logs out. Re-create it now
+               * instead of staying silent. */
+              glnx_autofd int new_fd = -1;
+              g_autoptr(GError) local_error = NULL;
+
+              new_fd = TEMP_FAILURE_RETRY (open (self->filename,
+                                                 OPEN_FLAGS,
+                                                 0644));
+              if (new_fd < 0)
+                _srt_log_warning ("Unable to re-open log file: %s",
+                                  g_strerror (errno));
+              else if (!lock_output_file (self->filename, new_fd, &local_error))
+                _srt_log_warning ("Unable to re-lock log file: %s",
+                                  local_error->message);
+              else
+                self->file_fd = glnx_steal_fd (&new_fd);
+            }
+          else if (self->max_bytes > 0
+                   && (current_stat.st_size + len) > self->max_bytes)
+            {
+              g_autoptr(GError) local_error = NULL;
+
+              if (!_srt_logger_try_rotate (self, &local_error))
+                {
+                  _srt_log_warning ("Unable to rotate log file: %s",
+                                    local_error->message);
+                  self->max_bytes = 0;
+                }
             }
         }
 
