@@ -888,6 +888,27 @@ _srt_logger_run_subprocess (SrtLogger *self,
   return TRUE;
 }
 
+static gboolean
+lock_output_file (const char *filename,
+                  int fd,
+                  GError **error)
+{
+  struct flock shared_lock = SHARED_LOCK;
+
+  g_return_val_if_fail (filename != NULL, FALSE);
+  g_return_val_if_fail (fd >= 0, FALSE);
+
+  /* Fall back from OFD locking to legacy POSIX locking if necessary:
+   * in this case we will not rotate logs */
+  if (TEMP_FAILURE_RETRY (fcntl (fd, F_OFD_SETLKW, &shared_lock)) != 0
+      && (errno != EINVAL
+          || TEMP_FAILURE_RETRY (fcntl (fd, F_SETLKW, &shared_lock)) != 0))
+    return glnx_throw_errno_prefix (error, "Unable to take shared lock on %s",
+                                    filename);
+
+  return TRUE;
+}
+
 /*
  * @self: The logger
  * @buf: Pointer to the beginning of a partial log message to parse
@@ -1222,25 +1243,14 @@ _srt_logger_process (SrtLogger *self,
 
   if (self->filename && self->use_file)
     {
-      struct flock shared_lock = SHARED_LOCK;
-
       g_assert (self->file_fd >= 0);
 
       if (chdir (self->log_dir) != 0)
         return glnx_throw_errno_prefix (error,
                                         "Unable to change to logs directory");
 
-      /* Fall back from OFD locking to legacy POSIX locking if necessary:
-       * in this case we will not rotate logs */
-      if (TEMP_FAILURE_RETRY (fcntl (self->file_fd,
-                                     F_OFD_SETLKW,
-                                     &shared_lock)) != 0
-          && (errno != EINVAL
-              || TEMP_FAILURE_RETRY (fcntl (self->file_fd,
-                                            F_SETLKW,
-                                            &shared_lock)) != 0))
-        return glnx_throw_errno_prefix (error, "Unable to take shared lock on %s",
-                                        self->filename);
+      if (!lock_output_file (self->filename, self->file_fd, error))
+        return FALSE;
     }
 
   if (self->sh_syntax)
