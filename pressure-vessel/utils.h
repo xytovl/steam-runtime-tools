@@ -47,20 +47,23 @@ typedef enum
   PV_WORKAROUND_FLAGS_STEAMSNAP_359 = (1 << 4),
   /* Setuid system copy of bwrap */
   PV_WORKAROUND_FLAGS_BWRAP_SETUID = (1 << 5),
+  /* https://github.com/canonical/steam-snap/issues/397 */
+  PV_WORKAROUND_FLAGS_STEAMSNAP_397 = (1 << 6),
   PV_WORKAROUND_FLAGS_NONE = 0
 } PvWorkaroundFlags;
 
 /* Workarounds for old snapd bugs, no longer used by default */
 #define PV_WORKAROUND_FLAGS_OLD_SNAP \
-  (PV_WORKAROUND_FLAGS_STEAMSNAP_356 \
-   | PV_WORKAROUND_FLAGS_STEAMSNAP_359 \
-   | PV_WORKAROUND_FLAGS_STEAMSNAP_369 \
-   | PV_WORKAROUND_FLAGS_STEAMSNAP_370)
 
 #define PV_WORKAROUND_FLAGS_ALL \
   (PV_WORKAROUND_FLAGS_BWRAP_NO_PERMS \
    | PV_WORKAROUND_FLAGS_BWRAP_SETUID \
-   | PV_WORKAROUND_FLAGS_OLD_SNAP)
+   | PV_WORKAROUND_FLAGS_STEAMSNAP_356 \
+   | PV_WORKAROUND_FLAGS_STEAMSNAP_359 \
+   | PV_WORKAROUND_FLAGS_STEAMSNAP_369 \
+   | PV_WORKAROUND_FLAGS_STEAMSNAP_370 \
+   | PV_WORKAROUND_FLAGS_STEAMSNAP_397 \
+   | PV_WORKAROUND_FLAGS_NONE)
 
 PvWorkaroundFlags pv_get_workarounds (SrtBwrapFlags bwrap_flags,
                                       const char * const *envp);

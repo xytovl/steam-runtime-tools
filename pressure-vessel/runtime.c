@@ -3537,7 +3537,8 @@ bind_runtime_base (PvRuntime *self,
         }
     }
 
-  if (self->flags & PV_RUNTIME_FLAGS_IMPORT_CA_CERTS)
+  if ((self->flags & PV_RUNTIME_FLAGS_IMPORT_CA_CERTS)
+      && !(self->workarounds & PV_WORKAROUND_FLAGS_STEAMSNAP_397))
     {
       g_autoptr(FlatpakBwrap) ca_args = NULL;
       g_autoptr(GError) local_error = NULL;

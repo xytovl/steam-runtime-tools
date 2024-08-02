@@ -726,7 +726,7 @@ test_workarounds (Fixture *f,
   g_assert_cmpint (pv_get_workarounds (SRT_BWRAP_FLAGS_HAS_PERMS, all_env),
                    ==, PV_WORKAROUND_FLAGS_ALL);
   g_assert_cmpint (pv_get_workarounds (SRT_BWRAP_FLAGS_HAS_PERMS, snap_env),
-                   ==, PV_WORKAROUND_FLAGS_NONE);
+                   ==, (PV_WORKAROUND_FLAGS_STEAMSNAP_397));
   g_assert_cmpint (pv_get_workarounds (SRT_BWRAP_FLAGS_HAS_PERMS, config_env),
                    ==, (PV_WORKAROUND_FLAGS_BWRAP_NO_PERMS
                         | PV_WORKAROUND_FLAGS_STEAMSNAP_356));
