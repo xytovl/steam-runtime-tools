@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20240801.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20240802.0) steamrt; urgency=medium
 
   * pressure-vessel:
     - Add a mechanism to take CA certificates from the host
@@ -12,7 +12,7 @@ steam-runtime-tools (0.20240801.0) UNRELEASED; urgency=medium
     - Apply steamrt/tasks#481 workaround globally, so that we can rely on it
       everywhere
 
- -- Simon McVittie <smcv@collabora.com>  Thu, 01 Aug 2024 17:11:38 +0100
+ -- Simon McVittie <smcv@collabora.com>  Fri, 02 Aug 2024 15:47:57 +0100
 
 steam-runtime-tools (0.20240726.0) steamrt; urgency=medium
 
