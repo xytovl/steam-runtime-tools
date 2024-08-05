@@ -1133,7 +1133,7 @@ library_cmp_filter_list( char ** const filters,
                 if( fnmatch( filters[j] + 1, element, 0 ) == 0 )
                 {
                     if( guessing )
-                        capsule_warn( "warning: we are assuming \"%s\" to be private, but it's just a guess",
+                        capsule_warn( "we are assuming \"%s\" to be private, but it's just a guess",
                                       element );
                     else
                         DEBUG( DEBUG_TOOL,
@@ -1147,7 +1147,7 @@ library_cmp_filter_list( char ** const filters,
                 if( fnmatch( filters[j], element, 0 ) == 0 )
                 {
                     if( guessing )
-                        capsule_warn( "warning: we are assuming \"%s\" to be public, but it's just a guess",
+                        capsule_warn( "we are assuming \"%s\" to be public, but it's just a guess",
                                       element );
 
                     ptr_list_push_ptr( filtered_list, xstrdup( list[i] ) );
@@ -1157,7 +1157,7 @@ library_cmp_filter_list( char ** const filters,
         }
         /* If we checked all the patterns and didn't have a match */
         if( filters[j] == NULL )
-            capsule_warn( "warning: \"%s\" does not have a match in the given filters, treating it as private",
+            capsule_warn( "\"%s\" does not have a match in the given filters, treating it as private",
                           token );
     }
 

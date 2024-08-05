@@ -738,6 +738,8 @@ _capsule_basename (const char *path)
  * If enabled globally, a severity prefix compatible with
  * `systemd-cat --level-prefix=true` is prepended.
  * The basename of argv[0] is prepended, similar to warnx().
+ * If the severity is `LOG_WARNING` or more serious (numerically smaller),
+ * `error: ` or `warning: ` is prepended and should not be included in @fmt.
  * A newline is appended automatically and should not be included in @fmt.
  *
  * Unlike `errx()` and `g_error()`, this does not immediately exit,
@@ -754,6 +756,14 @@ capsule_logv( int severity, const char *fmt, va_list ap )
         fprintf( stderr, "<%d>", severity );
 
     fprintf( stderr, "%s: ", program_invocation_short_name );
+
+    /* This looks wrong, but is the right way round: more serious errors
+     * are numerically smaller. */
+    if( severity <= LOG_ERR )
+        fprintf( stderr, "error: " );
+    else if( severity == LOG_WARNING )
+        fprintf( stderr, "warning: " );
+
     vfprintf( stderr, fmt, ap );
     fputc( '\n', stderr );
 }

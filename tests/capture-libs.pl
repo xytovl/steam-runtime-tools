@@ -544,7 +544,7 @@ SKIP: {
     ok(! $result, 'library of wrong ABI yields an error');
     ok(! -e "$libdir/libxml2.so.2");
     is($stdout, '', 'no machine-readable output');
-    like($stderr, qr{^\Q$CAPSULE_CAPTURE_LIBS_BASENAME\E: }m, 'stderr shows error message');
+    like($stderr, qr{^\Q$CAPSULE_CAPTURE_LIBS_BASENAME\E: error: }m, 'stderr shows error message');
 
     # ... but when we're dealing with a glob match, other ABIs are silently
     # ignored.
@@ -588,7 +588,7 @@ SKIP: {
     ok(! $result, 'library of wrong ABI yields an error');
     ok(! -e "$libdir/libxml2.so.2");
     is($stdout, '', 'no machine-readable output');
-    like($stderr, qr{^<3>\Q$CAPSULE_CAPTURE_LIBS_BASENAME\E: }m, 'stderr has severity prefix');
+    like($stderr, qr{^<3>\Q$CAPSULE_CAPTURE_LIBS_BASENAME\E: error: }m, 'stderr has severity prefix');
 };
 
 SKIP: {

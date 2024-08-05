@@ -457,7 +457,7 @@ capture_one( const char *soname, const capture_options *options,
         {
             if( ( options->flags & CAPTURE_FLAG_IF_EXISTS ) )
             {
-                capsule_warn( "warning: Unable to obtain the library %s DT_SONAME, ignoring",
+                capsule_warn( "Unable to obtain the library %s DT_SONAME, ignoring",
                               soname );
                 return true;
             }
@@ -473,7 +473,7 @@ capture_one( const char *soname, const capture_options *options,
         {
             if( ( options->flags & CAPTURE_FLAG_IF_EXISTS ) )
             {
-                capsule_warn( "warning: %s has an unexpected DT_SONAME, ignoring: %s",
+                capsule_warn( "%s has an unexpected DT_SONAME, ignoring: %s",
                               soname, dt_soname );
                 return true;
             }
@@ -490,7 +490,7 @@ capture_one( const char *soname, const capture_options *options,
     {
         if( ( options->flags & CAPTURE_FLAG_IF_EXISTS ) && local_code == ENOENT )
         {
-            capsule_warn( "warning: Dependencies of %s not found, ignoring: %s",
+            capsule_warn( "Dependencies of %s not found, ignoring: %s",
                           soname, local_message );
             _capsule_clear( &local_message );
             return true;
@@ -712,7 +712,7 @@ capture_one( const char *soname, const capture_options *options,
             if( strncmp( path, option_provider, prefix_len ) != 0 ||
                 path[prefix_len] != '/' )
             {
-                capsule_warn( "warning: \"%s\" is not within prefix \"%s\"",
+                capsule_warn( "\"%s\" is not within prefix \"%s\"",
                               path, option_provider );
                 continue;
             }
@@ -755,7 +755,7 @@ capture_one( const char *soname, const capture_options *options,
 
         if( symlinkat( target, dest_fd, needed_basename ) < 0 )
         {
-            capsule_warn( "warning: cannot create symlink %s/%s: %s",
+            capsule_warn( "cannot create symlink %s/%s: %s",
                           option_dest, needed_basename, strerror( errno ) );
         }
 
@@ -805,7 +805,7 @@ cache_foreach_cb (const char *name, int flag, unsigned int osv,
 
   if( !name || !*name )
   {
-      capsule_warn( "warning: empty name found in ld.so.cache" );
+      capsule_warn( "empty name found in ld.so.cache" );
       return 0;
   }
 
