@@ -677,6 +677,45 @@ class TestLogger(BaseTest):
                 content = reader.read()
                 self.assertIn(b'last message\n', content)
 
+    def test_reopen(self) -> None:
+        for replaced in False, True:
+            with tempfile.TemporaryDirectory() as tmpdir:
+                log_path = Path(tmpdir) / 'log'
+
+                proc = subprocess.Popen(
+                    self.logger + [
+                        '--filename', log_path.name,
+                        '--log-directory', str(log_path.parent),
+                        '--no-auto-terminal',
+                    ],
+                    stdin=subprocess.PIPE,
+                    stdout=STDERR_FILENO,
+                    stderr=STDERR_FILENO,
+                )
+
+                with wrap_process_io(proc.stdin) as stdin:
+                    stdin.write('first message\n')
+                    stdin.flush()
+
+                    while (not log_path.exists()
+                            or 'first message' not in log_path.read_text()):
+                        time.sleep(0.1)
+
+                    if replaced:
+                        tmp_path = log_path.with_suffix('.tmp')
+                        tmp_path.touch()
+                        tmp_path.rename(log_path)
+                    else:
+                        log_path.unlink()
+
+                    stdin.write('second message\n')
+                    stdin.flush()
+
+                proc.wait()
+
+                content = log_path.read_text()
+                self.assertIn('second message', content)
+
     def test_stderr_only(self) -> None:
         proc = subprocess.Popen(
             self.logger + [
