@@ -17,6 +17,7 @@
 // License along with libcapsule.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <assert.h>
+#include <errno.h>
 #include <sys/param.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -733,6 +734,7 @@ _capsule_basename (const char *path)
  * @ap: Arguments for @fmt
  *
  * Log the message @fmt, substituting the given arguments.
+ * The basename of argv[0] is prepended, similar to warnx().
  * A newline is appended automatically and should not be included in @fmt.
  *
  * Unlike `errx()` and `g_error()`, this does not immediately exit,
@@ -744,6 +746,7 @@ capsule_logv( int severity, const char *fmt, va_list ap )
 {
     /* libcapsule tools are single-threaded, so it's an acceptable
      * simplification that we do not emit the whole message atomically. */
+    fprintf( stderr, "%s: ", program_invocation_short_name );
     vfprintf( stderr, fmt, ap );
     fputc( '\n', stderr );
 }
