@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20240805.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20240805.0) steamrt; urgency=medium
 
   [ Simon McVittie ]
   * pv-runtime:
@@ -11,7 +11,7 @@ steam-runtime-tools (0.20240805.0) UNRELEASED; urgency=medium
       by a developer wanting to clear out old logs before reproducing
       an issue (steamrt/tasks#487)
 
- -- Simon McVittie <smcv@collabora.com>  Mon, 05 Aug 2024 13:42:47 +0100
+ -- Simon McVittie <smcv@collabora.com>  Mon, 05 Aug 2024 19:11:13 +0100
 
 steam-runtime-tools (0.20240802.0) steamrt; urgency=medium
 
