@@ -111,6 +111,7 @@ enum
   OPTION_COMPARE_BY,
   OPTION_CONTAINER,
   OPTION_DEST,
+  OPTION_LEVEL_PREFIX,
   OPTION_LIBRARY_KNOWLEDGE,
   OPTION_LINK_TARGET,
   OPTION_NO_GLIBC,
@@ -140,6 +141,7 @@ static struct option long_options[] =
     { "container", required_argument, NULL, OPTION_CONTAINER },
     { "dest", required_argument, NULL, OPTION_DEST },
     { "help", no_argument, NULL, 'h' },
+    { "level-prefix", no_argument, NULL, OPTION_LEVEL_PREFIX },
     { "library-knowledge", required_argument, NULL, OPTION_LIBRARY_KNOWLEDGE },
     { "link-target", required_argument, NULL, OPTION_LINK_TARGET },
     { "no-glibc", no_argument, NULL, OPTION_NO_GLIBC },
@@ -249,6 +251,8 @@ static void usage (int code)
                "\tdeciding which libraries are needed [default: /]\n" );
   fprintf( fh, "--dest=LIBDIR\n"
                "\tCreate symlinks in LIBDIR [default: .]\n" );
+  fprintf( fh, "--level-prefix\n"
+               "\tAdd severity prefixes such as <3> to output\n" );
   fprintf( fh, "--library-knowledge=FILE\n"
                "\tLoad information about known libraries from a"
                "\t.desktop-style file at FILE, overriding --compare-by.\n" );
@@ -1354,6 +1358,10 @@ main (int argc, char **argv)
 
             case OPTION_LINK_TARGET:
                 option_link_target = optarg;
+                break;
+
+            case OPTION_LEVEL_PREFIX:
+                capsule_level_prefix = 1;
                 break;
 
             case OPTION_PRINT_LD_SO:

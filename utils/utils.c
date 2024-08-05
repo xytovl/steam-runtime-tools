@@ -28,6 +28,7 @@
 #include "debug.h"
 #include "utils.h"
 
+int capsule_level_prefix = 0;
 unsigned long debug_flags;
 
 // ==========================================================================
@@ -734,6 +735,8 @@ _capsule_basename (const char *path)
  * @ap: Arguments for @fmt
  *
  * Log the message @fmt, substituting the given arguments.
+ * If enabled globally, a severity prefix compatible with
+ * `systemd-cat --level-prefix=true` is prepended.
  * The basename of argv[0] is prepended, similar to warnx().
  * A newline is appended automatically and should not be included in @fmt.
  *
@@ -746,6 +749,10 @@ capsule_logv( int severity, const char *fmt, va_list ap )
 {
     /* libcapsule tools are single-threaded, so it's an acceptable
      * simplification that we do not emit the whole message atomically. */
+
+    if( capsule_level_prefix )
+        fprintf( stderr, "<%d>", severity );
+
     fprintf( stderr, "%s: ", program_invocation_short_name );
     vfprintf( stderr, fmt, ap );
     fputc( '\n', stderr );

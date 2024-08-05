@@ -48,6 +48,7 @@ enum
 extern unsigned long debug_flags;
 void  set_debug_flags (const char *control);
 
+extern int capsule_level_prefix;
 void capsule_log (int log_level, const char *fmt, ...) __attribute__((__format__(__printf__, 2, 3)));
 void capsule_logv (int log_level, const char *fmt, va_list ap) __attribute__((__format__(__printf__, 2, 0)));
 
