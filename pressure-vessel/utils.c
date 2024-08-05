@@ -121,6 +121,7 @@ pv_get_workarounds (SrtBwrapFlags bwrap_flags,
     { PV_WORKAROUND_FLAGS_STEAMSNAP_359, { "steam-snap#359", "steamsnap359" } },
     { PV_WORKAROUND_FLAGS_STEAMSNAP_369, { "steam-snap#369", "steamsnap369" } },
     { PV_WORKAROUND_FLAGS_STEAMSNAP_370, { "steam-snap#370", "steamsnap370" } },
+    { PV_WORKAROUND_FLAGS_STEAMSNAP_397, { "steam-snap#397", "steamsnap397" } },
     { PV_WORKAROUND_FLAGS_BWRAP_SETUID, { "bwrap-setuid" } },
   };
   PvWorkaroundFlags flags = PV_WORKAROUND_FLAGS_NONE;
@@ -134,13 +135,10 @@ pv_get_workarounds (SrtBwrapFlags bwrap_flags,
   if (bwrap_flags & SRT_BWRAP_FLAGS_SETUID)
     flags |= PV_WORKAROUND_FLAGS_BWRAP_SETUID;
 
-  /* Reinstate this if workarounds for snapd need to be used by default */
-#if 0
   if (_srt_environ_getenv (envp, "SNAP") != NULL
       && _srt_environ_getenv (envp, "SNAP_NAME") != NULL
       && _srt_environ_getenv (envp, "SNAP_REVISION") != NULL)
-    flags |= PV_WORKAROUND_FLAGS_SNAP;
-#endif
+    flags |= PV_WORKAROUND_FLAGS_STEAMSNAP_397;
 
   if (value != NULL)
     {
