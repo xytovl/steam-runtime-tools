@@ -819,6 +819,9 @@ SKIP: {
     is(tolerant_readlink("$libdir/libunversionedsymbols.so.1"),
        '/run/host/opt/libunversionedsymbols.so.1.0.0',
        "should take provider's version by default if name is the same");
+    like($stderr,
+        qr{^\Q$CAPSULE_CAPTURE_LIBS_BASENAME\E: warning: libunversionedsymbols\.so\.0 has an unexpected DT_SONAME, ignoring: libunversionedsymbols\.so\.1$}m,
+        'stderr shows expected warning message');
 
     run_ok(['rm', '-fr', $libdir]);
     mkdir($libdir);
