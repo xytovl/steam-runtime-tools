@@ -1097,7 +1097,7 @@ _srt_logger_try_rotate (SrtLogger *self,
 
   glnx_close_fd (&self->file_fd);
   self->file_fd = g_steal_fd (&new_fd);
-  memcpy (&self->file_stat, &new_stat, sizeof (new_stat));
+  self->file_stat = new_stat;
   ret = TRUE;
 
 out:
