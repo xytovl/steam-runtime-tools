@@ -5474,13 +5474,15 @@ collect_graphics_libraries_patterns (GPtrArray *patterns)
     "libnvidia-nvvm.so.*",
     "libnvidia-opencl.so.*",
     "libnvidia-opticalflow.so.*",
-    "libnvidia-pkcs11*.so.*",
     "libnvidia-ptxjitcompiler.so.*",
     "libnvidia-rtcore.so.*",
     "libnvidia-tls.so.*",
     "libnvidia-vulkan-producer.so.*",
     "libnvoptix.so.*",
     "libvdpau_nvidia.so.*",
+
+    /* On Ubuntu, this is packaged with its dependencies missing */
+    "quiet:libnvidia-pkcs11*.so.*",
   };
   /* Each of these is substituted into libnvidia-NAME.so.VERSION.
    * TODO: It would be better if these came from some sort of manifest:
