@@ -450,6 +450,10 @@ _srt_logger_setup (SrtLogger *self,
       if (self->filename == NULL)
         return glnx_throw (error,
                            "Providing a log fd requires a filename");
+      if (fstat (self->file_fd, &self->file_stat) < 0)
+        return glnx_throw_errno_prefix (error,
+                                        "Unable to stat \"%s\"",
+                                        self->filename);
     }
   else if (self->use_file)
     {
