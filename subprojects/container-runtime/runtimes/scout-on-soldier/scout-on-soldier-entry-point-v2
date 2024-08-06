@@ -155,9 +155,9 @@ main () {
 
             if [ "$theirs_should_be" != "$ours" ]; then
                 # Recover by unpacking a copy locally.
-                log "Recovering by unpacking $src.tar.xz* into ${here}/var/unpack..."
+                log "Recovering by unpacking $src.tar.xz into ${here}/var/unpack..."
                 mkdir -p "${here}/var/unpack"
-                cat "$src.tar.xz".* | tar -C "${here}/var/unpack" -Jxf-
+                tar -C "${here}/var/unpack" -Jxf "$src.tar.xz"
                 echo "$theirs_should_be" > "${here}/var/unpack/steam-runtime/checksum"
             fi
 
