@@ -450,6 +450,10 @@ _srt_logger_setup (SrtLogger *self,
       if (self->filename == NULL)
         return glnx_throw (error,
                            "Providing a log fd requires a filename");
+      if (fstat (self->file_fd, &self->file_stat) < 0)
+        return glnx_throw_errno_prefix (error,
+                                        "Unable to stat \"%s\"",
+                                        self->filename);
     }
   else if (self->use_file)
     {
@@ -1093,7 +1097,7 @@ _srt_logger_try_rotate (SrtLogger *self,
 
   glnx_close_fd (&self->file_fd);
   self->file_fd = g_steal_fd (&new_fd);
-  memcpy (&self->file_stat, &new_stat, sizeof (new_stat));
+  self->file_stat = new_stat;
   ret = TRUE;
 
 out:
@@ -1216,17 +1220,26 @@ logger_process_complete_line (SrtLogger *self,
     {
       if (self->filename != NULL)
         {
-          gboolean log_file_still_exists = FALSE;
+          const char *reason_to_reopen = NULL;
           struct stat current_stat;
 
           if (TEMP_FAILURE_RETRY (stat (self->filename, &current_stat)) == 0)
-            log_file_still_exists = _srt_is_same_stat (&current_stat,
-                                                       &self->file_stat);
-          else if (errno != ENOENT)
-            _srt_log_warning ("Unable to stat log file: %s",
-                              g_strerror (errno));
+            {
+              if (!_srt_is_same_stat (&current_stat, &self->file_stat))
+                reason_to_reopen = "File replaced";
+            }
+          else
+            {
+              int saved_errno = errno;
 
-          if (!log_file_still_exists)
+              if (saved_errno != ENOENT)
+                _srt_log_warning ("Unable to stat log file \"%s\": %s",
+                                  self->filename, g_strerror (saved_errno));
+
+              reason_to_reopen = g_strerror (saved_errno);
+            }
+
+          if (reason_to_reopen != NULL)
             {
               /* The log file is either deleted or replaced, probably by a
                * developer who wanted to clear the logs out. Re-create it now
@@ -1234,17 +1247,35 @@ logger_process_complete_line (SrtLogger *self,
               glnx_autofd int new_fd = -1;
               g_autoptr(GError) local_error = NULL;
 
+              g_info ("Re-opening \"%s\" because: %s",
+                      self->filename, reason_to_reopen);
+
               new_fd = TEMP_FAILURE_RETRY (open (self->filename,
                                                  OPEN_FLAGS,
                                                  0644));
               if (new_fd < 0)
-                _srt_log_warning ("Unable to re-open log file: %s",
-                                  g_strerror (errno));
+                {
+                  _srt_log_warning ("Unable to re-open log file: \"%s\": %s",
+                                    self->filename, g_strerror (errno));
+                }
+              /* Reuse current_stat (which might or might not be populated)
+               * for the device and inode of the replacement file */
+              else if (fstat (new_fd, &current_stat) < 0)
+                {
+                  _srt_log_warning ("Unable to stat log file \"%s\": %s",
+                                    self->filename, g_strerror (errno));
+                }
               else if (!lock_output_file (self->filename, new_fd, &local_error))
-                _srt_log_warning ("Unable to re-lock log file: %s",
-                                  local_error->message);
+                {
+                  _srt_log_warning ("Unable to re-lock log file \"%s\": %s",
+                                    self->filename, local_error->message);
+                }
               else
-                self->file_fd = glnx_steal_fd (&new_fd);
+                {
+                  g_info ("Successfully re-opened \"%s\"", self->filename);
+                  self->file_fd = glnx_steal_fd (&new_fd);
+                  self->file_stat = current_stat;
+                }
             }
           else if (self->max_bytes > 0
                    && (current_stat.st_size + len) > self->max_bytes)
