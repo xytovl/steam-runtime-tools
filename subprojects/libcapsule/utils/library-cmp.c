@@ -18,7 +18,6 @@
 
 #include "library-cmp.h"
 
-#include <err.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <fnmatch.h>
@@ -1134,8 +1133,8 @@ library_cmp_filter_list( char ** const filters,
                 if( fnmatch( filters[j] + 1, element, 0 ) == 0 )
                 {
                     if( guessing )
-                        warnx( "warning: we are assuming \"%s\" to be private, but it's just a guess",
-                               element );
+                        capsule_warn( "we are assuming \"%s\" to be private, but it's just a guess",
+                                      element );
                     else
                         DEBUG( DEBUG_TOOL,
                                "Ignoring \"%s\" because it has been declared as private",
@@ -1148,8 +1147,8 @@ library_cmp_filter_list( char ** const filters,
                 if( fnmatch( filters[j], element, 0 ) == 0 )
                 {
                     if( guessing )
-                        warnx( "warning: we are assuming \"%s\" to be public, but it's just a guess",
-                               element );
+                        capsule_warn( "we are assuming \"%s\" to be public, but it's just a guess",
+                                      element );
 
                     ptr_list_push_ptr( filtered_list, xstrdup( list[i] ) );
                     break;
@@ -1158,8 +1157,8 @@ library_cmp_filter_list( char ** const filters,
         }
         /* If we checked all the patterns and didn't have a match */
         if( filters[j] == NULL )
-            warnx( "warning: \"%s\" does not have a match in the given filters, treating it as private",
-                   token );
+            capsule_warn( "\"%s\" does not have a match in the given filters, treating it as private",
+                          token );
     }
 
     free( buf );
@@ -1219,8 +1218,8 @@ library_cmp_by_symbols( const library_details *details,
 
     if( container_symbols == NULL )
     {
-        warnx( "failed to get container versions for %s (%d): %s",
-               details->name, code, message );
+        capsule_warn( "failed to get container versions for %s (%d): %s",
+                      details->name, code, message );
         goto out;
     }
 
@@ -1256,8 +1255,8 @@ library_cmp_by_symbols( const library_details *details,
 
     if( provider_symbols == NULL )
     {
-        warnx( "failed to get provider versions for %s (%d): %s",
-               details->name, code, message );
+        capsule_warn( "failed to get provider versions for %s (%d): %s",
+                      details->name, code, message );
         goto out;
     }
 
@@ -1375,8 +1374,8 @@ library_cmp_by_versions( const library_details *details,
 
     if( container_versions == NULL )
     {
-        warnx( "failed to get container versions for %s (%d): %s",
-               details->name, code, message );
+        capsule_warn( "failed to get container versions for %s (%d): %s",
+                      details->name, code, message );
         goto out;
     }
 
@@ -1412,8 +1411,8 @@ library_cmp_by_versions( const library_details *details,
 
     if( provider_versions == NULL )
     {
-        warnx( "failed to get provider versions for %s (%d): %s",
-               details->name, code, message );
+        capsule_warn( "failed to get provider versions for %s (%d): %s",
+                      details->name, code, message );
         goto out;
     }
 

@@ -218,8 +218,10 @@ run_ok([$CAPSULE_CAPTURE_LIBS_TOOL, '--remap-link-prefix=/opt/=/OPT/',
 $target = readlink "$libdir/libc.so.6";
 diag("Expecting: $libdir/libc.so.6 -> $LIBDIR/libc.so.6");
 diag("Actual:    $libdir/libc.so.6 -> $target");
-like($target, qr{^$LIBDIR/libc\.so\.6$},
-     "$libdir/libc.so.6 is a symlink to the real libc.so.6");
+like($target, $libc_re,
+     "$libdir/libc.so.6 is a symlink to the real libc.so.6 in some form");
+is(abs_path("$libdir/libc.so.6"), $libc_realpath,
+   "$libdir/libc.so.6 canonicalizes to $libc_realpath");
 
 run_ok(['rm', '-fr', $libdir]);
 mkdir($libdir);
@@ -514,6 +516,8 @@ SKIP: {
 SKIP: {
     my $multiarch;
     my $other_multiarch;
+    my $stdout;
+    my $stderr;
 
     # For simplicity, we only consider this case on x86.
     skip "$ENV{CAPSULE_TESTS_GNU_HOST} not x86_64 or i386", 1
@@ -538,9 +542,11 @@ SKIP: {
                            $CAPSULE_CAPTURE_LIBS_TOOL, '--link-target=/',
                            "--dest=$libdir", "--provider=$host",
                            "path:/usr/lib/$other_multiarch/libxml2.so.2"],
-                           '>&2');
+                           '>', \$stdout, '2>', \$stderr);
     ok(! $result, 'library of wrong ABI yields an error');
     ok(! -e "$libdir/libxml2.so.2");
+    is($stdout, '', 'no machine-readable output');
+    like($stderr, qr{^\Q$CAPSULE_CAPTURE_LIBS_BASENAME\E: error: }m, 'stderr shows error message');
 
     # ... but when we're dealing with a glob match, other ABIs are silently
     # ignored.
@@ -568,6 +574,23 @@ SKIP: {
                            '>&2');
     ok($result, 'library of wrong ABI ignored when using if-same-abi');
     ok(! -e "$libdir/libxml2.so.2");
+
+    # If we use --level-prefix and repeat the failing case, there's a
+    # marker for the severity level
+    run_ok(['rm', '-fr', $libdir]);
+    mkdir($libdir);
+    $result = run_verbose([qw(bwrap --ro-bind / / --ro-bind /), $host,
+                           '--bind', $libdir, $libdir,
+                           qw(--dev-bind /dev /dev),
+                           $CAPSULE_CAPTURE_LIBS_TOOL,
+                           '--level-prefix', '--link-target=/',
+                           "--dest=$libdir", "--provider=$host",
+                           "path:/usr/lib/$other_multiarch/libxml2.so.2"],
+                           '>', \$stdout, '2>', \$stderr);
+    ok(! $result, 'library of wrong ABI yields an error');
+    ok(! -e "$libdir/libxml2.so.2");
+    is($stdout, '', 'no machine-readable output');
+    like($stderr, qr{^<3>\Q$CAPSULE_CAPTURE_LIBS_BASENAME\E: error: }m, 'stderr has severity prefix');
 };
 
 SKIP: {
@@ -770,34 +793,46 @@ SKIP: {
        '/run/host/opt/libunversionedsymbols.so.1.0.0',
        "should take provider's version, even if the DT_SONAME is the unexpected libunversionedsymbols.so.1");
 
-    run_ok(['rm', '-fr', $libdir]);
-    mkdir($libdir);
-    $result = run_verbose([qw(bwrap --ro-bind / /),
-                           '--tmpfs', $host,
-                           bind_usr('/', $host),
-                           '--tmpfs', "$host/more",
-                           '--tmpfs', $container,
-                           bind_usr('/', $container),
-                           '--ro-bind', $version1, "$host/opt",
-                           '--ro-bind', $version2, "$container/opt",
-                           '--symlink', "$host/opt/libunversionedsymbols.so.1", "$host/more/libunversionedsymbols.so.0",
-                           '--bind', $libdir, $libdir,
-                           qw(--dev-bind /dev /dev),
-                           'env', 'CAPSULE_DEBUG=all',
-                           "LD_LIBRARY_PATH=/opt:/more",
-                           $CAPSULE_CAPTURE_LIBS_TOOL, '--link-target=/run/host',
-                           "--dest=$libdir", "--provider=$host",
-                           "--container=$container",
-                           'if-exists:exact-soname:libunversionedsymbols.so.0',
-                           'if-exists:exact-soname:libunversionedsymbols.so.1'],
-                           '2>', \$stderr, '>&2');
-    diag $stderr;
-    ok($result);
-    ok (! -l "$libdir/libunversionedsymbols.so.0",
-       "should not take provider's version because the DT_SONAME is not the expected value");
-    is(tolerant_readlink("$libdir/libunversionedsymbols.so.1"),
-       '/run/host/opt/libunversionedsymbols.so.1.0.0',
-       "should take provider's version by default if name is the same");
+    foreach my $quiet_prefix ("", "quiet:") {
+        run_ok(['rm', '-fr', $libdir]);
+        mkdir($libdir);
+        $result = run_verbose([qw(bwrap --ro-bind / /),
+                               '--tmpfs', $host,
+                               bind_usr('/', $host),
+                               '--tmpfs', "$host/more",
+                               '--tmpfs', $container,
+                               bind_usr('/', $container),
+                               '--ro-bind', $version1, "$host/opt",
+                               '--ro-bind', $version2, "$container/opt",
+                               '--symlink', "$host/opt/libunversionedsymbols.so.1", "$host/more/libunversionedsymbols.so.0",
+                               '--bind', $libdir, $libdir,
+                               qw(--dev-bind /dev /dev),
+                               'env', 'CAPSULE_DEBUG=all',
+                               "LD_LIBRARY_PATH=/opt:/more",
+                               $CAPSULE_CAPTURE_LIBS_TOOL, '--link-target=/run/host',
+                               "--dest=$libdir", "--provider=$host",
+                               "--container=$container",
+                               "${quiet_prefix}if-exists:exact-soname:libunversionedsymbols.so.0",
+                               'if-exists:exact-soname:libunversionedsymbols.so.1'],
+                               '2>', \$stderr, '>&2');
+        diag $stderr;
+        ok($result);
+        ok (! -l "$libdir/libunversionedsymbols.so.0",
+           "should not take provider's version because the DT_SONAME is not the expected value");
+        is(tolerant_readlink("$libdir/libunversionedsymbols.so.1"),
+           '/run/host/opt/libunversionedsymbols.so.1.0.0',
+           "should take provider's version by default if name is the same");
+
+        if ($quiet_prefix eq '') {
+            like($stderr,
+                qr{^\Q$CAPSULE_CAPTURE_LIBS_BASENAME\E: warning: libunversionedsymbols\.so\.0 has an unexpected DT_SONAME, ignoring: libunversionedsymbols\.so\.1$}m,
+                'stderr shows expected warning message');
+        }
+        else {
+            unlike($stderr, qr{warning:.*unexpected DT_SONAME, ignoring}m,
+                '"quiet:" de-escalates warning message to debug');
+        }
+    }
 
     run_ok(['rm', '-fr', $libdir]);
     mkdir($libdir);
@@ -817,12 +852,15 @@ SKIP: {
                            $CAPSULE_CAPTURE_LIBS_TOOL, '--link-target=/run/host',
                            "--dest=$libdir", "--provider=$host",
                            "--container=$container",
-                           'exact-soname:libunversionedsymbols.so.0'],
+                           "quiet:exact-soname:libunversionedsymbols.so.0"],
                            '2>', \$stderr, '>&2');
     diag $stderr;
     ok(! $result, 'library with the wrong DT_SONAME yields an error');
     ok (! -l "$libdir/libunversionedsymbols.so.0",
        "should not take provider's version because the DT_SONAME is not the expected value");
+    like($stderr,
+        qr{^\Q$CAPSULE_CAPTURE_LIBS_BASENAME\E: error: code [0-9]+: libunversionedsymbols\.so\.0 has an unexpected DT_SONAME: libunversionedsymbols\.so\.1$}m,
+        '"quiet:" does not suppress fatal error messages');
 }
 
 my $testlibs = "$builddir/tests";

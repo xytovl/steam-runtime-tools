@@ -18,6 +18,9 @@
 
 #pragma once
 
+#include <stdarg.h>
+#include <syslog.h>
+
 enum
 {
     DEBUG_NONE       = 0,
@@ -36,11 +39,24 @@ enum
 
 #define LDLIB_DEBUG(ldl, flags, fmt, args...)  \
     if( ldl->debug && (ldl->debug & (flags)) ) \
-        fprintf( stderr, "%s:" fmt "\n", __PRETTY_FUNCTION__, ##args )
+        capsule_log( LOG_DEBUG, "%s:" fmt, __PRETTY_FUNCTION__, ##args )
 
 #define DEBUG(flags, fmt, args...)               \
     if( debug_flags && (debug_flags & (flags)) ) \
-        fprintf( stderr, "%s:" fmt "\n", __PRETTY_FUNCTION__, ##args )
+        capsule_log( LOG_DEBUG, "%s:" fmt, __PRETTY_FUNCTION__, ##args )
 
 extern unsigned long debug_flags;
 void  set_debug_flags (const char *control);
+
+extern int capsule_level_prefix;
+void capsule_log (int log_level, const char *fmt, ...) __attribute__((__format__(__printf__, 2, 3)));
+void capsule_logv (int log_level, const char *fmt, va_list ap) __attribute__((__format__(__printf__, 2, 0)));
+
+#define capsule_err(status, fmt, args...) \
+  do { \
+      capsule_log( LOG_ERR, fmt, ##args ); \
+      exit (status); \
+  } while (0)
+
+#define capsule_warn(fmt, args...) \
+  capsule_log( LOG_WARNING, fmt, ##args )

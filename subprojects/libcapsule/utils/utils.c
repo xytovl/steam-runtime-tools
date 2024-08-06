@@ -17,6 +17,7 @@
 // License along with libcapsule.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <assert.h>
+#include <errno.h>
 #include <sys/param.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -27,6 +28,7 @@
 #include "debug.h"
 #include "utils.h"
 
+int capsule_level_prefix = 0;
 unsigned long debug_flags;
 
 // ==========================================================================
@@ -724,4 +726,62 @@ _capsule_basename (const char *path)
 
   assert( ret[0] == '/' );
   return ret + 1;
+}
+
+/*
+ * capsule_logv:
+ * @severity: A `syslog.h` severity constant such as `LOG_ERR`
+ * @fmt: A printf-style format string
+ * @ap: Arguments for @fmt
+ *
+ * Log the message @fmt, substituting the given arguments.
+ * If enabled globally, a severity prefix compatible with
+ * `systemd-cat --level-prefix=true` is prepended.
+ * The basename of argv[0] is prepended, similar to warnx().
+ * If the severity is `LOG_WARNING` or more serious (numerically smaller),
+ * `error: ` or `warning: ` is prepended and should not be included in @fmt.
+ * A newline is appended automatically and should not be included in @fmt.
+ *
+ * Unlike `errx()` and `g_error()`, this does not immediately exit,
+ * even if the severity indicates a fatal error (the caller must do that,
+ * if desired).
+ */
+void
+capsule_logv( int severity, const char *fmt, va_list ap )
+{
+    /* libcapsule tools are single-threaded, so it's an acceptable
+     * simplification that we do not emit the whole message atomically. */
+
+    if( capsule_level_prefix )
+        fprintf( stderr, "<%d>", severity );
+
+    fprintf( stderr, "%s: ", program_invocation_short_name );
+
+    /* This looks wrong, but is the right way round: more serious errors
+     * are numerically smaller. */
+    if( severity <= LOG_ERR )
+        fprintf( stderr, "error: " );
+    else if( severity == LOG_WARNING )
+        fprintf( stderr, "warning: " );
+
+    vfprintf( stderr, fmt, ap );
+    fputc( '\n', stderr );
+}
+
+/*
+ * capsule_log:
+ * @severity: A `syslog.h` severity constant such as `LOG_ERR`
+ * @fmt: A printf-style format string
+ * @...: Arguments for @fmt
+ *
+ * Same as capsule_logv(), but with varargs.
+ */
+void
+capsule_log( int severity, const char *fmt, ... )
+{
+    va_list ap;
+
+    va_start( ap, fmt );
+    capsule_logv( severity, fmt, ap );
+    va_end( ap );
 }

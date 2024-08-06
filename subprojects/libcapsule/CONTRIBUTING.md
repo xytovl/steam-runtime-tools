@@ -1,7 +1,7 @@
 # Contributing and maintenance
 
 <!-- This file:
-Copyright 2019-2020 Collabora Ltd.
+Copyright 2019-2024 Collabora Ltd.
 SPDX-License-Identifier: MIT
 -->
 

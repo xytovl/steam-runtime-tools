@@ -1,3 +1,18 @@
+libcapsule (0.20240806.0-0co1) upstream; urgency=medium
+
+  * capsule-capture-libs: Never undo our rewriting of the symlink target,
+    fixing a regression on NixOS (steam-runtime#684)
+  * capsule-capture-libs: Add --level-prefix option, which prepends a
+    severity indicator compatible with `systemd-cat --level-prefix=true`
+    (steamrt/tasks#444)
+  * capsule-capture-libs: Add "quiet:" pattern to suppress non-fatal
+    warnings for a particular library (steamrt/tasks#488)
+  * utils: Prepend basename of argv[0] to diagnostic messages
+  * utils: Consistently add error: or warning: prefix where appropriate
+  * tests: Improve coverage
+
+ -- Simon McVittie <smcv@collabora.com>  Tue, 06 Aug 2024 13:37:16 +0100
+
 libcapsule (0.20240520.0-0co1) upstream; urgency=medium
 
   * utils: Allocate ld_libs on the heap, avoiding a segfault with

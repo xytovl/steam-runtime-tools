@@ -17,7 +17,6 @@
 // License along with libcapsule.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <assert.h>
-#include <err.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <fnmatch.h>
@@ -112,6 +111,7 @@ enum
   OPTION_COMPARE_BY,
   OPTION_CONTAINER,
   OPTION_DEST,
+  OPTION_LEVEL_PREFIX,
   OPTION_LIBRARY_KNOWLEDGE,
   OPTION_LINK_TARGET,
   OPTION_NO_GLIBC,
@@ -141,6 +141,7 @@ static struct option long_options[] =
     { "container", required_argument, NULL, OPTION_CONTAINER },
     { "dest", required_argument, NULL, OPTION_DEST },
     { "help", no_argument, NULL, 'h' },
+    { "level-prefix", no_argument, NULL, OPTION_LEVEL_PREFIX },
     { "library-knowledge", required_argument, NULL, OPTION_LIBRARY_KNOWLEDGE },
     { "link-target", required_argument, NULL, OPTION_LINK_TARGET },
     { "no-glibc", no_argument, NULL, OPTION_NO_GLIBC },
@@ -250,6 +251,8 @@ static void usage (int code)
                "\tdeciding which libraries are needed [default: /]\n" );
   fprintf( fh, "--dest=LIBDIR\n"
                "\tCreate symlinks in LIBDIR [default: .]\n" );
+  fprintf( fh, "--level-prefix\n"
+               "\tAdd severity prefixes such as <3> to output\n" );
   fprintf( fh, "--library-knowledge=FILE\n"
                "\tLoad information about known libraries from a"
                "\t.desktop-style file at FILE, overriding --compare-by.\n" );
@@ -295,6 +298,8 @@ static void usage (int code)
   fprintf( fh, "even-if-older:PATTERN\n"
                "\tCapture PATTERN, even if the version in CONTAINER\n"
                "\tappears newer\n" );
+  fprintf( fh, "quiet:PATTERN\n"
+               "\tCapture PATTERN, but don't warn for non-fatal issues\n" );
   fprintf( fh, "gl:\n"
                "\tShortcut for even-if-older:if-exists:soname:libGL.so.1,\n"
                "\teven-if-older:if-exists:soname-match:libGLX_*.so.0, and\n"
@@ -325,7 +330,32 @@ typedef enum
   CAPTURE_FLAG_DEPENDENCIES = ( 1 << 3 ),
   CAPTURE_FLAG_IF_SAME_ABI = ( 1 << 4 ),
   CAPTURE_FLAG_IF_EXACT_SONAME = ( 1 << 5 ),
+  CAPTURE_FLAG_QUIET = ( 1 << 6 ),
 } capture_flags;
+
+static void maybe_warn( capture_flags flags, const char *fmt, ... ) __attribute__((__format__(__printf__, 2, 3)));
+
+static void
+maybe_warn( capture_flags flags, const char *fmt, ... )
+{
+    va_list ap;
+
+    va_start( ap, fmt );
+
+    if( flags & CAPTURE_FLAG_QUIET )
+    {
+        if( debug_flags & DEBUG_TOOL )
+        {
+            capsule_logv( LOG_DEBUG, fmt, ap );
+        }
+    }
+    else
+    {
+        capsule_logv( LOG_WARNING, fmt, ap );
+    }
+
+    va_end( ap );
+}
 
 typedef struct
 {
@@ -454,8 +484,9 @@ capture_one( const char *soname, const capture_options *options,
         {
             if( ( options->flags & CAPTURE_FLAG_IF_EXISTS ) )
             {
-                warnx( "warning: Unable to obtain the library %s DT_SONAME, ignoring",
-                       soname );
+                maybe_warn( options->flags,
+                            "Unable to obtain the library %s DT_SONAME, ignoring",
+                            soname );
                 return true;
             }
 
@@ -470,8 +501,9 @@ capture_one( const char *soname, const capture_options *options,
         {
             if( ( options->flags & CAPTURE_FLAG_IF_EXISTS ) )
             {
-                warnx( "warning: %s has an unexpected DT_SONAME, ignoring: %s",
-                       soname, dt_soname );
+                maybe_warn( options->flags,
+                            "%s has an unexpected DT_SONAME, ignoring: %s",
+                            soname, dt_soname );
                 return true;
             }
 
@@ -487,8 +519,9 @@ capture_one( const char *soname, const capture_options *options,
     {
         if( ( options->flags & CAPTURE_FLAG_IF_EXISTS ) && local_code == ENOENT )
         {
-            warnx( "warning: Dependencies of %s not found, ignoring: %s",
-                   soname, local_message );
+            maybe_warn( options->flags,
+                        "Dependencies of %s not found, ignoring: %s",
+                        soname, local_message );
             _capsule_clear( &local_message );
             return true;
         }
@@ -505,7 +538,6 @@ capture_one( const char *soname, const capture_options *options,
         const char *needed_name = provider->needed[i].name;
         const char *needed_path_in_provider = provider->needed[i].path;
         const char *needed_basename;
-        bool remapped_prefix = false;
 
         if( !needed_name )
         {
@@ -709,8 +741,8 @@ capture_one( const char *soname, const capture_options *options,
             if( strncmp( path, option_provider, prefix_len ) != 0 ||
                 path[prefix_len] != '/' )
             {
-                warnx( "warning: \"%s\" is not within prefix \"%s\"",
-                       path, option_provider );
+                capsule_warn( "\"%s\" is not within prefix \"%s\"",
+                              path, option_provider );
                 continue;
             }
 
@@ -730,18 +762,14 @@ capture_one( const char *soname, const capture_options *options,
                                target + strlen( remap_prefix[j].from ) );
                     free( target );
                     target = tmp;
-                    remapped_prefix = true;
                 }
             }
         }
-
-        // If we don't have the link target option and we didn't remap the
-        // prefix, we just set the target to the needed path in provider
-        // without following the eventual link chain
-        if( !remapped_prefix && option_link_target == NULL )
+        else
         {
-            if( target != NULL )
-                free( target );
+            /* No need to remap anything or canonicalize the path,
+             * because we're going to use it from the same view of the
+             * filesystem that we're currently in. */
             target = xstrdup( needed_path_in_provider );
         }
 
@@ -752,8 +780,8 @@ capture_one( const char *soname, const capture_options *options,
 
         if( symlinkat( target, dest_fd, needed_basename ) < 0 )
         {
-            warn( "warning: cannot create symlink %s/%s",
-                  option_dest, needed_basename );
+            capsule_warn( "cannot create symlink %s/%s: %s",
+                          option_dest, needed_basename, strerror( errno ) );
         }
 
         if( strcmp( needed_basename, "libc.so.6" ) == 0 )
@@ -802,7 +830,7 @@ cache_foreach_cb (const char *name, int flag, unsigned int osv,
 
   if( !name || !*name )
   {
-      warnx( "warning: empty name found in ld.so.cache" );
+      capsule_warn( "empty name found in ld.so.cache" );
       return 0;
   }
 
@@ -1121,6 +1149,15 @@ capture_pattern( const char *pattern, const capture_options *options,
                                 &new_options, code, message );
     }
 
+    if( strstarts( pattern, "quiet:" ) )
+    {
+        capture_options new_options = *options;
+
+        new_options.flags |= CAPTURE_FLAG_QUIET;
+        return capture_pattern( pattern + strlen( "quiet:" ),
+                                &new_options, code, message );
+    }
+
     if( strcmp( pattern, "gl:" ) == 0 )
     {
         // Useful information:
@@ -1348,13 +1385,17 @@ main (int argc, char **argv)
 
             case OPTION_LIBRARY_KNOWLEDGE:
                 if( option_library_knowledge != NULL )
-                    errx( 1, "--library-knowledge can only be used once" );
+                    capsule_err( 1, "--library-knowledge can only be used once" );
 
                 option_library_knowledge = optarg;
                 break;
 
             case OPTION_LINK_TARGET:
                 option_link_target = optarg;
+                break;
+
+            case OPTION_LEVEL_PREFIX:
+                capsule_level_prefix = 1;
                 break;
 
             case OPTION_PRINT_LD_SO:
@@ -1375,7 +1416,7 @@ main (int argc, char **argv)
 
             case OPTION_REMAP_LINK_PREFIX:
                 if( strchr( optarg, '=' ) == NULL )
-                    errx( 1, "--remap-link-prefix value must follow the FROM=TO pattern" );
+                    capsule_err( 1, "--remap-link-prefix value must follow the FROM=TO pattern" );
 
                 ptr_list_push_ptr( remap_list, xstrdup( optarg ) );
                 break;
@@ -1388,7 +1429,7 @@ main (int argc, char **argv)
                     if( !resolve_ld_so( optarg, path, &within_prefix,
                                         &code, &message ) )
                     {
-                        errx( 1, "code %d: %s", code, message );
+                        capsule_err( 1, "code %d: %s", code, message );
                     }
 
                     puts( within_prefix );
@@ -1400,7 +1441,7 @@ main (int argc, char **argv)
 
     if( optind >= argc )
     {
-        warnx( "One or more patterns must be provided" );
+        capsule_warn( "One or more patterns must be provided" );
         usage( 2 );
     }
 
@@ -1417,7 +1458,7 @@ main (int argc, char **argv)
             {
                 free( buf );
                 free_strv_full( remap_array );
-                errx( 1, "--remap-link-prefix value must follow the FROM=TO pattern" );
+                capsule_err( 1, "--remap-link-prefix value must follow the FROM=TO pattern" );
             }
             *equals = '\0';
             remap_prefix[i].from = buf;
@@ -1433,7 +1474,7 @@ main (int argc, char **argv)
         mkdir( option_dest, 0755 ) < 0 &&
         errno != EEXIST )
     {
-        err( 1, "creating \"%s\"", option_dest );
+        capsule_err( 1, "creating \"%s\": %s", option_dest, strerror( errno ) );
     }
 
     options.comparators = library_cmp_list_from_string( option_compare_by, ",",
@@ -1441,7 +1482,7 @@ main (int argc, char **argv)
 
     if( options.comparators == NULL )
     {
-        errx( 1, "code %d: %s", code, message );
+        capsule_err( 1, "code %d: %s", code, message );
     }
 
     if( option_library_knowledge != NULL )
@@ -1450,14 +1491,14 @@ main (int argc, char **argv)
 
         if( fh == NULL)
         {
-            err( 1, "opening \"%s\"", option_library_knowledge );
+            capsule_err( 1, "opening \"%s\": %s", option_library_knowledge, strerror( errno ) );
         }
 
         if( !library_knowledge_load_from_stream( &options.knowledge,
                                                  fh, option_library_knowledge,
                                                  &code, &message ) )
         {
-            errx( 1, "code %d: %s", code, message );
+            capsule_err( 1, "code %d: %s", code, message );
         }
 
         fclose( fh );
@@ -1467,12 +1508,12 @@ main (int argc, char **argv)
 
     if( dest_fd < 0 )
     {
-        err( 1, "opening \"%s\"", option_dest );
+        capsule_err( 1, "opening \"%s\": %s", option_dest, strerror( errno ) );
     }
 
     if( !capture_patterns( arg_patterns, &options, &code, &message ) )
     {
-        errx( 1, "code %d: %s", code, message );
+        capsule_err( 1, "code %d: %s", code, message );
     }
 
     close( dest_fd );
