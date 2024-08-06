@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20240806.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20240806.0) steamrt; urgency=medium
 
   [ Simon McVittie ]
   * pressure-vessel:
@@ -19,7 +19,7 @@ steam-runtime-tools (0.20240806.0) UNRELEASED; urgency=medium
     - Avoid reopening log file unnecessarily, fixing a regression in
       0.20240805.0 (steamrt/tasks#487)
 
- -- Simon McVittie <smcv@collabora.com>  Tue, 06 Aug 2024 14:17:10 +0100
+ -- Simon McVittie <smcv@collabora.com>  Tue, 06 Aug 2024 14:20:58 +0100
 
 steam-runtime-tools (0.20240805.0) steamrt; urgency=medium
 
