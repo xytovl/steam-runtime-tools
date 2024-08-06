@@ -1242,13 +1242,27 @@ logger_process_complete_line (SrtLogger *self,
                                                  OPEN_FLAGS,
                                                  0644));
               if (new_fd < 0)
-                _srt_log_warning ("Unable to re-open log file: %s",
-                                  g_strerror (errno));
+                {
+                  _srt_log_warning ("Unable to re-open log file: %s",
+                                    g_strerror (errno));
+                }
+              /* Reuse current_stat (which might or might not be populated)
+               * for the device and inode of the replacement file */
+              else if (fstat (new_fd, &current_stat) < 0)
+                {
+                  _srt_log_warning ("Unable to stat log file \"%s\": %s",
+                                    self->filename, g_strerror (errno));
+                }
               else if (!lock_output_file (self->filename, new_fd, &local_error))
-                _srt_log_warning ("Unable to re-lock log file: %s",
-                                  local_error->message);
+                {
+                  _srt_log_warning ("Unable to re-lock log file: %s",
+                                    local_error->message);
+                }
               else
-                self->file_fd = glnx_steal_fd (&new_fd);
+                {
+                  self->file_fd = glnx_steal_fd (&new_fd);
+                  self->file_stat = current_stat;
+                }
             }
           else if (self->max_bytes > 0
                    && (current_stat.st_size + len) > self->max_bytes)
