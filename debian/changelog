@@ -6,13 +6,16 @@ steam-runtime-tools (0.20240806.0) UNRELEASED; urgency=medium
       + Always rewrite the symlink target, fixing a regression on NixOS
         (steam-runtime#684)
       + Improve consistency of capsule-capture-libs diagnostic messages
+  * SteamLinuxRuntime 1.0:
+    - Update fallback code path to account for changes in the Steam client
+      since May 2024 (steamrt/tasks#490)
 
   [ Ryan Gonzalez, Simon McVittie ]
   * srt-logger:
     - Avoid reopening log file unnecessarily, fixing a regression in
       0.20240805.0 (steamrt/tasks#487)
 
- -- Simon McVittie <smcv@collabora.com>  Tue, 06 Aug 2024 13:53:12 +0100
+ -- Simon McVittie <smcv@collabora.com>  Tue, 06 Aug 2024 13:57:41 +0100
 
 steam-runtime-tools (0.20240805.0) steamrt; urgency=medium
 
