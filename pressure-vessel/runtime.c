@@ -35,6 +35,7 @@
 #include "steam-runtime-tools/file-lock-internal.h"
 #include "steam-runtime-tools/graphics-internal.h"
 #include "steam-runtime-tools/graphics-drivers-json-based-internal.h"
+#include "steam-runtime-tools/log-internal.h"
 #include "steam-runtime-tools/profiling-internal.h"
 #include "steam-runtime-tools/resolve-in-sysroot-internal.h"
 #include "steam-runtime-tools/system-info-internal.h"
@@ -2352,8 +2353,12 @@ pv_runtime_get_capsule_capture_libs (PvRuntime *self,
                                          self->runtime_files_fd,
                                          self->runtime_files);
 
+  flatpak_bwrap_add_arg (ret, arch->capsule_capture_libs);
+
+  if (_srt_util_get_log_flags () & SRT_LOG_FLAGS_LEVEL)
+    flatpak_bwrap_add_arg (ret, "--level-prefix");
+
   flatpak_bwrap_add_args (ret,
-                          arch->capsule_capture_libs,
                           "--remap-link-prefix", remap_app,
                           "--remap-link-prefix", remap_usr,
                           "--remap-link-prefix", remap_lib,
@@ -5469,13 +5474,15 @@ collect_graphics_libraries_patterns (GPtrArray *patterns)
     "libnvidia-nvvm.so.*",
     "libnvidia-opencl.so.*",
     "libnvidia-opticalflow.so.*",
-    "libnvidia-pkcs11*.so.*",
     "libnvidia-ptxjitcompiler.so.*",
     "libnvidia-rtcore.so.*",
     "libnvidia-tls.so.*",
     "libnvidia-vulkan-producer.so.*",
     "libnvoptix.so.*",
     "libvdpau_nvidia.so.*",
+
+    /* On Ubuntu, this is packaged with its dependencies missing */
+    "quiet:libnvidia-pkcs11*.so.*",
   };
   /* Each of these is substituted into libnvidia-NAME.so.VERSION.
    * TODO: It would be better if these came from some sort of manifest:
