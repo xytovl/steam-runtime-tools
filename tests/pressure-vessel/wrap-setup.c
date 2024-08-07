@@ -1674,7 +1674,7 @@ test_use_home_shared (Fixture *f,
     "STEAM_COMPAT_MOUNTS=/overrides/forbidden",
     "PRESSURE_VESSEL_FILESYSTEMS_RO=/ro",
     "PRESSURE_VESSEL_FILESYSTEMS_RW=:/rw:/rw2:/nonexistent:::::",
-    "XDG_DATA_DIRS=/offload/user/data:/usr/local/share:/usr/share",
+    "XDG_DATA_HOME=/offload/user/data",
     "XDG_STATE_HOME=/offload/user/state",
     NULL
   };
