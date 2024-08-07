@@ -94,10 +94,10 @@ pv_get_reserved_paths (void)
     "/sbin",
     /* Used to mount the runtime */
     "/usr",
-    /* Used to mount parts of the graphics stack provider */
-    "/var/pressure-vessel",
     /* We need to manage this for compatibility with ClearLinux ld.so */
     "/var/cache/ldconfig",
+    /* Used to mount parts of the graphics stack provider */
+    "/var/pressure-vessel",
     NULL
   };
 
