@@ -96,6 +96,8 @@ pv_get_reserved_paths (void)
     "/usr",
     /* We need to manage this for compatibility with ClearLinux ld.so */
     "/var/cache/ldconfig",
+    /* A symlink to /etc/machine-id, see bind_runtime_base() */
+    "/var/lib/dbus",
     /* Used to mount parts of the graphics stack provider */
     "/var/pressure-vessel",
     NULL
