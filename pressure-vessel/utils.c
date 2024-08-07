@@ -100,6 +100,8 @@ pv_get_reserved_paths (void)
     "/var/lib/dbus",
     /* Used to mount parts of the graphics stack provider */
     "/var/pressure-vessel",
+    /* Hard-coded to be a symlink to ../run, see bind_runtime_base() */
+    "/var/run",
     NULL
   };
 
