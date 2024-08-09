@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20240809.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20240809.0) steamrt; urgency=medium
 
   * pressure-vessel:
     - Treat /var/lib/dbus as a reserved path, fixing an issue where the
@@ -19,7 +19,7 @@ steam-runtime-tools (0.20240809.0) UNRELEASED; urgency=medium
     - Switch to user-specified LDLP runtime before running reaper and/or
       steam-launch-wrapper (steamrt/tasks#489)
 
- -- Simon McVittie <smcv@collabora.com>  Fri, 09 Aug 2024 14:01:47 +0100
+ -- Simon McVittie <smcv@collabora.com>  Fri, 09 Aug 2024 14:39:25 +0100
 
 steam-runtime-tools (0.20240806.0) steamrt; urgency=medium
 
