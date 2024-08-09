@@ -6,6 +6,13 @@ steam-runtime-tools (0.20240809.0) UNRELEASED; urgency=medium
       and /var/lib/dbus/machine-id on the host was a regular file
       (steamrt/tasks#493, steam-runtime#688)
     - Similarly treat /var/run as a reserved path for completeness
+    - Don't share paths with the container just because they appear in
+      $XDG_CONFIG_DIRS or $XDG_DATA_DIRS.
+      This avoids a category of possible regressions similar to
+      steam-for-linux#10789 and steam-runtime#688.
+      If additional shared paths are required, advanced users can still
+      add them to PRESSURE_VESSEL_FILESYSTEMS_RO or
+      PRESSURE_VESSEL_FILESYSTEMS_RW as before. (steamrt/tasks#493)
   * steam-runtime-launch-options (developer tool):
     - Accept reaper and steam-launch-wrapper in either order
       (steamrt/tasks#266)
