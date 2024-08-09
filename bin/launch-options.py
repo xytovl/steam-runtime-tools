@@ -1666,20 +1666,18 @@ class Gui:
         has_container_runtime = False
         inherit_ldlp_runtime = True
 
-        if container is None:
-            selected = self.ldlp_runtime_combo.get_active_id()
-            component = None
+        selected = self.ldlp_runtime_combo.get_active_id()
+        component = None
 
-            if selected is None or not selected:
-                pass
-            elif selected == '/':
-                inherit_ldlp_runtime = False
-            else:
-                component = self.ldlp_runtimes.get(selected)
+        if selected is None or not selected:
+            pass
+        elif selected == '/':
+            inherit_ldlp_runtime = False
+        else:
+            component = self.ldlp_runtimes.get(selected)
 
-            if component is not None:
-                components.append(component)
-        # else we'll set STEAM_RUNTIME_SCOUT later, if appropriate
+        if component is not None:
+            components.append(component)
 
         components.extend(self.launch_adverbs)
 
