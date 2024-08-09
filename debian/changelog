@@ -1,3 +1,14 @@
+steam-runtime-tools (0.20240809.0) UNRELEASED; urgency=medium
+
+  * pressure-vessel:
+    - Treat /var/lib/dbus as a reserved path, fixing an issue where the
+      container runtime would not start if /var/lib was in $XDG_DATA_DIRS
+      and /var/lib/dbus/machine-id on the host was a regular file
+      (steamrt/tasks#493, steam-runtime#688)
+    - Similarly treat /var/run as a reserved path for completeness
+
+ -- Simon McVittie <smcv@collabora.com>  Fri, 09 Aug 2024 11:14:40 +0100
+
 steam-runtime-tools (0.20240806.0) steamrt; urgency=medium
 
   [ Simon McVittie ]
