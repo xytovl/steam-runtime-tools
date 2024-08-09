@@ -6,8 +6,13 @@ steam-runtime-tools (0.20240809.0) UNRELEASED; urgency=medium
       and /var/lib/dbus/machine-id on the host was a regular file
       (steamrt/tasks#493, steam-runtime#688)
     - Similarly treat /var/run as a reserved path for completeness
+  * steam-runtime-launch-options (developer tool):
+    - Accept reaper and steam-launch-wrapper in either order
+      (steamrt/tasks#266)
+    - Switch to user-specified LDLP runtime before running reaper and/or
+      steam-launch-wrapper (steamrt/tasks#489)
 
- -- Simon McVittie <smcv@collabora.com>  Fri, 09 Aug 2024 11:14:40 +0100
+ -- Simon McVittie <smcv@collabora.com>  Fri, 09 Aug 2024 14:01:47 +0100
 
 steam-runtime-tools (0.20240806.0) steamrt; urgency=medium
 
