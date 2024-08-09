@@ -1666,6 +1666,21 @@ class Gui:
         has_container_runtime = False
         inherit_ldlp_runtime = True
 
+        if container is None:
+            selected = self.ldlp_runtime_combo.get_active_id()
+            component = None
+
+            if selected is None or not selected:
+                pass
+            elif selected == '/':
+                inherit_ldlp_runtime = False
+            else:
+                component = self.ldlp_runtimes.get(selected)
+
+            if component is not None:
+                components.append(component)
+        # else we'll set STEAM_RUNTIME_SCOUT later, if appropriate
+
         components.extend(self.launch_adverbs)
 
         selected = self.container_runtime_combo.get_active_id()
@@ -1703,19 +1718,6 @@ class Gui:
                     lines.append(to_shell([
                         'env', 'STEAM_RUNTIME_SCOUT={}'.format(component.path),
                     ]))
-        else:
-            selected = self.ldlp_runtime_combo.get_active_id()
-            component = None
-
-            if selected is None or not selected:
-                pass
-            elif selected == '/':
-                inherit_ldlp_runtime = False
-            else:
-                component = self.ldlp_runtimes.get(selected)
-
-            if component is not None:
-                components.append(component)
 
         selected = self.proton_combo.get_active_id()
 
