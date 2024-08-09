@@ -253,18 +253,11 @@ class LdlpRuntime(Runtime):
         ]
 
 
-class LaunchWrapper(Component):
-    def __init__(
-        self,
-        path,           # type: str
-        home,           # type: str
-        argv,           # type: typing.List[str]
-    ):  # type: (...) -> None
-        super().__init__(path, home=home)
-        self.argv = argv
-
-
-class Reaper(Component):
+class LaunchAdverb(Component):
+    '''
+    reaper, steam-launch-wrapper or a similar adverb added to the launch
+    command-line by Steam
+    '''
     def __init__(
         self,
         path,           # type: str
@@ -488,8 +481,7 @@ class Gui:
         self.failed = False
         self.home = GLib.get_home_dir()
         self.app = App(path='', argv=[], home=self.home)
-        self.launch_wrapper = None      # type: typing.Optional[LaunchWrapper]
-        self.reaper = None              # type: typing.Optional[Reaper]
+        self.launch_adverbs = []        # type: typing.List[LaunchAdverb]
         self.default_container_runtime = (
             None
         )   # type: typing.Optional[ContainerRuntimeDepot]
@@ -934,52 +926,33 @@ class Gui:
         if args.verbose:
             logging.getLogger().setLevel(logging.DEBUG)
 
-        if (
+        while (
             len(command_argv) > 2
-            and command_argv[0].endswith('ubuntu12_32/reaper')
+            and command_argv[0].endswith((
+                'ubuntu12_32/reaper',
+                'ubuntu12_32/steam-launch-wrapper',
+            ))
             and '--' in command_argv[:-1]
         ):
-            reaper_args = []        # type: typing.List[str]
+            adverb_args = []        # type: typing.List[str]
 
             while len(command_argv) > 0:
-                reaper_args.append(command_argv[0])
+                adverb_args.append(command_argv[0])
                 command_argv = command_argv[1:]
 
-                if reaper_args[-1] == '--':
+                if adverb_args[-1] == '--':
                     break
 
-            logger.debug('Detected reaper: %s', to_shell(reaper_args))
+            logger.debug('Detected launch adverb %s', to_shell(adverb_args))
             logger.debug(
                 'Remaining arguments: %s', to_shell(command_argv),
             )
-            self.reaper = Reaper(
-                path=command_argv[0],
-                home=self.home,
-                argv=reaper_args,
-            )
-
-        if (
-            len(command_argv) > 2
-            and command_argv[0].endswith('ubuntu12_32/steam-launch-wrapper')
-            and '--' in command_argv[:-1]
-        ):
-            wrapper_args = []        # type: typing.List[str]
-
-            while len(command_argv) > 0:
-                wrapper_args.append(command_argv[0])
-                command_argv = command_argv[1:]
-
-                if wrapper_args[-1] == '--':
-                    break
-
-            logger.debug('Detected launch wrapper %s', to_shell(wrapper_args))
-            logger.debug(
-                'Remaining arguments: %s', to_shell(command_argv),
-            )
-            self.launch_wrapper = LaunchWrapper(
-                path=command_argv[0],
-                home=self.home,
-                argv=wrapper_args,
+            self.launch_adverbs.append(
+                LaunchAdverb(
+                    path=command_argv[0],
+                    home=self.home,
+                    argv=adverb_args,
+                )
             )
 
         for target in RUNTIMES:
@@ -1693,15 +1666,20 @@ class Gui:
         has_container_runtime = False
         inherit_ldlp_runtime = True
 
-        reaper = self.reaper
+        selected = self.ldlp_runtime_combo.get_active_id()
+        component = None
 
-        if reaper is not None:
-            components.append(reaper)
+        if selected is None or not selected:
+            pass
+        elif selected == '/':
+            inherit_ldlp_runtime = False
+        else:
+            component = self.ldlp_runtimes.get(selected)
 
-        launch_wrapper = self.launch_wrapper
+        if component is not None:
+            components.append(component)
 
-        if launch_wrapper is not None:
-            components.append(launch_wrapper)
+        components.extend(self.launch_adverbs)
 
         selected = self.container_runtime_combo.get_active_id()
 
@@ -1738,19 +1716,6 @@ class Gui:
                     lines.append(to_shell([
                         'env', 'STEAM_RUNTIME_SCOUT={}'.format(component.path),
                     ]))
-        else:
-            selected = self.ldlp_runtime_combo.get_active_id()
-            component = None
-
-            if selected is None or not selected:
-                pass
-            elif selected == '/':
-                inherit_ldlp_runtime = False
-            else:
-                component = self.ldlp_runtimes.get(selected)
-
-            if component is not None:
-                components.append(component)
 
         selected = self.proton_combo.get_active_id()
 
