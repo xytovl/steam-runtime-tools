@@ -210,7 +210,7 @@ test_depends += executable(
     '-DMOCK_CHECK_LOCALE_HAVE_C_UTF8',
     '-DMOCK_CHECK_LOCALE_HAVE_EN_US',
   ],
-  dependencies : [glib, gio_unix, libglnx_dep, json_glib],
+  dependencies : [glib, gio_unix, libglnx_dep, libsteamrt_static_dep, json_glib],
   include_directories : project_include_dirs,
   install: true,
   install_dir : tests_dir
@@ -226,7 +226,7 @@ test_depends += executable(
     '-DMOCK_CHECK_LOCALE_HAVE_EN_US',
     '-DMOCK_CHECK_LOCALE_LEGACY',
   ],
-  dependencies : [glib, gio_unix, libglnx_dep, json_glib],
+  dependencies : [glib, gio_unix, libglnx_dep, libsteamrt_static_dep, json_glib],
   include_directories : project_include_dirs,
   install: true,
   install_dir : tests_dir
@@ -238,7 +238,7 @@ test_depends += executable(
   'mock-unamerican-check-locale',
   join_paths('..', 'helpers', 'check-locale.c'),
   c_args : ['-DMOCK_CHECK_LOCALE', '-DMOCK_CHECK_LOCALE_HAVE_C_UTF8'],
-  dependencies : [glib, gio_unix, libglnx_dep, json_glib],
+  dependencies : [glib, gio_unix, libglnx_dep, libsteamrt_static_dep, json_glib],
   include_directories : project_include_dirs,
   install: true,
   install_dir : tests_dir

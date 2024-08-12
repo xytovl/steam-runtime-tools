@@ -48,6 +48,7 @@ main (int argc,
                                   SRT_LOG_FLAGS_OPTIONALLY_JOURNAL,
                                   NULL, NULL, NULL);
 
+  _srt_setenv_disable_gio_modules ();
   _srt_unblock_signals ();
 
   if (argc <= 1)

@@ -488,6 +488,7 @@ main (int argc,
       goto out;
     }
 
+  _srt_setenv_disable_gio_modules ();
   _srt_unblock_signals ();
 
   if (!run (opt_runtime_optional, argc, argv, &error))

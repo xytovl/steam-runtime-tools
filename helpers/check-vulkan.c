@@ -1477,6 +1477,8 @@ int main (int argc,
       return EXIT_FAILURE;
     }
 
+  _srt_setenv_disable_gio_modules ();
+
   if (!create_instance (&vk_instance, error))
     goto out;
 

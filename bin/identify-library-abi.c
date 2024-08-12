@@ -286,6 +286,8 @@ main (int argc,
   g_autoptr(GError) error = NULL;
   int status = EXIT_SUCCESS;
 
+  _srt_setenv_disable_gio_modules ();
+
   option_context = g_option_context_new ("");
   g_option_context_add_main_entries (option_context, option_entries, NULL);
 
