@@ -73,7 +73,7 @@ open_with_portal (const char *uri_or_filename,
       const gchar *portal_iface_name = "org.freedesktop.portal.OpenURI";
       const gchar *method_name = NULL;
       GVariant *arguments = NULL;   /* floating */
-      GVariantBuilder opt_builder;
+      g_auto(GVariantBuilder) opt_builder = {};
       g_autoptr(AutoUnixFDList) fd_list = NULL;
       g_autoptr(GFile) file = NULL;
       g_autoptr(GVariant) result = NULL;
