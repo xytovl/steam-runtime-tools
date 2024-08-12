@@ -1983,3 +1983,72 @@ _srt_check_recursive_exec_guard (const char *debug_target,
 
   return TRUE;
 }
+
+/*
+ * _srt_find_next_executable:
+ * @search_path: Colon-delimited list of directories to search for @exe_name
+ * @exe_name: Name of the executable to search for; must not contain slashes
+ * @error: Used to report error on failure
+ *
+ * Find the first executable named @exe_name located within a member of
+ * @search_path. If the executable is the same file as the current binary, then
+ * it will be ignored. If no matches are found, return %NULL and set @error.
+ *
+ * Returns (transfer full): The full path to the located executable, or %NULL
+ *                          on error
+ */
+gchar *
+_srt_find_next_executable (const char *search_path,
+                           const char *exe_name,
+                           GError **error)
+{
+  g_auto(GStrv) search_path_entries = g_strsplit (search_path, ":", -1);
+  struct stat self_stat;
+  char **search_dir = NULL;
+
+  g_return_val_if_fail (strchr (exe_name, '/') == NULL, NULL);
+
+  if (stat ("/proc/self/exe", &self_stat) < 0)
+    return glnx_null_throw_errno_prefix (error, "stat /proc/self/exe");
+
+  for (search_dir = search_path_entries;
+       search_dir && *search_dir;
+       search_dir++)
+    {
+      g_autofree char *resolved_dir = NULL;
+      g_autofree char *candidate = NULL;
+      struct stat candidate_stat;
+
+      resolved_dir = realpath (*search_dir, NULL);
+      if (resolved_dir == NULL)
+        {
+          g_debug ("realpath: %s: %s", *search_dir, g_strerror (errno));
+          continue;
+        }
+
+      candidate = g_build_filename (resolved_dir, exe_name, NULL);
+      if (stat (candidate, &candidate_stat) < 0)
+        {
+          g_debug ("stat %s: %s", candidate, g_strerror (errno));
+          continue;
+        }
+      else if (_srt_is_same_stat (&self_stat, &candidate_stat))
+        {
+          g_debug ("Skipping current executable %s", candidate);
+          continue;
+        }
+
+      if (g_access (candidate, R_OK | X_OK) < 0)
+        {
+          g_debug ("access %s: %s", resolved_dir, g_strerror (errno));
+          continue;
+        }
+
+      g_info ("Found '%s' at %s", exe_name, candidate);
+      return g_steal_pointer (&candidate);
+    }
+
+  g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND,
+               "Failed to locate '%s'", exe_name);
+  return NULL;
+}

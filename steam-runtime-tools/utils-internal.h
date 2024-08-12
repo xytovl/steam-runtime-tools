@@ -627,3 +627,7 @@ gboolean _srt_is_identifier (const char *name);
 
 gboolean _srt_check_recursive_exec_guard (const char *debug_target,
                                           GError **error);
+
+gchar *_srt_find_next_executable (const char *search_path,
+                                  const char *exe_name,
+                                  GError **error);
