@@ -36,8 +36,12 @@
 #include <glib-object.h>
 #include <gio/gunixfdlist.h>
 
+#include <stdlib.h>
+#include <steam-runtime-tools/container-internal.h>
 #include <steam-runtime-tools/log-internal.h>
+#include <steam-runtime-tools/runtime-internal.h>
 #include <steam-runtime-tools/utils-internal.h>
+#include <sys/wait.h>
 
 #define THIS_PROGRAM "steam-runtime-urlopen"
 
@@ -143,6 +147,63 @@ open_with_portal (const char *uri_or_filename,
     }
 }
 
+static gboolean
+is_ldlp_runtime (void)
+{
+  g_autoptr(SrtSysroot) sysroot = NULL;
+  g_autoptr(SrtContainerInfo) container = NULL;
+  g_autoptr(GError) error = NULL;
+  const char *runtime;
+
+  runtime = g_getenv ("STEAM_RUNTIME");
+  if (runtime == NULL || runtime[0] != '/')
+    return FALSE;
+
+  sysroot = _srt_sysroot_new_direct (&error);
+  if (sysroot == NULL)
+    {
+      g_warning ("_srt_sysroot_new_direct: %s", error->message);
+      return FALSE;
+    }
+
+  container = _srt_check_container (sysroot);
+  return srt_container_info_get_container_type (container)
+    == SRT_CONTAINER_TYPE_NONE;
+}
+
+static gboolean
+prepare_xdg_open_if_available (char **out_exe,
+                               GStrv *out_env,
+                               GError **error)
+{
+  g_auto(GStrv) env = NULL;
+  g_autofree char *exe = NULL;
+  const char *search_path = NULL;
+
+  env = g_get_environ ();
+  env = _srt_environ_escape_steam_runtime (env,
+                                           SRT_ESCAPE_RUNTIME_FLAGS_CLEAN_PATH);
+  env = g_environ_unsetenv (env, "LD_PRELOAD");
+  env = g_environ_setenv (env, _SRT_RECURSIVE_EXEC_GUARD_ENV, THIS_PROGRAM,
+                          TRUE);
+
+  search_path = g_environ_getenv (env, "PATH");
+  if (search_path == NULL)
+    {
+      search_path = "/usr/bin:/bin";
+      g_warning ("$PATH is not set, defaulting to %s", search_path);
+    }
+
+  exe = _srt_find_next_executable (search_path, "xdg-open", error);
+  if (exe == NULL)
+    return FALSE;
+
+  *out_exe = g_steal_pointer (&exe);
+  *out_env = g_steal_pointer (&env);
+
+  return TRUE;
+}
+
 int
 main (int argc,
       char **argv)
@@ -152,6 +213,7 @@ main (int argc,
   g_autoptr(GOptionContext) option_context = NULL;
   g_autoptr(GError) pipe_error = NULL;
   g_autoptr(GError) portal_error = NULL;
+  g_autoptr(GError) xdg_open_error = NULL;
   g_autoptr(GError) error = NULL;
   gboolean prefer_steam;
 
@@ -229,6 +291,39 @@ main (int argc,
   if (portal_error == NULL && open_with_portal (uri, &portal_error))
     return EXIT_SUCCESS;
 
+  /* As a last-ditch attempt, ask the host's xdg-open to open the URL instead. */
+  if (is_ldlp_runtime ())
+    {
+      g_autofree char *xdg_open_exe = NULL;
+      g_auto(GStrv) xdg_open_env = NULL;
+      const char *xdg_open_argv[] = {"xdg-open", uri, NULL};
+
+      if (!_srt_check_recursive_exec_guard ("xdg-open", &xdg_open_error))
+        goto fail;
+
+      if (!prepare_xdg_open_if_available (&xdg_open_exe,
+                                          &xdg_open_env,
+                                          &xdg_open_error))
+        goto fail;
+
+      if (pipe_error != NULL)
+        g_printerr ("%s: tried using steam.pipe, received error: %s\n",
+                    g_get_prgname (), pipe_error->message);
+
+      if (portal_error != NULL)
+        g_printerr ("%s: tried using xdg-desktop-portal, received error: %s\n",
+                    g_get_prgname (), portal_error->message);
+
+      /* Clear these out now to avoid double-printing the errors later */
+      g_clear_error (&pipe_error);
+      g_clear_error (&portal_error);
+
+      g_printerr ("%s: trying xdg-open...\n", g_get_prgname ());
+
+      execve (xdg_open_exe, (char *const *) xdg_open_argv, xdg_open_env);
+      glnx_throw_errno_prefix (&xdg_open_error, "execve(%s)", xdg_open_exe);
+    }
+
 fail:
   g_printerr ("%s: Unable to open URL\n", g_get_prgname ());
 
@@ -239,6 +334,10 @@ fail:
   if (portal_error != NULL)
     g_printerr ("%s: tried using xdg-desktop-portal, received error: %s\n",
                 g_get_prgname (), portal_error->message);
+
+  if (xdg_open_error != NULL)
+    g_printerr ("%s: tried using xdg-open, received error: %s\n",
+                g_get_prgname (), xdg_open_error->message);
 
   return 4;
 }
