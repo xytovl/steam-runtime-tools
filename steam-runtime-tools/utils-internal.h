@@ -622,3 +622,8 @@ _srt_string_ends_with (const GString *str,
 }
 
 gboolean _srt_is_identifier (const char *name);
+
+#define _SRT_RECURSIVE_EXEC_GUARD_ENV "SRT_RECURSIVE_EXEC_GUARD"
+
+gboolean _srt_check_recursive_exec_guard (const char *debug_target,
+                                          GError **error);

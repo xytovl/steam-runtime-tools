@@ -1952,3 +1952,34 @@ _srt_is_identifier (const char *name)
 
   return TRUE;
 }
+
+/*
+ * _srt_check_recursive_exec_guard:
+ * @error: Used to report error on failure
+ *
+ * Check if %_SRT_RECURSIVE_EXEC_GUARD_ENV is set in the environment. If it is,
+ * then raises an error using the executable name in @debug_target as the path
+ * being executed and the name inside %_SRT_RECURSIVE_EXEC_GUARD_ENV as the
+ * caller.
+ *
+ * This function is useful for handling the case where running a binary may
+ * potentially infinitely recurse into itself. As long as the outer invocation
+ * sets %_SRT_RECURSIVE_EXEC_GUARD_ENV, then the inner invocations can call
+ * this function to block the recursion.
+ *
+ * Returns: %TRUE if the check passed
+ */
+gboolean
+_srt_check_recursive_exec_guard (const char *debug_target,
+                                 GError **error)
+{
+  const char *invoker = g_getenv (_SRT_RECURSIVE_EXEC_GUARD_ENV);
+  if (invoker != NULL)
+    return glnx_throw (error,
+                       "Detected potential recursion while trying to exec '%s'"
+                       " (invoked by '%s')",
+                       debug_target,
+                       invoker);
+
+  return TRUE;
+}
