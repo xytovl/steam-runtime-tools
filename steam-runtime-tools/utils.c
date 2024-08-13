@@ -1490,7 +1490,7 @@ _srt_hash_table_iter_init (SrtHashTableIter *iter,
 /*
  * Adapter to compare two pointers to items with a #GCompareFunc, in a
  * container that compares pointers to pointers to the items themselves.
- * For example, this can be used to pass g_strcmp0() into g_qsort_with_data().
+ * For example, this can be used to pass g_strcmp0() into qsort_r().
  */
 static int
 indirect_cmp (const void *a,
@@ -1528,8 +1528,8 @@ _srt_hash_table_iter_init_sorted (SrtHashTableIter *iter,
       iter->sorted_keys = g_hash_table_get_keys_as_array (table, &iter->sorted_n);
 
       if (iter->sorted_n > 0)
-        g_qsort_with_data (iter->sorted_keys, iter->sorted_n,
-                           sizeof (gpointer), indirect_cmp, cmp);
+        qsort_r (iter->sorted_keys, iter->sorted_n,
+                 sizeof (gpointer), indirect_cmp, cmp);
 
       iter->sorted_next = 0;
     }
