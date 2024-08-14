@@ -728,7 +728,7 @@ _srt_runtime_check_execution_environment (SrtRuntime *self,
 
 /*
  * _srt_environ_escape_steam_runtime:
- * env: (array zero-terminated=1) (element-type filename) (transfer full):
+ * @env: (array zero-terminated=1) (element-type filename) (transfer full):
  *  The original environment
  *
  * Returns: (array zero-terminated=1) (element-type filename) (transfer full):
