@@ -293,7 +293,8 @@ main (int argc,
   /* Emulate the environment that will be used for the container runtime
    * framework, by not loading any LD_PRELOAD modules.
    * This corresponds to what pressure-vessel-unruntime does. */
-  subproc_environ = _srt_environ_escape_steam_runtime (subproc_environ);
+  subproc_environ = _srt_environ_escape_steam_runtime (subproc_environ,
+                                                       SRT_ESCAPE_RUNTIME_FLAGS_NONE);
   subproc_environ = g_environ_unsetenv (subproc_environ, "LD_AUDIT");
   subproc_environ = g_environ_unsetenv (subproc_environ, "LD_PRELOAD");
 

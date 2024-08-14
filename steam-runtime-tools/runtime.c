@@ -752,12 +752,14 @@ remove_runtime_from_path (const char *steam_runtime,
  * _srt_environ_escape_steam_runtime:
  * @env: (array zero-terminated=1) (element-type filename) (transfer full):
  *  The original environment
+ * @flags: Flags to modify the escape behavior
  *
  * Returns: (array zero-terminated=1) (element-type filename) (transfer full):
  *  The new environment
  */
 GStrv
-_srt_environ_escape_steam_runtime (GStrv env)
+_srt_environ_escape_steam_runtime (GStrv env,
+                                   SrtEscapeRuntimeFlags flags)
 {
   const char *path;
   const char *steam_runtime = g_environ_getenv (env, "STEAM_RUNTIME");
@@ -783,7 +785,11 @@ _srt_environ_escape_steam_runtime (GStrv env)
    * start with the Steam Runtime directory. */
   if (system_path != NULL)
     {
-      env = g_environ_setenv (env, "PATH", system_path, TRUE);
+      g_autofree char *cleaned_path = NULL;
+      if (flags & SRT_ESCAPE_RUNTIME_FLAGS_CLEAN_PATH)
+        cleaned_path = remove_runtime_from_path (steam_runtime, system_path);
+
+      env = g_environ_setenv (env, "PATH", cleaned_path ?: system_path, TRUE);
     }
   else if (path != NULL)
     {

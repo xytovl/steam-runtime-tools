@@ -531,6 +531,7 @@ test_environ_get_boolean (Fixture *f,
 typedef struct
 {
   const char *name;
+  SrtEscapeRuntimeFlags flags;
   /* Arbitrary size sufficient for our test data, increase as required */
   const char * const before[10];
   /* Assumed to be sorted in strcmp order */
@@ -644,6 +645,20 @@ test_escape_steam_runtime (Fixture *f,
           NULL
         },
       },
+      {
+        .name = "SYSTEM_PATH references Steam Runtime but should be removed",
+        .flags = SRT_ESCAPE_RUNTIME_FLAGS_CLEAN_PATH,
+        .before = {
+          "SYSTEM_PATH=/steam-runtime/bin:/usr/local/bin:/usr/bin:/bin",
+          "STEAM_RUNTIME=/steam-runtime",
+          NULL
+        },
+        .expected = {
+          "PATH=/usr/local/bin:/usr/bin:/bin",
+          "SYSTEM_PATH=/steam-runtime/bin:/usr/local/bin:/usr/bin:/bin",
+          NULL
+        },
+      },
   };
   gsize i;
 
@@ -652,7 +667,7 @@ test_escape_steam_runtime (Fixture *f,
       g_auto(GStrv) env = _srt_strdupv (tests[i].before);
       gsize j;
 
-      env = _srt_environ_escape_steam_runtime (env);
+      env = _srt_environ_escape_steam_runtime (env, tests[i].flags);
 
       g_test_message ("%s", tests[i].name);
       g_test_message ("Expected:");
