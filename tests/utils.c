@@ -631,6 +631,19 @@ test_escape_steam_runtime (Fixture *f,
           NULL
         },
       },
+      {
+        .name = "SYSTEM_PATH references Steam Runtime",
+        .before = {
+          "SYSTEM_PATH=/steam-runtime/bin:/usr/local/bin:/usr/bin:/bin",
+          "STEAM_RUNTIME=/steam-runtime",
+          NULL
+        },
+        .expected = {
+          "PATH=/steam-runtime/bin:/usr/local/bin:/usr/bin:/bin",
+          "SYSTEM_PATH=/steam-runtime/bin:/usr/local/bin:/usr/bin:/bin",
+          NULL
+        },
+      },
   };
   gsize i;
 
