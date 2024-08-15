@@ -736,7 +736,7 @@ remove_runtime_from_path (const char *steam_runtime,
 
   for (p = bits; *p != NULL; p++)
     {
-      if (!g_str_has_prefix (*p, steam_runtime))
+      if (_srt_get_path_after (*p, steam_runtime) == NULL)
         {
           if (buf->len > 0)
             g_string_append_c (buf, ':');

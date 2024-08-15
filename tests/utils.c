@@ -607,6 +607,18 @@ test_escape_steam_runtime (Fixture *f,
         },
       },
       {
+        .name = "Steam Runtime path doesn't fully match PATH entries",
+        .before = {
+          "STEAM_RUNTIME=/steam-runtime",
+          "PATH=/usr/local/bin:/steam-runtime-1/amd64/bin:/usr/bin:/bin",
+          NULL
+        },
+        .expected = {
+          "PATH=/usr/local/bin:/steam-runtime-1/amd64/bin:/usr/bin:/bin",
+          NULL
+        },
+      },
+      {
         .name = "not using Steam Runtime",
         .before = {
           "LD_LIBRARY_PATH=/whatever/lib/...:/opt/lib",
