@@ -134,7 +134,6 @@ warning_flags = [
     '-Wnull-dereference',
     '-Wpacked',
     '-Wpointer-arith',
-    '-Wredundant-decls',
     '-Wrestrict',
     '-Wreturn-type',
     '-Wshadow',
@@ -159,6 +158,7 @@ no_warning_flags = [
     'inline',
     'missing-field-initializers',
     'pedantic',
+    'redundant-decls',
     'sign-compare',
     'unused-local-typedefs',
     'unused-parameter',
@@ -186,11 +186,9 @@ add_global_arguments('-fvisibility=hidden', language : ['c'])
 silence_gdbus_codegen_warnings = c_compiler.get_supported_arguments([
   '-Wno-error',
   '-Wno-error=discarded-qualifiers',
-  '-Wno-error=redundant-decls',
   '-Wno-error=shadow',
   '-Wno-error=write-strings',
   '-Wno-discarded-qualifiers',
-  '-Wno-redundant-decls',
   '-Wno-shadow',
   '-Wno-write-strings',
 ])
