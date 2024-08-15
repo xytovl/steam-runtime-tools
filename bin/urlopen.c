@@ -39,6 +39,8 @@
 #include <steam-runtime-tools/log-internal.h>
 #include <steam-runtime-tools/utils-internal.h>
 
+#define THIS_PROGRAM "steam-runtime-urlopen"
+
 typedef GUnixFDList AutoUnixFDList;
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(AutoUnixFDList, g_object_unref)
 
@@ -153,7 +155,7 @@ main (int argc,
   g_autoptr(GError) error = NULL;
   gboolean prefer_steam;
 
-  _srt_util_set_glib_log_handler ("steam-runtime-urlopen",
+  _srt_util_set_glib_log_handler (THIS_PROGRAM,
                                   G_LOG_DOMAIN,
                                   SRT_LOG_FLAGS_OPTIONALLY_JOURNAL,
                                   NULL, NULL, NULL);
