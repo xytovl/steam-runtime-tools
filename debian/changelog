@@ -1,3 +1,11 @@
+steam-runtime-tools (0.20240815.0) UNRELEASED; urgency=medium
+
+  * Internal changes:
+    - Fix build with glibc 2.39
+    - Fix build with GLib 2.81.x
+
+ -- Simon McVittie <smcv@collabora.com>  Thu, 15 Aug 2024 13:34:04 +0100
+
 steam-runtime-tools (0.20240809.0) steamrt; urgency=medium
 
   * pressure-vessel:
