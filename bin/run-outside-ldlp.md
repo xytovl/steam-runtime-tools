@@ -61,7 +61,7 @@ Any value
 Run `xdg-open` outside of the runtime:
 
 ```
-srt-run-outside-ldlp xdg-open https://example.com/
+srt-run-outside-ldlp -- xdg-open https://example.com/
 ```
 
 Via symlink:
