@@ -69,5 +69,11 @@ void _srt_runtime_check_execution_environment (SrtRuntime *self,
                                                SrtOsInfo *os_info,
                                                const char *bin32);
 
+typedef enum {
+  SRT_ESCAPE_RUNTIME_FLAGS_CLEAN_PATH = (1 << 0),
+  SRT_ESCAPE_RUNTIME_FLAGS_NONE = 0,
+} SrtEscapeRuntimeFlags;
+
 G_GNUC_INTERNAL
-GStrv _srt_environ_escape_steam_runtime (GStrv env);
+GStrv _srt_environ_escape_steam_runtime (GStrv env,
+                                         SrtEscapeRuntimeFlags flags);

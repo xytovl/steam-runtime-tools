@@ -501,6 +501,7 @@ if get_option('bin')
     {'name': 'test-launcher.py', 'dbus': true, 'timeout': 90},
     {'name': 'test-launcher.py', 'dbus': true, 'full_python': true, 'timeout': 90},
     {'name': 'test-logger.py'},
+    {'name': 'test-run-outside-ldlp.py'},
     {'name': 'test-supervisor.py'},
   ]
 endif

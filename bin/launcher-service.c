@@ -1704,7 +1704,8 @@ main (int argc,
                                                         (GDestroyNotify) pid_data_free);
 
   if (server->purpose == PURPOSE_ALONGSIDE_STEAM)
-    server->child_environ = _srt_environ_escape_steam_runtime (server->child_environ);
+    server->child_environ = _srt_environ_escape_steam_runtime (server->child_environ,
+                                                               SRT_ESCAPE_RUNTIME_FLAGS_NONE);
 
   /* Choose a bus name automatically for --session */
   if (opt_bus_names != NULL && opt_bus_names->len == 0)

@@ -140,6 +140,19 @@ srt_bin += executable(
   install_rpath : bin_rpath,
 )
 
+# Slightly different: different prefix (so that it's distinguished as an
+# internal tool), and install in libexecdir
+srt_bin += executable(
+  'srt-run-outside-ldlp',
+  'run-outside-ldlp.c',
+  c_args : srt_c_args,
+  dependencies : [glib, gobject, gio_unix, libglnx_dep, libsteamrt_static_dep],
+  install : true,
+  install_dir : pkglibexecdir,
+  build_rpath : pkglibexec_rpath,
+  install_rpath : pkglibexec_rpath,
+)
+
 # Different: needs threads and UI
 if sdl2_dep.found() and sdl2_ttf_dep.found()
   glib_programs += 'dialog-ui'
@@ -230,7 +243,7 @@ if build_man_pages
     )
   endforeach
 
-  foreach bin_name : ['logger']
+  foreach bin_name : ['logger', 'run-outside-ldlp']
     custom_target(
       'srt-' + bin_name + '.1',
       build_by_default : true,

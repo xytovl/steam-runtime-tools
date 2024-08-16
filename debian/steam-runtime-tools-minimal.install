@@ -4,3 +4,4 @@ usr/bin/steam-runtime-urlopen
 usr/libexec/steam-runtime-tools-0/logger-0.bash
 usr/libexec/steam-runtime-tools-0/srt-bwrap
 usr/libexec/steam-runtime-tools-0/srt-logger
+usr/libexec/steam-runtime-tools-0/srt-run-outside-ldlp
