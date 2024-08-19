@@ -55,6 +55,11 @@ run (int argc,
   glnx_autofd int original_stdout = -1;
   glnx_autofd int original_stderr = -1;
 
+  if (!_srt_util_set_glib_log_handler (THIS_PROGRAM,
+                                       G_LOG_DOMAIN, SRT_LOG_FLAGS_NONE,
+                                       NULL, NULL, error))
+    return FALSE;
+
   exe_name = glnx_basename (argv[0]);
   if (g_str_equal (exe_name, THIS_PROGRAM))
     {
