@@ -1,9 +1,9 @@
 /*
  * Cut-down version of common/flatpak-run-private.h from Flatpak
- * Last updated: Flatpak 1.15.9
+ * Last updated: Flatpak 1.15.10
  *
- * Copyright © 2017-2022 Collabora Ltd.
- * Copyright © 2014-2022 Red Hat, Inc
+ * Copyright © 2017-2024 Collabora Ltd.
+ * Copyright © 2014-2024 Red Hat, Inc
  *
  * SPDX-License-Identifier: LGPL-2.1-or-later
  *
@@ -27,11 +27,7 @@
 #ifndef __FLATPAK_RUN_H__
 #define __FLATPAK_RUN_H__
 
-#include <glib.h>
-#include <glib-object.h>
-
 #include "libglnx.h"
-
 #include "flatpak-common-types-private.h"
 #include "flatpak-context-private.h"
 #include "flatpak-bwrap-private.h"

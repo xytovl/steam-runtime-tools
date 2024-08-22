@@ -1,6 +1,6 @@
 /* vi:set et sw=2 sts=2 cin cino=t0,f0,(0,{s,>2s,n-s,^-s,e-s:
  * Taken from Flatpak
- * Last updated: Flatpak 1.15.9
+ * Last updated: Flatpak 1.15.10
  * Copyright © 2014-2019 Red Hat, Inc
  * SPDX-License-Identifier: LGPL-2.1-or-later
  *
@@ -64,13 +64,6 @@ static const char * const abs_usrmerged_dirs[] =
   NULL
 };
 const char * const *flatpak_abs_usrmerged_dirs = abs_usrmerged_dirs;
-
-/* To keep this more similar to the original file, we explicitly disable
- * these warnings rather than fixing them */
-#if defined(__GNUC__) && __GNUC__ >= 8
-# pragma GCC diagnostic ignored "-Wcast-function-type"
-#endif
-#pragma GCC diagnostic ignored "-Wtype-limits"
 
 /*
  * pressure-vessel-specific note:
