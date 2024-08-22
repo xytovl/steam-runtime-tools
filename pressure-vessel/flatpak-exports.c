@@ -65,13 +65,6 @@ static const char * const abs_usrmerged_dirs[] =
 };
 const char * const *flatpak_abs_usrmerged_dirs = abs_usrmerged_dirs;
 
-/* To keep this more similar to the original file, we explicitly disable
- * these warnings rather than fixing them */
-#if defined(__GNUC__) && __GNUC__ >= 8
-# pragma GCC diagnostic ignored "-Wcast-function-type"
-#endif
-#pragma GCC diagnostic ignored "-Wtype-limits"
-
 /*
  * pressure-vessel-specific note:
  * This array is not used, but when merging from Flatpak, make sure any new
