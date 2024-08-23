@@ -1,8 +1,10 @@
-steam-runtime-tools (0.20240822.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20240823.0) UNRELEASED; urgency=medium
 
   * pressure-vessel:
     - Update Flatpak-derived code from 1.15.10 (no functional changes)
     - Update bubblewrap to 0.10.0
+  * Library code / tree-wide changes:
+    - Update libglnx to 2024-08-23
 
  -- Simon McVittie <smcv@collabora.com>  Thu, 22 Aug 2024 15:36:39 +0100
 
