@@ -5599,6 +5599,82 @@ pv_runtime_try_gconv_dir (PvRuntime *self,
   return FALSE;
 }
 
+typedef struct
+{
+  /* SONAME of "main" library.
+   * This is assumed to add new ABI with each new version (or with each
+   * new version that matters), and the relatives[] are assumed to
+   * depend on it. */
+  const char *soname;
+  /* capsule-capture-libs patterns matching closely related libraries. */
+  const char * relatives[10];
+} LibraryFamily;
+
+static const LibraryFamily library_families[] =
+{
+  /* We assume elsewhere that libc.so.6 is the first entry */
+  {
+    "libc.so.6",
+    {
+      "if-exists:libidn2.so.0",
+      "if-exists:even-if-older:soname:libnss_compat.so.2",
+      "if-exists:even-if-older:soname-match:libnss_compat.so.*",
+      "if-exists:even-if-older:soname:libnss_db.so.2",
+      "if-exists:even-if-older:soname-match:libnss_db.so.*",
+      "if-exists:even-if-older:soname:libnss_dns.so.2",
+      "if-exists:even-if-older:soname-match:libnss_dns.so.*",
+      "if-exists:even-if-older:soname:libnss_files.so.2",
+      "if-exists:even-if-older:soname-match:libnss_files.so.*",
+      NULL
+    },
+  },
+};
+
+static void
+pv_runtime_capture_relatives (PvRuntime *self,
+                              RuntimeArchitecture *arch,
+                              const LibraryFamily *family,
+                              gchar **soname_symlink_out,
+                              gboolean *was_captured_out)
+{
+  g_autoptr(GError) local_error = NULL;
+  g_autofree gchar *soname_symlink = NULL;
+  gboolean was_captured = FALSE;
+  gsize n;
+  struct stat stat_buf;
+
+  soname_symlink = g_build_filename (arch->libdir_relative_to_overrides,
+                                     family->soname, NULL);
+
+  if (fstatat (self->overrides_fd, soname_symlink, &stat_buf,
+               AT_SYMLINK_NOFOLLOW) != 0
+      || !S_ISLNK (stat_buf.st_mode))
+    goto out;
+
+  was_captured = TRUE;
+
+  for (n = 0; n < G_N_ELEMENTS (family->relatives); n++)
+    {
+      if (family->relatives[n] == NULL)
+        break;
+    }
+
+  if (!pv_runtime_capture_libraries (self, arch,
+                                     arch->libdir_relative_to_overrides,
+                                     family->soname,
+                                     family->relatives, n,
+                                     &local_error))
+    g_warning ("Unable to collect libraries related to %s: %s",
+               family->soname, local_error->message);
+
+out:
+  if (soname_symlink_out != NULL)
+    *soname_symlink_out = g_steal_pointer (&soname_symlink);
+
+  if (was_captured_out != NULL)
+    *was_captured_out = was_captured;
+}
+
 /*
  * pv_runtime_collect_libc_family:
  * @self: The runtime
@@ -5625,18 +5701,6 @@ pv_runtime_collect_libc_family (PvRuntime *self,
                                 GHashTable *gconv_in_provider,
                                 GError **error)
 {
-  static const char * const patterns[] =
-  {
-    "if-exists:libidn2.so.0",
-    "if-exists:even-if-older:soname:libnss_compat.so.2",
-    "if-exists:even-if-older:soname-match:libnss_compat.so.*",
-    "if-exists:even-if-older:soname:libnss_db.so.2",
-    "if-exists:even-if-older:soname-match:libnss_db.so.*",
-    "if-exists:even-if-older:soname:libnss_dns.so.2",
-    "if-exists:even-if-older:soname-match:libnss_dns.so.*",
-    "if-exists:even-if-older:soname:libnss_files.so.2",
-    "if-exists:even-if-older:soname-match:libnss_files.so.*",
-  };
   G_GNUC_UNUSED g_autoptr(SrtProfilingTimer) libc_timer =
     _srt_profiling_start ("glibc");
   g_autoptr(GError) local_error = NULL;
@@ -5649,11 +5713,6 @@ pv_runtime_collect_libc_family (PvRuntime *self,
   if (!pv_runtime_take_ld_so_from_provider (self, arch,
                                             ld_so_in_runtime,
                                             bwrap, error))
-    return FALSE;
-
-  if (!pv_runtime_capture_libraries (self, arch,
-                                     arch->libdir_relative_to_overrides,
-                                     NULL, patterns, G_N_ELEMENTS (patterns), error))
     return FALSE;
 
   libdl_lib = srt_system_info_dup_libdl_lib (system_info,
@@ -7456,7 +7515,6 @@ pv_runtime_use_provider_graphics_stack (PvRuntime *self,
           g_autoptr(GPtrArray) dirs = NULL;
           g_autofree gchar *this_dri_path_in_container = g_build_filename (arch->libdir_in_container,
                                                                            "dri", NULL);
-          g_autofree gchar *libc_symlink = NULL;
           /* Can either be relative to the sysroot, or absolute */
           g_autofree gchar *ld_so_in_runtime = NULL;
           g_autofree gchar *libdrm = NULL;
@@ -7465,7 +7523,6 @@ pv_runtime_use_provider_graphics_stack (PvRuntime *self,
           g_autofree gchar *libglx_nvidia = NULL;
           g_autoptr(GPtrArray) patterns = NULL;
           SrtSystemInfo *arch_system_info;
-          struct stat stat_buf;
 
           if (!pv_runtime_get_ld_so (self, arch, &ld_so_in_runtime, error))
             return FALSE;
@@ -7566,26 +7623,34 @@ pv_runtime_use_provider_graphics_stack (PvRuntime *self,
                                              patterns->len, error))
             return FALSE;
 
-          libc_symlink = g_build_filename (arch->libdir_relative_to_overrides,
-                                           "libc.so.6", NULL);
-
-          /* If we are going to use the provider's libc6 (likely)
-           * then we have to use its ld.so too. */
-          if (fstatat (self->overrides_fd, libc_symlink, &stat_buf, AT_SYMLINK_NOFOLLOW) == 0
-              && S_ISLNK (stat_buf.st_mode))
+          for (j = 0; j < G_N_ELEMENTS (library_families); j++)
             {
-              if (!pv_runtime_collect_libc_family (self, arch,
-                                                   arch_system_info, bwrap,
-                                                   libc_symlink, ld_so_in_runtime,
-                                                   gconv_in_provider,
-                                                   error))
-                return FALSE;
+              g_autofree gchar *soname_symlink = NULL;
+              gboolean was_captured = FALSE;
 
-              self->any_libc_from_provider = TRUE;
-            }
-          else
-            {
-              self->all_libc_from_provider = FALSE;
+              pv_runtime_capture_relatives (self, arch, &library_families[j],
+                                            &soname_symlink, &was_captured);
+
+              if (j == 0)
+                {
+                  /* We assume libc.so.6 is the first entry */
+                  g_assert (g_str_equal (library_families[j].soname, "libc.so.6"));
+                  self->any_libc_from_provider |= was_captured;
+                  self->all_libc_from_provider &= was_captured;
+
+                  /* If we are using the provider's glibc (likely) then
+                   * we must also use its ld.so, and ideally its
+                   * gconv modules too. */
+                  if (was_captured
+                      && !pv_runtime_collect_libc_family (self, arch,
+                                                          arch_system_info,
+                                                          bwrap,
+                                                          soname_symlink,
+                                                          ld_so_in_runtime,
+                                                          gconv_in_provider,
+                                                          error))
+                    return FALSE;
+                }
             }
 
           libdrm = g_build_filename (arch->libdir_relative_to_overrides,
