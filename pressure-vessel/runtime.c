@@ -5628,6 +5628,14 @@ static const LibraryFamily library_families[] =
       NULL
     },
   },
+  /* Other library families of interest */
+  {
+    "libxkbcommon.so.0",
+    {
+      "if-exists:soname:libxkbcommon-x11.so.0",
+      NULL
+    }
+  },
 };
 
 static void
