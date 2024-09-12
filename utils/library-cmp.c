@@ -957,6 +957,12 @@ get_symbols ( Elf *elf, size_t *symbols_number, int *code, char **message )
         {
             const char *version = elf_strptr( elf, shdr->sh_link, aux->vda_name );
             char *symbol_versioned;
+
+            /* Ignore the placeholder for the name of the verdef itself,
+             * e.g. LIBDBUS_1_3@LIBDBUS_1_3 */
+            if( strcmp( symbol, version ) == 0 )
+                continue;
+
             xasprintf( &symbol_versioned, "%s@%s", symbol, version );
             ptr_list_push_ptr( symbols_list, symbol_versioned );
         }
