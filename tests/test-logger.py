@@ -3,12 +3,9 @@
 #
 # SPDX-License-Identifier: MIT
 
-import enum
 import io
 import logging
 import os
-import re
-import select
 import subprocess
 import sys
 import tempfile
