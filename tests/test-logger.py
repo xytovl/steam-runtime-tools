@@ -969,9 +969,9 @@ class TestLogger(BaseTest):
 
             # The content from the second run was appended
             with open(str(fake_tty)) as reader:
-                content = reader.read()
-                self.assertIn('hello, world\n', content)
-                self.assertIn('hello, again\n', content)
+                content_str = reader.read()
+                self.assertIn('hello, world\n', content_str)
+                self.assertIn('hello, again\n', content_str)
 
     def test_terminal_nested(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1027,24 +1027,24 @@ class TestLogger(BaseTest):
                 logger.info('stderr: %s', content.decode('utf-8', 'replace'))
 
             with open(str(Path(tmpdir, 'one'))) as reader:
-                content = reader.read()
-                logger.info('log 1: %s', content)
-                self.assertNotIn('hello, world\n', content)
+                content_str = reader.read()
+                logger.info('log 1: %s', content_str)
+                self.assertNotIn('hello, world\n', content_str)
 
             with open(str(Path(tmpdir, 'two'))) as reader:
-                content = reader.read()
-                logger.info('log 2: %s', content)
-                self.assertNotIn('hello, world\n', content)
+                content_str = reader.read()
+                logger.info('log 2: %s', content_str)
+                self.assertNotIn('hello, world\n', content_str)
 
             with open(str(Path(tmpdir, 'three'))) as reader:
-                content = reader.read()
-                logger.info('log 3: %s', content)
-                self.assertIn('hello, world\n', content)
+                content_str = reader.read()
+                logger.info('log 3: %s', content_str)
+                self.assertIn('hello, world\n', content_str)
 
             with open(str(fake_tty)) as reader:
-                content = reader.read()
-                logger.info('tty output: %s', content)
-                self.assertIn('hello, world\n', content)
+                content_str = reader.read()
+                logger.info('tty output: %s', content_str)
+                self.assertIn('hello, world\n', content_str)
 
     def test_level_prefixes(self) -> None:
         LEVEL_LINES = [
