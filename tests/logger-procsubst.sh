@@ -18,6 +18,8 @@ debug () {
 
 redirect_log () {
     local SRT_LOGGER_PID
+    # This isn't used here, but it gets set by srt-logger --sh-syntax
+    # shellcheck disable=SC2034
     local SRT_LOGGER_READY
     local fifo
     local from_stdout
