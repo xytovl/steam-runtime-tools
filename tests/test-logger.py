@@ -36,7 +36,9 @@ STDOUT_FILENO = 1
 STDERR_FILENO = 2
 
 
-def wrap_process_io(process_io: 'typing.Optional[typing.IO[bytes]]') -> io.TextIOWrapper:
+def wrap_process_io(
+    process_io: 'typing.Optional[typing.IO[bytes]]'
+) -> io.TextIOWrapper:
     assert process_io is not None
     return io.TextIOWrapper(process_io)
 
@@ -1046,14 +1048,14 @@ class TestLogger(BaseTest):
 
     def test_level_prefixes(self) -> None:
         LEVEL_LINES = [
-                'emergency message\n',
-                'alert message\n',
-                'crit message\n',
-                'err message\n',
-                'warning message\n',
-                'notice message\n',
-                'info message\n',
-                'debug message\n',
+            'emergency message\n',
+            'alert message\n',
+            'crit message\n',
+            'err message\n',
+            'warning message\n',
+            'notice message\n',
+            'info message\n',
+            'debug message\n',
         ]
 
         UNPREFIXED_LINE = 'default level message\n'
@@ -1208,7 +1210,6 @@ class TestLogger(BaseTest):
             self.assertIn('<6>unprefixed notice\n', contents)
             self.assertIn('<7>journal only debug\n', contents)
             self.assertIn('<5><7>actually a notice\n', contents)
-
 
     def test_level_colors(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
