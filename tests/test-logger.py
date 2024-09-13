@@ -257,7 +257,7 @@ class TestLogger(BaseTest):
                 lines = [
                     line
                     for line in lines
-                    if not line.startswith(b'srt-logger[')
+                    if b'] srt-logger[' not in line
                 ]
 
                 # There are no timestamps

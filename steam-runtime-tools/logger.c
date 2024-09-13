@@ -493,10 +493,16 @@ _srt_logger_setup (SrtLogger *self,
                                         "Unable to stat \"%s\"",
                                         self->filename);
 
-      message = g_string_new (g_get_prgname ());
+      /* As a special case, the message saying that we opened the log file
+       * always has a timestamp, even if timestamps are disabled in general */
+      message = g_string_new ("");
       date_time = g_date_time_new_now_local ();
+      /* We record the time zone here, but not in subsequent lines:
+       * the reader can infer that subsequent lines are in the same
+       * time zone as this message. */
       timestamp = g_date_time_format (date_time, "%F %T%z");
-      g_string_append_printf (message, "[%d]: Log opened %s\n", getpid (), timestamp);
+      g_string_append_printf (message, "[%s] %s[%d]: Log opened\n",
+                              timestamp, g_get_prgname (), getpid ());
       glnx_loop_write (self->file_fd, message->str, message->len);
     }
 
