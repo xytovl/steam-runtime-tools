@@ -155,8 +155,6 @@ class TestLogger(BaseTest):
             self.assertIn(REAL_BIN_MESSAGE, result.stdout)
 
     def test_checks_for_nesting(self) -> None:
-        BIN_NAME = 'test-bin'
-
         result = subprocess.run(
             [*self.run_outside_ldlp, 'env', *self.run_outside_ldlp, 'true'],
         )
