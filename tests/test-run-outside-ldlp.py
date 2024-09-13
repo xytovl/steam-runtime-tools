@@ -51,7 +51,7 @@ class TestLogger(BaseTest):
     def test_runs_command_outside_runtime(
         self,
         *,
-        using_symlink = False
+        using_symlink=False
     ) -> None:
         BIN_NAME = 'test-bin'
         REAL_BIN_MESSAGE = 'inside real'
