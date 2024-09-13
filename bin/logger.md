@@ -198,6 +198,11 @@ a **#!/bin/sh** script.
 :   Receive an inherited file descriptor for the terminal instead of
     opening the terminal device again.
 
+**--timestamps**, **--no-timestamps**
+:   Do or don't prepend timestamps to each line in the log file.
+    The default is to add timestamps, unless environment variable
+    **SRT_LOGGER_TIMESTAMPS=0** is set.
+
 **--use-journal**
 :   Write messages to the systemd Journal if possible, even if no
     **--journal-fd** was given.
@@ -331,6 +336,10 @@ a **#!/bin/sh** script.
 `SRT_LOGGER`
 :   If set, **logger-0.bash** will use this instead of locating an
     adjacent **srt-logger** executable automatically.
+
+`SRT_LOGGER_TIMESTAMPS` (`0` or `1`)
+:   Set the behaviour if neither **--timestamps** nor **--no-timestamps**
+    is specified.
 
 `STEAM_CLIENT_LOG_FOLDER`
 :   A path relative to `~/.steam/steam` to be used as a default log
