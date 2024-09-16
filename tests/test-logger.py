@@ -3,12 +3,9 @@
 #
 # SPDX-License-Identifier: MIT
 
-import enum
 import io
 import logging
 import os
-import re
-import select
 import subprocess
 import sys
 import tempfile
@@ -39,7 +36,9 @@ STDOUT_FILENO = 1
 STDERR_FILENO = 2
 
 
-def wrap_process_io(process_io: 'typing.Optional[typing.IO[bytes]]') -> io.TextIOWrapper:
+def wrap_process_io(
+    process_io: 'typing.Optional[typing.IO[bytes]]'
+) -> io.TextIOWrapper:
     assert process_io is not None
     return io.TextIOWrapper(process_io)
 
@@ -970,9 +969,9 @@ class TestLogger(BaseTest):
 
             # The content from the second run was appended
             with open(str(fake_tty)) as reader:
-                content = reader.read()
-                self.assertIn('hello, world\n', content)
-                self.assertIn('hello, again\n', content)
+                content_str = reader.read()
+                self.assertIn('hello, world\n', content_str)
+                self.assertIn('hello, again\n', content_str)
 
     def test_terminal_nested(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1028,35 +1027,35 @@ class TestLogger(BaseTest):
                 logger.info('stderr: %s', content.decode('utf-8', 'replace'))
 
             with open(str(Path(tmpdir, 'one'))) as reader:
-                content = reader.read()
-                logger.info('log 1: %s', content)
-                self.assertNotIn('hello, world\n', content)
+                content_str = reader.read()
+                logger.info('log 1: %s', content_str)
+                self.assertNotIn('hello, world\n', content_str)
 
             with open(str(Path(tmpdir, 'two'))) as reader:
-                content = reader.read()
-                logger.info('log 2: %s', content)
-                self.assertNotIn('hello, world\n', content)
+                content_str = reader.read()
+                logger.info('log 2: %s', content_str)
+                self.assertNotIn('hello, world\n', content_str)
 
             with open(str(Path(tmpdir, 'three'))) as reader:
-                content = reader.read()
-                logger.info('log 3: %s', content)
-                self.assertIn('hello, world\n', content)
+                content_str = reader.read()
+                logger.info('log 3: %s', content_str)
+                self.assertIn('hello, world\n', content_str)
 
             with open(str(fake_tty)) as reader:
-                content = reader.read()
-                logger.info('tty output: %s', content)
-                self.assertIn('hello, world\n', content)
+                content_str = reader.read()
+                logger.info('tty output: %s', content_str)
+                self.assertIn('hello, world\n', content_str)
 
     def test_level_prefixes(self) -> None:
         LEVEL_LINES = [
-                'emergency message\n',
-                'alert message\n',
-                'crit message\n',
-                'err message\n',
-                'warning message\n',
-                'notice message\n',
-                'info message\n',
-                'debug message\n',
+            'emergency message\n',
+            'alert message\n',
+            'crit message\n',
+            'err message\n',
+            'warning message\n',
+            'notice message\n',
+            'info message\n',
+            'debug message\n',
         ]
 
         UNPREFIXED_LINE = 'default level message\n'
@@ -1211,7 +1210,6 @@ class TestLogger(BaseTest):
             self.assertIn('<6>unprefixed notice\n', contents)
             self.assertIn('<7>journal only debug\n', contents)
             self.assertIn('<5><7>actually a notice\n', contents)
-
 
     def test_level_colors(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

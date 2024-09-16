@@ -51,7 +51,7 @@ class TestLogger(BaseTest):
     def test_runs_command_outside_runtime(
         self,
         *,
-        using_symlink = False
+        using_symlink=False
     ) -> None:
         BIN_NAME = 'test-bin'
         REAL_BIN_MESSAGE = 'inside real'
@@ -155,8 +155,6 @@ class TestLogger(BaseTest):
             self.assertIn(REAL_BIN_MESSAGE, result.stdout)
 
     def test_checks_for_nesting(self) -> None:
-        BIN_NAME = 'test-bin'
-
         result = subprocess.run(
             [*self.run_outside_ldlp, 'env', *self.run_outside_ldlp, 'true'],
         )
