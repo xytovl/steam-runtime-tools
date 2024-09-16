@@ -61,7 +61,8 @@ SrtLogger *_srt_logger_new_take (gchar *argv0,
                                  gboolean sh_syntax,
                                  gboolean terminal,
                                  int terminal_fd,
-                                 int terminal_level);
+                                 int terminal_level,
+                                 gboolean timestamps);
 
 gboolean _srt_logger_run_subprocess (SrtLogger *self,
                                      const char *logger,

@@ -31,6 +31,7 @@ static goffset opt_max_bytes = 8 * MEBIBYTE;
 static gboolean opt_mkfifo = FALSE;
 static gboolean opt_sh_syntax = FALSE;
 static int opt_terminal_fd = -1;
+static gboolean opt_timestamps = TRUE;
 static gboolean opt_use_journal = FALSE;
 static gboolean opt_parse_level_prefix = FALSE;
 static int opt_file_level = SRT_SYSLOG_LEVEL_DEFAULT_FILE;
@@ -169,6 +170,12 @@ static const GOptionEntry option_entries[] =
     G_OPTION_FLAG_NONE, G_OPTION_ARG_INT, &opt_terminal_fd,
     "An open file descriptor pointing to the terminal",
     "FD" },
+  { "timestamps", '\0',
+    G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_timestamps,
+    "Prepend a timestamp to each line logged.", NULL },
+  { "no-timestamps", '\0',
+    G_OPTION_FLAG_REVERSE, G_OPTION_ARG_NONE, &opt_timestamps,
+    "Don't prepend a timestamp to each line logged.", NULL },
   { "use-journal", '\0',
     G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE, &opt_use_journal,
     "Also log to the systemd Journal.", NULL },
@@ -257,6 +264,8 @@ run (int argc,
   option_context = g_option_context_new ("[COMMAND [ARGUMENTS...]]");
   g_option_context_add_main_entries (option_context, option_entries, NULL);
 
+  opt_timestamps = _srt_boolean_environment ("SRT_LOGGER_TIMESTAMPS", opt_timestamps);
+
   if (_srt_boolean_environment ("SRT_LOGGER_USE_JOURNAL", FALSE))
     opt_use_journal = TRUE;
 
@@ -321,7 +330,8 @@ run (int argc,
                                  opt_sh_syntax,
                                  opt_auto_terminal,
                                  opt_terminal_fd,
-                                 opt_terminal_level);
+                                 opt_terminal_level,
+                                 opt_timestamps);
 
   if (opt_background || !consume_stdin)
     {

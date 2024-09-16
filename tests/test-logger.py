@@ -169,7 +169,9 @@ class TestLogger(BaseTest):
     def test_concurrent_logging(self, use_sh_syntax=False) -> None:
         '''
         If there is more than one writer for the same log file, rotation
-        is disabled to avoid data loss
+        is disabled to avoid data loss.
+
+        Also exercise explicitly disabling timestamps via command-line option.
         '''
         with tempfile.TemporaryDirectory() as tmpdir:
             with open(str(Path(tmpdir, 'cat.txt')), 'w'):
@@ -194,6 +196,7 @@ class TestLogger(BaseTest):
                 self.logger + [
                     '--filename=log.txt',
                     '--log-directory', tmpdir,
+                    '--no-timestamps',
                     '--rotate=50',
                 ] + args,
                 stdin=subprocess.PIPE,
@@ -253,9 +256,10 @@ class TestLogger(BaseTest):
                 lines = [
                     line
                     for line in lines
-                    if not line.startswith(b'srt-logger[')
+                    if b'] srt-logger[' not in line
                 ]
 
+                # There are no timestamps
                 self.assertEqual(
                     lines,
                     [(b'.' * 20) + b'\n'] * 5,
@@ -270,8 +274,9 @@ class TestLogger(BaseTest):
 
     def test_default_filename_from_argv0(self) -> None:
         '''
-        Exercise default filename from COMMAND, and also default
-        log directory from $SRT_LOG_DIR
+        Exercise default filename from COMMAND,
+        default log directory from $SRT_LOG_DIR,
+        and timestamps being on by default
         '''
         with tempfile.TemporaryDirectory() as tmpdir:
             with open(str(Path(tmpdir, 'cat.txt')), 'w'):
@@ -280,6 +285,7 @@ class TestLogger(BaseTest):
             proc = subprocess.Popen(
                 [
                     'env',
+                    '-u', 'SRT_LOGGER_TIMESTAMPS',
                     'SRT_LOG_DIR=' + tmpdir,
                 ] + self.logger + [
                     '--no-auto-terminal',
@@ -326,12 +332,17 @@ class TestLogger(BaseTest):
 
             with open(str(Path(tmpdir, 'cat.txt')), 'rb') as reader:
                 content = reader.read()
-                self.assertIn(b'hello, world\n', content)
+                self.assertRegex(
+                    content,
+                    rb'(?m)^\[\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d\] '
+                    rb'hello, world\n',
+                )
 
     def test_default_filename_from_identifier(self) -> None:
         '''
-        Exercise default filename from --identifier, and also
-        default log directory from Steam
+        Exercise default filename from --identifier,
+        default log directory from Steam,
+        and explicitly enabling timestamps
         '''
         with tempfile.TemporaryDirectory() as tmpdir:
             Path(
@@ -347,9 +358,11 @@ class TestLogger(BaseTest):
                     'env',
                     'HOME=' + tmpdir,
                     'STEAM_CLIENT_LOG_FOLDER=my-logs',
+                    'SRT_LOGGER_TIMESTAMPS=0',
                 ] + self.logger + [
                     '--identifier=foo',
                     '--no-auto-terminal',
+                    '--timestamps',
                 ],
                 stdin=subprocess.PIPE,
                 stdout=STDERR_FILENO,
@@ -375,7 +388,11 @@ class TestLogger(BaseTest):
                 'rb'
             ) as reader:
                 content = reader.read()
-                self.assertIn(b'hello, world\n', content)
+                self.assertRegex(
+                    content,
+                    rb'(?m)^\[\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d\] '
+                    rb'hello, world\n',
+                )
 
     def test_exec_fallback_to_cat(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -583,6 +600,14 @@ class TestLogger(BaseTest):
         self.test_concurrent_logging(use_sh_syntax=True)
 
     def test_rotation(self) -> None:
+        '''
+        Exercise log rotation, and explicitly disabling timestamps
+        via command-line option.
+
+        It's convenient to exercise timestamps being disabled in this
+        test, because if they were enabled, they'd throw off the arithmetic
+        for the point at which log rotation occurs.
+        '''
         with tempfile.TemporaryDirectory() as tmpdir:
             proc = subprocess.Popen(
                 self.logger + [
@@ -590,6 +615,7 @@ class TestLogger(BaseTest):
                     '--log-directory', tmpdir,
                     '--rotate=1K',
                     '--no-auto-terminal',
+                    '--no-timestamps',
                 ],
                 stdin=subprocess.PIPE,
                 stdout=STDERR_FILENO,
@@ -623,16 +649,27 @@ class TestLogger(BaseTest):
 
             with open(str(Path(tmpdir, 'log.previous.txt')), 'rb') as reader:
                 content = reader.read()
-                self.assertIn(b'middle message\n', content)
+                # There are no timestamps here, so it's a line on its own
+                self.assertRegex(content, b'(?m)^middle message\n')
 
             with open(str(Path(tmpdir, 'log.txt')), 'rb') as reader:
                 content = reader.read()
                 self.assertIn(b'last message\n', content)
 
     def test_rotation_no_suffix(self) -> None:
+        '''
+        Exercise log rotation, and explicitly disabling timestamps via
+        environment.
+
+        It's convenient to exercise timestamps being disabled in this
+        test, because if they were enabled, they'd throw off the arithmetic
+        for the point at which log rotation occurs.
+        '''
         with tempfile.TemporaryDirectory() as tmpdir:
             proc = subprocess.Popen(
-                self.logger + [
+                [
+                    'env', 'SRT_LOGGER_TIMESTAMPS=0',
+                ] + self.logger + [
                     '--filename=log',
                     '--log-directory', tmpdir,
                     '--rotate=1K',
@@ -670,7 +707,8 @@ class TestLogger(BaseTest):
 
             with open(str(Path(tmpdir, 'log.previous')), 'rb') as reader:
                 content = reader.read()
-                self.assertIn(b'middle message\n', content)
+                # There are no timestamps here, so it's a line on its own
+                self.assertRegex(content, b'(?m)^middle message\n')
 
             with open(str(Path(tmpdir, 'log')), 'rb') as reader:
                 content = reader.read()

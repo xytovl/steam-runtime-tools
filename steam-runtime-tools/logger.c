@@ -100,6 +100,7 @@ struct _SrtLogger {
   int terminal_level;
   unsigned background : 1;
   unsigned sh_syntax : 1;
+  unsigned timestamps : 1;
   unsigned use_file : 1;
   unsigned use_journal : 1;
   unsigned use_stderr : 1;
@@ -118,6 +119,9 @@ G_DEFINE_TYPE (SrtLogger, _srt_logger, G_TYPE_OBJECT)
 static void
 _srt_logger_init (SrtLogger *self)
 {
+  /* localtime_r() is documented to require this as initialization */
+  tzset ();
+
   self->child_ready_to_parent = -1;
   self->pipe_from_parent = -1;
   self->original_stderr = -1;
@@ -129,6 +133,7 @@ _srt_logger_init (SrtLogger *self)
   self->file_level = SRT_SYSLOG_LEVEL_DEFAULT_FILE;
   self->journal_level = SRT_SYSLOG_LEVEL_DEFAULT_JOURNAL;
   self->terminal_level = SRT_SYSLOG_LEVEL_DEFAULT_TERMINAL;
+  self->timestamps = TRUE;
 }
 
 /* We need to have the log open read/write, otherwise the kernel won't let
@@ -197,6 +202,7 @@ _srt_logger_class_init (SrtLoggerClass *cls)
  * @sh_syntax: If true, write `SRT_LOGGER_READY=1\n` to stdout when ready
  * @terminal: If true, try to log to the terminal
  * @terminal_fd: Existing file descriptor for the terminal, or -1
+ * @timestamps: If true, prepend a timestamp to each line
  *
  * Create a new logger. All parameters are "stolen".
  */
@@ -218,7 +224,8 @@ _srt_logger_new_take (char *argv0,
                       gboolean sh_syntax,
                       gboolean terminal,
                       int terminal_fd,
-                      int terminal_level)
+                      int terminal_level,
+                      gboolean timestamps)
 {
   SrtLogger *self = g_object_new (SRT_TYPE_LOGGER, NULL);
 
@@ -241,6 +248,7 @@ _srt_logger_new_take (char *argv0,
   self->use_terminal = !!terminal;
   self->terminal_fd = terminal_fd;
   self->terminal_level = terminal_level;
+  self->timestamps = !!timestamps;
   return g_steal_pointer (&self);
 }
 
@@ -485,10 +493,16 @@ _srt_logger_setup (SrtLogger *self,
                                         "Unable to stat \"%s\"",
                                         self->filename);
 
-      message = g_string_new (g_get_prgname ());
+      /* As a special case, the message saying that we opened the log file
+       * always has a timestamp, even if timestamps are disabled in general */
+      message = g_string_new ("");
       date_time = g_date_time_new_now_local ();
+      /* We record the time zone here, but not in subsequent lines:
+       * the reader can infer that subsequent lines are in the same
+       * time zone as this message. */
       timestamp = g_date_time_format (date_time, "%F %T%z");
-      g_string_append_printf (message, "[%d]: Log opened %s\n", getpid (), timestamp);
+      g_string_append_printf (message, "[%s] %s[%d]: Log opened\n",
+                              timestamp, g_get_prgname (), getpid ());
       glnx_loop_write (self->file_fd, message->str, message->len);
     }
 
@@ -787,6 +801,9 @@ _srt_logger_run_subprocess (SrtLogger *self,
       g_ptr_array_add (logger_argv,
                        g_strdup_printf ("--terminal-fd=%d", self->terminal_fd));
     }
+
+  if (!self->timestamps)
+    g_ptr_array_add (logger_argv, g_strdup ("--no-timestamps"));
 
   if (self->parse_level_prefix)
     g_ptr_array_add (logger_argv, g_strdup ("--parse-level-prefix"));
@@ -1195,6 +1212,9 @@ logger_process_partial_line (SrtLogger *self,
 
 /*
  * @self: The logger
+ * @level: Severity level between `LOG_EMERG` and `LOG_DEBUG`
+ * @line_start_time: If we are writing timestamps, the time at which the
+ *  first byte of the @line was received
  * @line: (array length=len): Pointer to the beginning of a log message
  * @len: Number of bytes to process, including the trailing newline
  *
@@ -1205,6 +1225,7 @@ logger_process_partial_line (SrtLogger *self,
 static void
 logger_process_complete_line (SrtLogger *self,
                               int level,
+                              time_t line_start_time,
                               const char *line,
                               size_t len)
 {
@@ -1291,6 +1312,23 @@ logger_process_complete_line (SrtLogger *self,
             }
         }
 
+      if (line_start_time != 0)
+        {
+          /* We use glibc time formatting rather than GDateTime here,
+           * to reduce malloc/free in the main logging loop. */
+          char buf[32];
+          size_t buf_used = 0;
+          struct tm tm;
+
+          /* If we can't format the timestamp for some reason, just don't
+           * output it */
+          if (localtime_r (&line_start_time, &tm) == &tm)
+            {
+              buf_used = strftime (buf, sizeof (buf), "[%F %T] ", &tm);
+              glnx_loop_write (self->file_fd, buf, buf_used);
+            }
+        }
+
       glnx_loop_write (self->file_fd, line, len);
     }
 }
@@ -1313,6 +1351,7 @@ _srt_logger_process (SrtLogger *self,
   size_t already_processed_partial_line = 0;
   size_t filled = 0;
   ssize_t res;
+  time_t line_start_time = 0;
 
   if (!_srt_logger_setup (self, error))
     return FALSE;
@@ -1357,6 +1396,9 @@ _srt_logger_process (SrtLogger *self,
 
       if (res < 0)
         return glnx_throw_errno_prefix (error, "Error reading standard input");
+
+      if (self->timestamps && filled == 0)
+        line_start_time = time (NULL);
 
       /* We never touch the last byte of buf while reading */
       filled += (size_t) res;
@@ -1432,6 +1474,7 @@ _srt_logger_process (SrtLogger *self,
           if (parsed_level_prefix_size < len)
             logger_process_complete_line (self,
                                           line_level,
+                                          line_start_time,
                                           buf + parsed_level_prefix_size,
                                           len - parsed_level_prefix_size);
 
