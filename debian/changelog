@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20240916.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20240916.0) steamrt; urgency=medium
 
   * pressure-vessel:
     - If using host libxkbcommon, try to use host libxkbcommon-x11
@@ -16,7 +16,7 @@ steam-runtime-tools (0.20240916.0) UNRELEASED; urgency=medium
     - Update libglnx to 2024-08-23
     - Fix lint warnings in shell/Python scripts
 
- -- Simon McVittie <smcv@collabora.com>  Mon, 16 Sep 2024 15:42:21 +0100
+ -- Simon McVittie <smcv@collabora.com>  Mon, 16 Sep 2024 19:17:29 +0100
 
 steam-runtime-tools (0.20240820.0) steamrt; urgency=medium
 
