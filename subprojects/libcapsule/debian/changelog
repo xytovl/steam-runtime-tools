@@ -1,3 +1,10 @@
+libcapsule (0.20240916.0-0co1) upstream; urgency=medium
+
+  * library-cmp: When listing symbols, ignore the name of each verdef
+    (steamrt/tasks#530)
+
+ -- Simon McVittie <smcv@collabora.com>  Mon, 16 Sep 2024 15:23:14 +0100
+
 libcapsule (0.20240806.0-0co1) upstream; urgency=medium
 
   * capsule-capture-libs: Never undo our rewriting of the symlink target,
