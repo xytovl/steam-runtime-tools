@@ -34,6 +34,8 @@ main () {
     me="${me##*/}"
 
     default_path="/usr/local/sbin:/usr/sbin:/sbin:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games"
+    # Intentionally not STEAM_RUNTIME_SCOUT: we want the LDLP runtime
+    # that we were previously running in, if any
     steam_runtime="${STEAM_RUNTIME-}"
 
     # Undo any weird environment before we start running external
