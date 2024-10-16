@@ -116,7 +116,7 @@ xterm_fallback () {
 }
 
 detect_scout_ldlp () {
-    for dir in "${1-}" ~/.steam/root/ubuntu12_32/steam-runtime; do
+    for dir in "${STEAM_RUNTIME_SCOUT-}" "${1-}" ~/.steam/root/ubuntu12_32/steam-runtime; do
         if [ -n "$dir" ] && [ -x "$dir/amd64/usr/bin/zenity" ]; then
             echo "$dir"
             return 0
@@ -389,7 +389,7 @@ main () {
     if [ -z "$is_slr" ] \
         && ldlp_runtime=$(detect_scout_ldlp "$ldlp_runtime") \
     ; then
-        debug "LDLP runtime detected"
+        debug "LDLP runtime detected at $ldlp_runtime"
 
         for program in \
             ~/.steam/root/ubuntu12_64/steam-dialog-ui \

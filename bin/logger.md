@@ -19,7 +19,7 @@ srt-logger - record logs
 [**--**]
 [*COMMAND* [*ARGUMENTS...*]]
 
-**source "${STEAM_RUNTIME}/usr/libexec/steam-runtime-tools-0/logger-0.bash"**
+**source "${STEAM_RUNTIME_SCOUT}/usr/libexec/steam-runtime-tools-0/logger-0.bash"**
 [*OPTIONS*]
 
 **srt-logger --mkfifo**

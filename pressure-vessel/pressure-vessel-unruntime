@@ -58,6 +58,8 @@ if [ -n "${PATH-}" ]; then
     set -- "--env-if-host=PATH=$PATH" "$@"
 fi
 
+# Intentionally not STEAM_RUNTIME_SCOUT: we want the LDLP runtime
+# that we were previously running in, if any
 if [ -n "${STEAM_RUNTIME-}" ]; then
     set -- "--env-if-host=STEAM_RUNTIME=$STEAM_RUNTIME" "$@"
 fi

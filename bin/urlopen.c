@@ -147,6 +147,9 @@ open_with_portal (const char *uri_or_filename,
     }
 }
 
+/*
+ * Returns: %TRUE if running inside a LD_LIBRARY_PATH runtime
+ */
 static gboolean
 is_ldlp_runtime (void)
 {

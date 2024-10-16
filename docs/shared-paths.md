@@ -230,6 +230,7 @@ the container:
     * `/boot`
     * `/root`
 * `$STEAM_RUNTIME`
+* `$STEAM_RUNTIME_SCOUT`
 
 ## The home directory
 

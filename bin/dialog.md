@@ -177,10 +177,11 @@ As a last resort, it will attempt to fall back to **zenity**(1),
 
 # ENVIRONMENT
 
-`STEAM_RUNTIME`
+`STEAM_RUNTIME_SCOUT`, `STEAM_RUNTIME`
 :   If set to an absolute path to the `LD_LIBRARY_PATH`-based
     Steam Runtime 1.0 (scout), that version will be used in preference
     to the typical `~/.steam/root/ubuntu12_32/steam-runtime`.
+    `STEAM_RUNTIME_SCOUT` is preferred if both are set.
 
 `STEAM_RUNTIME_DIALOG_UI`
 :   If set to a command, attempt to use it as a higher priority than
