@@ -5374,6 +5374,17 @@ collect_graphics_libraries_patterns (GPtrArray *patterns)
     "libva-drm.so.2",
     "libva-glx.so.2",
     "libva-x11.so.2",
+
+    /* Dependencies that might come in via dlopen() */
+    "libdrm.so.2",
+    "libdrm_amdgpu.so.1",
+    "libdrm_etnaviv.so.1",
+    "libdrm_freedreno.so.1",
+    "libdrm_intel.so.1",
+    "libdrm_nouveau.so.2",
+    "libdrm_radeon.so.1",
+    "libdrm_tegra.so.0",
+
   };
   static const char * const sonames_even_if_older[] =
   {
