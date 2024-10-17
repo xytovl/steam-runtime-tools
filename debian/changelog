@@ -1,3 +1,26 @@
+steam-runtime-tools (0.20241017.0) UNRELEASED; urgency=medium
+
+  * pressure-vessel:
+    - Use host versions of libdrm family if newer, even without an explicit
+      dependency, defending against possible use of dlopen() for these
+      libraries in future Mesa releases (see mesa/mesa!21658)
+    - Share $STEAM_RUNTIME_SCOUT with the container, so that
+      Steam Linux Runtime 1.0 can use it (steamrt/tasks#520)
+  * s-r-dialog:
+    - Prefer to look for s-r-dialog-ui in $STEAM_RUNTIME_SCOUT
+      (steamrt/tasks#520)
+  * Tree-wide:
+    - Consistently disable GIO modules for any executable with an RPATH,
+      but restore them before steam-runtime-urlopen runs external programs
+      (steamrt/tasks#505)
+    - Mention $STEAM_RUNTIME_SCOUT in documentation where appropriate
+      (steamrt/tasks#520)
+  * tests:
+    - Avoid invalid escape sequences in JSON, avoiding test failures with
+      json-glib 1.10
+
+ -- Simon McVittie <smcv@collabora.com>  Thu, 17 Oct 2024 17:23:30 +0100
+
 steam-runtime-tools (0.20240916.0) steamrt; urgency=medium
 
   * pressure-vessel:
