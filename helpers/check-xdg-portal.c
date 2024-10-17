@@ -106,6 +106,8 @@ main (int argc,
       return EXIT_FAILURE;
     }
 
+  _srt_setenv_disable_gio_modules ();
+
   builder = json_builder_new ();
   json_builder_begin_object (builder);
 

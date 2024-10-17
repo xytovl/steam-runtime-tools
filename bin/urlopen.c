@@ -174,23 +174,31 @@ is_ldlp_runtime (void)
     == SRT_CONTAINER_TYPE_NONE;
 }
 
+/*
+ * prepare_xdg_open_if_available:
+ * @out_exe: (out): Used to return a system xdg-open executable
+ * @envpp: (inout): Environment in which to run `*out_exe`,
+ *  which will be edited in-place to remove references to the Steam Runtime
+ *  and the Steam overlay
+ *
+ * Returns: %TRUE if a suitable system copy of xdg-open was found
+ */
 static gboolean
 prepare_xdg_open_if_available (char **out_exe,
-                               GStrv *out_env,
+                               GStrv *envpp,
                                GError **error)
 {
-  g_auto(GStrv) env = NULL;
   g_autofree char *exe = NULL;
   const char *search_path = NULL;
 
-  env = g_get_environ ();
-  env = _srt_environ_escape_steam_runtime (env,
-                                           SRT_ESCAPE_RUNTIME_FLAGS_CLEAN_PATH);
-  env = g_environ_unsetenv (env, "LD_PRELOAD");
-  env = g_environ_setenv (env, _SRT_RECURSIVE_EXEC_GUARD_ENV, THIS_PROGRAM,
-                          TRUE);
+  g_return_val_if_fail (envpp != NULL, FALSE);
+  *envpp = _srt_environ_escape_steam_runtime (*envpp,
+                                              SRT_ESCAPE_RUNTIME_FLAGS_CLEAN_PATH);
+  *envpp = g_environ_unsetenv (*envpp, "LD_PRELOAD");
+  *envpp = g_environ_setenv (*envpp, _SRT_RECURSIVE_EXEC_GUARD_ENV, THIS_PROGRAM,
+                             TRUE);
 
-  search_path = g_environ_getenv (env, "PATH");
+  search_path = g_environ_getenv (*envpp, "PATH");
   if (search_path == NULL)
     {
       search_path = "/usr/bin:/bin";
@@ -202,7 +210,6 @@ prepare_xdg_open_if_available (char **out_exe,
     return FALSE;
 
   *out_exe = g_steal_pointer (&exe);
-  *out_env = g_steal_pointer (&env);
 
   return TRUE;
 }
@@ -213,6 +220,7 @@ main (int argc,
 {
   const gchar *uri;
   g_autofree gchar *scheme = NULL;
+  g_auto(GStrv) launch_environ = g_get_environ ();
   g_autoptr(GOptionContext) option_context = NULL;
   g_autoptr(GError) pipe_error = NULL;
   g_autoptr(GError) portal_error = NULL;
@@ -234,6 +242,7 @@ main (int argc,
       return 1;
     }
 
+  _srt_setenv_disable_gio_modules ();
   _srt_unblock_signals ();
 
   if (opt_print_version)
@@ -298,14 +307,13 @@ main (int argc,
   if (is_ldlp_runtime ())
     {
       g_autofree char *xdg_open_exe = NULL;
-      g_auto(GStrv) xdg_open_env = NULL;
       const char *xdg_open_argv[] = {"xdg-open", uri, NULL};
 
       if (!_srt_check_recursive_exec_guard ("xdg-open", &xdg_open_error))
         goto fail;
 
       if (!prepare_xdg_open_if_available (&xdg_open_exe,
-                                          &xdg_open_env,
+                                          &launch_environ,
                                           &xdg_open_error))
         goto fail;
 
@@ -323,7 +331,7 @@ main (int argc,
 
       g_printerr ("%s: trying xdg-open...\n", g_get_prgname ());
 
-      execve (xdg_open_exe, (char *const *) xdg_open_argv, xdg_open_env);
+      execve (xdg_open_exe, (char *const *) xdg_open_argv, launch_environ);
       glnx_throw_errno_prefix (&xdg_open_error, "execve(%s)", xdg_open_exe);
     }
 

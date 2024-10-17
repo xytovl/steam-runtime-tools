@@ -219,6 +219,8 @@ main (int argc,
       goto out;
     }
 
+  _srt_setenv_disable_gio_modules ();
+
   if (opt_locale == NULL)
     locale_name = "";
   else
