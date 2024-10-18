@@ -81,16 +81,25 @@ A small number of libraries from soldier, such as `libcurl.so.3`, are
 overridden by their scout equivalents to provide ABI compatibility.
 This is referred to internally as [scout-on-soldier][scout-on-soldier].
 
-Games targeting either of these environments should be built in a Steam
-Runtime 1 'scout' Docker container.
-By default, Steam will run them directly on the host system, providing
-compatibility with scout by using the same `LD_LIBRARY_PATH`-based scout
-runtime that is used to run Steam itself.
-If the user selects the *Steam Linux Runtime 1.0 (scout)*
-compatibility tool in the
-game's properties, then Steam will launch a *Steam Linux Runtime 2.0 (soldier)*
+Games targeting either of these environments should be built in the
+Steam Runtime 1 'scout' Docker container provided by the [scout SDK][].
+
+Since [Steam client beta 2024-10-17][], games targeting scout are
+run under *Steam Linux Runtime 1.0 (scout)* by default.
+This means that Steam will launch a *Steam Linux Runtime 2.0 (soldier)*
 container, then use the `LD_LIBRARY_PATH`-based scout runtime inside that
 container to provide ABI compatibility for the game.
+
+In older Steam client releases, the default varied between desktop and
+Steam Deck.
+On Steam Deck, many games run under the *Steam Linux Runtime 1.0 (scout)*
+compatibility tool automatically.
+On desktop, the default was to run these games directly on the host system,
+providing compatibility with scout by using the same
+[`LD_LIBRARY_PATH`-based scout runtime][ldlp] that is used to run Steam itself.
+Whichever of these options is the default, the user can select the
+*Steam Linux Runtime 1.0 (scout)* compatibility tool in the game's
+properties to opt-in to using the container runtime.
 
 ### <span id="sniper">Native Linux games targeting Steam Runtime 3 'sniper'</span>
 
@@ -1216,6 +1225,7 @@ advanced utilities might not be present.
 [SDL_GetPrefPath]: https://wiki.libsdl.org/SDL_GetPrefPath
 [Steam Cloud API]: https://partner.steamgames.com/doc/features/cloud
 [Steam Input]: https://partner.steamgames.com/doc/features/steam_controller
+[Steam client beta 2024-10-17]: https://store.steampowered.com/news/group/4397053/view/4507632124224426488?l=english
 [Steam support documentation]: https://help.steampowered.com/
 [Toolbx]: https://containertoolbx.org/
 [Verify integrity]: https://help.steampowered.com/en/faqs/view/0C48-FCBD-DA71-93EB
@@ -1227,6 +1237,7 @@ advanced utilities might not be present.
 [inotify]: https://man7.org/linux/man-pages/man7/inotify.7.html
 [install folder]: https://partner.steamgames.com/doc/store/application/depots
 [launch options]: https://partner.steamgames.com/doc/sdk/uploading
+[ldlp-runtime]: ld-library-path-runtime.md
 [os-release(5)]: https://www.freedesktop.org/software/systemd/man/os-release.html
 [scout SDK]: https://gitlab.steamos.cloud/steamrt/scout/sdk/-/blob/steamrt/scout/README.md
 [scout-on-soldier]: container-runtime.md#scout-on-soldier

@@ -107,13 +107,14 @@ setting up a [`scout` `LD_LIBRARY_PATH` runtime][ldlp] inside that container.
 
 The Steam Deck automatically uses the *Steam Linux Runtime 1.0 (scout)*
 container for many native Linux games.
-In the past some games have also defaulted  to being run in this container
-on Linux desktop systems, for example [Dota 2][]
-between [its January 2022 update][Dota 2 scout SLR] and
-[mid 2023][Dota 2 sniper].
-This mechanism is not currently available for third-party games on
-desktop Linux, but users can opt-in to running specific games in the
+Since [Steam client beta 2024-10-17][], it is also the default for native
+Linux games on desktop, unless the game developer has configured the game
+to use a different runtime environment.
+In older versions of the Steam client,
+users can opt-in to running specific games in the
 Steam Linux Runtime 1.0 (scout) container via *Properties* → *Compatibility*.
+
+[Steam client beta 2024-10-17]: https://store.steampowered.com/news/group/4397053/view/4507632124224426488?l=english
 
 ## <span id="sniper">Steam Linux Runtime 3.0 (sniper)</span>
 
