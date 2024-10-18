@@ -128,12 +128,9 @@ approximately 2 years newer.
 Proton 8.0 moved from soldier to sniper to take advantage of this newer base.
 
 Native Linux games that require sniper can be released on Steam.
-The intention is that this will become available as a "self-service"
+Since October 2024, this is available as a "self-service"
 feature via the Steamworks partner web interface, which can be used by
 any game that benefits from a newer library stack.
-However, as of early 2024, this mechanism is not yet ready, so configuring
-a game to run in sniper requires manual setup by a Valve developer.
-Please contact Valve for more information.
 
 Early adopters of this mechanism include
 [Retroarch][] since [August 2022][Retroarch on sniper],

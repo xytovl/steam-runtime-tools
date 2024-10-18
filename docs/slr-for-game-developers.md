@@ -111,23 +111,20 @@ on Steam.
 It is based on Debian 11 (2021).
 
 Native Linux games that require sniper can be released on Steam.
-The intention is that this will become available as a "self-service"
+Since October 2024, this is available as a "self-service"
 feature via the Steamworks partner web interface, which can be used by
 any game that benefits from a newer library stack.
-However, as of early 2024, this mechanism is not yet ready, so configuring
-a game to run in sniper requires manual setup by a Valve developer.
-Please contact Valve for more information.
+To use this feature, your app must first set up a Launch Option that
+supports Linux.
+Once that is set up, you can use the Installation → Linux Runtime
+menu item to select a runtime.
 
-Early adopters for this mechanism include
+Early adopters of this mechanism included
 [Battle for Wesnoth][Wesnoth on sniper],
 Counter-Strike 2,
 Dota 2,
 [Endless Sky][Endless Sky on sniper] and
 [Retroarch][Retroarch on sniper].
-
-If it is useful to run in a newer container during development,
-the *Steam Linux Runtime 3.0 (sniper)* compatibility tool can be used to
-achieve this.
 
 #### <span id="soldier">Native Linux games targeting Steam Runtime 2 'soldier'</span>
 
