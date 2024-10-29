@@ -326,7 +326,7 @@ pv_adverb_set_up_overrides (FlatpakBwrap *wrapped_command,
     {
       const char *multiarch_tuple = pv_multiarch_details[abi].tuple;
       gchar *abi_path = g_build_filename (lib_temp_dirs->abi_paths[abi], "vdpau", NULL);
-      gchar *target = g_build_filename (overrides, multiarch_tuple, "vdpau", NULL);
+      gchar *target = g_build_filename (overrides, "lib", multiarch_tuple, "vdpau", NULL);
 
       if (!g_file_test (target, G_FILE_TEST_IS_DIR))
         continue;
