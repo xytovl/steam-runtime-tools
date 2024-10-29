@@ -108,6 +108,8 @@ pressure_vessel_adverb_lib = static_library(
   sources : [
     'adverb-preload.c',
     'adverb-preload.h',
+    'adverb-sdl.c',
+    'adverb-sdl.h',
     'per-arch-dirs.c',
     'per-arch-dirs.h',
     'wrap-interactive.c',

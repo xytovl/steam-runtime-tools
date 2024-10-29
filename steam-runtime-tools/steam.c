@@ -760,6 +760,8 @@ _srt_steam_get_compat_flags (const char * const *envp)
   bool_vars[] =
     {
         { "STEAM_COMPAT_TRACING", SRT_STEAM_COMPAT_FLAGS_SYSTEM_TRACING, FALSE },
+        { "STEAM_COMPAT_RUNTIME_SDL2", SRT_STEAM_COMPAT_FLAGS_RUNTIME_SDL2, FALSE },
+        { "STEAM_COMPAT_RUNTIME_SDL3", SRT_STEAM_COMPAT_FLAGS_RUNTIME_SDL3, FALSE },
     };
   SrtSteamCompatFlags ret = SRT_STEAM_COMPAT_FLAGS_NONE;
   const char *value;
@@ -787,6 +789,14 @@ _srt_steam_get_compat_flags (const char * const *envp)
         {
           switch (tokens[i][0])
             {
+              case 'r':
+                if (g_str_equal (tokens[i], "runtime-sdl2"))
+                  ret |= SRT_STEAM_COMPAT_FLAGS_RUNTIME_SDL2;
+                else if (g_str_equal (tokens[i], "runtime-sdl3"))
+                  ret |= SRT_STEAM_COMPAT_FLAGS_RUNTIME_SDL3;
+
+                break;
+
               case 's':
                 if (g_str_equal (tokens[i], "search-cwd"))
                   ret |= SRT_STEAM_COMPAT_FLAGS_SEARCH_CWD;

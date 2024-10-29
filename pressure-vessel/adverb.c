@@ -46,6 +46,7 @@
 #include "libglnx.h"
 
 #include "adverb-preload.h"
+#include "adverb-sdl.h"
 #include "flatpak-utils-base-private.h"
 #include "per-arch-dirs.h"
 #include "supported-architectures.h"
@@ -849,6 +850,7 @@ main (int argc,
   glnx_autofd int original_stderr = -1;
   g_autoptr(FlatpakBwrap) wrapped_command = NULL;
   g_autoptr(PvPerArchDirs) lib_temp_dirs = NULL;
+  SrtSteamCompatFlags compat_flags;
 
   setlocale (LC_ALL, "");
 
@@ -1085,6 +1087,10 @@ main (int argc,
       g_warning ("%s", local_error->message);
       g_clear_error (error);
     }
+
+  compat_flags = _srt_steam_get_compat_flags (_srt_const_strv (envp));
+  pv_adverb_set_up_dynamic_sdls (wrapped_command, lib_temp_dirs,
+                                 "/usr", opt_overrides, compat_flags);
 
   if (opt_overrides != NULL
       && !pv_adverb_set_up_overrides (wrapped_command,
