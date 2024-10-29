@@ -153,6 +153,14 @@ test_compat_flags (Fixture *f,
             SRT_STEAM_COMPAT_FLAGS_SEARCH_CWD_FIRST,
         },
         {
+            { "STEAM_COMPAT_FLAGS=runtime-sdl2", NULL },
+            SRT_STEAM_COMPAT_FLAGS_RUNTIME_SDL2,
+        },
+        {
+            { "STEAM_COMPAT_FLAGS=runtime-sdl3", NULL },
+            SRT_STEAM_COMPAT_FLAGS_RUNTIME_SDL3,
+        },
+        {
             {
                 "STEAM_COMPAT_TRACING=1",
                 "STEAM_COMPAT_FLAGS=search-cwd",
@@ -165,6 +173,8 @@ test_compat_flags (Fixture *f,
         { { "STEAM_COMPAT_TRACING=1", NULL }, SRT_STEAM_COMPAT_FLAGS_SYSTEM_TRACING },
         { { "STEAM_COMPAT_TRACING=", NULL }, SRT_STEAM_COMPAT_FLAGS_NONE },
         { { "STEAM_COMPAT_TRACING=0", NULL }, SRT_STEAM_COMPAT_FLAGS_NONE },
+        { { "STEAM_COMPAT_RUNTIME_SDL2=1", NULL }, SRT_STEAM_COMPAT_FLAGS_RUNTIME_SDL2 },
+        { { "STEAM_COMPAT_RUNTIME_SDL3=1", NULL }, SRT_STEAM_COMPAT_FLAGS_RUNTIME_SDL3 },
         { { NULL }, SRT_STEAM_COMPAT_FLAGS_NONE }
     };
   size_t i;
