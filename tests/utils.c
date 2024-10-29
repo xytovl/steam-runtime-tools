@@ -129,18 +129,43 @@ test_compat_flags (Fixture *f,
 {
   static const struct
     {
-      const char *env;
+      /* Length is arbitrary, expand as needed but leave room for NULL
+       * termination */
+      const char * const envp[3];
       SrtSteamCompatFlags expected;
     }
   tests[] =
     {
-        { "search-cwd,search-cwd-first,reticulate-splines,fixme",
-          (SRT_STEAM_COMPAT_FLAGS_SEARCH_CWD
-           | SRT_STEAM_COMPAT_FLAGS_SEARCH_CWD_FIRST) },
-        { "reticulate-splines,search-cwd", SRT_STEAM_COMPAT_FLAGS_SEARCH_CWD },
-        { ",,,,search-cwd-first,,,,", SRT_STEAM_COMPAT_FLAGS_SEARCH_CWD_FIRST },
-        { "", SRT_STEAM_COMPAT_FLAGS_NONE },
-        { NULL, SRT_STEAM_COMPAT_FLAGS_NONE }
+        {
+            {
+                "STEAM_COMPAT_FLAGS=search-cwd,search-cwd-first,reticulate-splines,fixme",
+                NULL
+            },
+            (SRT_STEAM_COMPAT_FLAGS_SEARCH_CWD
+             | SRT_STEAM_COMPAT_FLAGS_SEARCH_CWD_FIRST),
+        },
+        {
+            { "STEAM_COMPAT_FLAGS=reticulate-splines,search-cwd", NULL },
+            SRT_STEAM_COMPAT_FLAGS_SEARCH_CWD,
+        },
+        {
+            { "STEAM_COMPAT_FLAGS=,,,,search-cwd-first,,,,", NULL },
+            SRT_STEAM_COMPAT_FLAGS_SEARCH_CWD_FIRST,
+        },
+        {
+            {
+                "STEAM_COMPAT_TRACING=1",
+                "STEAM_COMPAT_FLAGS=search-cwd",
+                NULL
+            },
+            (SRT_STEAM_COMPAT_FLAGS_SEARCH_CWD
+             | SRT_STEAM_COMPAT_FLAGS_SYSTEM_TRACING),
+        },
+        { { "STEAM_COMPAT_FLAGS=", NULL }, SRT_STEAM_COMPAT_FLAGS_NONE },
+        { { "STEAM_COMPAT_TRACING=1", NULL }, SRT_STEAM_COMPAT_FLAGS_SYSTEM_TRACING },
+        { { "STEAM_COMPAT_TRACING=", NULL }, SRT_STEAM_COMPAT_FLAGS_NONE },
+        { { "STEAM_COMPAT_TRACING=0", NULL }, SRT_STEAM_COMPAT_FLAGS_NONE },
+        { { NULL }, SRT_STEAM_COMPAT_FLAGS_NONE }
     };
   size_t i;
 
@@ -149,14 +174,10 @@ test_compat_flags (Fixture *f,
 
   for (i = 0; i < G_N_ELEMENTS (tests); i++)
     {
-      gchar *envp[2] = { NULL, NULL };
-
-      if (tests[i].env != NULL)
-        envp[0] = g_strdup_printf ("STEAM_COMPAT_FLAGS=%s", tests[i].env);
-
-      g_assert_cmphex (_srt_steam_get_compat_flags (_srt_const_strv (envp)),
+      g_assert_cmpuint (g_strv_length ((gchar **) tests[i].envp),
+                        <, G_N_ELEMENTS (tests[i].envp));
+      g_assert_cmphex (_srt_steam_get_compat_flags (tests[i].envp),
                        ==, tests[i].expected);
-      g_free (envp[0]);
     }
 }
 
