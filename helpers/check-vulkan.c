@@ -135,6 +135,10 @@ get_vk_error_string (VkResult error_code)
 #if VK_HEADER_VERSION >= 274
         STR(ERROR_INVALID_VIDEO_STD_PARAMETERS_KHR);
 #endif
+#if VK_HEADER_VERSION >= 296
+        STR(ERROR_NOT_ENOUGH_SPACE_KHR);
+        STR(PIPELINE_BINARY_MISSING_KHR);
+#endif
         STR(RESULT_MAX_ENUM);
 #undef STR
       default:
