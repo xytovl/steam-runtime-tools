@@ -1,13 +1,15 @@
 steam-runtime-tools (0.20241030.0) UNRELEASED; urgency=medium
 
   * pressure-vessel:
-    - Fix setup of VDPAU drivers in the container, a regression in
+    - Fix setup of VDPAU drivers in the container, which regressed in
       v0.20231128.0 (steam-runtime-tools!764)
     - Use host versions of libdrm family if newer, even without an explicit
       dependency, defending against possible use of dlopen() for these
       libraries in future Mesa releases (see mesa/mesa!21658)
     - Share $STEAM_RUNTIME_SCOUT with the container, so that
       Steam Linux Runtime 1.0 can use it (steamrt/tasks#520)
+    - Update bubblewrap to 0.11.0
+      + improved logging on error (steamrt/tasks#444)
   * s-r-dialog:
     - Prefer to look for s-r-dialog-ui in $STEAM_RUNTIME_SCOUT
       (steamrt/tasks#520)
