@@ -23,6 +23,7 @@
 #include <stdint.h>
 #include <sys/syscall.h>
 #include <sys/socket.h>
+#include <sys/param.h>
 #ifdef HAVE_SELINUX
 #include <selinux/selinux.h>
 #endif
@@ -34,11 +35,17 @@
 #define security_check_context(x) security_check_context ((security_context_t) x)
 #endif
 
-__attribute__((format(printf, 1, 0))) static void
-warnv (const char *format,
-       va_list args,
-       const char *detail)
+bool bwrap_level_prefix = false;
+
+__attribute__((format(printf, 2, 0))) static void
+bwrap_logv (int severity,
+            const char *format,
+            va_list args,
+            const char *detail)
 {
+  if (bwrap_level_prefix)
+    fprintf (stderr, "<%d>", severity);
+
   fprintf (stderr, "bwrap: ");
   vfprintf (stderr, format, args);
 
@@ -49,12 +56,13 @@ warnv (const char *format,
 }
 
 void
-warn (const char *format, ...)
+bwrap_log (int severity,
+           const char *format, ...)
 {
   va_list args;
 
   va_start (args, format);
-  warnv (format, args, NULL);
+  bwrap_logv (severity, format, args, NULL);
   va_end (args);
 }
 
@@ -67,7 +75,7 @@ die_with_error (const char *format, ...)
   errsv = errno;
 
   va_start (args, format);
-  warnv (format, args, strerror (errsv));
+  bwrap_logv (LOG_ERR, format, args, strerror (errsv));
   va_end (args);
 
   exit (1);
@@ -82,7 +90,7 @@ die_with_mount_error (const char *format, ...)
   errsv = errno;
 
   va_start (args, format);
-  warnv (format, args, mount_strerror (errsv));
+  bwrap_logv (LOG_ERR, format, args, mount_strerror (errsv));
   va_end (args);
 
   exit (1);
@@ -94,7 +102,7 @@ die (const char *format, ...)
   va_list args;
 
   va_start (args, format);
-  warnv (format, args, NULL);
+  bwrap_logv (LOG_ERR, format, args, NULL);
   va_end (args);
 
   exit (1);
@@ -206,7 +214,7 @@ bool
 has_path_prefix (const char *str,
                  const char *prefix)
 {
-  while (TRUE)
+  while (true)
     {
       /* Skip consecutive slashes to reach next path
          element */
@@ -217,13 +225,13 @@ has_path_prefix (const char *str,
 
       /* No more prefix path elements? Done! */
       if (*prefix == 0)
-        return TRUE;
+        return true;
 
       /* Compare path element */
       while (*prefix != 0 && *prefix != '/')
         {
           if (*str != *prefix)
-            return FALSE;
+            return false;
           str++;
           prefix++;
         }
@@ -231,7 +239,7 @@ has_path_prefix (const char *str,
       /* Matched prefix path element,
          must be entire str path element */
       if (*str != '/' && *str != 0)
-        return FALSE;
+        return false;
     }
 }
 
@@ -239,7 +247,7 @@ bool
 path_equal (const char *path1,
             const char *path2)
 {
-  while (TRUE)
+  while (true)
     {
       /* Skip consecutive slashes to reach next path
          element */
@@ -256,14 +264,14 @@ path_equal (const char *path1,
       while (*path1 != 0 && *path1 != '/')
         {
           if (*path1 != *path2)
-            return FALSE;
+            return false;
           path1++;
           path2++;
         }
 
       /* Matched path1 path element, must be entire path element */
       if (*path2 != '/' && *path2 != 0)
-        return FALSE;
+        return false;
     }
 }
 
@@ -370,7 +378,7 @@ fdwalk (int proc_fd, int (*cb)(void *data,
   int res = 0;
   DIR *d;
 
-  dfd = openat (proc_fd, "self/fd", O_DIRECTORY | O_RDONLY | O_NONBLOCK | O_CLOEXEC | O_NOCTTY);
+  dfd = TEMP_FAILURE_RETRY (openat (proc_fd, "self/fd", O_DIRECTORY | O_RDONLY | O_NONBLOCK | O_CLOEXEC | O_NOCTTY));
   if (dfd == -1)
     return res;
 
@@ -444,7 +452,7 @@ write_to_fd (int         fd,
 
 /* Sets errno on error (!= 0), ENOSPC on short write */
 int
-write_file_at (int         dirfd,
+write_file_at (int         dfd,
                const char *path,
                const char *content)
 {
@@ -452,7 +460,7 @@ write_file_at (int         dirfd,
   bool res;
   int errsv;
 
-  fd = openat (dirfd, path, O_RDWR | O_CLOEXEC, 0);
+  fd = TEMP_FAILURE_RETRY (openat (dfd, path, O_RDWR | O_CLOEXEC, 0));
   if (fd == -1)
     return -1;
 
@@ -477,7 +485,7 @@ create_file (const char *path,
   int res;
   int errsv;
 
-  fd = creat (path, mode);
+  fd = TEMP_FAILURE_RETRY (creat (path, mode));
   if (fd == -1)
     return -1;
 
@@ -526,7 +534,7 @@ copy_file_data (int sfd,
   char buffer[BUFSIZE];
   ssize_t bytes_read;
 
-  while (TRUE)
+  while (true)
     {
       bytes_read = read (sfd, buffer, BUFSIZE);
       if (bytes_read == -1)
@@ -558,11 +566,11 @@ copy_file (const char *src_path,
   int res;
   int errsv;
 
-  sfd = open (src_path, O_CLOEXEC | O_RDONLY);
+  sfd = TEMP_FAILURE_RETRY (open (src_path, O_CLOEXEC | O_RDONLY));
   if (sfd == -1)
     return -1;
 
-  dfd = creat (dst_path, mode);
+  dfd = TEMP_FAILURE_RETRY (creat (dst_path, mode));
   if (dfd == -1)
     {
       errsv = errno;
@@ -632,14 +640,14 @@ load_file_data (int     fd,
 /* Sets errno on error (== NULL),
  * Always ensures terminating zero */
 char *
-load_file_at (int         dirfd,
+load_file_at (int         dfd,
               const char *path)
 {
   int fd;
   char *data;
   int errsv;
 
-  fd = openat (dirfd, path, O_CLOEXEC | O_RDONLY);
+  fd = TEMP_FAILURE_RETRY (openat (dfd, path, O_CLOEXEC | O_RDONLY));
   if (fd == -1)
     return NULL;
 
@@ -745,15 +753,15 @@ mkdir_with_parents (const char *pathname,
    read back with read_pid_from_socket(), and then the kernel has
    translated it between namespaces as needed. */
 void
-send_pid_on_socket (int socket)
+send_pid_on_socket (int sockfd)
 {
   char buf[1] = { 0 };
   struct msghdr msg = {};
   struct iovec iov = { buf, sizeof (buf) };
   const ssize_t control_len_snd = CMSG_SPACE(sizeof(struct ucred));
-  char control_buf_snd[control_len_snd];
+  _Alignas(struct cmsghdr) char control_buf_snd[control_len_snd];
   struct cmsghdr *cmsg;
-  struct ucred *cred;
+  struct ucred cred;
 
   msg.msg_iov = &iov;
   msg.msg_iovlen = 1;
@@ -764,13 +772,13 @@ send_pid_on_socket (int socket)
   cmsg->cmsg_level = SOL_SOCKET;
   cmsg->cmsg_type = SCM_CREDENTIALS;
   cmsg->cmsg_len = CMSG_LEN(sizeof(struct ucred));
-  cred = (struct ucred *)CMSG_DATA(cmsg);
 
-  cred->pid = getpid ();
-  cred->uid = geteuid ();
-  cred->gid = getegid ();
+  cred.pid = getpid ();
+  cred.uid = geteuid ();
+  cred.gid = getegid ();
+  memcpy (CMSG_DATA (cmsg), &cred, sizeof (cred));
 
-  if (sendmsg (socket, &msg, 0) < 0)
+  if (TEMP_FAILURE_RETRY (sendmsg (sockfd, &msg, 0)) < 0)
     die_with_error ("Can't send pid");
 }
 
@@ -787,13 +795,13 @@ create_pid_socketpair (int sockets[2])
 }
 
 int
-read_pid_from_socket (int socket)
+read_pid_from_socket (int sockfd)
 {
   char recv_buf[1] = { 0 };
   struct msghdr msg = {};
   struct iovec iov = { recv_buf, sizeof (recv_buf) };
   const ssize_t control_len_rcv = CMSG_SPACE(sizeof(struct ucred));
-  char control_buf_rcv[control_len_rcv];
+  _Alignas(struct cmsghdr) char control_buf_rcv[control_len_rcv];
   struct cmsghdr* cmsg;
 
   msg.msg_iov = &iov;
@@ -801,7 +809,7 @@ read_pid_from_socket (int socket)
   msg.msg_control = control_buf_rcv;
   msg.msg_controllen = control_len_rcv;
 
-  if (recvmsg (socket, &msg, 0) < 0)
+  if (TEMP_FAILURE_RETRY (recvmsg (sockfd, &msg, 0)) < 0)
     die_with_error ("Can't read pid from socket");
 
   if (msg.msg_controllen <= 0)
@@ -814,8 +822,10 @@ read_pid_from_socket (int socket)
           cmsg->cmsg_type == SCM_CREDENTIALS &&
           payload_len == sizeof(struct ucred))
         {
-          struct ucred *cred = (struct ucred *)CMSG_DATA(cmsg);
-          return cred->pid;
+          struct ucred cred;
+
+          memcpy (&cred, CMSG_DATA (cmsg), sizeof (cred));
+          return cred.pid;
         }
     }
   die ("No pid returned on socket");
@@ -941,5 +951,130 @@ mount_strerror (int errsv)
 
       default:
         return strerror (errsv);
+    }
+}
+
+/*
+ * Return a + b if it would not overflow.
+ * Die with an "out of memory" error if it would.
+ */
+static size_t
+xadd (size_t a, size_t b)
+{
+#if defined(__GNUC__) && __GNUC__ >= 5
+  size_t result;
+  if (__builtin_add_overflow (a, b, &result))
+    die_oom ();
+  return result;
+#else
+  if (a > SIZE_MAX - b)
+    die_oom ();
+
+  return a + b;
+#endif
+}
+
+/*
+ * Return a * b if it would not overflow.
+ * Die with an "out of memory" error if it would.
+ */
+static size_t
+xmul (size_t a, size_t b)
+{
+#if defined(__GNUC__) && __GNUC__ >= 5
+  size_t result;
+  if (__builtin_mul_overflow (a, b, &result))
+    die_oom ();
+  return result;
+#else
+  if (b != 0 && a > SIZE_MAX / b)
+    die_oom ();
+
+  return a * b;
+#endif
+}
+
+void
+strappend (StringBuilder *dest, const char *src)
+{
+  size_t len = strlen (src);
+  size_t new_offset = xadd (dest->offset, len);
+
+  if (new_offset >= dest->size)
+    {
+      dest->size = xmul (xadd (new_offset, 1), 2);
+      dest->str = xrealloc (dest->str, dest->size);
+    }
+
+  /* Preserves the invariant that dest->str is always null-terminated, even
+   * though the offset is positioned at the null byte for the next write.
+   */
+  strncpy (dest->str + dest->offset, src, len + 1);
+  dest->offset = new_offset;
+}
+
+__attribute__((format (printf, 2, 3)))
+void
+strappendf (StringBuilder *dest, const char *fmt, ...)
+{
+  va_list args;
+  int len;
+  size_t new_offset;
+
+  va_start (args, fmt);
+  len = vsnprintf (dest->str + dest->offset, dest->size - dest->offset, fmt, args);
+  va_end (args);
+  if (len < 0)
+    die_with_error ("vsnprintf");
+  new_offset = xadd (dest->offset, len);
+  if (new_offset >= dest->size)
+    {
+      dest->size = xmul (xadd (new_offset, 1), 2);
+      dest->str = xrealloc (dest->str, dest->size);
+      va_start (args, fmt);
+      len = vsnprintf (dest->str + dest->offset, dest->size - dest->offset, fmt, args);
+      va_end (args);
+      if (len < 0)
+        die_with_error ("vsnprintf");
+    }
+
+  dest->offset = new_offset;
+}
+
+void
+strappend_escape_for_mount_options (StringBuilder *dest, const char *src)
+{
+  bool unescaped = true;
+
+  for (;;)
+    {
+      if (dest->offset == dest->size)
+        {
+          dest->size = MAX (64, xmul (dest->size, 2));
+          dest->str = xrealloc (dest->str, dest->size);
+        }
+      switch (*src)
+        {
+        case '\0':
+          dest->str[dest->offset] = '\0';
+          return;
+
+        case '\\':
+        case ',':
+        case ':':
+          if (unescaped)
+            {
+              dest->str[dest->offset++] = '\\';
+              unescaped = false;
+              continue;
+            }
+          /* else fall through */
+
+        default:
+          dest->str[dest->offset++] = *src;
+          unescaped = true;
+          break;
+        }
+      src++;
     }
 }

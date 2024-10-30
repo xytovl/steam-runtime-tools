@@ -44,15 +44,6 @@
 #define CLONE_NEWCGROUP 0x02000000 /* New cgroup namespace */
 #endif
 
-#ifndef TEMP_FAILURE_RETRY
-#define TEMP_FAILURE_RETRY(expression) \
-  (__extension__                                                              \
-    ({ long int __result;                                                     \
-       do __result = (long int) (expression);                                 \
-       while (__result == -1L && errno == EINTR);                             \
-       __result; }))
-#endif
-
 /* We limit the size of a tmpfs to half the architecture's address space,
  * to avoid hitting arbitrary limits in the kernel.
  * For example, on at least one x86_64 machine, the actual limit seems to be
@@ -74,19 +65,19 @@ static bool opt_as_pid_1;
 
 static const char *opt_argv0 = NULL;
 static const char *opt_chdir_path = NULL;
-static bool opt_assert_userns_disabled = FALSE;
-static bool opt_disable_userns = FALSE;
-static bool opt_unshare_user = FALSE;
-static bool opt_unshare_user_try = FALSE;
-static bool opt_unshare_pid = FALSE;
-static bool opt_unshare_ipc = FALSE;
-static bool opt_unshare_net = FALSE;
-static bool opt_unshare_uts = FALSE;
-static bool opt_unshare_cgroup = FALSE;
-static bool opt_unshare_cgroup_try = FALSE;
-static bool opt_needs_devpts = FALSE;
-static bool opt_new_session = FALSE;
-static bool opt_die_with_parent = FALSE;
+static bool opt_assert_userns_disabled = false;
+static bool opt_disable_userns = false;
+static bool opt_unshare_user = false;
+static bool opt_unshare_user_try = false;
+static bool opt_unshare_pid = false;
+static bool opt_unshare_ipc = false;
+static bool opt_unshare_net = false;
+static bool opt_unshare_uts = false;
+static bool opt_unshare_cgroup = false;
+static bool opt_unshare_cgroup_try = false;
+static bool opt_needs_devpts = false;
+static bool opt_new_session = false;
+static bool opt_die_with_parent = false;
 static uid_t opt_sandbox_uid = -1;
 static gid_t opt_sandbox_gid = -1;
 static int opt_sync_fd = -1;
@@ -100,8 +91,10 @@ static char *opt_args_data = NULL;  /* owned */
 static int opt_userns_fd = -1;
 static int opt_userns2_fd = -1;
 static int opt_pidns_fd = -1;
+static int opt_tmp_overlay_count = 0;
 static int next_perms = -1;
 static size_t next_size_arg = 0;
+static int next_overlay_src_count = 0;
 
 #define CAP_TO_MASK_0(x) (1L << ((x) & 31))
 #define CAP_TO_MASK_1(x) CAP_TO_MASK_0(x - 32)
@@ -131,6 +124,10 @@ typedef enum {
   SETUP_BIND_MOUNT,
   SETUP_RO_BIND_MOUNT,
   SETUP_DEV_BIND_MOUNT,
+  SETUP_OVERLAY_MOUNT,
+  SETUP_TMP_OVERLAY_MOUNT,
+  SETUP_RO_OVERLAY_MOUNT,
+  SETUP_OVERLAY_SRC,
   SETUP_MOUNT_PROC,
   SETUP_MOUNT_DEV,
   SETUP_MOUNT_TMPFS,
@@ -176,6 +173,7 @@ struct _LockFile
 enum {
   PRIV_SEP_OP_DONE,
   PRIV_SEP_OP_BIND_MOUNT,
+  PRIV_SEP_OP_OVERLAY_MOUNT,
   PRIV_SEP_OP_PROC_MOUNT,
   PRIV_SEP_OP_TMPFS_MOUNT,
   PRIV_SEP_OP_DEVPTS_MOUNT,
@@ -311,6 +309,7 @@ usage (int ecode, FILE *out)
            "    --version                    Print version\n"
            "    --args FD                    Parse NUL-separated args from FD\n"
            "    --argv0 VALUE                Set argv[0] to the value VALUE before running the program\n"
+           "    --level-prefix               Prepend e.g. <3> to diagnostic messages\n"
            "    --unshare-all                Unshare every namespace we support by default\n"
            "    --share-net                  Retain the network namespace (can only combine with --unshare-all)\n"
            "    --unshare-user               Create new user namespace (may be automatically implied if not setuid)\n"
@@ -344,6 +343,11 @@ usage (int ecode, FILE *out)
            "    --bind-fd FD DEST            Bind open directory or path fd on DEST\n"
            "    --ro-bind-fd FD DEST         Bind open directory or path fd read-only on DEST\n"
            "    --remount-ro DEST            Remount DEST as readonly; does not recursively remount\n"
+           "    --overlay-src SRC            Read files from SRC in the following overlay\n"
+           "    --overlay RWSRC WORKDIR DEST Mount overlayfs on DEST, with RWSRC as the host path for writes and\n"
+           "                                 WORKDIR an empty directory on the same filesystem as RWSRC\n"
+           "    --tmp-overlay DEST           Mount overlayfs on DEST, with writes going to an invisible tmpfs\n"
+           "    --ro-overlay DEST            Mount overlayfs read-only on DEST\n"
            "    --exec-label LABEL           Exec label for the sandbox\n"
            "    --file-label LABEL           File label for temporary sandbox content\n"
            "    --proc DEST                  Mount new procfs on DEST\n"
@@ -476,7 +480,7 @@ report_child_exit_status (int exitc, int setup_finished_fd)
     return;
 
   output = xasprintf ("{ \"exit-code\": %i }\n", exitc);
-  dump_info (opt_json_status_fd, output, FALSE);
+  dump_info (opt_json_status_fd, output, false);
   close (opt_json_status_fd);
   opt_json_status_fd = -1;
   close (setup_finished_fd);
@@ -598,7 +602,7 @@ do_init (int event_fd, pid_t initial_pid)
 
   for (lock = lock_files; lock != NULL; lock = lock->next)
     {
-      int fd = open (lock->path, O_RDONLY | O_CLOEXEC);
+      int fd = TEMP_FAILURE_RETRY (open (lock->path, O_RDONLY | O_CLOEXEC));
       if (fd == -1)
         die_with_error ("Unable to open lock file %s", lock->path);
 
@@ -609,7 +613,7 @@ do_init (int event_fd, pid_t initial_pid)
         .l_len = 0
       };
 
-      if (fcntl (fd, F_SETLK, &l) < 0)
+      if (TEMP_FAILURE_RETRY (fcntl (fd, F_SETLK, &l)) < 0)
         die_with_error ("Unable to lock file %s", lock->path);
 
       /* Keep fd open to hang on to lock */
@@ -621,12 +625,12 @@ do_init (int event_fd, pid_t initial_pid)
 
   seccomp_programs_apply ();
 
-  while (TRUE)
+  while (true)
     {
       pid_t child;
       int status;
 
-      child = wait (&status);
+      child = TEMP_FAILURE_RETRY (wait (&status));
       if (child == initial_pid)
         {
           initial_exit_status = propagate_exit_status (status);
@@ -637,7 +641,7 @@ do_init (int event_fd, pid_t initial_pid)
               int res UNUSED;
 
               val = initial_exit_status + 1;
-              res = write (event_fd, &val, 8);
+              res = TEMP_FAILURE_RETRY (write (event_fd, &val, 8));
               /* Ignore res, if e.g. the parent died and closed event_fd
                  we don't want to error out here */
             }
@@ -765,16 +769,16 @@ prctl_caps (uint32_t *caps, bool do_cap_bounding, bool do_set_ambient)
    */
   for (cap = 0; cap <= CAP_LAST_CAP; cap++)
     {
-      bool keep = FALSE;
+      bool keep = false;
       if (cap < 32)
         {
           if (CAP_TO_MASK_0 (cap) & caps[0])
-            keep = TRUE;
+            keep = true;
         }
       else
         {
           if (CAP_TO_MASK_1 (cap) & caps[1])
-            keep = TRUE;
+            keep = true;
         }
 
       if (keep && do_set_ambient)
@@ -803,11 +807,11 @@ static void
 drop_cap_bounding_set (bool drop_all)
 {
   if (!drop_all)
-    prctl_caps (requested_caps, TRUE, FALSE);
+    prctl_caps (requested_caps, true, false);
   else
     {
       uint32_t no_caps[2] = {0, 0};
-      prctl_caps (no_caps, TRUE, FALSE);
+      prctl_caps (no_caps, true, false);
     }
 }
 
@@ -816,13 +820,13 @@ set_ambient_capabilities (void)
 {
   if (is_privileged)
     return;
-  prctl_caps (requested_caps, FALSE, TRUE);
+  prctl_caps (requested_caps, false, true);
 }
 
 /* This acquires the privileges that the bwrap will need it to work.
  * If bwrap is not setuid, then this does nothing, and it relies on
  * unprivileged user namespaces to be used. This case is
- * "is_privileged = FALSE".
+ * "is_privileged = false".
  *
  * If bwrap is setuid, then we do things in phases.
  * The first part is run as euid 0, but with fsuid as the real user.
@@ -846,7 +850,7 @@ acquire_privs (void)
       if (euid != 0)
         die ("Unexpected setuid user %d, should be 0", euid);
 
-      is_privileged = TRUE;
+      is_privileged = true;
       /* We want to keep running as euid=0 until at the clone()
        * operation because doing so will make the user namespace be
        * owned by root, which makes it not ptrace:able by the user as
@@ -867,7 +871,7 @@ acquire_privs (void)
         die ("Unable to set fsuid (was %d)", (int)new_fsuid);
 
       /* We never need capabilities after execve(), so lets drop everything from the bounding set */
-      drop_cap_bounding_set (TRUE);
+      drop_cap_bounding_set (true);
 
       /* Keep only the required capabilities for setup */
       set_required_caps ();
@@ -904,7 +908,7 @@ switch_to_user_with_privs (void)
 {
   /* If we're in a new user namespace, we got back the bounding set, clear it again */
   if (opt_unshare_user || opt_userns_fd != -1)
-    drop_cap_bounding_set (FALSE);
+    drop_cap_bounding_set (false);
 
   /* If we switched to a new user namespace it may allow other uids/gids, so switch to the target one */
   if (opt_userns_fd != -1)
@@ -1061,10 +1065,10 @@ privileged_op (int         privileged_op_socket,
       if (arg2 != NULL)
         strcpy ((char *) buffer + arg2_offset, arg2);
 
-      if (write (privileged_op_socket, buffer, buffer_size) != (ssize_t)buffer_size)
+      if (TEMP_FAILURE_RETRY (write (privileged_op_socket, buffer, buffer_size)) != (ssize_t)buffer_size)
         die ("Can't write to privileged_op_socket");
 
-      if (read (privileged_op_socket, buffer, 1) != 1)
+      if (TEMP_FAILURE_RETRY (read (privileged_op_socket, buffer, 1)) != 1)
         die ("Can't read from privileged_op_socket");
 
       return;
@@ -1149,6 +1153,20 @@ privileged_op (int         privileged_op_socket,
         die_with_mount_error ("Can't mount mqueue on %s", arg1);
       break;
 
+    case PRIV_SEP_OP_OVERLAY_MOUNT:
+      if (mount ("overlay", arg2, "overlay", MS_MGC_VAL, arg1) != 0)
+        {
+          /* The standard message for ELOOP, "Too many levels of symbolic
+           * links", is not helpful here. */
+          if (errno == ELOOP)
+            die ("Can't make overlay mount on %s with options %s: "
+                "Overlay directories may not overlap",
+                arg2, arg1);
+          die_with_mount_error ("Can't make overlay mount on %s with options %s",
+                                arg2, arg1);
+        }
+      break;
+
     case PRIV_SEP_OP_SET_HOSTNAME:
       /* This is checked at the start, but lets verify it here in case
          something manages to send hacked priv-sep operation requests. */
@@ -1172,6 +1190,7 @@ setup_newroot (bool unshare_pid,
                int  privileged_op_socket)
 {
   SetupOp *op;
+  int tmp_overlay_idx = 0;
 
   for (op = ops; op != NULL; op = op->next)
     {
@@ -1211,7 +1230,7 @@ setup_newroot (bool unshare_pid,
             parent_mode &= ~0005U;
 
           dest = get_newroot_path (op->dest);
-          if (mkdir_with_parents (dest, parent_mode, FALSE) != 0)
+          if (mkdir_with_parents (dest, parent_mode, false) != 0)
             die_with_error ("Can't mkdir parents for %s", op->dest);
         }
 
@@ -1257,6 +1276,47 @@ setup_newroot (bool unshare_pid,
               op->fd = -1;
             }
 
+          break;
+
+        case SETUP_OVERLAY_MOUNT:
+        case SETUP_RO_OVERLAY_MOUNT:
+        case SETUP_TMP_OVERLAY_MOUNT:
+          {
+            StringBuilder sb = {0};
+            bool multi_src = false;
+
+            if (ensure_dir (dest, 0755) != 0)
+              die_with_error ("Can't mkdir %s", op->dest);
+
+            if (op->source != NULL)
+              {
+                strappend (&sb, "upperdir=/oldroot");
+                strappend_escape_for_mount_options (&sb, op->source);
+                strappend (&sb, ",workdir=/oldroot");
+                op = op->next;
+                strappend_escape_for_mount_options (&sb, op->source);
+                strappend (&sb, ",");
+              }
+            else if (op->type == SETUP_TMP_OVERLAY_MOUNT)
+              strappendf (&sb, "upperdir=/tmp-overlay-upper-%1$d,workdir=/tmp-overlay-work-%1$d,",
+                          tmp_overlay_idx++);
+
+            strappend (&sb, "lowerdir=/oldroot");
+            while (op->next != NULL && op->next->type == SETUP_OVERLAY_SRC)
+              {
+                op = op->next;
+                if (multi_src)
+                  strappend (&sb, ":/oldroot");
+                strappend_escape_for_mount_options (&sb, op->source);
+                multi_src = true;
+              }
+
+            strappend (&sb, ",userxattr");
+
+            privileged_op (privileged_op_socket,
+                           PRIV_SEP_OP_OVERLAY_MOUNT, 0, 0, 0, sb.str, dest);
+            free (sb.str);
+          }
           break;
 
         case SETUP_REMOUNT_RO_NO_RECURSIVE:
@@ -1522,6 +1582,7 @@ setup_newroot (bool unshare_pid,
                          op->dest, NULL);
           break;
 
+        case SETUP_OVERLAY_SRC:  /* handled by SETUP_OVERLAY_MOUNT */
         default:
           die ("Unexpected type %d", op->type);
         }
@@ -1564,6 +1625,8 @@ resolve_symlinks_in_ops (void)
         case SETUP_RO_BIND_MOUNT:
         case SETUP_DEV_BIND_MOUNT:
         case SETUP_BIND_MOUNT:
+        case SETUP_OVERLAY_SRC:
+        case SETUP_OVERLAY_MOUNT:
           old_source = op->source;
           op->source = realpath (old_source, NULL);
           if (op->source == NULL)
@@ -1575,6 +1638,8 @@ resolve_symlinks_in_ops (void)
             }
           break;
 
+        case SETUP_RO_OVERLAY_MOUNT:
+        case SETUP_TMP_OVERLAY_MOUNT:
         case SETUP_MOUNT_PROC:
         case SETUP_MOUNT_DEV:
         case SETUP_MOUNT_TMPFS:
@@ -1664,6 +1729,32 @@ static void
 warn_only_last_option (const char *name)
 {
   warn ("Only the last %s option will take effect", name);
+}
+
+static void
+make_setup_overlay_src_ops (const char *const *const argv)
+{
+  /* SETUP_OVERLAY_SRC is unlike other SETUP_* ops in that it exists to hold
+   * data for SETUP_{,TMP_,RO_}OVERLAY_MOUNT ops, not to be its own operation.
+   * This lets us reuse existing code paths to handle resolving the realpaths
+   * of each source, as no other operations involve multiple sources the way
+   * the *_OVERLAY_MOUNT ops do.
+   *
+   * While the --overlay-src arguments are expected to (directly) precede the
+   * --overlay argument, in bottom-to-top order, the SETUP_OVERLAY_SRC ops
+   * follow their corresponding *_OVERLAY_MOUNT op, in top-to-bottom order
+   * (the order in which overlayfs will want them). They are handled specially
+   * in setup_new_root () during the processing of *_OVERLAY_MOUNT.
+   */
+  int i;
+  SetupOp *op;
+
+  for (i = 1; i <= next_overlay_src_count; i++)
+    {
+      op = setup_op_new (SETUP_OVERLAY_SRC);
+      op->source = argv[1 - 2 * i];
+    }
+  next_overlay_src_count = 0;
 }
 
 static void
@@ -1761,7 +1852,7 @@ parse_args_recurse (int          *argcp,
             }
 
           data_argv_copy = data_argv; /* Don't change data_argv, we need to free it */
-          parse_args_recurse (&data_argc, &data_argv_copy, TRUE, total_parsed_argc_p);
+          parse_args_recurse (&data_argc, &data_argv_copy, true, total_parsed_argc_p);
 
           argv += 1;
           argc -= 1;
@@ -1778,6 +1869,10 @@ parse_args_recurse (int          *argcp,
           argv++;
           argc--;
         }
+      else if (strcmp (arg, "--level-prefix") == 0)
+        {
+          bwrap_level_prefix = true;
+        }
       else if (strcmp (arg, "--unshare-all") == 0)
         {
           /* Keep this in order with the older (legacy) --unshare arguments,
@@ -1786,45 +1881,45 @@ parse_args_recurse (int          *argcp,
            */
           opt_unshare_user_try = opt_unshare_ipc = opt_unshare_pid =
             opt_unshare_uts = opt_unshare_cgroup_try =
-            opt_unshare_net = TRUE;
+            opt_unshare_net = true;
         }
       /* Begin here the older individual --unshare variants */
       else if (strcmp (arg, "--unshare-user") == 0)
         {
-          opt_unshare_user = TRUE;
+          opt_unshare_user = true;
         }
       else if (strcmp (arg, "--unshare-user-try") == 0)
         {
-          opt_unshare_user_try = TRUE;
+          opt_unshare_user_try = true;
         }
       else if (strcmp (arg, "--unshare-ipc") == 0)
         {
-          opt_unshare_ipc = TRUE;
+          opt_unshare_ipc = true;
         }
       else if (strcmp (arg, "--unshare-pid") == 0)
         {
-          opt_unshare_pid = TRUE;
+          opt_unshare_pid = true;
         }
       else if (strcmp (arg, "--unshare-net") == 0)
         {
-          opt_unshare_net = TRUE;
+          opt_unshare_net = true;
         }
       else if (strcmp (arg, "--unshare-uts") == 0)
         {
-          opt_unshare_uts = TRUE;
+          opt_unshare_uts = true;
         }
       else if (strcmp (arg, "--unshare-cgroup") == 0)
         {
-          opt_unshare_cgroup = TRUE;
+          opt_unshare_cgroup = true;
         }
       else if (strcmp (arg, "--unshare-cgroup-try") == 0)
         {
-          opt_unshare_cgroup_try = TRUE;
+          opt_unshare_cgroup_try = true;
         }
       /* Begin here the newer --share variants */
       else if (strcmp (arg, "--share-net") == 0)
         {
-          opt_unshare_net = FALSE;
+          opt_unshare_net = false;
         }
       /* End --share variants, other arguments begin */
       else if (strcmp (arg, "--chdir") == 0)
@@ -1841,11 +1936,11 @@ parse_args_recurse (int          *argcp,
         }
       else if (strcmp (arg, "--disable-userns") == 0)
         {
-          opt_disable_userns = TRUE;
+          opt_disable_userns = true;
         }
       else if (strcmp (arg, "--assert-userns-disabled") == 0)
         {
-          opt_assert_userns_disabled = TRUE;
+          opt_assert_userns_disabled = true;
         }
       else if (strcmp (arg, "--remount-ro") == 0)
         {
@@ -1927,6 +2022,76 @@ parse_args_recurse (int          *argcp,
           argv += 2;
           argc -= 2;
         }
+      else if (strcmp (arg, "--overlay-src") == 0)
+        {
+          if (is_privileged)
+            die ("The --overlay-src option is not permitted in setuid mode");
+
+          next_overlay_src_count++;
+
+          argv += 1;
+          argc -= 1;
+        }
+      else if (strcmp (arg, "--overlay") == 0)
+        {
+          SetupOp *workdir_op;
+
+          if (is_privileged)
+            die ("The --overlay option is not permitted in setuid mode");
+
+          if (argc < 4)
+            die ("--overlay takes three arguments");
+
+          if (next_overlay_src_count < 1)
+            die ("--overlay requires at least one --overlay-src");
+
+          op = setup_op_new (SETUP_OVERLAY_MOUNT);
+          op->source = argv[1];
+          workdir_op = setup_op_new (SETUP_OVERLAY_SRC);
+          workdir_op->source = argv[2];
+          op->dest = argv[3];
+          make_setup_overlay_src_ops (argv);
+
+          argv += 3;
+          argc -= 3;
+        }
+      else if (strcmp (arg, "--tmp-overlay") == 0)
+        {
+          if (is_privileged)
+            die ("The --tmp-overlay option is not permitted in setuid mode");
+
+          if (argc < 2)
+            die ("--tmp-overlay takes an argument");
+
+          if (next_overlay_src_count < 1)
+            die ("--tmp-overlay requires at least one --overlay-src");
+
+          op = setup_op_new (SETUP_TMP_OVERLAY_MOUNT);
+          op->dest = argv[1];
+          make_setup_overlay_src_ops (argv);
+          opt_tmp_overlay_count++;
+
+          argv += 1;
+          argc -= 1;
+        }
+      else if (strcmp (arg, "--ro-overlay") == 0)
+        {
+          if (is_privileged)
+            die ("The --ro-overlay option is not permitted in setuid mode");
+
+          if (argc < 2)
+            die ("--ro-overlay takes an argument");
+
+          if (next_overlay_src_count < 2)
+            die ("--ro-overlay requires at least two --overlay-src");
+
+          op = setup_op_new (SETUP_RO_OVERLAY_MOUNT);
+          op->dest = argv[1];
+          make_setup_overlay_src_ops (argv);
+
+          argv += 1;
+          argc -= 1;
+        }
       else if (strcmp (arg, "--proc") == 0)
         {
           if (argc < 2)
@@ -1975,7 +2140,7 @@ parse_args_recurse (int          *argcp,
 
           op = setup_op_new (SETUP_MOUNT_DEV);
           op->dest = argv[1];
-          opt_needs_devpts = TRUE;
+          opt_needs_devpts = true;
 
           argv += 1;
           argc -= 1;
@@ -2425,15 +2590,15 @@ parse_args_recurse (int          *argcp,
         }
       else if (strcmp (arg, "--new-session") == 0)
         {
-          opt_new_session = TRUE;
+          opt_new_session = true;
         }
       else if (strcmp (arg, "--die-with-parent") == 0)
         {
-          opt_die_with_parent = TRUE;
+          opt_die_with_parent = true;
         }
       else if (strcmp (arg, "--as-pid-1") == 0)
         {
-          opt_as_pid_1 = TRUE;
+          opt_as_pid_1 = true;
         }
       else if (strcmp (arg, "--cap-add") == 0)
         {
@@ -2441,7 +2606,7 @@ parse_args_recurse (int          *argcp,
           if (argc < 2)
             die ("--cap-add takes an argument");
 
-          opt_cap_add_or_drop_used = TRUE;
+          opt_cap_add_or_drop_used = true;
 
           if (strcasecmp (argv[1], "ALL") == 0)
             {
@@ -2467,7 +2632,7 @@ parse_args_recurse (int          *argcp,
           if (argc < 2)
             die ("--cap-drop takes an argument");
 
-          opt_cap_add_or_drop_used = TRUE;
+          opt_cap_add_or_drop_used = true;
 
           if (strcasecmp (argv[1], "ALL") == 0)
             {
@@ -2596,6 +2761,10 @@ parse_args_recurse (int          *argcp,
       if (!is_modifier_option(arg) && next_size_arg != 0)
         die ("--size must be followed by --tmpfs");
 
+      /* Similarly for --overlay-src. */
+      if (strcmp (arg, "--overlay-src") != 0 && next_overlay_src_count > 0)
+        die ("--overlay-src must be followed by another --overlay-src or one of --overlay, --tmp-overlay, or --ro-overlay");
+
       argv++;
       argc--;
     }
@@ -2610,7 +2779,10 @@ parse_args (int          *argcp,
 {
   int total_parsed_argc = *argcp;
 
-  parse_args_recurse (argcp, argvp, FALSE, &total_parsed_argc);
+  parse_args_recurse (argcp, argvp, false, &total_parsed_argc);
+
+  if (next_overlay_src_count > 0)
+    die ("--overlay-src must be followed by another --overlay-src or one of --overlay, --tmp-overlay, or --ro-overlay");
 }
 
 static void
@@ -2644,7 +2816,7 @@ namespace_ids_read (pid_t  pid)
   NsInfo *info;
 
   dir = xasprintf ("%d/ns", pid);
-  ns_fd = openat (proc_fd, dir, O_PATH);
+  ns_fd = TEMP_FAILURE_RETRY (openat (proc_fd, dir, O_PATH));
 
   if (ns_fd < 0)
     die_with_error ("open /proc/%s/ns failed", dir);
@@ -2656,7 +2828,7 @@ namespace_ids_read (pid_t  pid)
       int r;
 
       /* if we don't unshare this ns, ignore it */
-      if (do_unshare && *do_unshare == FALSE)
+      if (do_unshare && *do_unshare == false)
         continue;
 
       r = fstatat (ns_fd, info->name, &st, 0);
@@ -2691,7 +2863,7 @@ namespace_ids_write (int    fd,
       output = xasprintf (",%s\"%s-namespace\": %ju",
                           indent, info->name, nsid);
 
-      dump_info (fd, output, TRUE);
+      dump_info (fd, output, true);
     }
 }
 
@@ -2716,6 +2888,7 @@ main (int    argc,
   cleanup_free char *args_data UNUSED = NULL;
   int intermediate_pids_sockets[2] = {-1, -1};
   const char *exec_path = NULL;
+  int i;
 
   /* Handle --version early on before we try to acquire/drop
    * any capabilities so it works in a build environment;
@@ -2799,18 +2972,18 @@ main (int    argc,
   /* We have to do this if we weren't installed setuid (and we're not
    * root), so let's just DWIM */
   if (!is_privileged && getuid () != 0 && opt_userns_fd == -1)
-    opt_unshare_user = TRUE;
+    opt_unshare_user = true;
 
 #ifdef ENABLE_REQUIRE_USERNS
   /* In this build option, we require userns. */
   if (is_privileged && getuid () != 0 && opt_userns_fd == -1)
-    opt_unshare_user = TRUE;
+    opt_unshare_user = true;
 #endif
 
   if (opt_unshare_user_try &&
       stat ("/proc/self/ns/user", &sbuf) == 0)
     {
-      bool disabled = FALSE;
+      bool disabled = false;
 
       /* RHEL7 has a kernel module parameter that lets you enable user namespaces */
       if (stat ("/sys/module/user_namespace/parameters/enable", &sbuf) == 0)
@@ -2818,7 +2991,7 @@ main (int    argc,
           cleanup_free char *enable = NULL;
           enable = load_file_at (AT_FDCWD, "/sys/module/user_namespace/parameters/enable");
           if (enable != NULL && enable[0] == 'N')
-            disabled = TRUE;
+            disabled = true;
         }
 
       /* Check for max_user_namespaces */
@@ -2827,21 +3000,21 @@ main (int    argc,
           cleanup_free char *max_user_ns = NULL;
           max_user_ns = load_file_at (AT_FDCWD, "/proc/sys/user/max_user_namespaces");
           if (max_user_ns != NULL && strcmp(max_user_ns, "0\n") == 0)
-            disabled = TRUE;
+            disabled = true;
         }
 
       /* Debian lets you disable *unprivileged* user namespaces. However this is not
-         a problem if we're privileged, and if we're not opt_unshare_user is TRUE
+         a problem if we're privileged, and if we're not opt_unshare_user is true
          already, and there is not much we can do, its just a non-working setup. */
 
       if (!disabled)
-        opt_unshare_user = TRUE;
+        opt_unshare_user = true;
     }
 
   if (argc <= 0)
     usage (EXIT_FAILURE, stderr);
 
-  __debug__ (("Creating root mount point\n"));
+  debug ("Creating root mount point");
 
   if (opt_sandbox_uid == (uid_t)-1)
     opt_sandbox_uid = real_uid;
@@ -2865,7 +3038,7 @@ main (int    argc,
 
   /* We need to read stuff from proc during the pivot_root dance, etc.
      Lets keep a fd to it open */
-  proc_fd = open ("/proc", O_PATH);
+  proc_fd = TEMP_FAILURE_RETRY (open ("/proc", O_PATH));
   if (proc_fd == -1)
     die_with_error ("Can't open /proc");
 
@@ -2877,7 +3050,7 @@ main (int    argc,
    * access ourselves. */
   base_path = "/tmp";
 
-  __debug__ (("creating new namespace\n"));
+  debug ("creating new namespace");
 
   if (opt_unshare_pid && !opt_as_pid_1)
     {
@@ -2993,7 +3166,7 @@ main (int    argc,
            */
           write_uid_gid_map (ns_uid, real_uid,
                              ns_gid, real_gid,
-                             pid, TRUE, opt_needs_devpts);
+                             pid, true, opt_needs_devpts);
         }
 
       /* Initial launched process, wait for pid 1 or exec:ed command to exit */
@@ -3002,7 +3175,7 @@ main (int    argc,
         die_with_error ("Setting userns2 failed");
 
       /* We don't need any privileges in the launcher, drop them immediately. */
-      drop_privs (FALSE, FALSE);
+      drop_privs (false, false);
 
       /* Optionally bind our lifecycle to that of the parent */
       handle_die_with_parent ();
@@ -3010,17 +3183,17 @@ main (int    argc,
       if (opt_info_fd != -1)
         {
           cleanup_free char *output = xasprintf ("{\n    \"child-pid\": %i", pid);
-          dump_info (opt_info_fd, output, TRUE);
-          namespace_ids_write (opt_info_fd, FALSE);
-          dump_info (opt_info_fd, "\n}\n", TRUE);
+          dump_info (opt_info_fd, output, true);
+          namespace_ids_write (opt_info_fd, false);
+          dump_info (opt_info_fd, "\n}\n", true);
           close (opt_info_fd);
         }
       if (opt_json_status_fd != -1)
         {
           cleanup_free char *output = xasprintf ("{ \"child-pid\": %i", pid);
-          dump_info (opt_json_status_fd, output, TRUE);
-          namespace_ids_write (opt_json_status_fd, TRUE);
-          dump_info (opt_json_status_fd, " }\n", TRUE);
+          dump_info (opt_json_status_fd, output, true);
+          namespace_ids_write (opt_json_status_fd, true);
+          dump_info (opt_json_status_fd, " }\n", true);
         }
 
       if (opt_userns_block_fd != -1)
@@ -3032,7 +3205,7 @@ main (int    argc,
 
       /* Let child run now that the uid maps are set up */
       val = 1;
-      res = write (child_wait_fd, &val, 8);
+      res = TEMP_FAILURE_RETRY (write (child_wait_fd, &val, 8));
       /* Ignore res, if e.g. the child died and closed child_wait_fd we don't want to error out here */
       close (child_wait_fd);
 
@@ -3116,7 +3289,7 @@ main (int    argc,
 
       write_uid_gid_map (ns_uid, real_uid,
                          ns_gid, real_gid,
-                         -1, TRUE, FALSE);
+                         -1, true, false);
     }
 
   old_umask = umask (0);
@@ -3156,6 +3329,19 @@ main (int    argc,
   if (mkdir ("oldroot", 0755))
     die_with_error ("Creating oldroot failed");
 
+  for (i = 0; i < opt_tmp_overlay_count; i++)
+    {
+      char *dirname;
+      dirname = xasprintf ("tmp-overlay-upper-%d", i);
+      if (mkdir (dirname, 0755))
+        die_with_error ("Creating --tmp-overlay upperdir failed");
+      free (dirname);
+      dirname = xasprintf ("tmp-overlay-work-%d", i);
+      if (mkdir (dirname, 0755))
+        die_with_error ("Creating --tmp-overlay workdir failed");
+      free (dirname);
+    }
+
   if (pivot_root (base_path, "oldroot"))
     die_with_error ("pivot_root");
 
@@ -3177,7 +3363,7 @@ main (int    argc,
       if (child == 0)
         {
           /* Unprivileged setup process */
-          drop_privs (FALSE, TRUE);
+          drop_privs (false, true);
           close (privsep_sockets[0]);
           setup_newroot (opt_unshare_pid, privsep_sockets[1]);
           exit (0);
@@ -3199,12 +3385,12 @@ main (int    argc,
               op = read_priv_sec_op (unpriv_socket, buffer, sizeof (buffer),
                                      &flags, &perms, &size_arg, &arg1, &arg2);
               privileged_op (-1, op, flags, perms, size_arg, arg1, arg2);
-              if (write (unpriv_socket, buffer, 1) != 1)
+              if (TEMP_FAILURE_RETRY (write (unpriv_socket, buffer, 1)) != 1)
                 die ("Can't write to op_socket");
             }
           while (op != PRIV_SEP_OP_DONE);
 
-          waitpid (child, &status, 0);
+          TEMP_FAILURE_RETRY (waitpid (child, &status, 0));
           /* Continue post setup */
         }
     }
@@ -3228,7 +3414,7 @@ main (int    argc,
    * We're aiming to make /newroot the real root, and get rid of /oldroot. To do
    * that we need a temporary place to store it before we can unmount it.
    */
-  { cleanup_fd int oldrootfd = open ("/", O_DIRECTORY | O_RDONLY);
+  { cleanup_fd int oldrootfd = TEMP_FAILURE_RETRY (open ("/", O_DIRECTORY | O_RDONLY));
     if (oldrootfd < 0)
       die_with_error ("can't open /");
     if (chdir ("/newroot") != 0)
@@ -3276,7 +3462,7 @@ main (int    argc,
         {
           cleanup_fd int sysctl_fd = -1;
 
-          sysctl_fd = openat (proc_fd, "sys/user/max_user_namespaces", O_WRONLY);
+          sysctl_fd = TEMP_FAILURE_RETRY (openat (proc_fd, "sys/user/max_user_namespaces", O_WRONLY));
 
           if (sysctl_fd < 0)
             die_with_error ("cannot open /proc/sys/user/max_user_namespaces");
@@ -3289,11 +3475,11 @@ main (int    argc,
         die_with_error ("unshare user ns");
 
       /* We're in a new user namespace, we got back the bounding set, clear it again */
-      drop_cap_bounding_set (FALSE);
+      drop_cap_bounding_set (false);
 
       write_uid_gid_map (opt_sandbox_uid, ns_uid,
                          opt_sandbox_gid, ns_gid,
-                         -1, FALSE, FALSE);
+                         -1, false, false);
     }
 
   if (opt_disable_userns || opt_assert_userns_disabled)
@@ -3306,7 +3492,7 @@ main (int    argc,
     }
 
   /* All privileged ops are done now, so drop caps we don't need */
-  drop_privs (!is_privileged, TRUE);
+  drop_privs (!is_privileged, true);
 
   if (opt_block_fd != -1)
     {
@@ -3354,7 +3540,7 @@ main (int    argc,
   if (label_exec (opt_exec_label) == -1)
     die_with_error ("label_exec %s", argv[0]);
 
-  __debug__ (("forking for child\n"));
+  debug ("forking for child");
 
   if (!opt_as_pid_1 && (opt_unshare_pid || lock_files != NULL || opt_sync_fd != -1))
     {
@@ -3370,7 +3556,7 @@ main (int    argc,
 
       if (pid != 0)
         {
-          drop_all_caps (FALSE);
+          drop_all_caps (false);
 
           /* Close fds in pid 1, except stdio and optionally event_fd
              (for syncing pid 2 lifetime with monitor_child) and
@@ -3392,7 +3578,7 @@ main (int    argc,
         }
     }
 
-  __debug__ (("launch executable %s\n", argv[0]));
+  debug ("launch executable %s", argv[0]);
 
   if (proc_fd != -1)
     close (proc_fd);
