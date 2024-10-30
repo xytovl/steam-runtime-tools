@@ -492,6 +492,10 @@ main (int argc,
       g_assert (exports != NULL);
       g_assert (bwrap_filesystem_arguments != NULL);
 
+      if ((_srt_util_get_log_flags () & SRT_LOG_FLAGS_LEVEL)
+          && (bwrap_flags & SRT_BWRAP_FLAGS_HAS_LEVEL_PREFIX))
+        flatpak_bwrap_add_arg (bwrap, "--level-prefix");
+
       /* When using an interpreter root, avoid /run/gfx and instead use a
        * directory in /var. As much as possible we want each top-level
        * directory to be either in the rootfs or in the real host system,

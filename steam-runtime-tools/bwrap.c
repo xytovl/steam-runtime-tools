@@ -60,13 +60,19 @@ find_system_bwrap (SrtSubprocessRunner *runner)
 
 /*
  * test_bwrap_executable:
+ * @runner: environment to run the subprocess
+ * @bwrap_executable: path to srt-bwrap or bwrap
+ * @test_features: features to try
+ * @features_out: (inout): on success, set bits here for @test_features
  *
  * Test whether the given @bwrap_executable works.
  *
  * If a feature flag is present in @test_features, only return true
  * if @bwrap_executable works *and* has the desired features.
- * %SRT_BWRAP_FLAGS_HAS_PERMS is currently the only feature flag.
  * %SRT_BWRAP_FLAGS_SYSTEM and %SRT_BWRAP_FLAGS_SETUID are ignored here.
+ *
+ * On success, if @features_out is not NULL, set the bits corresponding
+ * to @test_features in it.
  *
  * Returns: %TRUE if all of the requested features are present
  */
@@ -74,6 +80,7 @@ static gboolean
 test_bwrap_executable (SrtSubprocessRunner *runner,
                        const char *bwrap_executable,
                        SrtBwrapFlags test_features,
+                       SrtBwrapFlags *features_out,
                        GError **error)
 {
   g_autoptr(GPtrArray) argv = g_ptr_array_sized_new (10);
@@ -81,6 +88,9 @@ test_bwrap_executable (SrtSubprocessRunner *runner,
   g_autoptr(GError) local_error = NULL;
 
   g_ptr_array_add (argv, (char *) bwrap_executable);
+
+  if (test_features & SRT_BWRAP_FLAGS_HAS_LEVEL_PREFIX)
+    g_ptr_array_add (argv, (char *) "--level-prefix");
 
   if (test_features & SRT_BWRAP_FLAGS_HAS_PERMS)
     {
@@ -119,6 +129,10 @@ test_bwrap_executable (SrtSubprocessRunner *runner,
   else
     {
       g_debug ("Successfully ran: %s --bind / / true", bwrap_executable);
+
+      if (features_out != NULL)
+        *features_out |= test_features;
+
       return TRUE;
     }
 }
@@ -160,7 +174,7 @@ check_bwrap (SrtSubprocessRunner *runner,
       g_info ("Using bubblewrap from environment: %s", tmp);
 
       if (!skip_testing
-          && !test_bwrap_executable (runner, tmp, SRT_BWRAP_FLAGS_NONE, error))
+          && !test_bwrap_executable (runner, tmp, SRT_BWRAP_FLAGS_NONE, NULL, error))
         return NULL;
 
       return g_strdup (tmp);
@@ -177,7 +191,7 @@ check_bwrap (SrtSubprocessRunner *runner,
    * about it for now - we might need to use a setuid system copy, for
    * example on Debian 10, RHEL 7, Arch linux-hardened kernel. */
   if (skip_testing
-      || test_bwrap_executable (runner, local_bwrap, SRT_BWRAP_FLAGS_NONE, NULL))
+      || test_bwrap_executable (runner, local_bwrap, SRT_BWRAP_FLAGS_NONE, NULL, NULL))
     return g_steal_pointer (&local_bwrap);
 
   g_assert (!skip_testing);
@@ -185,7 +199,7 @@ check_bwrap (SrtSubprocessRunner *runner,
 
   /* Try the system copy */
   if (system_bwrap != NULL
-      && test_bwrap_executable (runner, system_bwrap, SRT_BWRAP_FLAGS_NONE, NULL))
+      && test_bwrap_executable (runner, system_bwrap, SRT_BWRAP_FLAGS_NONE, NULL, NULL))
     {
       if (flags_out != NULL)
         *flags_out |= SRT_BWRAP_FLAGS_SYSTEM;
@@ -196,7 +210,7 @@ check_bwrap (SrtSubprocessRunner *runner,
   /* If there was no system copy, try the local copy again. We expect
    * this to fail, and are really just doing this to populate @error -
    * but if it somehow works, great, I suppose? */
-  if (test_bwrap_executable (runner, local_bwrap, SRT_BWRAP_FLAGS_NONE, error))
+  if (test_bwrap_executable (runner, local_bwrap, SRT_BWRAP_FLAGS_NONE, NULL, error))
     {
       g_warning ("Local bwrap executable didn't work first time but "
                  "worked second time?");
@@ -248,8 +262,27 @@ _srt_check_bwrap (SrtSubprocessRunner *runner,
       flags |= SRT_BWRAP_FLAGS_SETUID;
     }
 
-  if (test_bwrap_executable (runner, bwrap, SRT_BWRAP_FLAGS_HAS_PERMS, NULL))
-    flags |= SRT_BWRAP_FLAGS_HAS_PERMS;
+  /* The common case should be that we are using our bundled bwrap, and
+   * have all the features we could want */
+  if (!test_bwrap_executable (runner, bwrap,
+                              (SRT_BWRAP_FLAGS_HAS_LEVEL_PREFIX
+                               | SRT_BWRAP_FLAGS_HAS_PERMS),
+                              &flags,
+                              NULL))
+    {
+      /* If we have an older system copy, maybe it only has a subset
+       * of the features? */
+
+      /* Don't bother checking for --level-prefix here, because
+       * --perms is older, so if we had --level-prefix then we should
+       *  also have had --perms */
+
+      test_bwrap_executable (runner, bwrap, SRT_BWRAP_FLAGS_HAS_PERMS,
+                             &flags, NULL);
+
+      /* If we gain other features to check for, try them here,
+       * one by one */
+    }
 
   if (flags_out != NULL)
     *flags_out = flags;

@@ -18,6 +18,7 @@ typedef enum
   SRT_BWRAP_FLAGS_SYSTEM = (1 << 0),
   SRT_BWRAP_FLAGS_SETUID = (1 << 1),
   SRT_BWRAP_FLAGS_HAS_PERMS = (1 << 2),
+  SRT_BWRAP_FLAGS_HAS_LEVEL_PREFIX = (1 << 3),
   SRT_BWRAP_FLAGS_NONE = 0
 } SrtBwrapFlags;
 
