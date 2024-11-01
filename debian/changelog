@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20241030.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20241101.0) steamrt; urgency=medium
 
   * pressure-vessel:
     - Fix setup of VDPAU drivers in the container, which regressed in
@@ -25,7 +25,7 @@ steam-runtime-tools (0.20241030.0) UNRELEASED; urgency=medium
     - Avoid invalid escape sequences in JSON, avoiding test failures with
       json-glib 1.10
 
- -- Simon McVittie <smcv@collabora.com>  Wed, 30 Oct 2024 16:35:32 +0000
+ -- Simon McVittie <smcv@collabora.com>  Fri, 01 Nov 2024 12:18:54 +0000
 
 steam-runtime-tools (0.20240916.0) steamrt; urgency=medium
 
