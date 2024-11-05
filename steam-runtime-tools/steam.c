@@ -751,21 +751,37 @@ _srt_steam_check (const char * const *envp,
 SrtSteamCompatFlags
 _srt_steam_get_compat_flags (const char * const *envp)
 {
+  static const struct
+    {
+      const char *name;
+      SrtSteamCompatFlags value;
+      gboolean def;
+    }
+  bool_vars[] =
+    {
+        { "STEAM_COMPAT_TRACING", SRT_STEAM_COMPAT_FLAGS_SYSTEM_TRACING, FALSE },
+        { "STEAM_COMPAT_RUNTIME_SDL2", SRT_STEAM_COMPAT_FLAGS_RUNTIME_SDL2, FALSE },
+        { "STEAM_COMPAT_RUNTIME_SDL3", SRT_STEAM_COMPAT_FLAGS_RUNTIME_SDL3, FALSE },
+    };
   SrtSteamCompatFlags ret = SRT_STEAM_COMPAT_FLAGS_NONE;
   const char *value;
-  gboolean tracing = FALSE;
+  size_t i;
 
-  _srt_environ_get_boolean (envp, "STEAM_COMPAT_TRACING", &tracing, NULL);
+  for (i = 0; i < G_N_ELEMENTS (bool_vars); i++)
+    {
+      gboolean bool_value = bool_vars[i].def;
 
-  if (tracing)
-    ret |= SRT_STEAM_COMPAT_FLAGS_SYSTEM_TRACING;
+      _srt_environ_get_boolean (envp, bool_vars[i].name, &bool_value, NULL);
+
+      if (bool_value)
+        ret |= bool_vars[i].value;
+    }
 
   value = _srt_environ_getenv (envp, "STEAM_COMPAT_FLAGS");
 
   if (value != NULL)
     {
       g_auto(GStrv) tokens = NULL;
-      size_t i;
 
       tokens = g_strsplit (value, ",", 0);
 
@@ -773,6 +789,14 @@ _srt_steam_get_compat_flags (const char * const *envp)
         {
           switch (tokens[i][0])
             {
+              case 'r':
+                if (g_str_equal (tokens[i], "runtime-sdl2"))
+                  ret |= SRT_STEAM_COMPAT_FLAGS_RUNTIME_SDL2;
+                else if (g_str_equal (tokens[i], "runtime-sdl3"))
+                  ret |= SRT_STEAM_COMPAT_FLAGS_RUNTIME_SDL3;
+
+                break;
+
               case 's':
                 if (g_str_equal (tokens[i], "search-cwd"))
                   ret |= SRT_STEAM_COMPAT_FLAGS_SEARCH_CWD;

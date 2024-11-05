@@ -298,6 +298,24 @@ Some environment variables are set by Steam, including:
     game's metadata, affecting the functioning of various compatibility
     tools:
 
+    * `runtime-sdl2`: Use the [`$SDL_DYNAMIC_API` mechanism][SDL_DYNAMIC_API]
+        to load the version of SDL 2 included in
+        Steam Linux Runtime 2 (soldier) or later,
+        in preference to a bundled or statically linked SDL 2 that might be
+        included in the game itself.
+        For example, this can be used to ensure that older Source-engine
+        titles like [Fistful of Frags][]
+        runs with a version of SDL that supports game controller hotplug
+        inside a container, even though they include a bundled version
+        that does not.
+        Setting `STEAM_COMPAT_RUNTIME_SDL2=1` is equivalent to this,
+        and is more convenient to use in Launch Options, by setting the
+        Launch Options to `STEAM_COMPAT_RUNTIME_SDL2=1 %command%`.
+
+    * `runtime-sdl3`: Same as `runtime-sdl2`, but for SDL 3 (if available),
+        using [`$SDL3_DYNAMIC_API`][SDL3_DYNAMIC_API].
+        Setting `STEAM_COMPAT_RUNTIME_SDL3=1` is equivalent to this.
+
     * `search-cwd`: Instructs the legacy `LD_LIBRARY_PATH` runtime to
         append the `${STEAM_COMPAT_INSTALL_PATH}` to the `LD_LIBRARY_PATH`,
         for backward compatibility with older games that might rely on this
@@ -367,6 +385,20 @@ Some environment variables are set by Steam, including:
 
     Colon-delimited list of paths to additional directories that are to be
     made available read/write in a pressure-vessel container.
+
+* `STEAM_COMPAT_RUNTIME_SDL2`:
+
+    May be set to 1 for the same effect as adding `runtime-sdl2` to
+    `$STEAM_COMPAT_FLAGS`.
+    (For example, a game's Launch Options can be set to
+    `STEAM_COMPAT_RUNTIME_SDL2=1 %command%`)
+
+* `STEAM_COMPAT_RUNTIME_SDL3`:
+
+    May be set to 1 for the same effect as adding `runtime-sdl3` to
+    `$STEAM_COMPAT_FLAGS`.
+    (For example, a game's Launch Options can be set to
+    `STEAM_COMPAT_RUNTIME_SDL3=1 %command%`)
 
 * `STEAM_COMPAT_SESSION_ID`:
 
@@ -611,6 +643,8 @@ unless this is set to the game's top-level directory.
 
 <!-- References: -->
 
+[SDL_DYNAMIC_API]: https://github.com/libsdl-org/SDL/blob/SDL2/docs/README-dynapi.md
+[SDL3_DYNAMIC_API]: https://github.com/libsdl-org/SDL/blob/main/docs/README-dynapi.md
 [Steamworks launch options]: https://partner.steamgames.com/doc/sdk/uploading
 [VDF]: https://developer.valvesoftware.com/wiki/KeyValues
 [app891390-info]: https://steamdb.info/app/891390/info/
