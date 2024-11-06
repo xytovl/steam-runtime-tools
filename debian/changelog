@@ -1,3 +1,20 @@
+steam-runtime-tools (0.20241106.0) UNRELEASED; urgency=medium
+
+  * pressure-vessel:
+    - Add a mechanism to set SDL_DYNAMIC_API to force use of the runtime's
+      version of SDL2 in a non-distro-specific way, even in games that
+      have their own bundled or statically-linked SDL2 (as long as it is
+      version ≥ 2.0.2 and the dynapi feature has not been disabled).
+      This can be activated by setting a game's launch options to
+      `STEAM_COMPAT_RUNTIME_SDL2=1 %command%` or by adding
+      `runtime-sdl2` to `STEAM_COMPAT_FLAGS`. (steamrt/tasks#578)
+    - Add an equivalent mechanism for SDL3_DYNAMIC_API, activated via
+      `STEAM_COMPAT_RUNTIME_SDL3=1` or `runtime-sdl3`.
+      This is not practically useful yet, but will become relevant when
+      we start to provide SDL3 in runtimes. (steamrt/tasks#578)
+
+ -- Simon McVittie <smcv@collabora.com>  Wed, 06 Nov 2024 11:15:23 +0000
+
 steam-runtime-tools (0.20241101.0) steamrt; urgency=medium
 
   * pressure-vessel:
