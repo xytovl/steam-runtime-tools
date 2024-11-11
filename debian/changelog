@@ -1,4 +1,4 @@
-steam-runtime-tools (0.20241106.0) UNRELEASED; urgency=medium
+steam-runtime-tools (0.20241111.0) steamrt; urgency=medium
 
   * pressure-vessel:
     - Add a mechanism to set SDL_DYNAMIC_API to force use of the runtime's
@@ -13,7 +13,7 @@ steam-runtime-tools (0.20241106.0) UNRELEASED; urgency=medium
       This is not practically useful yet, but will become relevant when
       we start to provide SDL3 in runtimes. (steamrt/tasks#578)
 
- -- Simon McVittie <smcv@collabora.com>  Wed, 06 Nov 2024 11:15:23 +0000
+ -- Simon McVittie <smcv@collabora.com>  Mon, 11 Nov 2024 17:32:39 +0000
 
 steam-runtime-tools (0.20241101.0) steamrt; urgency=medium
 
