@@ -46,6 +46,7 @@
 #include "exports.h"
 #include "flatpak-run-private.h"
 #include "mtree.h"
+#include "passwd.h"
 #include "supported-architectures.h"
 #include "tree-copy.h"
 #include "utils.h"
@@ -3209,10 +3210,6 @@ bind_runtime_base (PvRuntime *self,
   };
   static const char * const from_host[] =
   {
-    /* TODO: Synthesize a passwd with only the user and nobody,
-     * like Flatpak does? */
-    "/etc/group",
-    "/etc/passwd",
     "/etc/host.conf",
     "/etc/hosts",
     "/etc/resolv.conf",
@@ -3494,6 +3491,32 @@ bind_runtime_base (PvRuntime *self,
                                               PV_RUNTIME_EMULATION_ROOTS_BOTH,
                                               error))
         g_return_val_if_reached (FALSE);
+    }
+
+    {
+      g_autofree gchar *content = pv_generate_etc_passwd (self->real_root, NULL);
+
+      g_assert (content != NULL);
+
+      if (!pv_runtime_bind_into_container (self, bwrap,
+                                           "etc-passwd", content, -1,
+                                           "/etc/passwd",
+                                           PV_RUNTIME_EMULATION_ROOTS_BOTH,
+                                           error))
+        return FALSE;
+    }
+
+    {
+      g_autofree gchar *content = pv_generate_etc_group (self->real_root, NULL);
+
+      g_assert (content != NULL);
+
+      if (!pv_runtime_bind_into_container (self, bwrap,
+                                           "etc-group", content, -1,
+                                           "/etc/group",
+                                           PV_RUNTIME_EMULATION_ROOTS_BOTH,
+                                           error))
+        return FALSE;
     }
 
   if (self->provider != NULL)
