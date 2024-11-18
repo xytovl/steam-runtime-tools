@@ -1,3 +1,12 @@
+steam-runtime-tools (0.20241118.0) steamrt; urgency=medium
+
+  * populate-depot: Set filter_exclusive_priority equal to major version.
+    This allows the Steam client to distinguish between mutually
+    incompatible branches like soldier and sniper, and avoid offering
+    one as a way to run games that expect the other. (steamrt/tasks#597)
+
+ -- Simon McVittie <smcv@collabora.com>  Mon, 18 Nov 2024 11:20:48 +0000
+
 steam-runtime-tools (0.20241111.0) steamrt; urgency=medium
 
   * pressure-vessel:
