@@ -82,6 +82,13 @@ DEFAULT_IMAGES_URI = (
     'https://repo.steampowered.com/steamrt-images-SUITE/snapshots'
 )
 
+SUITES = {
+    'scout': 1,
+    'soldier': 2,
+    'sniper': 3,
+    'medic': 4,
+}
+
 
 class InvocationError(Exception):
     pass
@@ -1053,10 +1060,40 @@ class Main:
                     '--verb=%verb%',
                     '--',
                 ]
+
+                # Each ABI level needs a unique "priority" so that we will
+                # not suggest SLR 2.0 as a runtime for SLR 3.0 games, etc.;
+                # and they all need to be less than 10, to avoid colliding
+                # with SLR 1.0 (scout), which needs to be highest-priority
+                # to make it the default for legacy games.
+                filter_exclusive_priority = '9'
+
+                if runtime.suite.startswith('steamrt'):
+                    # steamrt5, steamrt6, ... get priority 5, 6, ...
+                    # If we get to steamrt9 with this limitation still
+                    # present, we'll have to bump the priority of SLR 1.0
+                    # or teach the Steam Client a different mechanism.
+                    major_version = runtime.suite[len('steamrt'):]
+                    assert int(major_version) >= 5, major_version
+                    assert int(major_version) <= 9, major_version
+                    filter_exclusive_priority = major_version
+                elif runtime.suite == 'scout':
+                    # Hypothetically we might have a super-strict scout
+                    # runtime for QA purposes (steamrt/tasks#59) and if
+                    # we do, it must match SLR 1.0
+                    filter_exclusive_priority = '10'
+                else:
+                    # For older suites with whimsical codenames, we have a
+                    # mapping from codename to major version.
+                    # Set the priority equal to the major version.
+                    filter_exclusive_priority = str(
+                        SUITES.get(runtime.suite, 9)
+                    )
+
                 content: Dict[str, Any] = dict(
                     manifest=dict(
                         commandline=' '.join(words),
-                        filter_exclusive_priority='1',
+                        filter_exclusive_priority=filter_exclusive_priority,
                         version='2',
                         use_tool_subprocess_reaper='1',
                     )
