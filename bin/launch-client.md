@@ -516,8 +516,8 @@ like:
         -- \
         wine winedbg notepad.exe
 
-If a game is crashing on startup, this can be debugged by setting its
-Steam Launch Options to
+If a Proton game is crashing on startup, this can be debugged by setting
+its Steam Launch Options to
 
     SRT_LAUNCHER_SERVICE_STOP_ON_EXIT=0 STEAM_COMPAT_LAUNCHER_SERVICE=proton %command%
 
@@ -534,5 +534,9 @@ To exit the command server when finished, use a command like:
     $ steam-runtime-launch-client \
         --bus-name=com.steampowered.App312990 \
         --terminate
+
+A similar procedure can be used for non-Proton games,
+by adding `SRT_LAUNCHER_SERVICE_STOP_ON_EXIT=0` to the launch options in
+a similar way.
 
 <!-- vim:set sw=4 sts=4 et: -->
