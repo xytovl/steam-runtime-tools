@@ -497,14 +497,14 @@ Steam Launch Options to
 and then running debugging commands in its Proton environment with
 commands like:
 
-    steam-runtime-launch-client \
+    $ steam-runtime-launch-client \
         --bus-name=com.steampowered.App312990 \
         -- \
         wine64 winedbg Expendabros.exe
 
 To exit the command server when finished, use a command like:
 
-    steam-runtime-launch-client \
+    $ steam-runtime-launch-client \
         --bus-name=com.steampowered.App312990 \
         --terminate
 
