@@ -43,9 +43,10 @@ steam-runtime-launch-client - client to launch processes in a container
 
 # DESCRIPTION
 
-**steam-runtime-launch-client** connects to an `AF_UNIX` socket established
-by **steam-runtime-launcher-service**(1), and executes an arbitrary command
-as a subprocess of **steam-runtime-launcher-service**.
+**steam-runtime-launch-client** connects to a D-Bus service or an `AF_UNIX`
+socket established by **steam-runtime-launcher-service**(1),
+and executes an arbitrary command as a subprocess of
+**steam-runtime-launcher-service**.
 
 If no *COMMAND* is specified, and the **--terminate** option is not given,
 then the default is to run an interactive shell.
@@ -121,6 +122,9 @@ This uses **$SHELL** if available in the container, falling back to
     **${ORIGIN}/../lib/x86_64-linux-gnu** using a **DT_RPATH**, and the
     optional **sd-journal**(3) library is loaded using **dlopen**(3).
 
+    As currently implemented, this feature requires a working D-Bus
+    session bus, the same as for **--bus-name**.
+
 **--bus-name** *NAME*
 :   Connect to the well-known D-Bus session bus and send commands to
     the given *NAME*, which is normally assumed to be owned by
@@ -146,6 +150,11 @@ This uses **$SHELL** if available in the container, falling back to
     As with **org.freedesktop.Flatpak**, the
     **--terminate** option is not allowed in this mode.
 
+    This option requires a working D-Bus session bus, which is typically
+    provided by the **dbus.service** per-user service on systemd systems,
+    or by **dbus-launch**(1) or **dbus-run-session**(1) on non-systemd
+    systems.
+
 **--host**
 :   Attempt to launch the *COMMAND* on the host system, similar to the
     **--host** option of **flatpak-spawn**(1).
@@ -159,6 +168,9 @@ This uses **$SHELL** if available in the container, falling back to
     See the description of **--alongside-steam** for more details on how to
     compile suitable executables.
 
+    As currently implemented, this feature requires a working D-Bus
+    session bus, the same as for **--bus-name**.
+
 **--inside-app** *ID*
 :   Attempt to launch the *COMMAND* inside a pressure-vessel container
     that is currently running Steam app ID *ID*.
@@ -167,6 +179,9 @@ This uses **$SHELL** if available in the container, falling back to
     **--bus-name=com.steampowered.App**_ID_, and can be combined with
     other options that select a bus name, although this is unlikely to be
     practically useful.
+
+    As currently implemented, this feature requires a working D-Bus
+    session bus, the same as for **--bus-name**.
 
 **--app-path** *PATH*, **--app-path=**
 :   When creating a Flatpak subsandbox, mount *PATH* as the `/app` in
@@ -237,6 +252,9 @@ This uses **$SHELL** if available in the container, falling back to
     **com.steampowered.App**, plus
     **com.steampowered.PressureVessel.LaunchAlongsideSteam** and Flatpak
     if available.
+
+    As currently implemented, this feature requires a working D-Bus
+    session bus, the same as for **--bus-name**.
 
 **--share-pids**
 :   If used with **--bus-name=org.freedesktop.portal.Flatpak**, use the
@@ -349,6 +367,9 @@ Some variables will be set programmatically by
 
 Some variables affect the behaviour of **steam-runtime-launch-client**:
 
+`DBUS_SESSION_BUS_ADDRESS`
+:   Used to contact the well-known D-Bus session bus.
+
 `PRESSURE_VESSEL_LOG_INFO` (boolean)
 :   If set to 1, same as `SRT_LOG=info`
 
@@ -371,6 +392,9 @@ Some variables affect the behaviour of **steam-runtime-launch-client**:
 `TERM`
 :   If standard input, standard output or standard error is a terminal,
     then this environment variable is passed to the *COMMAND* by default.
+
+`XDG_RUNTIME_DIR`
+:   Used to contact the well-known D-Bus session bus.
 
 # OUTPUT
 
