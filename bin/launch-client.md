@@ -471,6 +471,15 @@ in this example **wflinfo**(1):
 that will run successfully inside the container,
 for example `steam-runtime-system-info`, `xterm` or `bash -i`.
 
+For a Steam game that runs under the "Steam Linux Runtime 1.0 (scout)"
+compatibility tool, the procedure is similar, but you would usually set
+its Steam Launch Options to
+
+    STEAM_COMPAT_LAUNCHER_SERVICE=scout-in-container %command%
+
+so that the debugging commands are run in the `scout` compatibility
+environment.
+
 For a Steam game that runs under Proton 7.0 or later, if you set its
 Steam Launch Options to
 
