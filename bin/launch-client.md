@@ -448,6 +448,29 @@ A copy of **steam-runtime-launch-client** can be found in
 or
 `.../steamapps/common/SteamLinuxRuntime_sniper/pressure-vessel/bin/`.
 
+For a Steam game that runs under the "Steam Linux Runtime 3.0 (sniper)"
+(or newer) compatibility tool,
+such as Team Fortress 2 (app ID 440),
+if you set its Steam Launch Options to
+
+    STEAM_COMPAT_LAUNCHER_SERVICE=container-runtime %command%
+
+you can run debugging commands inside the container,
+in this example **wflinfo**(1):
+
+    $ steam-runtime-launch-client --list
+    --bus-name=com.steampowered.App440
+    --bus-name=com.steampowered.App440.Instance54321
+
+    $ steam-runtime-launch-client \
+        --bus-name=com.steampowered.App440 \
+        -- \
+        wflinfo --platform=glx --api=gl
+
+`wflinfo` and its arguments can be replaced by any command and arguments
+that will run successfully inside the container,
+for example `steam-runtime-system-info`, `xterm` or `bash -i`.
+
 For a Steam game that runs under Proton 7.0 or later, if you set its
 Steam Launch Options to
 
