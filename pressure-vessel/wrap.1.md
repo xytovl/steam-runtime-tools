@@ -444,6 +444,12 @@ The following environment variables (among others) are read by
     variable data directory used by Proton, if any.
     This is made available read/write in the container.
 
+`STEAM_COMPAT_FLAGS` (comma-separated list of tokens)
+:   `runtime-sdl2` is equivalent to `STEAM_COMPAT_RUNTIME_SDL2=1`.
+    `runtime-sdl3` is equivalent to `STEAM_COMPAT_RUNTIME_SDL3=1`.
+    Other tokens are ignored by pressure-vessel-wrap, but might
+    have an effect on other components.
+
 `STEAM_COMPAT_INSTALL_PATH` (path)
 :   Top-level directory containing the game itself, even if the current
     working directory is actually a subdirectory of this.
@@ -461,6 +467,21 @@ The following environment variables (among others) are read by
 `STEAM_COMPAT_MOUNTS` (`:`-separated list of paths)
 :   Colon-delimited list of paths to additional directories that are to
     be made available read/write in the container.
+
+`STEAM_COMPAT_RUNTIME_SDL2` (boolean)
+:   If set to `1`, set `SDL_DYNAMIC_API` so that the runtime's version
+    of SDL 2 will be used in preference to any copy that might be bundled
+    or statically linked in an app or game (as long as it is version ≥ 2.0.2
+    and the `dynapi` feature has not been disabled).
+    The advantage of this variable over setting `SDL_DYNAMIC_API` directly
+    is that pressure-vessel-wrap sets up appropriate distribution-specific
+    paths so that both 32- and 64-bit SDL 2 will work.
+    Typically this would be enabled by setting a game's Steam launch
+    options to `STEAM_COMPAT_RUNTIME_SDL2=1 %command%`.
+
+`STEAM_COMPAT_RUNTIME_SDL3` (boolean)
+:   Same as `STEAM_COMPAT_RUNTIME_SDL2`, but setting `SDL3_DYNAMIC_API`
+    for SDL 3 apps or games.
 
 `STEAM_COMPAT_SESSION_ID` (integer)
 :   (Not used yet, but should be.)
