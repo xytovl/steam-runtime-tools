@@ -440,6 +440,8 @@ When running games through Steam, you can either export
 As with [steam-runtime-launch-options][],
 The special token `%command%` should be typed literally.
 
+<details><summary>The equivalent for non-Steam games</summary>
+
 When launching the Steam Linux Runtime separately, you can either set
 the same environment variable, or use the command-line option like this:
 
@@ -451,6 +453,8 @@ $ /path/to/steamlibrary/steamapps/common/SteamLinuxRuntime_sniper/run \
     ./my-game.sh \
     $game_options
 ```
+
+</details>
 
 By default, the interactive shell runs in an `xterm` terminal emulator
 which is included in the container runtime.
@@ -488,6 +492,8 @@ When running games through Steam, you can either export something like
 process, or [change an individual game's launch options][set launch options]
 to `STEAM_COMPAT_LAUNCHER_SERVICE=container-runtime %command%`.
 The special token `%command%` should be typed literally.
+
+<details><summary>The equivalent for non-Steam games</summary>
 
 The `SteamLinuxRuntime_sniper/run` and
 `SteamLinuxRuntime_soldier/run` scripts also accept this environment
@@ -537,6 +543,8 @@ $ /path/to/steamlibrary/steamapps/common/SteamLinuxRuntime_soldier/run \
     my-game.exe \
     $game_options
 ```
+
+</details>
 
 After configuring this, while a game is running, you can list game sessions
 where this has taken effect like this:
@@ -766,7 +774,11 @@ $ tar -C sdk -xf ~/Downloads/com.valvesoftware.SteamRuntime.Sdk-amd64,i386-snipe
 ```
 
 You can now use this runtime by selecting it from the *Container runtime*
-drop-down list in [steam-runtime-launch-options][], or by
+drop-down list in [steam-runtime-launch-options][].
+
+<details><summary>The equivalent for non-Steam games</summary>
+
+For non-Steam games, this can be selected by
 passing the option `--runtime=sdk` to the `SteamLinuxRuntime_sniper/run`
 script, for example:
 
@@ -779,6 +791,8 @@ $ /path/to/steamlibrary/steamapps/common/SteamLinuxRuntime_sniper/run \
     ./my-game.sh \
     $game_options
 ```
+
+</details>
 
 You will find that tools like `gdb` and `strace` are available in the SDK
 environment.
@@ -861,7 +875,9 @@ but it does contain `gdbserver`, a `gdb` "stub" to which a full debugger
 can be connected.
 
 To use `gdbserver`, either run it from an interactive shell in the
-container environment, or add it to your game's command-line:
+container environment, or add it to your game's command-line.
+
+<details><summary>Example for non-Steam games</summary>
 
 ```
 $ cd /builds/my-game
@@ -871,6 +887,8 @@ $ /path/to/steamlibrary/steamapps/common/SteamLinuxRuntime_sniper/run \
     gdbserver 127.0.0.1:12345 ./my-game-executable \
     $game_options
 ```
+
+</details>
 
 Alternatively, some games' launch scripts have a way to attach an external
 debugger given in an environment variable, such as `GAME_DEBUGGER` in
@@ -915,7 +933,10 @@ can use this to remote-control the `gdbserver`. Only do this on fully
 trusted networks.
 
 To use remote debugging, tell the `gdbserver` on the gaming device to
-listen on `0.0.0.0` instead of `127.0.0.1`:
+listen on `0.0.0.0` instead of `127.0.0.1`,
+by using a command prefix like `gdbserver 0.0.0.0:12345`.
+
+<details><summary>Complete example for non-Steam games</summary>
 
 ```
 $ cd /builds/my-game
@@ -926,7 +947,10 @@ $ /path/to/steamlibrary/steamapps/common/SteamLinuxRuntime_sniper/run \
     $game_options
 ```
 
-and on the developer workstation, configure `gdb` to communicate with it,
+</details>
+
+On the developer workstation, you can configure `gdb` to communicate
+with the game,
 replacing `192.0.2.42` with the gaming device's local IP address:
 
 ```
@@ -945,8 +969,10 @@ then you can use those instead of the IP address.
 
 Alternatively, if you have `ssh` access to the remote device, you can use
 `ssh` port-forwarding to make the remote device's debugger port available
-on your workstation. On the gaming device, listen on 127.0.0.1, the same
-as for local debugging:
+on your workstation.
+On the gaming device, listen on 127.0.0.1, the same as for local debugging.
+
+<details><summary>Complete example for non-Steam games</summary>
 
 ```
 $ cd /builds/my-game
@@ -957,7 +983,9 @@ $ /path/to/steamlibrary/steamapps/common/SteamLinuxRuntime_sniper/run \
     $game_options
 ```
 
-and on the developer workstation, configure `gdb` to communicate with it
+</details>
+
+On the developer workstation, configure `gdb` to communicate with it
 via a port forwarded through a ssh tunnel, for example:
 
 ```
