@@ -1137,6 +1137,9 @@ The SDK documentation has more information about this.
 Linux-native games released on Steam can be compiled for either
 [Steam Runtime 1 'scout'][scout SDK] or
 [Steam Runtime 3 'sniper'][sniper SDK].
+For new Linux-native games,
+the recommended runtime environment is Steam Runtime 3, `sniper`.
+
 Steam Runtime 2 'soldier' also has [a similar SDK][soldier SDK],
 but releasing games compiled for soldier on Steam is not supported.
 

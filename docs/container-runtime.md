@@ -41,7 +41,10 @@ when necessary.
 
 [sniper]: #sniper
 
-Steam Runtime 3, `sniper`, is a newer runtime than
+Steam Linux Runtime 3.0, `sniper`,
+is the recommended runtime environment for new native Linux games on Steam.
+
+It is a newer runtime than
 [scout][ldlp], based on Debian 11 (released in 2021).
 Most of its libraries are taken directly from Debian, and can benefit
 from Debian's long-term security support.
