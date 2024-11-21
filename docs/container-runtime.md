@@ -105,16 +105,17 @@ Unlike the [soldier](#soldier) and [sniper](#sniper) container runtimes,
 it is implemented by entering a [`soldier`](#soldier) container, and then
 setting up a [`scout` `LD_LIBRARY_PATH` runtime][ldlp] inside that container.
 
-The Steam Deck automatically uses the *Steam Linux Runtime 1.0 (scout)*
-container for many native Linux games.
-Since [Steam client beta 2024-10-17][], it is also the default for native
-Linux games on desktop, unless the game developer has configured the game
-to use a different runtime environment.
-In older versions of the Steam client,
-users can opt-in to running specific games in the
+Since [November 2024][Steam client 2024-11-05],
+it is the default for most native Linux games,
+unless the game developer has configured the game to use a different
+runtime environment.
+Before November 2024,
+it was used by default on Steam Deck but not on desktop systems.
+
+Users can also specifically opt-in to running specific games in the
 Steam Linux Runtime 1.0 (scout) container via *Properties* → *Compatibility*.
 
-[Steam client beta 2024-10-17]: https://store.steampowered.com/news/group/4397053/view/4507632124224426488?l=english
+[Steam client 2024-11-05]: https://store.steampowered.com/news/collection/steam/?emclan=103582791457287600&emgid=4472730495692571024
 
 ## <span id="sniper">Steam Linux Runtime 3.0 (sniper)</span>
 

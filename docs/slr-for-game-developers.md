@@ -84,7 +84,8 @@ This is referred to internally as [scout-on-soldier][scout-on-soldier].
 Games targeting either of these environments should be built in the
 Steam Runtime 1 'scout' Docker container provided by the [scout SDK][].
 
-Since [Steam client beta 2024-10-17][], games targeting scout are
+Since [November 2024][Steam client 2024-11-05],
+games targeting scout are
 run under *Steam Linux Runtime 1.0 (scout)* by default.
 This means that Steam will launch a *Steam Linux Runtime 2.0 (soldier)*
 container, then use the `LD_LIBRARY_PATH`-based scout runtime inside that
@@ -1221,7 +1222,7 @@ advanced utilities might not be present.
 [SDL_GetPrefPath]: https://wiki.libsdl.org/SDL_GetPrefPath
 [Steam Cloud API]: https://partner.steamgames.com/doc/features/cloud
 [Steam Input]: https://partner.steamgames.com/doc/features/steam_controller
-[Steam client beta 2024-10-17]: https://store.steampowered.com/news/group/4397053/view/4507632124224426488?l=english
+[Steam client 2024-11-05]: https://store.steampowered.com/news/collection/steam/?emclan=103582791457287600&emgid=4472730495692571024
 [Steam support documentation]: https://help.steampowered.com/
 [Toolbx]: https://containertoolbx.org/
 [Verify integrity]: https://help.steampowered.com/en/faqs/view/0C48-FCBD-DA71-93EB
