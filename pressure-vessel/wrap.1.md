@@ -370,6 +370,13 @@ The following environment variables (among others) are read by
 `PRESSURE_VESSEL_LOG_WITH_TIMESTAMP` (boolean)
 :   If set to 1, same as `SRT_LOG=timestamp`
 
+`PRESSURE_VESSEL_PREFIX` (path)
+:   pressure-vessel itself does not use this,
+    but the Steam Linux Runtime container runtime framework uses it to
+    locate a custom version of pressure-vessel.
+    If used, it must be set to a relocatable build of pressure-vessel,
+    so that `$PRESSURE_VESSEL_PREFIX/bin/pressure-vessel-unruntime` exists.
+
 `PRESSURE_VESSEL_REMOVE_GAME_OVERLAY` (boolean)
 :   If set to `1`, equivalent to `--remove-game-overlay`.
     If set to `0`, equivalent to `--keep-game-overlay`.
@@ -420,9 +427,27 @@ The following environment variables (among others) are read by
 :   Used to choose between logically equivalent names for the current
     working directory (see **get_current_dir_name**(3)).
 
+`SRT_LAUNCHER_SERVICE` (path)
+:   pressure-vessel itself does not use this,
+    but in the Steam Linux Runtime container runtime framework,
+    it sets an implementation of **steam-runtime-launcher-service**(1)
+    to use instead of selecting one automatically.
+
+`SRT_LAUNCHER_SERVICE_STOP_ON_EXIT` (boolean)
+:   pressure-vessel itself does not use this,
+    but in the Steam Linux Runtime container runtime framework,
+    setting it to `0` prevents the service started by
+    **STEAM_COMPAT_LAUNCHER_SERVICE** from exiting until it is specifically
+    terminated by `steam-runtime-launch-client --terminate` or a signal.
+
 `SRT_LOG`
 :   A sequence of tokens separated by colons, spaces or commas
     affecting how output is recorded. See source code for details.
+
+`SRT_LOG_ROTATION` (boolean)
+:   pressure-vessel itself does not use this,
+    but in the Steam Linux Runtime container runtime framework,
+    setting it to `0` prevents cleanup of old log files.
 
 `STEAM_COMPAT_APP_ID` (integer)
 :   Equivalent to `--steam-app-id="$STEAM_COMPAT_APP_ID"`.
@@ -454,6 +479,20 @@ The following environment variables (among others) are read by
 :   Top-level directory containing the game itself, even if the current
     working directory is actually a subdirectory of this.
     This is made available read/write in the container.
+
+`STEAM_COMPAT_LAUNCHER_SERVICE` (token)
+:   pressure-vessel itself does not use this,
+    but in the Steam Linux Runtime container runtime framework,
+    setting it to **container-runtime** provides a D-Bus service
+    which can be used to send debugging commands into the container
+    environment.
+    In Steam Linux Runtime 1.0,
+    setting it to **scout-in-container** provides a similar D-Bus service
+    where the execution environment is compatible with Steam Runtime 1 'scout'.
+    In Proton, setting it to **proton** provides a similar D-Bus service
+    with an execution environment that is preconfigured to run Proton's
+    version of Wine.
+    See **steam-runtime-launch-client**(1) for examples of how to use this.
 
 `STEAM_COMPAT_LIBRARY_PATHS` (`:`-separated list of paths)
 :   Colon-delimited list of paths to Steam Library directories containing
@@ -507,6 +546,26 @@ The following environment variables (among others) are read by
     directory to the user running Steam.
     Steam automatically sets this when system tracing is enabled on a
     Steam Deck in developer mode.
+
+`STEAM_LINUX_RUNTIME_LOG` (boolean)
+:   pressure-vessel itself does not use this,
+    but in the Steam Linux Runtime container runtime framework,
+    setting it to `1` redirects standard output and standard error to
+    `$STEAM_LINUX_RUNTIME_LOG_DIR/slr-*.log` or
+    `$PRESSURE_VESSEL_VARIABLE_DIR/slr-*.log`,
+    while also enabling info-level logging similar to
+    `PRESSURE_VESSEL_LOG_INFO=1`.
+
+`STEAM_LINUX_RUNTIME_KEEP_LOGS` (boolean)
+:   pressure-vessel itself does not use this,
+    but in the Steam Linux Runtime container runtime framework,
+    setting it to `1` prevents cleanup of old log files.
+
+`STEAM_LINUX_RUNTIME_VERBOSE` (boolean)
+:   pressure-vessel itself does not use this,
+    but in the Steam Linux Runtime container runtime framework,
+    setting it to `1` enables debug-level messages similar to
+    `PRESSURE_VESSEL_VERBOSE=1`.
 
 `STEAM_RUNTIME` (path)
 :   **pressure-vessel-wrap** refuses to run if this environment variable
