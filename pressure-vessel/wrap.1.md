@@ -500,6 +500,14 @@ The following environment variables (among others) are read by
     such as Proton and the Steam Linux Runtime.
     They are currently made available read/write in the container.
 
+`STEAM_COMPAT_TRACING` (boolean)
+:   If set to `1`, allow system tracing if it is enabled at system level.
+    This currently results in `/sys/kernel/tracing` being read/write,
+    which has no practical effect unless the OS has granted access to that
+    directory to the user running Steam.
+    Steam automatically sets this when system tracing is enabled on a
+    Steam Deck in developer mode.
+
 `STEAM_RUNTIME` (path)
 :   **pressure-vessel-wrap** refuses to run if this environment variable
     is set. Use **pressure-vessel-unruntime**(1) instead.
