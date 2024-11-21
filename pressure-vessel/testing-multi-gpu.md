@@ -135,8 +135,7 @@ For each game you want to test:
 
 * For native Linux games only:
     in its Properties, set the compatibility tool to
-    "Steam Linux Runtime 1.0 (scout)" if available, or "Steam Linux Runtime"
-    otherwise.
+    "Steam Linux Runtime 1.0 (scout)".
     Try running the game, and note whether it runs on the GPU that you
     expected. Copy the log file from
     `steamapps/common/SteamLinuxRuntime_soldier/var/slr-latest.log`
@@ -227,8 +226,8 @@ For each game you want to test:
 
 * For native Linux games only:
     if you are using the branch of Flatpak that has the new features needed
-    by pressure-vessel, also try "Steam Linux Runtime 1.0 (scout)",
-    or if that name is not available, "Steam Linux Runtime". Copy
+    by pressure-vessel, also try "Steam Linux Runtime 1.0 (scout)".
+    Copy
     `steamapps/common/SteamLinuxRuntime_soldier/var/slr-latest.log`.
 
 * If you are using the branch of Flatpak that has the new features needed

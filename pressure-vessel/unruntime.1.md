@@ -77,7 +77,7 @@ in **pressure-vessel-unruntime**.
 
 # EXAMPLE
 
-    $ steam steam://install/1070560     # Steam Linux Runtime 'scout'
+    $ steam steam://install/1070560     # Steam Linux Runtime 1.0 (scout)
     $ steam steam://install/302380      # Floating Point, a small free game
     $ rm -fr ~/tmp/scout
     $ mkdir -p ~/tmp/scout
@@ -98,9 +98,10 @@ Launching it will launch an `xterm` instead.
 In the resulting `xterm`(1), you can explore the container interactively,
 then type `"$@"` to run the game itself.
 
-For more joined-up integration with Steam, install the Steam Linux Runtime
-(`steam://install/1070560`), configure a native Linux game in Steam
-to be run with the `Steam Linux Runtime` "compatibility tool", and
-reset the launch options to be empty.
+For more joined-up integration with Steam, install
+Steam Linux Runtime 1.0 (scout) (`steam://install/1070560`),
+configure a native Linux game in Steam to be run with the
+`Steam Linux Runtime 1.0 (scout)` "compatibility tool",
+and reset the launch options to be empty.
 
 <!-- vim:set sw=4 sts=4 et: -->

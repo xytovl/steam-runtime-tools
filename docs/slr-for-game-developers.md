@@ -178,8 +178,7 @@ To run Linux games in a *Steam Linux Runtime 1.0 (scout)* container:
 
   * Edit the Properties of the game in the Steam client
   * Select `Force the use of a specific Steam Play compatibility tool`
-  * If possible, select `Steam Linux Runtime 1.0 (scout)`
-  * If that option is not available, select `Steam Linux Runtime`
+  * Select `Steam Linux Runtime 1.0 (scout)`
 
 This will automatically download *Steam Linux Runtime 2.0 (soldier)*
 or *Steam Linux Runtime 3.0 (sniper)*,

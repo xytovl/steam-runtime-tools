@@ -65,8 +65,8 @@ Steam Runtime 3 `sniper` (see [below][sniper]).
 The *Steam Linux Runtime 2.0 (soldier)* compatibility tool, app ID 1391110,
 is automatically downloaded to your Steam library as
 `steamapps/common/SteamLinuxRuntime_soldier` when you select a version
-of Proton that requires it, or the *Steam Linux Runtime* compatibility
-tool which requires it (see below).
+of Proton that requires it, or the *Steam Linux Runtime 1.0 (scout)*
+compatibility tool which requires it (see below).
 It can also be installed by running this command:
 
     steam steam://install/1391110
