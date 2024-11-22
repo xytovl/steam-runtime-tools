@@ -1291,9 +1291,14 @@ Shell scripts can start with `#!/bin/sh` to use a small POSIX shell,
 or `#!/bin/bash` to use GNU `bash`.
 Similar to Debian and Ubuntu, the `/bin/sh` in the container is not
 `bash`, so `bash` features cannot be used in `#!/bin/sh` scripts.
-[Debian Policy][] has some useful advice on writing robust shell scripts.
+[Debian Policy][] has some useful advice on writing robust shell scripts,
+and the [shellcheck][] lint tool usually gives good recommendations.
+
 Basic shell utilities are available in the container runtime, but more
-advanced utilities might not be present.
+advanced utilities will often not be present.
+The legacy [`LD_LIBRARY_PATH`-based scout runtime][ldlp-runtime]
+cannot guarantee the presence of anything beyond basic shell utilities
+either.
 
 <!-- References: -->
 
@@ -1325,6 +1330,7 @@ advanced utilities might not be present.
 [scout-on-soldier]: container-runtime.md#scout-on-soldier
 [set launch options]: https://help.steampowered.com/en/faqs/view/7D01-D2DD-D75E-2955
 [shared-paths]: shared-paths.md
+[shellcheck]: https://www.shellcheck.net/
 [sniper SDK]: https://gitlab.steamos.cloud/steamrt/sniper/sdk/-/blob/steamrt/sniper/README.md
 [sniper]: https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/sniper/README.md
 [soldier SDK]: https://gitlab.steamos.cloud/steamrt/soldier/sdk/-/blob/steamrt/soldier/README.md
