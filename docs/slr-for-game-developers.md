@@ -61,7 +61,7 @@ The Steam Linux Runtime can be used to run three categories of games:
   * Native Linux games on newer runtimes such as sniper
   * Windows games, using Proton
 
-### <span id="scout">Native Linux games targeting Steam Runtime 1 'scout'</span>
+### <a name="scout"></a>Native Linux games targeting Steam Runtime 1 'scout'
 
 In theory all pre-2022 native Linux games on Steam are built to target
 Steam Runtime version 1, codenamed scout, which is based on
@@ -102,7 +102,7 @@ Whichever of these options is the default, the user can select the
 *Steam Linux Runtime 1.0 (scout)* compatibility tool in the game's
 properties to opt-in to using the container runtime.
 
-### <span id="sniper">Native Linux games targeting Steam Runtime 3 'sniper'</span>
+### <a name="sniper"></a>Native Linux games targeting Steam Runtime 3 'sniper'
 
 pressure-vessel is able to run games in a runtime that is newer than
 scout.
@@ -127,7 +127,7 @@ Dota 2,
 [Endless Sky][Endless Sky on sniper] and
 [Retroarch][Retroarch on sniper].
 
-#### <span id="soldier">Native Linux games targeting Steam Runtime 2 'soldier'</span>
+#### <a name="soldier"></a>Native Linux games targeting Steam Runtime 2 'soldier'
 
 Native Linux games that require soldier cannot be released on Steam.
 The next-generation runtime for native Linux games is intended to be
@@ -186,7 +186,7 @@ or *Steam Linux Runtime 3.0 (sniper)*,
 together with Proton and/or *Steam Linux Runtime 1.0 (scout)*,
 into your default Steam library.
 
-## <span id="s-r-launch-options">Using steam-runtime-launch-options</span>
+## <a name="s-r-launch-options"></a>Using steam-runtime-launch-options
 
 [steam-runtime-launch-options]: #s-r-launch-options
 
@@ -243,7 +243,7 @@ For a more scriptable version of this, run one of these commands:
   * Proton 6.3: `steam steam://install/1580130`
   * Proton 5.13: `steam steam://install/1420170`
 
-### <span id="commands">Running commands in sniper, soldier, etc.</span>
+### <a name="commands"></a>Running commands in sniper, soldier, etc.
 
 The simplest scenario for using the Steam Linux Runtime framework is to
 run commands in a newer runtime such as sniper.
@@ -305,7 +305,7 @@ $ /path/to/steamlibrary/steamapps/common/SteamLinuxRuntime_sniper/run \
 Exporting the environment variable `PRESSURE_VESSEL_TERMINAL=tty` is
 equivalent to using the `--terminal=tty` option.
 
-### <span id="commands-in-scout-on-soldier">Running commands in the Steam Linux Runtime 1.0 (scout) environment</span>
+### <a name="commands-in-scout-on-soldier"></a>Running commands in the Steam Linux Runtime 1.0 (scout) environment
 
 Running a game that was compiled for Steam Runtime 1 'scout' in the
 scout-on-soldier container is similar to a pure soldier container, but an
@@ -403,7 +403,7 @@ runtime's log file, but Proton's output will not, and neither will the
 game's output.
 See [Proton documentation][] for more details.
 
-## <span id="shell">Running in an interactive shell</span>
+## <a name="shell"></a>Running in an interactive shell
 
 By default, the Steam Linux Runtime will just launch the game, but this
 is not always convenient.
@@ -466,7 +466,7 @@ It is also possible to ask for an interactive shell after running the
 command (replace `instead` with `after`), or only if the command exits
 with a nonzero status (replace `instead` with `fail`).
 
-## <span id="command-injection">Inserting debugging commands into the container</span>
+## <a name="command-injection"></a>Inserting debugging commands into the container
 
 Recent versions of the various container runtimes include a feature that
 can be used to run arbitrary debugging commands inside the container.
@@ -572,7 +572,7 @@ container, or an interactive tool like `gdb` or `python3` or a
 non-interactive tool like `ls` can be placed directly after the `--`
 separator.
 
-### <span id="crash-on-startup">Debugging a game that is crashing on startup</span>
+### <a name="crash-on-startup"></a>Debugging a game that is crashing on startup
 
 Normally, the debug interface used by `steam-runtime-launch-client`
 exits when the game does.
@@ -606,7 +606,7 @@ $ .../SteamLinuxRuntime_sniper/pressure-vessel/bin/steam-runtime-launch-client \
     --terminate
 ```
 
-## <span id="layout">Layout of the container runtime</span>
+## <a name="layout"></a>Layout of the container runtime
 
 In general, the container runtime is similar to Debian and Ubuntu.
 In particular, the standard directories for C/C++ libraries are
@@ -701,7 +701,7 @@ $ /path/to/steamlibrary/steamapps/common/SteamLinuxRuntime_sniper/run \
     +set extra_texture_path /resources/my-game/textures
 ```
 
-## <span id="developer-mode">Developer mode</span>
+## <a name="developer-mode"></a>Developer mode
 
 [developer mode]: #developer-mode
 

@@ -24,7 +24,7 @@ FOSDEM 2020:
 Many of the features described as future work in that talk have now been
 implemented and are in active use.
 
-## <span id="pressure-vessel">`pressure-vessel`</span>
+## <a name="pressure-vessel"></a>`pressure-vessel`
 
 The core of all of these compatibility tools is
 [pressure-vessel][],
@@ -37,7 +37,7 @@ GPU hardware.
 The Steam Play compatibility tools automatically run pressure-vessel
 when necessary.
 
-## <span id="soldier">Steam Linux Runtime 2.0 (soldier)</span>
+## <a name="soldier"></a>Steam Linux Runtime 2.0 (soldier)
 
 [soldier]: #soldier
 
@@ -74,7 +74,7 @@ It can also be installed by running this command:
 Documentation in the `steamrt` "metapackage" provides
 [more information about soldier](https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/soldier/README.md).
 
-## <span id="scout-on-soldier">Steam Linux Runtime 1.0 (scout)</span>
+## <a name="scout-on-soldier"></a>Steam Linux Runtime 1.0 (scout)
 
 [scout-on-soldier]: #scout-on-soldier
 
@@ -117,7 +117,7 @@ Steam Linux Runtime 1.0 (scout) container via *Properties* → *Compatibility*.
 
 [Steam client 2024-11-05]: https://store.steampowered.com/news/collection/steam/?emclan=103582791457287600&emgid=4472730495692571024
 
-## <span id="sniper">Steam Linux Runtime 3.0 (sniper)</span>
+## <a name="sniper"></a>Steam Linux Runtime 3.0 (sniper)
 
 [sniper]: #sniper
 
@@ -152,7 +152,7 @@ and used to run the Steam client user interface (`steamwebhelper`).
 Documentation in the `steamrt` "metapackage" provides
 [more information about sniper](https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/sniper/README.md).
 
-## <span id="medic">Steam Runtime 4, `medic`</span>
+## <a name="medic"></a>Steam Runtime 4, `medic`
 
 [medic]: #medic
 
@@ -165,7 +165,7 @@ base distribution.
 contents are subject to change depending on testing results and game
 requirements.
 
-## <span id="steamrt5">Steam Runtime 5</span>
+## <a name="steamrt5"></a>Steam Runtime 5
 
 [steamrt5]: #steamrt5
 
@@ -178,7 +178,7 @@ base distribution.
 contents are subject to change depending on testing results and game
 requirements.
 
-## <span id="why">Why the container runtimes are necessary</span>
+## <a name="why"></a>Why the container runtimes are necessary
 
 [why]: #why
 
