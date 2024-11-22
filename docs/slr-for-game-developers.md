@@ -148,7 +148,8 @@ On Steam Deck, many games run under the *Steam Linux Runtime 1.0 (scout)*
 compatibility tool automatically.
 On desktop, the default was to run these games directly on the host system,
 providing compatibility with scout by using the same
-[`LD_LIBRARY_PATH`-based scout runtime][ldlp] that is used to run Steam itself.
+[`LD_LIBRARY_PATH`-based scout runtime][ldlp-runtime]
+that is used to run Steam itself.
 Whichever of these options is the default, the user can select the
 *Steam Linux Runtime 1.0 (scout)* compatibility tool in the game's
 properties to opt-in to using the container runtime.
