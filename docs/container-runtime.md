@@ -187,11 +187,13 @@ Steam Runtime 4, `medic`, is a prototype runtime currently based on Debian 12
 (released in 2023).
 Like [`soldier`][soldier],
 it is structurally similar to [`sniper`][sniper],
-but with a base distribution that is 2 years newer than for `sniper`.
+but its base distribution is 2 years newer than for `sniper`.
 
 `medic` is not yet available as a compatibility tool, and its
 contents are subject to change depending on testing results and game
 requirements.
+If it becomes available as a new runtime environment,
+the procedure for selecting it is likely to be very similar to sniper.
 
 ### <a name="steamrt5"></a>Steam Runtime 5
 
@@ -206,6 +208,8 @@ but with a newer base distribution.
 `steamrt5` is not yet available as a compatibility tool, and its
 contents are subject to change depending on testing results and game
 requirements.
+If it becomes available as a new runtime environment,
+the procedure for selecting it is likely to be very similar to sniper.
 
 ## <a name="why"></a>Why the container runtimes are necessary
 
