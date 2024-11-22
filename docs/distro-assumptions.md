@@ -109,6 +109,7 @@ of the following sets of paths:
 
 * `/usr/lib64` (`x86_64`) and `/usr/lib` (`i386`), as used on Fedora
 * `/usr/lib` (`x86_64`) and `/usr/lib32` (`i386`), as used on Arch Linux
+* `/usr/lib64` (`x86_64`) and `/usr/lib32` (`i386`), as used on Solus
 * `/usr/lib/x86_64-linux-gnu` and `/usr/lib/i386-linux-gnu`, as used on Debian
 * any of the above with the `/usr` prefix removed
 * `/usr/x86_64-pc-linux-gnu/lib` and `/usr/i686-pc-linux-gnu/lib`,
@@ -350,6 +351,7 @@ The framework currently knows about the following pairs:
 * `x86_64-linux-gnu` and `i386-linux-gnu`, as used on very old Ubuntu
 * `lib64` and `lib`, as used in the Linux Standard Base and on Fedora
 * `lib` and `lib32`, as used on Arch Linux
+* `lib64` and `lib32`, as used on Solus
 
 For systems where `${LIB}` has an unsupported pair of expansions that are
 different for 64- and 32-bit code, please
