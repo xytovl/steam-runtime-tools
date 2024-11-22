@@ -57,9 +57,46 @@ whichever one appears to be newer.
 
 The Steam Linux Runtime can be used to run three categories of games:
 
-  * Native Linux games on scout
   * Native Linux games on newer runtimes such as sniper
+  * Native Linux games on scout
   * Windows games, using Proton
+
+### <a name="sniper"></a>Native Linux games targeting Steam Runtime 3 'sniper'
+
+pressure-vessel is able to run games in a runtime that is newer than
+scout.
+[Steam Runtime version 3, codenamed sniper][sniper],
+is the first such runtime available to developers of native Linux games
+on Steam.
+It is based on Debian 11 (2021).
+
+Native Linux games that require sniper can be released on Steam.
+Since October 2024, this is available as a "self-service"
+feature via the Steamworks partner web interface, which can be used by
+any game that benefits from a newer library stack.
+To use this feature, your app must first set up a Launch Option that
+supports Linux.
+Once that is set up, you can use the Installation → Linux Runtime
+menu item to select a runtime.
+
+Early adopters of this mechanism included
+[Battle for Wesnoth][Wesnoth on sniper],
+Counter-Strike 2,
+Dota 2,
+[Endless Sky][Endless Sky on sniper] and
+[Retroarch][Retroarch on sniper].
+
+#### <a name="soldier"></a>Native Linux games targeting Steam Runtime 2 'soldier'
+
+Native Linux games that require soldier cannot be released on Steam.
+The next-generation runtime for native Linux games is intended to be
+[Steam Runtime 3 `sniper`](#sniper).
+All older native Linux games should be compiled for
+[Steam Runtime 1 `scout`](#scout).
+
+However, for development, debugging and experiments, if it is useful
+to run a game under `soldier`, replacing `sniper` with `soldier` in
+instructions that refer to `sniper` should usually work.
 
 ### <a name="scout"></a>Native Linux games targeting Steam Runtime 1 'scout'
 
@@ -101,43 +138,6 @@ providing compatibility with scout by using the same
 Whichever of these options is the default, the user can select the
 *Steam Linux Runtime 1.0 (scout)* compatibility tool in the game's
 properties to opt-in to using the container runtime.
-
-### <a name="sniper"></a>Native Linux games targeting Steam Runtime 3 'sniper'
-
-pressure-vessel is able to run games in a runtime that is newer than
-scout.
-[Steam Runtime version 3, codenamed sniper][sniper],
-is the first such runtime available to developers of native Linux games
-on Steam.
-It is based on Debian 11 (2021).
-
-Native Linux games that require sniper can be released on Steam.
-Since October 2024, this is available as a "self-service"
-feature via the Steamworks partner web interface, which can be used by
-any game that benefits from a newer library stack.
-To use this feature, your app must first set up a Launch Option that
-supports Linux.
-Once that is set up, you can use the Installation → Linux Runtime
-menu item to select a runtime.
-
-Early adopters of this mechanism included
-[Battle for Wesnoth][Wesnoth on sniper],
-Counter-Strike 2,
-Dota 2,
-[Endless Sky][Endless Sky on sniper] and
-[Retroarch][Retroarch on sniper].
-
-#### <a name="soldier"></a>Native Linux games targeting Steam Runtime 2 'soldier'
-
-Native Linux games that require soldier cannot be released on Steam.
-The next-generation runtime for native Linux games is intended to be
-[Steam Runtime 3 `sniper`](#sniper).
-All older native Linux games should be compiled for
-[Steam Runtime 1 `scout`](#scout).
-
-However, for development, debugging and experiments, if it is useful
-to run a game under `soldier`, replacing `sniper` with `soldier` in
-instructions that refer to `sniper` should usually work.
 
 ### Windows games, using Proton
 

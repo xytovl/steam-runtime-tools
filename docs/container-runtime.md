@@ -37,42 +37,52 @@ GPU hardware.
 The Steam Play compatibility tools automatically run pressure-vessel
 when necessary.
 
-## <a name="soldier"></a>Steam Linux Runtime 2.0 (soldier)
+## <a name="sniper"></a>Steam Linux Runtime 3.0 (sniper)
 
-[soldier]: #soldier
+[sniper]: #sniper
 
-Steam Runtime 2, `soldier`, is a newer runtime than
-[scout][ldlp], based on Debian 10 (released in 2019).
+Steam Runtime 3, `sniper`, is a newer runtime than
+[scout][ldlp], based on Debian 11 (released in 2021).
 Most of its libraries are taken directly from Debian, and can benefit
 from Debian's long-term security support.
 Selected libraries that are particularly important for games, such as
 SDL and Vulkan-Loader, have been upgraded to newer versions backported
 from newer branches of Debian.
 
-soldier is designed to be used as a container runtime for `pressure-vessel`,
+sniper is designed to be used as a container runtime for `pressure-vessel`,
 and [cannot be used](#why) as a
 [`LD_LIBRARY_PATH` runtime][ldlp].
 
-soldier is used as a runtime environment for Proton versions 5.13 to
-7.0, which are compiled against the newer library stack and would not
+Native Linux games that require sniper can be released on Steam.
+Since October 2024, this is available as a "self-service"
+feature via the Steamworks partner web interface, which can be used by
+any game that benefits from a newer library stack.
+
+Early adopters of this mechanism include
+[Retroarch][] since [August 2022][Retroarch on sniper],
+[Endless Sky][] since [early/mid 2023][Endless Sky on Sniper] and
+[Dota 2][] since [mid 2023][Dota 2 sniper],
+
+sniper is also used as a runtime environment for Proton version 8.0 and up,
+which are compiled against the newer library stack and would not
 be compatible with scout.
-Newer versions of Proton use a newer runtime (see below).
+Some older versions of Proton use the older
+[Steam Linux Runtime 2.0][soldier] (see below).
 
-Native Linux games that require soldier cannot currently be released on Steam.
-The next-generation runtime for native Linux games is intended to be
-Steam Runtime 3 `sniper` (see [below][sniper]).
-
-The *Steam Linux Runtime 2.0 (soldier)* compatibility tool, app ID 1391110,
-is automatically downloaded to your Steam library as
-`steamapps/common/SteamLinuxRuntime_soldier` when you select a version
-of Proton that requires it, or the *Steam Linux Runtime 1.0 (scout)*
-compatibility tool which requires it (see below).
+The *Steam Linux Runtime 3.0 - sniper* compatibility tool, app ID 1628350,
+will automatically be downloaded to your Steam library as
+`steamapps/common/SteamLinuxRuntime_sniper` if a game or a version of
+Proton requires it.
 It can also be installed by running this command:
 
-    steam steam://install/1391110
+    steam steam://install/1628350
+
+In Steam client betas since January 2024, a private copy of the sniper
+runtime is also installed into `~/.steam/root/ubuntu12_64/steam-runtime-sniper`
+and used to run the Steam client user interface (`steamwebhelper`).
 
 Documentation in the `steamrt` "metapackage" provides
-[more information about soldier](https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/soldier/README.md).
+[more information about sniper](https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/sniper/README.md).
 
 ## <a name="scout-on-soldier"></a>Steam Linux Runtime 1.0 (scout)
 
@@ -117,62 +127,55 @@ Steam Linux Runtime 1.0 (scout) container via *Properties* → *Compatibility*.
 
 [Steam client 2024-11-05]: https://store.steampowered.com/news/collection/steam/?emclan=103582791457287600&emgid=4472730495692571024
 
-## <a name="sniper"></a>Steam Linux Runtime 3.0 (sniper)
+## <a name="soldier"></a>Steam Linux Runtime 2.0 (soldier)
 
-[sniper]: #sniper
+[soldier]: #soldier
 
-Steam Runtime 3, `sniper`, is another newer runtime based on Debian 11
-(released in 2021).
-It is very similar to [`soldier`](#soldier), except for its base distribution
-being 2 years newer: this means its core libraries and compiler are also
-approximately 2 years newer.
-Proton 8.0 moved from soldier to sniper to take advantage of this newer base.
+Steam Runtime 2, `soldier`, is another newer runtime based on Debian 10
+(released in 2019).
+It is very similar to [`sniper`](#sniper), except for its base distribution
+being 2 years older: this means its core libraries and compiler are also
+approximately 2 years older.
 
-Native Linux games that require sniper can be released on Steam.
-Since October 2024, this is available as a "self-service"
-feature via the Steamworks partner web interface, which can be used by
-any game that benefits from a newer library stack.
+Proton versions 5.13 to 7.0 (inclusive) use this runtime environment.
 
-Early adopters of this mechanism include
-[Retroarch][] since [August 2022][Retroarch on sniper],
-[Endless Sky][] since [early/mid 2023][Endless Sky on Sniper] and
-[Dota 2][] since [mid 2023][Dota 2 sniper],
-
-The *Steam Linux Runtime 3.0 - sniper* compatibility tool, app ID 1628350,
-will automatically be downloaded to your Steam library as
-`steamapps/common/SteamLinuxRuntime_sniper` if a game requires it.
+The *Steam Linux Runtime 2.0 (soldier)* compatibility tool, app ID 1391110,
+is automatically downloaded to your Steam library as
+`steamapps/common/SteamLinuxRuntime_soldier` when you select a version
+of Proton that requires it, or the *Steam Linux Runtime 1.0 (scout)*
+compatibility tool which requires it (see below).
 It can also be installed by running this command:
 
-    steam steam://install/1628350
-
-In Steam client betas since January 2024, a private copy of the sniper
-runtime is installed into `~/.steam/root/ubuntu12_64/steam-runtime-sniper`
-and used to run the Steam client user interface (`steamwebhelper`).
+    steam steam://install/1391110
 
 Documentation in the `steamrt` "metapackage" provides
-[more information about sniper](https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/sniper/README.md).
+[more information about soldier](https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/soldier/README.md).
 
-## <a name="medic"></a>Steam Runtime 4, `medic`
+## Possible future Steam Runtime branches
+
+### <a name="medic"></a>Steam Runtime 4, `medic`
 
 [medic]: #medic
 
 Steam Runtime 4, `medic`, is a prototype runtime currently based on Debian 12
 (released in 2023).
-Like [`sniper`][sniper], it is structurally similar to `soldier`, but with a newer
-base distribution.
+Like [`soldier`][soldier],
+it is structurally similar to [`sniper`][sniper],
+but with a base distribution that is 2 years newer than for `sniper`.
 
 `medic` is not yet available as a compatibility tool, and its
 contents are subject to change depending on testing results and game
 requirements.
 
-## <a name="steamrt5"></a>Steam Runtime 5
+### <a name="steamrt5"></a>Steam Runtime 5
 
 [steamrt5]: #steamrt5
 
 Steam Runtime 5 is a prototype runtime currently based on Debian 13
 (which is expected to be released in mid 2025).
-Like [`sniper`][sniper], it is structurally similar to `soldier`, but with a newer
-base distribution.
+Like [`soldier`][soldier] and [`medic`][medic],
+it is structurally similar to `sniper`,
+but with a newer base distribution.
 
 `steamrt5` is not yet available as a compatibility tool, and its
 contents are subject to change depending on testing results and game
