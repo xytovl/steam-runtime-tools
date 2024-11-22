@@ -1,3 +1,14 @@
+steam-runtime-tools (0.20241122.0) UNRELEASED; urgency=medium
+
+  * pressure-vessel:
+    - Generate /etc/passwd, /etc/group for the container.
+      This fixes interoperability with systemd-homed or remote user
+      directories when running games that disregard `$HOME`
+      (ValveSoftware/steam-runtime#705)
+  * Documentation improvements
+
+ -- Simon McVittie <smcv@collabora.com>  Fri, 22 Nov 2024 16:06:49 +0000
+
 steam-runtime-tools (0.20241118.0) steamrt; urgency=medium
 
   * populate-depot: Set filter_exclusive_priority equal to major version.
