@@ -244,7 +244,7 @@ Flatpak 1.12 or later.
 Run the *COMMAND* in an empty environment, apart from any environment
 variables set by **--env** and similar options, and environment
 variables such as `PWD` that are set programmatically (see
-[**ENVIRONMENT** section, below][ENVIRONMENT]).
+[**ENVIRONMENT** section, below](#environment)).
 If this option is not used, instead it inherits environment variables
 from **steam-runtime-launcher-service**, with **--env** and
 similar options overriding or unsetting individual variables.
@@ -506,7 +506,7 @@ command (for example as
 and the initial process of the wrapped command is still running,
 then this variable is set to its process ID (for example, the process
 ID of **my-game**). Otherwise, this variable is cleared.
-[The environment options shown above][ENVIRONMENT OPTIONS]
+[The environment options shown above](#environment-options)
 will override this behaviour.
 
 </dd>
@@ -520,7 +520,7 @@ will override this behaviour.
 directory (as specified by **--directory**, or inherited from the
 launcher) for each command executed inside the container,
 overriding
-[the environment options shown above][ENVIRONMENT OPTIONS].
+[the environment options shown above](#environment-options).
 
 </dd>
 </dl>
