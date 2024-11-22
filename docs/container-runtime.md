@@ -143,7 +143,14 @@ if the host operating system happens to provide libraries that are newer
 than the ones in `scout`, while still being compatible with the game's
 assumptions.
 This is not a stable situation: a game that happened to work in Ubuntu
-20.04 could easily be broken by a routine upgrade to Ubuntu 22.04.
+22.04 could easily be broken by a routine upgrade to Ubuntu 24.04.
+For example,
+a game that was compiled in 2022 against a then-current version of `libtiff`
+might have a dependency on `libtiff.so.5`,
+which was included in Ubuntu 22.04,
+but Ubuntu 24.04 no longer provides that library because it has upgraded
+to the newer `libtiff.so.6`,
+which does not have full ABI compatibility with `libtiff.so.5`.
 
 The *Steam Linux Runtime 1.0 (scout)* compatibility tool, app ID 1070560,
 uses the same container technology as `soldier` to mitigate this problem.
