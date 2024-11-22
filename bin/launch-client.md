@@ -386,7 +386,7 @@ Be more verbose.
 Options from this group are processed in order, with each option taking
 precedence over any earlier options that affect the same environment variable.
 For example,
-`--pass-env-matching="FO&#x2a;" --env=FOO=bar --unset-env=FOCUS`
+`--pass-env-matching="FO*" --env=FOO=bar --unset-env=FOCUS`
 will set **FOO** to **bar**, unset **FOCUS** even if the caller has
 it set, and pass through **FONTS** from the caller.
 
