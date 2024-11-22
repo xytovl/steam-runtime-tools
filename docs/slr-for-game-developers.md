@@ -1300,6 +1300,14 @@ The legacy [`LD_LIBRARY_PATH`-based scout runtime][ldlp-runtime]
 cannot guarantee the presence of anything beyond basic shell utilities
 either.
 
+Titles that are configured to run in Steam Linux Runtime 3.0 (sniper)
+can include Python scripts,
+starting with `#!/usr/bin/env python3` or `#!/usr/bin/python3`,
+as an alternative to shell scripts.
+sniper includes Python 3.9 and most of the standard library
+(except for a few larger modules like `tk`),
+but does not include external modules like `pip`.
+
 <!-- References: -->
 
 [Application.persistentDataPath]: https://docs.unity3d.com/ScriptReference/Application-persistentDataPath.html
