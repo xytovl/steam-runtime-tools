@@ -893,7 +893,19 @@ but it does contain `gdbserver`, a `gdb` "stub" to which a full debugger
 can be connected.
 
 To use `gdbserver`, either run it from an interactive shell in the
-container environment, or add it to your game's command-line.
+container environment, or add it to your game's command-line
+(perhaps via a wrapper script).
+For example, instead of
+
+```
+$ ./my-game-executable $game_options
+```
+
+you could run
+
+```
+$ gdbserver 127.0.0.1:12345 ./my-game-executable $game_options
+```
 
 <details><summary>Example for non-Steam games</summary>
 
@@ -911,8 +923,30 @@ $ /path/to/steamlibrary/steamapps/common/SteamLinuxRuntime_sniper/run \
 Alternatively, some games' launch scripts have a way to attach an external
 debugger given in an environment variable, such as `GAME_DEBUGGER` in
 several Valve games, including the `dota.sh` script that launches DOTA 2.
-For games like this, export an environment variable similar to
-`GAME_DEBUGGER="gdbserver 127.0.0.1:12345"`.
+If your game runs via a wrapper script, implementing the same pattern
+seen in DOTA 2 is a convenient way to provide debugger integration.
+For example:
+
+```
+#!/bin/sh
+# my-game.sh
+set -e
+
+# ... any other setup you want can go here ...
+
+set -- ./bin/my-game "$@"
+
+if [ -n "${GAME_DEBUGGER-}" ]; then
+    set -- $GAME_DEBUGGER "$@"
+fi
+
+exec "$@"
+```
+
+For games that implement this pattern,
+export an environment variable similar to
+`GAME_DEBUGGER="gdbserver 127.0.0.1:12345"`
+to enable the `gdbserver`.
 
 When `gdbserver` is used like this, it will pause until a debugger is
 attached.
