@@ -171,6 +171,8 @@ pressure_vessel_wrap_lib = static_library(
     'flatpak-run-x11.c',
     'graphics-provider.c',
     'graphics-provider.h',
+    'passwd.c',
+    'passwd.h',
     'runtime.c',
     'runtime.h',
     'wrap-context.c',

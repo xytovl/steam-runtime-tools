@@ -36,6 +36,7 @@
 #include "tests/test-utils.h"
 
 #include "bwrap.h"
+#include "passwd.h"
 #include "supported-architectures.h"
 #include "wrap-context.h"
 #include "wrap-home.h"
@@ -1215,6 +1216,312 @@ test_make_symlink_in_container (Fixture *f,
 }
 
 static void
+test_passwd (Fixture *f,
+             gconstpointer context)
+{
+  /* A realistic passwd(5) entry for root */
+#define MOCK_PASSWD_ROOT "root:x:0:0:System administrator:/root:/bin/sh\n"
+  /* A realistic passwd(5) entry for our mock user */
+#define MOCK_PASSWD_GFREEMAN "gfreeman:!:1998:1119:Dr Gordon Freeman,,,:/home/gfreeman:/bin/csh\n"
+  /* This exercises handling of lines without the usual structure */
+#define MOCK_PASSWD_COMMENT "#?\n"
+  /* A realistic passwd(5) entry for 'nobody', intentionally with no
+   * trailing newline */
+#define MOCK_PASSWD_NOBODY_NOEOL "nobody:x:65534:65534:&:/nonexistent:/bin/false"
+  static const char mock_passwd_text[] =
+    MOCK_PASSWD_ROOT
+    MOCK_PASSWD_GFREEMAN
+    MOCK_PASSWD_COMMENT
+    MOCK_PASSWD_NOBODY_NOEOL;
+  static const char strange_passwd_text[] =
+    MOCK_PASSWD_ROOT
+    "\n"
+    "\n"
+    MOCK_PASSWD_NOBODY_NOEOL "\n";
+  /* A realistic group(5) entry for 'nogroup' */
+#define MOCK_GROUP_NOGROUP "nogroup:x:65534:\n"
+  static const char mock_group_text[] =
+    MOCK_GROUP_NOGROUP;
+  static const char strange_group_text[] = "\n\n\n";
+  /* A realistic mock user, which does not fully match the one we place
+   * in /etc/passwd */
+  static const struct passwd mock_user =
+    {
+      .pw_name = (char *) "gfreeman",
+      .pw_passwd = (char *) "!",
+      .pw_uid = 1998,
+      .pw_gid = 1119,
+      .pw_gecos = (char *) "Gordon Freeman",
+      .pw_dir = (char *) "/blackmesa/gfreeman",
+      .pw_shell = (char *) "/bin/zsh",
+    };
+  /* A realistic mock group (the Anomalous Materials Laboratory) */
+  static const char * const members[] = { "evance", "gfreeman", "ikleiner", NULL };
+  static const struct group mock_group =
+    {
+      .gr_name = (char *) "materials",
+      .gr_passwd = (char *) "*",
+      .gr_gid = 1119,
+      .gr_mem = (char **) members,
+    };
+  /* A user with some non-representable fields */
+  static const struct passwd strange_user =
+    {
+      .pw_name = (char *) "g:man",
+      .pw_passwd = (char *) "!",
+      .pw_uid = 2004,
+      .pw_gid = 1116,
+      .pw_gecos = (char *) "\n",
+      .pw_dir = (char *) "/xen",
+      .pw_shell = (char *) "/bin/zsh",
+    };
+  /* A group with some non-representable fields */
+  static const struct group strange_group =
+    {
+      .gr_name = (char *) "not\nrepresentable",
+      .gr_passwd = (char *) "*",
+      .gr_gid = 1116,
+      .gr_mem = NULL,
+    };
+  PvMockPasswdLookup mock_lookup_successfully =
+    {
+      .uid = getuid (),
+      .gid = getgid (),
+      .pwd = &mock_user,
+      .grp = &mock_group,
+      .lookup_errno = 0,
+    };
+  PvMockPasswdLookup mock_lookup_strange =
+    {
+      .uid = getuid (),
+      .gid = getgid (),
+      .pwd = &strange_user,
+      .grp = &strange_group,
+      .lookup_errno = 0,
+    };
+  g_auto(GLnxTmpDir) temp = { FALSE };
+  g_autoptr(GError) local_error = NULL;
+  g_autoptr(SrtSysroot) sysroot = NULL;
+  g_autoptr(SrtSysroot) direct = NULL;
+  const char *gecos;
+  const char *home;
+  const char *username;
+
+  glnx_mkdtemp ("pv-test.XXXXXX", 0755, &temp, &local_error);
+  g_assert_no_error (local_error);
+
+  sysroot = _srt_sysroot_new (temp.path, &local_error);
+  g_assert_no_error (local_error);
+
+  direct = _srt_sysroot_new_direct (&local_error);
+  g_assert_no_error (local_error);
+
+  /* First test with an empty sysroot: we will be unable to open /etc/passwd
+   * or /etc/group */
+    {
+      g_autofree gchar *pw = NULL;
+      g_autofree gchar *gr = NULL;
+
+      g_test_message ("Sub-test: lookup successful, files inaccessible");
+
+      g_test_message ("/etc/passwd for container:\n%s\n.", pw);
+      pw = pv_generate_etc_passwd (sysroot, &mock_lookup_successfully);
+      /* Note that this ends with /bin/bash, not /bin/zsh: we override
+       * the shell because non-bash shells will generally not exist in
+       * the container. */
+      g_assert_cmpstr (pw, ==,
+                       "gfreeman:x:1998:1119:Gordon Freeman:/blackmesa/gfreeman:/bin/bash\n");
+      gr = pv_generate_etc_group (sysroot, &mock_lookup_successfully);
+      g_test_message ("/etc/group for container:\n%s\n.", gr);
+      g_assert_cmpstr (gr, ==, "materials:x:1119:\n");
+    }
+
+  /* Mock up an /etc/passwd and /etc/group in the sysroot */
+  glnx_ensure_dir (temp.fd, "etc", 0755, &local_error);
+  g_assert_no_error (local_error);
+  glnx_file_replace_contents_at (temp.fd, "etc/passwd",
+                                 (const guint8 *) mock_passwd_text,
+                                 strlen (mock_passwd_text),
+                                 GLNX_FILE_REPLACE_NODATASYNC,
+                                 NULL, &local_error);
+  g_assert_no_error (local_error);
+  glnx_file_replace_contents_at (temp.fd, "etc/group",
+                                 (const guint8 *) mock_group_text,
+                                 strlen (mock_group_text),
+                                 GLNX_FILE_REPLACE_NODATASYNC,
+                                 NULL, &local_error);
+  g_assert_no_error (local_error);
+
+  /* Test again now that we can open /etc/passwd and /etc/group */
+    {
+      g_autofree gchar *pw = NULL;
+      g_autofree gchar *gr = NULL;
+
+      g_test_message ("Sub-test: lookup successful, files merged");
+
+      /* This exercises the case where the first line that we synthesize
+       * matches a line taken from the file, which we exclude.
+       * For the fields that are different (name, home, shell),
+       * we use the ones from the mock getpwuid(), not the ones from the
+       * mock /etc/passwd.
+       *
+       * This emulates a situation where a module like libnss_systemd
+       * (or LDAP or something) can provide better information than
+       * /etc/passwd.
+       *
+       * It also exercises the case where /etc/passwd (or /etc/group) does
+       * not end with a newline: we normalize by adding one. */
+      pw = pv_generate_etc_passwd (sysroot, &mock_lookup_successfully);
+      g_test_message ("/etc/passwd for container:\n%s\n.", pw);
+      g_assert_cmpstr (pw, ==,
+                       "gfreeman:x:1998:1119:Gordon Freeman:/blackmesa/gfreeman:/bin/bash\n"
+                       MOCK_PASSWD_ROOT
+                       MOCK_PASSWD_COMMENT
+                       MOCK_PASSWD_NOBODY_NOEOL "\n");
+
+      /* This exercises the case where the first line that we synthesize
+       * does not match any line from the file. */
+      gr = pv_generate_etc_group (sysroot, &mock_lookup_successfully);
+      g_test_message ("/etc/group for container:\n%s\n.", gr);
+      g_assert_cmpstr (gr, ==,
+                       "materials:x:1119:\n"
+                       MOCK_GROUP_NOGROUP);
+    }
+
+  username = g_get_user_name ();
+
+  if (username == NULL)
+    username = "user";
+
+  gecos = g_get_real_name ();
+
+  if (gecos == NULL)
+    gecos = username;
+
+  home = g_get_home_dir ();
+
+  /* Exercise the fallback that occurs if getpwuid(), getgrgid() fail */
+    {
+      g_autofree gchar *expected_pw = NULL;
+      g_autofree gchar *pw = NULL;
+      g_autofree gchar *gr = NULL;
+      PvMockPasswdLookup mock_lookup_not_found =
+        {
+          .uid = getuid (),
+          .gid = getgid (),
+          .pwd = NULL,
+          .grp = NULL,
+          .lookup_errno = 0,
+        };
+      PvMockPasswdLookup mock_lookup_error =
+        {
+          .uid = getuid (),
+          .gid = getgid (),
+          .pwd = NULL,
+          .grp = NULL,
+          .lookup_errno = ENOSYS,
+        };
+      const char *maybe_root = MOCK_PASSWD_ROOT;
+      const char *maybe_gfreeman = MOCK_PASSWD_GFREEMAN;
+      const char *maybe_nobody = MOCK_PASSWD_NOBODY_NOEOL "\n";
+
+      g_test_message ("Sub-test: lookup fails, we fall back");
+
+      g_assert_nonnull (username);
+      g_assert_nonnull (gecos);
+      g_assert_nonnull (home);
+
+      /* If we happen to be running as one of the users mentioned in the
+       * mock /etc/passwd, then we'll drop the corresponding line from
+       * the output. */
+      if (g_str_equal (username, "root"))
+        maybe_root = "";
+      else if (g_str_equal (username, "gfreeman"))
+        maybe_gfreeman = "";
+      else if (g_str_equal (username, "nobody"))
+        maybe_nobody = "";
+
+      expected_pw = g_strdup_printf ("%s:x:%d:%d:%s:%s:/bin/bash\n%s%s%s%s",
+                                     username, getuid (), getgid (), gecos, home,
+                                     maybe_root,
+                                     maybe_gfreeman,
+                                     MOCK_PASSWD_COMMENT,
+                                     maybe_nobody);
+      pw = pv_generate_etc_passwd (sysroot, &mock_lookup_error);
+      g_test_message ("/etc/passwd for container:\n%s\n.", pw);
+      g_assert_cmpstr (pw, ==, expected_pw);
+
+      /* If we can't look up our own group, we use /etc/group as-is. */
+      gr = pv_generate_etc_group (sysroot, &mock_lookup_error);
+      g_test_message ("/etc/group for container:\n%s\n.", gr);
+      g_assert_cmpstr (gr, ==, MOCK_GROUP_NOGROUP);
+
+      g_clear_pointer (&pw, g_free);
+      g_clear_pointer (&gr, g_free);
+
+      /* getpwuid(), getgrgid() can also return null without setting errno */
+      pw = pv_generate_etc_passwd (sysroot, &mock_lookup_not_found);
+      g_test_message ("/etc/passwd for container:\n%s\n.", pw);
+      g_assert_cmpstr (pw, ==, expected_pw);
+
+      gr = pv_generate_etc_group (sysroot, &mock_lookup_not_found);
+      g_test_message ("/etc/group for container:\n%s\n.", gr);
+      g_assert_cmpstr (gr, ==, MOCK_GROUP_NOGROUP);
+    }
+
+  /* Re-test with fields that cannot be represented losslessly, which
+   * could theoretically be produced by nsswitch plugins */
+
+  glnx_file_replace_contents_at (temp.fd, "etc/passwd",
+                                 (const guint8 *) strange_passwd_text,
+                                 strlen (strange_passwd_text),
+                                 GLNX_FILE_REPLACE_NODATASYNC,
+                                 NULL, &local_error);
+  g_assert_no_error (local_error);
+  glnx_file_replace_contents_at (temp.fd, "etc/group",
+                                 (const guint8 *) strange_group_text,
+                                 strlen (strange_group_text),
+                                 GLNX_FILE_REPLACE_NODATASYNC,
+                                 NULL, &local_error);
+  g_assert_no_error (local_error);
+
+    {
+      g_autofree gchar *pw = NULL;
+      g_autofree gchar *gr = NULL;
+
+      g_test_message ("Sub-test: files merged, invalid fields exist");
+
+      pw = pv_generate_etc_passwd (sysroot, &mock_lookup_strange);
+      g_test_message ("/etc/passwd for container:\n%s\n.", pw);
+      g_assert_cmpstr (pw, ==,
+                       "g_man:x:2004:1116:_:/xen:/bin/bash\n"
+                       MOCK_PASSWD_ROOT
+                       /* We skip completely blank lines */
+                       MOCK_PASSWD_NOBODY_NOEOL "\n");
+
+      gr = pv_generate_etc_group (sysroot, &mock_lookup_strange);
+      g_test_message ("/etc/group for container:\n%s\n.", gr);
+      g_assert_cmpstr (gr, ==,
+                       "not_representable:x:1116:\n");
+    }
+
+  /* A smoke-test of the real situation: we can't usefully make any
+   * particular assertions about this, but we can at least confirm it
+   * doesn't crash, and output the text of the files for manual checking */
+    {
+      g_autofree gchar *pw = NULL;
+      g_autofree gchar *gr = NULL;
+
+      g_test_message ("Sub-test: real data");
+
+      pw = pv_generate_etc_passwd (direct, NULL);
+      g_test_message ("/etc/passwd for container:\n%s\n.", pw);
+      gr = pv_generate_etc_group (direct, NULL);
+      g_test_message ("/etc/group for container:\n%s\n.", gr);
+    }
+}
+
+static void
 populate_ld_preload (Fixture *f,
                      GPtrArray *argv,
                      PvAppendPreloadFlags flags,
@@ -1920,6 +2227,7 @@ main (int argc,
               setup, test_options_false, teardown);
   g_test_add ("/options/true", Fixture, NULL,
               setup, test_options_true, teardown);
+  g_test_add ("/passwd", Fixture, NULL, setup, test_passwd, teardown);
   g_test_add ("/remap-ld-preload", Fixture, NULL,
               setup_ld_preload, test_remap_ld_preload, teardown);
   g_test_add ("/remap-ld-preload-flatpak", Fixture, NULL,
