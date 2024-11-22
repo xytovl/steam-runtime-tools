@@ -682,6 +682,9 @@ When running the Steam Linux Runtime via Steam, it also uses the environment
 variables set by the [compatibility tool interface][] to find additional
 files and directories that should be shared with the container.
 
+Please see [Paths shared between host system and container runtime][]
+for full details.
+
 ### Private home directory
 
 The Steam Linux Runtime has experimental support for giving each game
@@ -1261,6 +1264,7 @@ advanced utilities might not be present.
 [Debian's /etc/bash.bashrc]: https://sources.debian.org/src/bash/5.1-2/debian/etc.bash.bashrc/
 [Docker]: https://www.docker.com/
 [Linux joystick implementation in SDL]: https://github.com/libsdl-org/SDL/blob/main/src/joystick/linux/SDL_sysjoystick.c
+[Paths shared between host system and container runtime]: shared-paths.md
 [Podman]: https://podman.io/
 [Proton documentation]: https://github.com/ValveSoftware/Proton/
 [SDL_GetPrefPath]: https://wiki.libsdl.org/SDL_GetPrefPath
@@ -1282,6 +1286,7 @@ advanced utilities might not be present.
 [scout SDK]: https://gitlab.steamos.cloud/steamrt/scout/sdk/-/blob/steamrt/scout/README.md
 [scout-on-soldier]: container-runtime.md#scout-on-soldier
 [set launch options]: https://help.steampowered.com/en/faqs/view/7D01-D2DD-D75E-2955
+[shared-paths]: shared-paths.md
 [sniper SDK]: https://gitlab.steamos.cloud/steamrt/sniper/sdk/-/blob/steamrt/sniper/README.md
 [sniper]: https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/sniper/README.md
 [soldier SDK]: https://gitlab.steamos.cloud/steamrt/soldier/sdk/-/blob/steamrt/soldier/README.md
