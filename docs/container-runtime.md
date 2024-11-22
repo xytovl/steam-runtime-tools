@@ -84,6 +84,30 @@ and used to run the Steam client user interface (`steamwebhelper`).
 Documentation in the `steamrt` "metapackage" provides
 [more information about sniper](https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/sniper/README.md).
 
+## <a name="soldier"></a>Steam Linux Runtime 2.0 (soldier)
+
+[soldier]: #soldier
+
+Steam Runtime 2, `soldier`, is another newer runtime based on Debian 10
+(released in 2019).
+It is very similar to [`sniper`](#sniper), except for its base distribution
+being 2 years older: this means its core libraries and compiler are also
+approximately 2 years older.
+
+Proton versions 5.13 to 7.0 (inclusive) use this runtime environment.
+
+The *Steam Linux Runtime 2.0 (soldier)* compatibility tool, app ID 1391110,
+is automatically downloaded to your Steam library as
+`steamapps/common/SteamLinuxRuntime_soldier` when you select a version
+of Proton that requires it, or the *Steam Linux Runtime 1.0 (scout)*
+compatibility tool which requires it (see below).
+It can also be installed by running this command:
+
+    steam steam://install/1391110
+
+Documentation in the `steamrt` "metapackage" provides
+[more information about soldier](https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/soldier/README.md).
+
 ## <a name="scout-on-soldier"></a>Steam Linux Runtime 1.0 (scout)
 
 [scout-on-soldier]: #scout-on-soldier
@@ -126,30 +150,6 @@ Users can also specifically opt-in to running specific games in the
 Steam Linux Runtime 1.0 (scout) container via *Properties* → *Compatibility*.
 
 [Steam client 2024-11-05]: https://store.steampowered.com/news/collection/steam/?emclan=103582791457287600&emgid=4472730495692571024
-
-## <a name="soldier"></a>Steam Linux Runtime 2.0 (soldier)
-
-[soldier]: #soldier
-
-Steam Runtime 2, `soldier`, is another newer runtime based on Debian 10
-(released in 2019).
-It is very similar to [`sniper`](#sniper), except for its base distribution
-being 2 years older: this means its core libraries and compiler are also
-approximately 2 years older.
-
-Proton versions 5.13 to 7.0 (inclusive) use this runtime environment.
-
-The *Steam Linux Runtime 2.0 (soldier)* compatibility tool, app ID 1391110,
-is automatically downloaded to your Steam library as
-`steamapps/common/SteamLinuxRuntime_soldier` when you select a version
-of Proton that requires it, or the *Steam Linux Runtime 1.0 (scout)*
-compatibility tool which requires it (see below).
-It can also be installed by running this command:
-
-    steam steam://install/1391110
-
-Documentation in the `steamrt` "metapackage" provides
-[more information about soldier](https://gitlab.steamos.cloud/steamrt/steamrt/-/blob/steamrt/soldier/README.md).
 
 ## Possible future Steam Runtime branches
 
