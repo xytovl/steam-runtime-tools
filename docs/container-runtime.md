@@ -94,7 +94,11 @@ It is very similar to [`sniper`](#sniper), except for its base distribution
 being 2 years older: this means its core libraries and compiler are also
 approximately 2 years older.
 
-Proton versions 5.13 to 7.0 (inclusive) use this runtime environment.
+This runtime environment is not directly available for use by game developers,
+but it forms part of the implementation of the
+[*Steam Linux Runtime 1.0 (scout)*][scout-on-soldier]
+compatibility tool.
+Proton versions 5.13 to 7.0 (inclusive) also use this runtime environment.
 
 The *Steam Linux Runtime 2.0 (soldier)* compatibility tool, app ID 1391110,
 is automatically downloaded to your Steam library as
