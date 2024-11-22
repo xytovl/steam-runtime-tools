@@ -132,7 +132,7 @@ Documentation in the `steamrt` "metapackage" provides
 [scout-on-soldier]: #scout-on-soldier
 
 Steam offers a large number of older native Linux games.
-Some of these games, such as Team Fortress 2, were carefully compiled in
+Some of these games, such as Portal, were carefully compiled in
 a strict `scout` environment, so that they can run in the
 [scout `LD_LIBRARY_PATH` runtime][ldlp],
 or in any environment that provides at least the same libraries as scout.
