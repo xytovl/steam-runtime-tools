@@ -43,6 +43,8 @@ when necessary.
 
 Steam Linux Runtime 3.0, `sniper`,
 is the recommended runtime environment for new native Linux games on Steam.
+It can be used by any game that benefits from a newer library stack
+or SDK environment.
 
 It is a newer runtime than
 [scout][ldlp], based on Debian 11 (released in 2021).
@@ -56,15 +58,25 @@ sniper is designed to be used as a container runtime for `pressure-vessel`,
 and [cannot be used](#why) as a
 [`LD_LIBRARY_PATH` runtime][ldlp].
 
-Native Linux games that require sniper can be released on Steam.
-Since October 2024, this is available as a "self-service"
-feature via the Steamworks partner web interface, which can be used by
-any game that benefits from a newer library stack.
+For backwards compatibility,
+the default runtime environment for existing native Linux games is
+[Steam Linux Runtime 1.0 (scout)][scout-on-soldier].
+To opt-in to using sniper,
+app and game developers should compile their titles in the
+[sniper SDK][]
+and reconfigure the title's metadata to ask Steam to run it with
+Steam Linux Runtime 3.0 (soldier).
+For more information please see
+[Steam Linux Runtime - guide for game developers][SLR for game developers].
 
-Early adopters of this mechanism include
-[Retroarch][] since [August 2022][Retroarch on sniper],
-[Endless Sky][] since [early/mid 2023][Endless Sky on Sniper] and
-[Dota 2][] since [mid 2023][Dota 2 sniper],
+Games that use sniper include Valve's
+Counter-Strike 2,
+Dota 2 and
+Team Fortress 2,
+and third-party titles like
+Battle for Wesnoth,
+Endless Sky and
+Retroarch.
 
 sniper is also used as a runtime environment for Proton version 8.0 and up,
 which are compiled against the newer library stack and would not
@@ -241,14 +253,14 @@ contributed to the Linux kernel.
 [Dota 2 scout SLR]: https://store.steampowered.com/news/app/570/view/4978168332488878344
 [Dota 2 sniper]: https://mastodon.social/@TTimo/110578711292322771
 [Dota 2]: https://store.steampowered.com/app/570/Dota_2/
-[Endless Sky on sniper]: https://github.com/ValveSoftware/steam-runtime/issues/556
 [Endless Sky]: https://endless-sky.github.io/
 [Flatpak]: https://flatpak.org/
-[Retroarch on sniper]: https://github.com/libretro/RetroArch/issues/14266
 [Retroarch]: https://www.retroarch.com/
+[SLR for game developers]: slr-for-game-developers.md
 [Steam Runtime issues]: https://github.com/ValveSoftware/steam-runtime/issues
 [Ubuntu]: https://ubuntu.com/
 [bubblewrap]: https://github.com/containers/bubblewrap
 [ldlp]: ld-library-path-runtime.md
 [libcapsule]: https://gitlab.collabora.com/vivek/libcapsule
 [pressure-vessel]: pressure-vessel.md
+[sniper SDK]: https://gitlab.steamos.cloud/steamrt/sniper/sdk/-/blob/steamrt/sniper/README.md

@@ -68,23 +68,37 @@ scout.
 [Steam Runtime version 3, codenamed sniper][sniper],
 is the first such runtime available to developers of native Linux games
 on Steam.
-It is based on Debian 11 (2021).
+It can be used by any game that benefits from a newer library stack
+or SDK environment,
+and is based on Debian 11 (2021).
+Most of its libraries are taken directly from Debian, and can benefit
+from Debian's long-term security support.
+Selected libraries that are particularly important for games, such as
+SDL and Vulkan-Loader, have been upgraded to newer versions backported
+from newer branches of Debian.
 
-Native Linux games that require sniper can be released on Steam.
-Since October 2024, this is available as a "self-service"
-feature via the Steamworks partner web interface, which can be used by
-any game that benefits from a newer library stack.
-To use this feature, your app must first set up a Launch Option that
-supports Linux.
+Games that target sniper should be compiled in the [sniper SDK][].
+
+For backwards compatibility,
+the default runtime environment when configuring a game in the Steamworks
+partner web interface is
+[Steam Linux Runtime 1.0 (scout)](#scout).
+To opt-in to using sniper,
+your app must first set up a Launch Option that supports Linux.
 Once that is set up, you can use the Installation → Linux Runtime
 menu item to select a runtime.
+This can be done during initial setup for an unreleased game,
+or as part of an update from a version that targeted scout to a
+newer version that targets sniper.
 
-Early adopters of this mechanism included
-[Battle for Wesnoth][Wesnoth on sniper],
+Games that use sniper include Valve's
 Counter-Strike 2,
-Dota 2,
-[Endless Sky][Endless Sky on sniper] and
-[Retroarch][Retroarch on sniper].
+Dota 2 and
+Team Fortress 2,
+and third-party titles like
+Battle for Wesnoth,
+Endless Sky and
+Retroarch.
 
 #### <a name="soldier"></a>Native Linux games targeting Steam Runtime 2 'soldier'
 
@@ -1245,11 +1259,9 @@ advanced utilities might not be present.
 [Debian Policy]: https://www.debian.org/doc/debian-policy/ch-files.html#scripts
 [Debian's /etc/bash.bashrc]: https://sources.debian.org/src/bash/5.1-2/debian/etc.bash.bashrc/
 [Docker]: https://www.docker.com/
-[Endless Sky on sniper]: https://github.com/ValveSoftware/steam-runtime/issues/556
 [Linux joystick implementation in SDL]: https://github.com/libsdl-org/SDL/blob/main/src/joystick/linux/SDL_sysjoystick.c
 [Podman]: https://podman.io/
 [Proton documentation]: https://github.com/ValveSoftware/Proton/
-[Retroarch on sniper]: https://github.com/libretro/RetroArch/issues/14266
 [SDL_GetPrefPath]: https://wiki.libsdl.org/SDL_GetPrefPath
 [Steam Cloud API]: https://partner.steamgames.com/doc/features/cloud
 [Steam Input]: https://partner.steamgames.com/doc/features/steam_controller
@@ -1257,7 +1269,6 @@ advanced utilities might not be present.
 [Steam support documentation]: https://help.steampowered.com/
 [Toolbx]: https://containertoolbx.org/
 [Verify integrity]: https://help.steampowered.com/en/faqs/view/0C48-FCBD-DA71-93EB
-[Wesnoth on sniper]: https://github.com/ValveSoftware/steam-runtime/issues/508#issuecomment-1147665747
 [add a Steam Library folder]: https://help.steampowered.com/en/faqs/view/4BD4-4528-6B2E-8327
 [basedirs]: https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
 [compatibility tool interface]: steam-compat-tool-interface.md
