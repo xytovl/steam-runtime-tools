@@ -1251,9 +1251,13 @@ so it should not be necessary to build your own version of SDL.
 
 If you load a library dynamically, make sure to use its versioned SONAME,
 such as `libvulkan.so.1` or `libgtk-3.so.0`, as the name to search for.
-Don't use the development symlink such as `libvulkan.so` or `libgtk-3.so`,
-and also don't use the fully-versioned name such as `libvulkan.so.1.2.189`
-or `libgtk-3.so.0.2404.26`.
+Avoid using the development symlink such as `libvulkan.so` or `libgtk-3.so`,
+which will not be available in the Steam Linux Runtime container,
+and does not guarantee ABI compatibility even if it works.
+Also avoid using the fully-versioned name such as `libvulkan.so.1.2.189`
+or `libgtk-3.so.0.2404.26`,
+because that name will no longer work if the library is upgraded to a
+newer compatible version.
 
 Use the versions of libraries that are included in the Steam Runtime,
 if possible.
