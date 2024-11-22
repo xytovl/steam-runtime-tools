@@ -244,7 +244,7 @@ Flatpak 1.12 or later.
 Run the *COMMAND* in an empty environment, apart from any environment
 variables set by **--env** and similar options, and environment
 variables such as `PWD` that are set programmatically (see
-**ENVIRONMENT** section, below).
+[**ENVIRONMENT** section, below][ENVIRONMENT]).
 If this option is not used, instead it inherits environment variables
 from **steam-runtime-launcher-service**, with **--env** and
 similar options overriding or unsetting individual variables.
@@ -257,9 +257,9 @@ similar options overriding or unsetting individual variables.
 </dt><dd>
 
 Run the *SHELL_COMMAND* using **sh**(1).
-If additional arguments are given, the first is used to set **$0**
+If additional arguments are given, the first is used to set `$0`
 in the resulting shell, and the remaining arguments are the
-shell's positional parameters **$@**.
+shell's positional parameters `$@`.
 This is a shortcut for using
 **-- sh -c** *SHELL_COMMAND* [*$0* [*ARGUMENT*...]]
 as the command and arguments.
@@ -386,7 +386,7 @@ Be more verbose.
 Options from this group are processed in order, with each option taking
 precedence over any earlier options that affect the same environment variable.
 For example,
-**--pass-env-matching="FO&#x2a;" --env=FOO=bar --unset-env=FOCUS**
+`--pass-env-matching="FO&#x2a;" --env=FOO=bar --unset-env=FOCUS`
 will set **FOO** to **bar**, unset **FOCUS** even if the caller has
 it set, and pass through **FONTS** from the caller.
 
@@ -440,9 +440,10 @@ the *COMMAND* (unless **--clear-env** was used).
 </dt><dd>
 
 Do the same as for **--inherit-env** for any environment variable
-whose name matches *WILDCARD*.
+whose name matches the **fnmatch**(3) pattern *WILDCARD*,
+case-sensitively.
 If this command is run from a shell, the wildcard will usually need
-to be quoted, for example **--inherit-env-matching="FOO&#x2a;"**.
+to be quoted, for example `--inherit-env-matching="FOO*"`.
 
 </dd>
 <dt>
@@ -465,10 +466,10 @@ via **--unset-env**.
 For each environment variable that is set and has a name matching
 the **fnmatch**(3) pattern *WILDCARD*, pass its current value
 into the container as if via **--env**.
-For example, **--pass-env-matching=Steam&#x2a;** copies Steam-related
+For example, `--pass-env-matching=Steam*` copies some Steam-related
 environment variables.
 If this command is run from a shell, the wildcard will usually need
-to be quoted, for example **--pass-env-matching="Steam&#x2a;"**.
+to be quoted, for example `--pass-env-matching="Steam*"`.
 
 </dd>
 <dt>
@@ -501,11 +502,12 @@ Some variables will be set programmatically by
 
 If **steam-runtime-launcher-service**(1) was run as a wrapper around a
 command (for example as
-**steam-runtime-launcher-service --bus-name=... -- my-game**),
+`steam-runtime-launcher-service --bus-name=... -- my-game`),
 and the initial process of the wrapped command is still running,
 then this variable is set to its process ID (for example, the process
 ID of **my-game**). Otherwise, this variable is cleared.
-The environment options shown above will override this behaviour.
+[The environment options shown above][ENVIRONMENT OPTIONS]
+will override this behaviour.
 
 </dd>
 <dt>
@@ -517,7 +519,8 @@ The environment options shown above will override this behaviour.
 **steam-runtime-launcher-service**(1) sets this to the current working
 directory (as specified by **--directory**, or inherited from the
 launcher) for each command executed inside the container,
-overriding the environment options shown above.
+overriding
+[the environment options shown above][ENVIRONMENT OPTIONS].
 
 </dd>
 </dl>
