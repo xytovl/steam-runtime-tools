@@ -1376,6 +1376,18 @@ cache_indep_graphics_stack (SrtSystemInfo *system_info,
       exp_layers = srt_system_info_list_explicit_vulkan_layers (system_info);
       imp_layers = srt_system_info_list_implicit_vulkan_layers (system_info);
     }
+
+  if (g_cancellable_is_cancelled (cancellable))
+    return;
+
+  if (TRUE)
+    {
+      G_GNUC_UNUSED g_autoptr(SrtProfilingTimer) part_timer =
+        _srt_profiling_start ("Enumerating OpenXR runtimes in thread");
+      G_GNUC_UNUSED g_autoptr(SrtObjectList) runtimes = NULL;
+
+      runtimes = srt_system_info_list_openxr_runtimes (system_info, multiarch_tuples);
+    }
 }
 
 /* Called in enumeration thread */
@@ -2458,7 +2470,7 @@ typedef struct
 {
   /* (type SrtEglIcd) or (type SrtVulkanIcd) or (type SrtVdpauDriver)
    * or (type SrtVaApiDriver) or (type SrtVulkanLayer) or
-   * (type SrtDriDriver) */
+   * (type SrtDriDriver) or (type SrtOpenxrRuntime) */
   gpointer icd;
   /* Some sort of name borrowed from icd */
   const char *debug_name;
@@ -2493,6 +2505,8 @@ icd_details_new (gpointer icd)
     name = srt_vdpau_driver_get_library_path (icd);
   else if (SRT_IS_VA_API_DRIVER (icd))
     name = srt_va_api_driver_get_library_path (icd);
+  else if (SRT_IS_OPENXR_RUNTIME (icd))
+    name = srt_openxr_runtime_get_library_path (icd);
   else
     g_return_val_if_reached (NULL);
 
@@ -4862,6 +4876,7 @@ setup_json_manifest (PvRuntime *self,
   SrtVulkanIcd *icd = NULL;
   SrtEglIcd *egl = NULL;
   SrtEglExternalPlatform *ext_platform = NULL;
+  SrtOpenxrRuntime *oxr = NULL;
   gboolean loaded = FALSE;
   gboolean need_provider_json = FALSE;
   g_autofree gchar *json_basename = NULL;
@@ -4898,6 +4913,10 @@ setup_json_manifest (PvRuntime *self,
   else if (SRT_IS_EGL_EXTERNAL_PLATFORM (details->icd))
     {
       ext_platform = SRT_EGL_EXTERNAL_PLATFORM (details->icd);
+    }
+  else if (SRT_IS_OPENXR_RUNTIME(details->icd))
+    {
+      oxr = SRT_OPENXR_RUNTIME(details->icd);
     }
   else
     {
@@ -5050,6 +5069,16 @@ setup_json_manifest (PvRuntime *self,
                                                                                 details->paths_in_container[i]);
 
               if (!srt_egl_external_platform_write_to_file (replacement, write_to_file, error))
+                return FALSE;
+            }
+          else if (oxr != NULL)
+            {
+              g_autoptr(SrtOpenxrRuntime) replacement = NULL;
+
+              replacement = srt_openxr_runtime_new_replace_library_path (oxr,
+                                                                         details->paths_in_container[i]);
+
+              if (!srt_openxr_runtime_write_to_file (replacement, write_to_file, error))
                 return FALSE;
             }
           else
@@ -5397,6 +5426,9 @@ collect_graphics_libraries_patterns (GPtrArray *patterns)
     "libva-drm.so.2",
     "libva-glx.so.2",
     "libva-x11.so.2",
+
+    /* OpenXR */
+    "libopenxr_loader.so.1",
 
     /* Dependencies that might come in via dlopen() */
     "libdrm.so.2",
@@ -6929,6 +6961,52 @@ collect_vulkan_icds (PvRuntime *self,
 }
 
 /*
+ * @vulkan_icd_details: (element-type IcdDetails):
+ * @patterns: (element-type filename):
+ */
+static gboolean
+collect_openxr_runtimes (PvRuntime *self,
+                        RuntimeArchitecture *arch,
+                        GPtrArray *openxr_runtime_details,
+                        GPtrArray *patterns,
+                        GError **error)
+{
+  G_GNUC_UNUSED g_autoptr(SrtProfilingTimer) timer =
+    _srt_profiling_start ("Collecting OpenXR runtimes");
+  gsize j;
+  /* As with Vulkan layers, the order of the manifests matters
+   * but the order of the actual libraries does not. */
+  gboolean use_numbered_subdirs = FALSE;
+  const gsize multiarch_index = arch->multiarch_index;
+
+  g_debug ("Collecting %s OpenXR runtime from provider...",
+           arch->details->tuple);
+
+  for (j = 0; j < openxr_runtime_details->len; j++)
+    {
+      IcdDetails *details = g_ptr_array_index (openxr_runtime_details, j);
+      SrtOpenxrRuntime *runtime = SRT_OPENXR_RUNTIME (details->icd);
+
+      g_assert (details->resolved_libraries[multiarch_index] == NULL);
+
+      if (!srt_openxr_runtime_check_error (runtime, NULL))
+        continue;
+
+      details->resolved_libraries[multiarch_index] = srt_openxr_runtime_resolve_library_path (runtime);
+      g_assert (details->resolved_libraries[multiarch_index] != NULL);
+    }
+
+  if (!bind_icds (self, arch, "openxr/1",
+                  (IcdDetails **) openxr_runtime_details->pdata,
+                  openxr_runtime_details->len,
+                  &use_numbered_subdirs, patterns, NULL, error))
+    return FALSE;
+
+  return TRUE;
+
+}
+
+/*
  * @patterns: (element-type filename):
  */
 static gboolean
@@ -7314,6 +7392,52 @@ pv_enumerate_vulkan_icds (SrtSystemInfo *system_info,
 }
 
 /*
+ * Returns: (element-type IcdDetails):
+ */
+static GPtrArray *
+pv_enumerate_openxr_runtimes (SrtSystemInfo *system_info,
+                          const char * const *multiarch_tuples,
+                          const gchar *which_system)
+{
+  G_GNUC_UNUSED g_autoptr(SrtProfilingTimer) timer = NULL;
+  g_autoptr(SrtObjectList) openxr_runtimes = NULL;
+  g_autoptr(GPtrArray) openxr_runtime_details = NULL;
+  gsize i;
+  const GList *icd_iter;
+
+  timer = _srt_profiling_start ("Enumerating OpenXR runtimes on %s system", which_system);
+  g_debug ("Enumerating OpenXR runtimes on %s system...", which_system);
+  openxr_runtimes = srt_system_info_list_openxr_runtimes (system_info,
+                                                          multiarch_tuples);
+  openxr_runtime_details = g_ptr_array_new_full (g_list_length (openxr_runtimes),
+                                                 (GDestroyNotify) G_CALLBACK (icd_details_free));
+
+  for (icd_iter = openxr_runtimes, i = 0;
+       icd_iter != NULL;
+       icd_iter = icd_iter->next, i++)
+    {
+      SrtOpenxrRuntime *runtime = icd_iter->data;
+      const gchar *path = srt_openxr_runtime_get_json_path (runtime);
+      GError *local_error = NULL;
+
+      if (!srt_openxr_runtime_check_error (runtime, &local_error))
+        {
+          g_warning ("Failed to load OpenXR runtime #%" G_GSIZE_FORMAT " from %s: %s",
+                     i, path, local_error->message);
+          g_clear_error (&local_error);
+          continue;
+        }
+
+      g_info ("Vulkan ICD #%" G_GSIZE_FORMAT " at %s: %s",
+              i, path, srt_openxr_runtime_get_library_path (runtime));
+
+      g_ptr_array_add (openxr_runtime_details, icd_details_new (runtime));
+    }
+
+  return g_steal_pointer (&openxr_runtime_details);
+}
+
+/*
  * @vulkan_layer_details: (inout) (element-type IcdDetails):
  */
 static void
@@ -7391,6 +7515,7 @@ typedef struct
   GPtrArray *vulkan_icd_details;   /* (element-type IcdDetails) */
   GPtrArray *vulkan_exp_layer_details;   /* (element-type IcdDetails) */
   GPtrArray *vulkan_imp_layer_details;   /* (element-type IcdDetails) */
+  GPtrArray *openxr_runtime_details;   /* (element-type IcdDetails) */
 } IcdStack;
 
 static IcdStack *
@@ -7407,6 +7532,7 @@ icd_stack_free (IcdStack *self)
   g_clear_pointer (&self->vulkan_icd_details, g_ptr_array_unref);
   g_clear_pointer (&self->vulkan_exp_layer_details, g_ptr_array_unref);
   g_clear_pointer (&self->vulkan_imp_layer_details, g_ptr_array_unref);
+  g_clear_pointer (&self->openxr_runtime_details, g_ptr_array_unref);
   g_slice_free (IcdStack, self);
 }
 
@@ -7457,6 +7583,7 @@ pv_runtime_use_provider_graphics_stack (PvRuntime *self,
   g_autoptr(GString) vulkan_exp_layer_path = g_string_new ("");
   g_autoptr(GString) vulkan_imp_layer_path = g_string_new ("");
   g_autoptr(GString) va_api_path = g_string_new ("");
+  g_autoptr(GString) openxr_path = g_string_new ("");
   gboolean any_architecture_works = FALSE;
   g_autoptr(SrtSystemInfo) system_info = NULL;
   g_autoptr(SrtSystemInfo) host_system_info = NULL;
@@ -7513,6 +7640,10 @@ pv_runtime_use_provider_graphics_stack (PvRuntime *self,
   provider_stack->vulkan_icd_details = pv_enumerate_vulkan_icds (system_info,
                                                                  pv_multiarch_tuples,
                                                                  provider);
+
+  provider_stack->openxr_runtime_details = pv_enumerate_openxr_runtimes (system_info,
+                                                                 pv_multiarch_tuples,
+                                                                 provider);
   if (self->flags & PV_RUNTIME_FLAGS_IMPORT_VULKAN_LAYERS)
     {
       pv_enumerate_vulkan_layer_details (system_info,
@@ -7528,6 +7659,7 @@ pv_runtime_use_provider_graphics_stack (PvRuntime *self,
       host_stack->egl_ext_platform_details = pv_enumerate_egl_ext_platforms (host_system_info,
                                                                              NULL, which);
       host_stack->vulkan_icd_details = pv_enumerate_vulkan_icds (host_system_info, NULL, which);
+      host_stack->openxr_runtime_details = pv_enumerate_openxr_runtimes (host_system_info, NULL, which);
       if (self->flags & PV_RUNTIME_FLAGS_IMPORT_VULKAN_LAYERS)
         {
           pv_enumerate_vulkan_layer_details (host_system_info,
@@ -7623,6 +7755,10 @@ pv_runtime_use_provider_graphics_stack (PvRuntime *self,
             return FALSE;
 
           if (!collect_vulkan_icds (self, arch, provider_stack->vulkan_icd_details,
+                                    patterns, error))
+            return FALSE;
+
+          if (!collect_openxr_runtimes (self, arch, provider_stack->openxr_runtime_details,
                                     patterns, error))
             return FALSE;
 
@@ -7923,6 +8059,22 @@ pv_runtime_use_provider_graphics_stack (PvRuntime *self,
         }
     }
 
+  g_debug ("Setting up OpenXR runtime JSON...");
+  if (!setup_each_json_manifest (self, bwrap, "share/openxr/1",
+                                 provider_stack->openxr_runtime_details, openxr_path, error))
+    return FALSE;
+
+  if (host_stack->openxr_runtime_details != NULL)
+    {
+      for (i = 0; i < host_stack->openxr_runtime_details->len; i++)
+        {
+          IcdDetails *details = g_ptr_array_index (host_stack->openxr_runtime_details, i);
+          SrtOpenxrRuntime *runtime = SRT_OPENXR_RUNTIME (details->icd);
+          pv_search_path_append (openxr_path, srt_openxr_runtime_get_json_path (runtime));
+        }
+    }
+  
+
   if (dri_path->len != 0)
     {
       _srt_env_overlay_set (container_env, "LIBGL_DRIVERS_PATH", dri_path->str);
@@ -8014,6 +8166,19 @@ pv_runtime_use_provider_graphics_stack (PvRuntime *self,
    * choice of glibc and therefore can do something more clever with
    * dynamic string tokens. */
   _srt_env_overlay_set (container_env, "VDPAU_DRIVER_PATH", NULL);
+
+  if (openxr_path->len != 0)
+    {
+      // OpenXR loader does not allow replacing the search path,
+      // we instead have to set a single active runtime
+      gchar* delim = strchr(openxr_path->str, ':');
+      if (delim != NULL)
+        {
+          g_warning("More than one OpenXR runtime manifest, selecting a single one");
+          g_string_truncate(openxr_path, delim - openxr_path->str);
+        }
+      _srt_env_overlay_set (container_env, "XR_RUNTIME_JSON", openxr_path->str);
+    }
 
   return TRUE;
 }

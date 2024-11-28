@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include "steam-runtime-tools/steam-runtime-tools.h"
 #if !defined(_SRT_IN_SINGLE_HEADER) && !defined(_SRT_COMPILATION)
 #error "Do not include directly, use <steam-runtime-tools/steam-runtime-tools.h>"
 #endif
@@ -148,6 +149,9 @@ GList *srt_system_info_list_egl_external_platforms (SrtSystemInfo *self,
 _SRT_PUBLIC
 GList *srt_system_info_list_vulkan_icds (SrtSystemInfo *self,
                                          const char * const *multiarch_tuples);
+_SRT_PUBLIC
+GList *srt_system_info_list_openxr_runtimes (SrtSystemInfo *self,
+                                             const char * const *multiarch_tuples);
 _SRT_PUBLIC
 GList *srt_system_info_list_explicit_vulkan_layers (SrtSystemInfo *self);
 _SRT_PUBLIC

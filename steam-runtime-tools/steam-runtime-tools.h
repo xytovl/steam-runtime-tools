@@ -41,6 +41,7 @@
 #include <steam-runtime-tools/graphics-drivers-vaapi.h>
 #include <steam-runtime-tools/graphics-drivers-vdpau.h>
 #include <steam-runtime-tools/graphics-drivers-vulkan.h>
+#include <steam-runtime-tools/graphics-runtime-openxr.h>
 #include <steam-runtime-tools/input-device.h>
 #include <steam-runtime-tools/library.h>
 #include <steam-runtime-tools/locale.h>

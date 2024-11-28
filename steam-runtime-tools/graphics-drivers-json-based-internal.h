@@ -121,6 +121,12 @@ struct _SrtEglExternalPlatform
   SrtBaseJsonGraphicsModule parent;
 };
 
+struct _SrtOpenxrRuntime
+{
+  /*< private >*/
+  SrtBaseJsonGraphicsModule parent;
+};
+
 G_DEFINE_AUTOPTR_CLEANUP_FUNC (SrtBaseJsonGraphicsModule, g_object_unref)
 
 static inline void
