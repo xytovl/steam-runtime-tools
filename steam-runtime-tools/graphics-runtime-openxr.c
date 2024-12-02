@@ -437,7 +437,8 @@ openxr_runtime_load_json_cb (SrtSysroot *sysroot,
                          const char *filename,
                          void *user_data)
 {
-  load_icd_from_json (SRT_TYPE_OPENXR_RUNTIME, sysroot, filename, user_data);
+  g_autofree gchar * absolute_filename = realpath(filename, NULL);
+  load_icd_from_json (SRT_TYPE_OPENXR_RUNTIME, sysroot, absolute_filename, user_data);
 }
 
 /*
