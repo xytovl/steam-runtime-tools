@@ -7428,7 +7428,7 @@ pv_enumerate_openxr_runtimes (SrtSystemInfo *system_info,
           continue;
         }
 
-      g_info ("Vulkan ICD #%" G_GSIZE_FORMAT " at %s: %s",
+      g_info ("OpenXR runtime #%" G_GSIZE_FORMAT " at %s: %s",
               i, path, srt_openxr_runtime_get_library_path (runtime));
 
       g_ptr_array_add (openxr_runtime_details, icd_details_new (runtime));
