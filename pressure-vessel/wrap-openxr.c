@@ -55,8 +55,7 @@ get_runtime_dir (void)
  * Use a list of known socket names.
  */
 void
-pv_wrap_add_openxr_args (FlatpakBwrap *sharing_bwrap,
-                         SrtEnvOverlay *container_env)
+pv_wrap_add_openxr_args (FlatpakBwrap *sharing_bwrap)
 {
   const char *runtime_dir = get_runtime_dir ();
   int i;

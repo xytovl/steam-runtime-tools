@@ -29,5 +29,4 @@
 
 #include "flatpak-bwrap-private.h"
 
-void pv_wrap_add_openxr_args (FlatpakBwrap *sharing_bwrap,
-                              SrtEnvOverlay *container_env);
+void pv_wrap_add_openxr_args (FlatpakBwrap *sharing_bwrap);
