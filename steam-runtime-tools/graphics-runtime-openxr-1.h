@@ -53,8 +53,6 @@ _SRT_PUBLIC
 gboolean srt_openxr_1_runtime_check_error (SrtOpenxr1Runtime *self,
                                            GError **error);
 _SRT_PUBLIC
-const gchar *srt_openxr_1_runtime_get_api_version (SrtOpenxr1Runtime *self);
-_SRT_PUBLIC
 const gchar *srt_openxr_1_runtime_get_json_path (SrtOpenxr1Runtime *self);
 _SRT_PUBLIC
 const gchar *srt_openxr_1_runtime_get_library_path (SrtOpenxr1Runtime *self);

@@ -55,7 +55,6 @@ struct _SrtOpenxr1RuntimeClass
 enum
 {
   OPENXR_1_RUNTIME_PROP_0,
-  OPENXR_1_RUNTIME_PROP_API_VERSION,
   OPENXR_1_RUNTIME_PROP_LIBRARY_ARCH,
   N_OPENXR_1_RUNTIME_PROPERTIES
 };
@@ -77,10 +76,6 @@ srt_openxr_1_runtime_get_property (GObject *object,
 
   switch (prop_id)
     {
-      case OPENXR_1_RUNTIME_PROP_API_VERSION:
-        g_value_set_string (value, self->parent.api_version);
-        break;
-
       case OPENXR_1_RUNTIME_PROP_LIBRARY_ARCH:
         g_value_set_string (value, self->parent.library_arch);
         break;
@@ -100,11 +95,6 @@ srt_openxr_1_runtime_set_property (GObject *object,
 
   switch (prop_id)
     {
-      case OPENXR_1_RUNTIME_PROP_API_VERSION:
-        g_return_if_fail (self->parent.api_version == NULL);
-        self->parent.api_version = g_value_dup_string (value);
-        break;
-
       case OPENXR_1_RUNTIME_PROP_LIBRARY_ARCH:
         g_return_if_fail (self->parent.library_arch == NULL);
         self->parent.library_arch = g_value_dup_string (value);
@@ -118,19 +108,16 @@ srt_openxr_1_runtime_set_property (GObject *object,
 static void
 srt_openxr_1_runtime_constructed (GObject *object)
 {
-  SrtOpenxr1Runtime *self = SRT_OPENXR_1_RUNTIME (object);
   SrtBaseGraphicsModule *base = SRT_BASE_GRAPHICS_MODULE (object);
 
   G_OBJECT_CLASS (srt_openxr_1_runtime_parent_class)->constructed (object);
 
   if (base->error != NULL)
     {
-      g_return_if_fail (self->parent.api_version == NULL);
       g_return_if_fail (base->library_path == NULL);
     }
   else
     {
-      g_return_if_fail (self->parent.api_version != NULL);
       g_return_if_fail (base->library_path != NULL);
     }
 }
@@ -145,13 +132,6 @@ srt_openxr_1_runtime_class_init (SrtOpenxr1RuntimeClass *cls)
   object_class->get_property = srt_openxr_1_runtime_get_property;
   object_class->set_property = srt_openxr_1_runtime_set_property;
   object_class->constructed = srt_openxr_1_runtime_constructed;
-
-  openxr_1_runtime_properties[OPENXR_1_RUNTIME_PROP_API_VERSION] =
-    g_param_spec_string ("api-version", "API version",
-                         "OpenXR version implemented by this runtime",
-                         NULL,
-                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-                         G_PARAM_STATIC_STRINGS);
 
   openxr_1_runtime_properties[OPENXR_1_RUNTIME_PROP_LIBRARY_ARCH] =
     g_param_spec_string ("library-arch", "Library architecture",
@@ -169,7 +149,6 @@ srt_openxr_1_runtime_class_init (SrtOpenxr1RuntimeClass *cls)
 /*
  * srt_openxr_1_runtime_new:
  * @json_path: (transfer none): the absolute path to the JSON file
- * @api_version: (transfer none): the API version
  * @library_path: (transfer none): the path to the library
  * @library_arch: (transfer none) (nullable): the architecture of
  *  @library_path
@@ -179,17 +158,14 @@ srt_openxr_1_runtime_class_init (SrtOpenxr1RuntimeClass *cls)
  */
 SrtOpenxr1Runtime *
 srt_openxr_1_runtime_new (const gchar *json_path,
-                          const gchar *api_version,
                           const gchar *library_path,
                           const gchar *library_arch,
                           SrtLoadableIssues issues)
 {
   g_return_val_if_fail (json_path != NULL, NULL);
-  g_return_val_if_fail (api_version != NULL, NULL);
   g_return_val_if_fail (library_path != NULL, NULL);
 
   return g_object_new (SRT_TYPE_OPENXR_1_RUNTIME,
-                       "api-version", api_version,
                        "json-path", json_path,
                        "library-path", library_path,
                        "library-arch", library_arch,
@@ -232,24 +208,6 @@ srt_openxr_1_runtime_check_error (SrtOpenxr1Runtime *self,
   g_return_val_if_fail (SRT_IS_OPENXR_1_RUNTIME (self), FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
   return _srt_base_graphics_module_check_error (SRT_BASE_GRAPHICS_MODULE (self), error);
-}
-
-/**
- * srt_openxr_1_runtime_get_api_version:
- * @self: The runtime
- *
- * Return the OpenXR API version of this runtime.
- *
- * If the JSON description for this runtime could not be loaded, return %NULL
- * instead.
- *
- * Returns: (type utf8) (transfer none) (nullable): The API version as a string
- */
-const gchar *
-srt_openxr_1_runtime_get_api_version (SrtOpenxr1Runtime *self)
-{
-  g_return_val_if_fail (SRT_IS_OPENXR_1_RUNTIME (self), NULL);
-  return self->parent.api_version;
 }
 
 /**
@@ -406,7 +364,6 @@ srt_openxr_1_runtime_new_replace_library_path (SrtOpenxr1Runtime *self,
     return g_object_ref (self);
 
   return srt_openxr_1_runtime_new (self->parent.json_path,
-                                   self->parent.api_version,
                                    path,
                                    self->parent.library_arch,
                                    base->issues);

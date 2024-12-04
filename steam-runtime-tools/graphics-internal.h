@@ -398,7 +398,6 @@ void _srt_vulkan_layer_set_library_arch (SrtVulkanLayer *self,
                                          const char *library_arch);
 
 SrtOpenxr1Runtime *srt_openxr_1_runtime_new (const gchar *json_path,
-                                             const gchar *api_version,
                                              const gchar *library_path,
                                              const gchar *library_arch,
                                              SrtLoadableIssues issues);
