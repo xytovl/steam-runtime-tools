@@ -588,7 +588,8 @@ _srt_loadable_flag_duplicates (GType which,
   g_return_if_fail (which == SRT_TYPE_VULKAN_ICD
                     || which == SRT_TYPE_EGL_ICD
                     || which == SRT_TYPE_EGL_EXTERNAL_PLATFORM
-                    || which == SRT_TYPE_VULKAN_LAYER);
+                    || which == SRT_TYPE_VULKAN_LAYER
+                    || which == SRT_TYPE_OPENXR_1_RUNTIME);
 
   loadable_seen = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
 
@@ -602,6 +603,7 @@ _srt_loadable_flag_duplicates (GType which,
       resolved_path = _srt_base_graphics_module_resolve_library_path (module);
 
       if (which == SRT_TYPE_VULKAN_ICD
+          || which == SRT_TYPE_OPENXR_1_RUNTIME
           || which == SRT_TYPE_EGL_ICD
           || which == SRT_TYPE_EGL_EXTERNAL_PLATFORM)
         {

@@ -1031,6 +1031,9 @@ srt_system_info_new_from_json (const char *path,
   info->layers.have_vulkan_implicit = TRUE;
   info->layers.vulkan_implicit = _srt_get_implicit_vulkan_layers_from_json_report (json_obj);
 
+  info->icds.have_openxr_1 = TRUE;
+  info->icds.openxr_1 = _srt_get_openxr_1_from_json_report (json_obj);
+
   info->desktop_entry.have_data = TRUE;
   info->desktop_entry.values = _srt_get_steam_desktop_entries_from_json_report (json_obj);
 

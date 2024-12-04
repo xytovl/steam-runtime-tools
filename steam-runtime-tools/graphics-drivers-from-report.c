@@ -269,6 +269,11 @@ get_driver_loadables_from_json_report (JsonObject *json_obj,
       else
         sub_member = "implicit_layers";
     }
+  else if (which == SRT_TYPE_OPENXR_1_RUNTIME)
+    {
+      member = "openxr_1";
+      sub_member = "runtimes";
+    }
   else
     {
       g_return_val_if_reached (NULL);
@@ -345,6 +350,10 @@ get_driver_loadables_from_json_report (JsonObject *json_obj,
                   if (component_layers != NULL && component_layers[0] == NULL)
                     g_clear_pointer (&component_layers, g_free);
                 }
+              if (which == SRT_TYPE_OPENXR_1_RUNTIME)
+                {
+                  name = json_object_get_string_member_with_default (json_elem_obj, "name", NULL);
+                }
 
               library_path = json_object_get_string_member_with_default (json_elem_obj,
                                                                          "library_path",
@@ -388,7 +397,8 @@ get_driver_loadables_from_json_report (JsonObject *json_obj,
                 }
               else if ((which == SRT_TYPE_EGL_ICD
                         || which == SRT_TYPE_EGL_EXTERNAL_PLATFORM
-                        || which == SRT_TYPE_VULKAN_ICD) &&
+                        || which == SRT_TYPE_VULKAN_ICD
+                        || which == SRT_TYPE_OPENXR_1_RUNTIME) &&
                        library_path != NULL)
                 {
                   if (which == SRT_TYPE_EGL_ICD)
@@ -406,6 +416,12 @@ get_driver_loadables_from_json_report (JsonObject *json_obj,
                                                                                    library_arch,
                                                                                    portability_driver,
                                                                                    issues));
+                  else if (which == SRT_TYPE_OPENXR_1_RUNTIME)
+                    driver_info = g_list_prepend (driver_info, srt_openxr_1_runtime_new(json_path,
+                                                                                        name,
+                                                                                        library_path,
+                                                                                        library_arch,
+                                                                                        issues));
                   else
                     g_return_val_if_reached (NULL);
                 }
@@ -503,4 +519,17 @@ GList *
 _srt_get_vulkan_from_json_report (JsonObject *json_obj)
 {
   return get_driver_loadables_from_json_report (json_obj, SRT_TYPE_VULKAN_ICD, FALSE);
+}
+
+/*
+ * _srt_get_openxr_1_from_json_report:
+ * @json_obj: (not nullable): A JSON Object used to search for "openxr_1" property
+ *
+ * Returns: A list of #SrtVulkanIcd that have been found, or %NULL if none
+ *  has been found.
+ */
+GList *
+_srt_get_openxr_1_from_json_report (JsonObject *json_obj)
+{
+  return get_driver_loadables_from_json_report (json_obj, SRT_TYPE_OPENXR_1_RUNTIME, FALSE);
 }
