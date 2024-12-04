@@ -872,6 +872,7 @@ load_icd_from_json (GType type,
   JsonObject *object;
   JsonNode *subnode;
   JsonObject *icd_object;
+  const char *expected_member_name;
   const char *file_format_version;
   const char *api_version = NULL;
   const char *library_path = NULL;
@@ -1022,32 +1023,21 @@ load_icd_from_json (GType type,
     }
 
   if (type == SRT_TYPE_OPENXR_1_RUNTIME)
-    {
-      subnode = json_object_get_member (object, "runtime");
-
-      if (subnode == NULL
-          || !JSON_NODE_HOLDS_OBJECT (subnode))
-        {
-          g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
-                       "No \"runtime\" object in \"%s%s\"",
-                       sysroot->path, filename);
-          issues |= SRT_LOADABLE_ISSUES_CANNOT_LOAD;
-          goto out;
-        }
-    }
+    expected_member_name = "runtime";
   else
-    {
-      subnode = json_object_get_member (object, "ICD");
+    expected_member_name = "ICD";
 
-      if (subnode == NULL
-          || !JSON_NODE_HOLDS_OBJECT (subnode))
-        {
-          g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
-                       "No \"ICD\" object in \"%s%s\"",
-                       sysroot->path, filename);
-          issues |= SRT_LOADABLE_ISSUES_CANNOT_LOAD;
-          goto out;
-        }
+  subnode = json_object_get_member (object, expected_member_name);
+
+  if (subnode == NULL
+      || !JSON_NODE_HOLDS_OBJECT (subnode))
+    {
+      g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
+                   "No \"%s\" object in \"%s%s\"",
+                   expected_member_name,
+                   sysroot->path, filename);
+      issues |= SRT_LOADABLE_ISSUES_CANNOT_LOAD;
+      goto out;
     }
 
   icd_object = json_node_get_object (subnode);
