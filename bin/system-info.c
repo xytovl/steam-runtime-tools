@@ -1623,6 +1623,74 @@ main (int argc,
 
   json_builder_end_object (builder);  // vulkan
 
+  json_builder_set_member_name (builder, "openxr_1");
+  json_builder_begin_object (builder);
+  json_builder_set_member_name (builder, "runtimes");
+  json_builder_begin_array (builder);
+  icds = srt_system_info_list_openxr_1_runtimes(info, multiarch_tuples);
+
+  for (icd_iter = icds; icd_iter != NULL; icd_iter = icd_iter->next)
+    {
+      json_builder_begin_object (builder);
+      json_builder_set_member_name (builder, "json_path");
+      json_builder_add_string_value (builder,
+                                     srt_openxr_1_runtime_get_json_path(icd_iter->data));
+
+      if (srt_openxr_1_runtime_check_error (icd_iter->data, &error))
+        {
+          const gchar *library;
+          const gchar *library_arch;
+          const gchar *name;
+          gchar *tmp;
+
+          library = srt_openxr_1_runtime_get_library_path (icd_iter->data);
+          json_builder_set_member_name (builder, "library_path");
+          json_builder_add_string_value (builder, library);
+
+          library_arch = srt_openxr_1_runtime_get_library_arch (icd_iter->data);
+          if (library_arch != NULL)
+            {
+              json_builder_set_member_name (builder, "library_arch");
+              json_builder_add_string_value (builder, library_arch);
+            }
+
+          name = srt_openxr_1_runtime_get_name(icd_iter->data);
+          if (name != NULL)
+            {
+              json_builder_set_member_name (builder, "name");
+              json_builder_add_string_value (builder, name);
+            }
+
+          tmp = srt_openxr_1_runtime_resolve_library_path (icd_iter->data);
+
+          if (g_strcmp0 (library, tmp) != 0)
+            {
+              json_builder_set_member_name (builder, "dlopen");
+              json_builder_add_string_value (builder, tmp);
+            }
+
+          g_free (tmp);
+        }
+      else
+        {
+          _srt_json_builder_add_error_members (builder, error);
+          g_clear_error (&error);
+        }
+
+      json_builder_set_member_name (builder, "issues");
+      json_builder_begin_array (builder);
+      loadable_issues = srt_openxr_1_runtime_get_issues (icd_iter->data);
+      jsonify_loadable_issues (builder, loadable_issues);
+      json_builder_end_array (builder);
+
+      json_builder_end_object (builder);
+    }
+
+  g_list_free_full (icds, g_object_unref);
+  json_builder_end_array (builder);   // openxr_1.runtimes
+
+  json_builder_end_object (builder);  // openxr_1
+
   json_builder_set_member_name (builder, "desktop-entries");
   json_builder_begin_array (builder);
     {
