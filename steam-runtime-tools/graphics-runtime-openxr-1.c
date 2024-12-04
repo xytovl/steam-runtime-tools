@@ -57,7 +57,6 @@ enum
   OPENXR_1_RUNTIME_PROP_0,
   OPENXR_1_RUNTIME_PROP_API_VERSION,
   OPENXR_1_RUNTIME_PROP_LIBRARY_ARCH,
-  OPENXR_1_RUNTIME_PROP_PORTABILITY_DRIVER,
   N_OPENXR_1_RUNTIME_PROPERTIES
 };
 
@@ -86,10 +85,6 @@ srt_openxr_1_runtime_get_property (GObject *object,
         g_value_set_string (value, self->parent.library_arch);
         break;
 
-      case OPENXR_1_RUNTIME_PROP_PORTABILITY_DRIVER:
-        g_value_set_boolean (value, self->parent.portability_driver);
-        break;
-
       default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
     }
@@ -113,10 +108,6 @@ srt_openxr_1_runtime_set_property (GObject *object,
       case OPENXR_1_RUNTIME_PROP_LIBRARY_ARCH:
         g_return_if_fail (self->parent.library_arch == NULL);
         self->parent.library_arch = g_value_dup_string (value);
-        break;
-
-      case OPENXR_1_RUNTIME_PROP_PORTABILITY_DRIVER:
-        self->parent.portability_driver = g_value_get_boolean (value);
         break;
 
       default:
@@ -171,13 +162,6 @@ srt_openxr_1_runtime_class_init (SrtOpenxr1RuntimeClass *cls)
                          G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
                          G_PARAM_STATIC_STRINGS);
 
-  openxr_1_runtime_properties[OPENXR_1_RUNTIME_PROP_PORTABILITY_DRIVER] =
-    g_param_spec_boolean ("portability-driver", "Is a portability driver?",
-                          "TRUE if the runtime is for a portability driver",
-                          FALSE,
-                          G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-                          G_PARAM_STATIC_STRINGS);
-
   g_object_class_install_properties (object_class, N_OPENXR_1_RUNTIME_PROPERTIES,
                                      openxr_1_runtime_properties);
 }
@@ -189,7 +173,6 @@ srt_openxr_1_runtime_class_init (SrtOpenxr1RuntimeClass *cls)
  * @library_path: (transfer none): the path to the library
  * @library_arch: (transfer none) (nullable): the architecture of
  *  @library_path
- * @portability_driver: Whether the runtime is a portability driver or not
  * @issues: problems with this runtime 
  *
  * Returns: (transfer full): a new runtime
@@ -199,7 +182,6 @@ srt_openxr_1_runtime_new (const gchar *json_path,
                           const gchar *api_version,
                           const gchar *library_path,
                           const gchar *library_arch,
-                          gboolean portability_driver,
                           SrtLoadableIssues issues)
 {
   g_return_val_if_fail (json_path != NULL, NULL);
@@ -211,7 +193,6 @@ srt_openxr_1_runtime_new (const gchar *json_path,
                        "json-path", json_path,
                        "library-path", library_path,
                        "library-arch", library_arch,
-                       "portability-driver", portability_driver,
                        "issues", issues,
                        NULL);
 }
@@ -428,7 +409,6 @@ srt_openxr_1_runtime_new_replace_library_path (SrtOpenxr1Runtime *self,
                                    self->parent.api_version,
                                    path,
                                    self->parent.library_arch,
-                                   self->parent.portability_driver,
                                    base->issues);
 }
 

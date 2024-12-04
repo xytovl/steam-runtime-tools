@@ -401,7 +401,6 @@ SrtOpenxr1Runtime *srt_openxr_1_runtime_new (const gchar *json_path,
                                              const gchar *api_version,
                                              const gchar *library_path,
                                              const gchar *library_arch,
-                                             gboolean portability_driver,
                                              SrtLoadableIssues issues);
 
 SrtOpenxr1Runtime *srt_openxr_1_runtime_new_error (const gchar *json_path,

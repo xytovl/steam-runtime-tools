@@ -1133,7 +1133,7 @@ out:
         {
           runtime = srt_openxr_1_runtime_new (filename, "1",
                                               library_path, library_arch,
-                                              portability_driver, issues);
+                                              issues);
           _srt_base_json_graphics_module_take_original_json (SRT_BASE_JSON_GRAPHICS_MODULE (runtime),
                                                              g_steal_pointer (&contents));
         }
