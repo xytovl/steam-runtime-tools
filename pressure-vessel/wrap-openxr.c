@@ -1,5 +1,7 @@
 /*
  * Copyright 2024 Patrick Nicolas <patricknicolas@laposte.net>
+ * Copyright 2018-2021 Wim Taymans
+ * Copyright 2021 Collabora Ltd.
  *
  * SPDX-License-Identifier: MIT
  *
@@ -25,7 +27,7 @@
 
 #include "wrap-openxr.h"
 
-#include <glib/gmacros.h>
+#include <glib.h>
 
 static const char* known_sockets[] = {
   "monado_comp_ipc", // https://gitlab.freedesktop.org/monado/monado/-/blob/faf0aafbd46d0d5c16f5a5683c3c871f3e0cac13/CMakeLists.txt#L339
