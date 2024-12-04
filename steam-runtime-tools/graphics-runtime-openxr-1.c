@@ -56,6 +56,7 @@ enum
 {
   OPENXR_1_RUNTIME_PROP_0,
   OPENXR_1_RUNTIME_PROP_LIBRARY_ARCH,
+  OPENXR_1_RUNTIME_PROP_NAME,
   N_OPENXR_1_RUNTIME_PROPERTIES
 };
 
@@ -80,6 +81,10 @@ srt_openxr_1_runtime_get_property (GObject *object,
         g_value_set_string (value, self->parent.library_arch);
         break;
 
+      case OPENXR_1_RUNTIME_PROP_NAME:
+        g_value_set_string (value, self->parent.name);
+        break;
+
       default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
     }
@@ -98,6 +103,11 @@ srt_openxr_1_runtime_set_property (GObject *object,
       case OPENXR_1_RUNTIME_PROP_LIBRARY_ARCH:
         g_return_if_fail (self->parent.library_arch == NULL);
         self->parent.library_arch = g_value_dup_string (value);
+        break;
+
+      case OPENXR_1_RUNTIME_PROP_NAME:
+        g_return_if_fail (self->parent.name == NULL);
+        self->parent.name= g_value_dup_string (value);
         break;
 
       default:
@@ -142,6 +152,14 @@ srt_openxr_1_runtime_class_init (SrtOpenxr1RuntimeClass *cls)
                          G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
                          G_PARAM_STATIC_STRINGS);
 
+  openxr_1_runtime_properties[OPENXR_1_RUNTIME_PROP_NAME] =
+    g_param_spec_string ("name", "name",
+                         "An optional user-facing name that can be used"
+                         " by tooling to refer to this specific runtime.",
+                         NULL,
+                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+                         G_PARAM_STATIC_STRINGS);
+
   g_object_class_install_properties (object_class, N_OPENXR_1_RUNTIME_PROPERTIES,
                                      openxr_1_runtime_properties);
 }
@@ -149,6 +167,7 @@ srt_openxr_1_runtime_class_init (SrtOpenxr1RuntimeClass *cls)
 /*
  * srt_openxr_1_runtime_new:
  * @json_path: (transfer none): the absolute path to the JSON file
+ * @name: (transfer none): the user-facing name of the runtime
  * @library_path: (transfer none): the path to the library
  * @library_arch: (transfer none) (nullable): the architecture of
  *  @library_path
@@ -158,6 +177,7 @@ srt_openxr_1_runtime_class_init (SrtOpenxr1RuntimeClass *cls)
  */
 SrtOpenxr1Runtime *
 srt_openxr_1_runtime_new (const gchar *json_path,
+                          const gchar *name,
                           const gchar *library_path,
                           const gchar *library_arch,
                           SrtLoadableIssues issues)
@@ -167,6 +187,7 @@ srt_openxr_1_runtime_new (const gchar *json_path,
 
   return g_object_new (SRT_TYPE_OPENXR_1_RUNTIME,
                        "json-path", json_path,
+                       "name", name,
                        "library-path", library_path,
                        "library-arch", library_arch,
                        "issues", issues,
@@ -268,6 +289,25 @@ srt_openxr_1_runtime_get_library_arch (SrtOpenxr1Runtime *self)
 }
 
 /**
+ * srt_openxr_1_runtime_get_name:
+ * @self: The runtime
+ *
+ * Return optional user-facing name that can be used by tooling to refer to this
+ * specific runtime
+ *
+ * This is an optional field, so if it was not available in the JSON,
+ * or if the manifest could not be loaded, %NULL will be returned.
+ *
+ * Returns: (type utf8) (transfer none) (nullable): #SrtOpenxr1Runtime:name
+ */
+const gchar *
+srt_openxr_1_runtime_get_name(SrtOpenxr1Runtime *self)
+{
+  g_return_val_if_fail (SRT_IS_OPENXR_1_RUNTIME (self), NULL);
+  return self->parent.name;
+}
+
+/**
  * srt_openxr_1_runtime_get_issues:
  * @self: The runtime
  *
@@ -364,6 +404,7 @@ srt_openxr_1_runtime_new_replace_library_path (SrtOpenxr1Runtime *self,
     return g_object_ref (self);
 
   return srt_openxr_1_runtime_new (self->parent.json_path,
+                                   self->parent.name,
                                    path,
                                    self->parent.library_arch,
                                    base->issues);

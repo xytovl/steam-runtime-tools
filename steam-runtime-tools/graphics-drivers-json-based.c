@@ -324,7 +324,12 @@ _srt_base_json_graphics_module_write_to_file (SrtBaseJsonGraphicsModule *self,
              json_builder_set_member_name (builder, "library_path");
              json_builder_add_string_value (builder, base->library_path);
 
-             // FIXME: add name
+             if (self->name)
+               {
+                 json_builder_set_member_name (builder, "name");
+                 json_builder_add_string_value (builder, self->name);
+               }
+
            }
           json_builder_end_object (builder);
         }
@@ -871,6 +876,7 @@ load_icd_from_json (GType type,
   const char *api_version = NULL;
   const char *library_path = NULL;
   const char *library_arch = NULL;
+  const char *name = NULL;
   gboolean portability_driver = FALSE;
   SrtLoadableIssues issues = SRT_LOADABLE_ISSUES_NONE;
   gsize len = 0;
@@ -1061,6 +1067,11 @@ load_icd_from_json (GType type,
         issues |= SRT_LOADABLE_ISSUES_API_SUBSET;
     }
 
+  if (type == SRT_TYPE_OPENXR_1_RUNTIME)
+    {
+      name = _srt_json_object_get_string_member (icd_object, "name");
+    }
+
   library_path = _srt_json_object_get_string_member (icd_object, "library_path");
   if (library_path == NULL)
     {
@@ -1132,6 +1143,7 @@ out:
       if (error == NULL)
         {
           runtime = srt_openxr_1_runtime_new (filename,
+                                              name,
                                               library_path,
                                               library_arch,
                                               issues);

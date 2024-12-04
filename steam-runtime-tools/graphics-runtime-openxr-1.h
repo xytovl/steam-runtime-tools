@@ -59,6 +59,8 @@ const gchar *srt_openxr_1_runtime_get_library_path (SrtOpenxr1Runtime *self);
 _SRT_PUBLIC
 const gchar *srt_openxr_1_runtime_get_library_arch (SrtOpenxr1Runtime *self);
 _SRT_PUBLIC
+const gchar *srt_openxr_1_runtime_get_name (SrtOpenxr1Runtime *self);
+_SRT_PUBLIC
 SrtLoadableIssues srt_openxr_1_runtime_get_issues (SrtOpenxr1Runtime *self);
 _SRT_PUBLIC
 gchar *srt_openxr_1_runtime_resolve_library_path (SrtOpenxr1Runtime *self);
