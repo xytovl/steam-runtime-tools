@@ -297,7 +297,7 @@ GList *_srt_load_vulkan_icds (SrtSysroot *sysroot,
                               const char * const *multiarch_tuples,
                               SrtCheckFlags check_flags);
 G_GNUC_INTERNAL
-GList *_srt_load_openxr_runtimes (SrtSysroot *sysroot,
+GList *_srt_load_openxr_1_runtimes (SrtSysroot *sysroot,
                                   SrtSubprocessRunner *runner,
                                   const char * const *multiarch_tuples,
                                   SrtCheckFlags check_flags);
@@ -335,7 +335,7 @@ gchar ** _srt_graphics_get_vulkan_search_paths (SrtSysroot *sysroot,
                                                 const char * const *multiarch_tuples,
                                                 const char *suffix);
 G_GNUC_INTERNAL
-gchar ** _srt_graphics_get_openxr_search_paths (const char * const *envp,
+gchar ** _srt_graphics_get_openxr_1_search_paths (const char * const *envp,
                                                 const char *suffix);
 
 G_GNUC_INTERNAL
@@ -345,7 +345,7 @@ SrtVaApiVersion _srt_va_api_driver_version (int dfd,
 #define _SRT_GRAPHICS_EXPLICIT_VULKAN_LAYER_SUFFIX "vulkan/explicit_layer.d"
 #define _SRT_GRAPHICS_IMPLICIT_VULKAN_LAYER_SUFFIX "vulkan/implicit_layer.d"
 #define _SRT_GRAPHICS_VULKAN_ICD_SUFFIX "vulkan/icd.d"
-#define _SRT_GRAPHICS_OPENXR_RUNTIME_SUFFIX "openxr/1"
+#define _SRT_GRAPHICS_OPENXR_1_RUNTIME_SUFFIX "openxr/1"
 
 SrtDriDriver *srt_dri_driver_new (const gchar *library_path,
                                   gboolean is_extra);
@@ -397,13 +397,13 @@ SrtVulkanLayer *srt_vulkan_layer_new (const gchar *json_path,
 void _srt_vulkan_layer_set_library_arch (SrtVulkanLayer *self,
                                          const char *library_arch);
 
-SrtOpenxrRuntime *srt_openxr_runtime_new (const gchar *json_path,
-                                          const gchar *api_version,
-                                          const gchar *library_path,
-                                          const gchar *library_arch,
-                                          gboolean portability_driver,
-                                          SrtLoadableIssues issues);
+SrtOpenxr1Runtime *srt_openxr_1_runtime_new (const gchar *json_path,
+                                             const gchar *api_version,
+                                             const gchar *library_path,
+                                             const gchar *library_arch,
+                                             gboolean portability_driver,
+                                             SrtLoadableIssues issues);
 
-SrtOpenxrRuntime *srt_openxr_runtime_new_error (const gchar *json_path,
-                                                SrtLoadableIssues issues,
-                                                const GError *error);
+SrtOpenxr1Runtime *srt_openxr_1_runtime_new_error (const gchar *json_path,
+                                                   SrtLoadableIssues issues,
+                                                   const GError *error);

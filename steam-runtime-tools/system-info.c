@@ -148,10 +148,10 @@ struct _SrtSystemInfo
   {
     GList *egl;
     GList *vulkan;
-    GList *openxr;
+    GList *openxr_1;
     gboolean have_egl;
     gboolean have_vulkan;
-    gboolean have_openxr;
+    gboolean have_openxr_1;
   } icds;
   struct
   {
@@ -3444,52 +3444,52 @@ srt_system_info_list_vulkan_icds (SrtSystemInfo *self,
 }
 
 /**
- * srt_system_info_list_openxr_runtimes:
+ * srt_system_info_list_openxr_1_runtimes:
  * @self: The #SrtSystemInfo object
  * @multiarch_tuples: (nullable) (array zero-terminated=1) (element-type utf8):
  *  Force the usage of the provided multiarch tuples like %SRT_ABI_I386,
  *  representing ABIs. If %NULL, the multiarch list stored in @self will
  *  be used instead.
  *
- * List the active OpenXR runtimes, using the same search paths as the
- * reference openxr-loader.
+ * List the active OpenXR 1 runtimes, using the same search paths as the
+ * reference openxr_1-loader.
  *
- * OpenXR runtimes may be qualified by ABI or not specify it
+ * OpenXR 1 runtimes may be qualified by ABI or not specify it
  * The function may return from 0 to the number of multiarch tuples + 1
  *
  * Entries can describe libraries as bare SONAME, relative or absolute path.
  *
- * Returns: (transfer full) (element-type SrtOpenxrRuntime): A list of
- *  opaque #SrtOpenxrRuntime objects. Free with
- *  `g_list_free_full(icds, srt_openxr_runtime_unref)`.
+ * Returns: (transfer full) (element-type SrtOpenxr1Runtime): A list of
+ *  opaque #SrtOpenxr1Runtime objects. Free with
+ *  `g_list_free_full(icds, srt_openxr_1_runtime_unref)`.
  */
 GList *
-srt_system_info_list_openxr_runtimes(SrtSystemInfo *self,
-                                     const char * const *multiarch_tuples)
+srt_system_info_list_openxr_1_runtimes(SrtSystemInfo *self,
+                                       const char * const *multiarch_tuples)
 {
   GList *ret = NULL;
   const GList *iter;
 
   g_return_val_if_fail (SRT_IS_SYSTEM_INFO (self), NULL);
 
-  if (!self->icds.have_openxr && self->from_report == NULL && self->sysroot != NULL)
+  if (!self->icds.have_openxr_1 && self->from_report == NULL && self->sysroot != NULL)
     {
-      g_assert (self->icds.openxr == NULL);
+      g_assert (self->icds.openxr_1 == NULL);
       g_auto(GStrv) stored_multiarch_tuples = NULL;
 
       if (multiarch_tuples == NULL)
         stored_multiarch_tuples = srt_system_info_dup_multiarch_tuples (self);
 
-      self->icds.openxr = _srt_load_openxr_runtimes (self->sysroot,
-                                                     self->runner,
-                                                     multiarch_tuples == NULL ?
-                                                       (const char * const *) stored_multiarch_tuples :
-                                                       multiarch_tuples,
-                                                     self->check_flags);
-      self->icds.have_openxr = TRUE;
+      self->icds.openxr_1 = _srt_load_openxr_1_runtimes (self->sysroot,
+                                                         self->runner,
+                                                         multiarch_tuples == NULL ?
+                                                           (const char * const *) stored_multiarch_tuples :
+                                                           multiarch_tuples,
+                                                         self->check_flags);
+      self->icds.have_openxr_1 = TRUE;
     }
 
-  for (iter = self->icds.openxr; iter != NULL; iter = iter->next)
+  for (iter = self->icds.openxr_1; iter != NULL; iter = iter->next)
     ret = g_list_prepend (ret, g_object_ref (iter->data));
 
   return g_list_reverse (ret);

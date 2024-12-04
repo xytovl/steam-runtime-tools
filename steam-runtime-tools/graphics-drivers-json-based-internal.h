@@ -121,7 +121,7 @@ struct _SrtEglExternalPlatform
   SrtBaseJsonGraphicsModule parent;
 };
 
-struct _SrtOpenxrRuntime
+struct _SrtOpenxr1Runtime
 {
   /*< private >*/
   SrtBaseJsonGraphicsModule parent;

@@ -150,8 +150,8 @@ _SRT_PUBLIC
 GList *srt_system_info_list_vulkan_icds (SrtSystemInfo *self,
                                          const char * const *multiarch_tuples);
 _SRT_PUBLIC
-GList *srt_system_info_list_openxr_runtimes (SrtSystemInfo *self,
-                                             const char * const *multiarch_tuples);
+GList *srt_system_info_list_openxr_1_runtimes (SrtSystemInfo *self,
+                                               const char * const *multiarch_tuples);
 _SRT_PUBLIC
 GList *srt_system_info_list_explicit_vulkan_layers (SrtSystemInfo *self);
 _SRT_PUBLIC

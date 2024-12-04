@@ -249,7 +249,7 @@ _srt_base_json_graphics_module_write_to_file (SrtBaseJsonGraphicsModule *self,
     member = "ICD";
   else if (which == SRT_TYPE_VULKAN_LAYER)
     member = "layer";
-  else if (which == SRT_TYPE_OPENXR_RUNTIME)
+  else if (which == SRT_TYPE_OPENXR_1_RUNTIME)
     member = "runtime";
   else
     g_return_val_if_reached (FALSE);
@@ -312,7 +312,7 @@ _srt_base_json_graphics_module_write_to_file (SrtBaseJsonGraphicsModule *self,
             }
            json_builder_end_object (builder);
         }
-      else if (which == SRT_TYPE_OPENXR_RUNTIME)
+      else if (which == SRT_TYPE_OPENXR_1_RUNTIME)
         {
           json_builder_set_member_name (builder, "file_format_version");
 
@@ -878,7 +878,7 @@ load_icd_from_json (GType type,
   g_return_if_fail (type == SRT_TYPE_VULKAN_ICD
                     || type == SRT_TYPE_EGL_ICD
                     || type == SRT_TYPE_EGL_EXTERNAL_PLATFORM
-                    || type == SRT_TYPE_OPENXR_RUNTIME
+                    || type == SRT_TYPE_OPENXR_1_RUNTIME
                     );
   g_return_if_fail (SRT_IS_SYSROOT (sysroot));
   g_return_if_fail (list != NULL);
@@ -977,7 +977,7 @@ load_icd_from_json (GType type,
           goto out;
         }
     }
-  else if (type == SRT_TYPE_OPENXR_RUNTIME)
+  else if (type == SRT_TYPE_OPENXR_1_RUNTIME)
     {
       /*
        * https://registry.khronos.org/OpenXR/specs/1.1/loader.html#runtime-manifest-file-format
@@ -986,7 +986,7 @@ load_icd_from_json (GType type,
       if (!g_str_equal(file_format_version, "1.0.0"))
         {
           g_set_error (&error, G_IO_ERROR, G_IO_ERROR_FAILED,
-                       "OpenXR file_format_version in \"%s%s\" is not 1.0.0",
+                       "OpenXR 1 file_format_version in \"%s%s\" is not 1.0.0",
                        sysroot->path, filename);
           issues |= SRT_LOADABLE_ISSUES_UNSUPPORTED;
           goto out;
@@ -1011,7 +1011,7 @@ load_icd_from_json (GType type,
         }
     }
 
-  if (type == SRT_TYPE_OPENXR_RUNTIME)
+  if (type == SRT_TYPE_OPENXR_1_RUNTIME)
     {
       subnode = json_object_get_member (object, "runtime");
 
@@ -1125,21 +1125,21 @@ out:
 
       *list = g_list_prepend (*list, ep);
     }
-  else if (type == SRT_TYPE_OPENXR_RUNTIME)
+  else if (type == SRT_TYPE_OPENXR_1_RUNTIME)
     {
-      SrtOpenxrRuntime *runtime;
+      SrtOpenxr1Runtime *runtime;
 
       if (error == NULL)
         {
-          runtime = srt_openxr_runtime_new (filename, "1",
-                                            library_path, library_arch,
-                                            portability_driver, issues);
+          runtime = srt_openxr_1_runtime_new (filename, "1",
+                                              library_path, library_arch,
+                                              portability_driver, issues);
           _srt_base_json_graphics_module_take_original_json (SRT_BASE_JSON_GRAPHICS_MODULE (runtime),
                                                              g_steal_pointer (&contents));
         }
       else
         {
-          runtime = srt_openxr_runtime_new_error (filename, issues, error);
+          runtime = srt_openxr_1_runtime_new_error (filename, issues, error);
         }
 
       *list = g_list_prepend (*list, runtime);
