@@ -1016,6 +1016,10 @@ load_icd_from_json (GType type,
           goto out;
         }
     }
+  else
+    {
+      g_assert_not_reached();
+    }
 
   if (type == SRT_TYPE_OPENXR_1_RUNTIME)
     {
