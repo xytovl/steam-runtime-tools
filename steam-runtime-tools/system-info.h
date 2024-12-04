@@ -25,7 +25,6 @@
 
 #pragma once
 
-#include "steam-runtime-tools/steam-runtime-tools.h"
 #if !defined(_SRT_IN_SINGLE_HEADER) && !defined(_SRT_COMPILATION)
 #error "Do not include directly, use <steam-runtime-tools/steam-runtime-tools.h>"
 #endif
