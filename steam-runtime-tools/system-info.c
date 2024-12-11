@@ -3453,9 +3453,12 @@ srt_system_info_list_vulkan_icds (SrtSystemInfo *self,
  *  Force the usage of the provided multiarch tuples like %SRT_ABI_I386,
  *  representing ABIs. If %NULL, the multiarch list stored in @self will
  *  be used instead.
+ * @flags: Filter the list of runtimes accordingly to these flags.
+ *  For example, "extra" runtimes are not active and would not be picked by
+ *  the openxr loader
  *
  * List the active OpenXR 1 runtimes, using the same search paths as the
- * reference openxr_1-loader.
+ * reference openxr loader.
  *
  * OpenXR 1 runtimes may be qualified by ABI or not specify it
  * The function may return from 0 to the number of multiarch tuples + 1
@@ -3468,7 +3471,8 @@ srt_system_info_list_vulkan_icds (SrtSystemInfo *self,
  */
 GList *
 srt_system_info_list_openxr_1_runtimes(SrtSystemInfo *self,
-                                       const char * const *multiarch_tuples)
+                                       const char * const *multiarch_tuples,
+                                       SrtDriverFlags flags)
 {
   GList *ret = NULL;
   const GList *iter;
@@ -3493,7 +3497,12 @@ srt_system_info_list_openxr_1_runtimes(SrtSystemInfo *self,
     }
 
   for (iter = self->icds.openxr_1; iter != NULL; iter = iter->next)
-    ret = g_list_prepend (ret, g_object_ref (iter->data));
+    {
+      if ((flags & SRT_DRIVER_FLAGS_INCLUDE_ALL) == 0 &&
+          srt_openxr_1_runtime_is_extra(iter->data))
+        continue;
+      ret = g_list_prepend (ret, g_object_ref (iter->data));
+    }
 
   return g_list_reverse (ret);
 }

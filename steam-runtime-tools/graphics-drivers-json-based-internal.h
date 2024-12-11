@@ -83,6 +83,7 @@ struct _SrtBaseJsonGraphicsModule
   gchar *description;
   GStrv component_layers;
   gboolean portability_driver;
+  gboolean is_extra;
   /* Standard name => dlsym() name to call instead
    * (element-type utf8 utf8) */
   GHashTable *functions;
@@ -177,15 +178,17 @@ void load_json_dir (SrtSysroot *sysroot,
                     const char *dir,
                     const char *suffix,
                     GCompareFunc sort,
-                    void (*load_json_cb) (SrtSysroot *, const char *, void *),
+                    void (*load_json_cb) (SrtSysroot *, const char *, const char *,void *),
                     void *user_data);
 void load_json_dirs (SrtSysroot *sysroot,
                      GStrv search_paths,
                      const char *suffix,
                      GCompareFunc sort,
-                     void (*load_json_cb) (SrtSysroot *, const char *, void *),
+                     void (*load_json_cb) (SrtSysroot *, const char *, const char*, void *),
                      void *user_data);
 void load_icd_from_json (GType type,
                          SrtSysroot *sysroot,
+                         const char *dirname,
                          const char *filename,
+                         gboolean is_extra,
                          GList **list);

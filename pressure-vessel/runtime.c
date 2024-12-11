@@ -1386,7 +1386,9 @@ cache_indep_graphics_stack (SrtSystemInfo *system_info,
         _srt_profiling_start ("Enumerating OpenXR 1 runtimes in thread");
       G_GNUC_UNUSED g_autoptr(SrtObjectList) runtimes = NULL;
 
-      runtimes = srt_system_info_list_openxr_1_runtimes (system_info, multiarch_tuples);
+      runtimes = srt_system_info_list_openxr_1_runtimes (system_info,
+                                                         multiarch_tuples,
+                                                         SRT_DRIVER_FLAGS_NONE);
     }
 }
 
@@ -7408,7 +7410,8 @@ pv_enumerate_openxr_1_runtimes (SrtSystemInfo *system_info,
   timer = _srt_profiling_start ("Enumerating OpenXR 1 runtimes on %s system", which_system);
   g_debug ("Enumerating OpenXR 1 runtimes on %s system...", which_system);
   openxr_1_runtimes = srt_system_info_list_openxr_1_runtimes (system_info,
-                                                              multiarch_tuples);
+                                                              multiarch_tuples,
+                                                              SRT_DRIVER_FLAGS_NONE);
   openxr_1_runtime_details = g_ptr_array_new_full (g_list_length (openxr_1_runtimes),
                                                    (GDestroyNotify) G_CALLBACK (icd_details_free));
 

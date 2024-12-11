@@ -57,6 +57,7 @@ enum
   OPENXR_1_RUNTIME_PROP_0,
   OPENXR_1_RUNTIME_PROP_LIBRARY_ARCH,
   OPENXR_1_RUNTIME_PROP_NAME,
+  OPENXR_1_RUNTIME_PROP_IS_EXTRA,
   N_OPENXR_1_RUNTIME_PROPERTIES
 };
 
@@ -85,6 +86,10 @@ srt_openxr_1_runtime_get_property (GObject *object,
         g_value_set_string (value, self->parent.name);
         break;
 
+      case OPENXR_1_RUNTIME_PROP_IS_EXTRA:
+        g_value_set_boolean (value, self->parent.is_extra);
+        break;
+
       default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
     }
@@ -108,6 +113,10 @@ srt_openxr_1_runtime_set_property (GObject *object,
       case OPENXR_1_RUNTIME_PROP_NAME:
         g_return_if_fail (self->parent.name == NULL);
         self->parent.name= g_value_dup_string (value);
+        break;
+
+      case OPENXR_1_RUNTIME_PROP_IS_EXTRA:
+        self->parent.is_extra = g_value_get_boolean (value);
         break;
 
       default:
@@ -146,8 +155,8 @@ srt_openxr_1_runtime_class_init (SrtOpenxr1RuntimeClass *cls)
   openxr_1_runtime_properties[OPENXR_1_RUNTIME_PROP_LIBRARY_ARCH] =
     g_param_spec_string ("library-arch", "Library architecture",
                          "Architecture of the library implementing this runtime. "
-                         "The values allowed by the specification are \"32\" "
-                         "and \"64\", but other values are possible.",
+                         "The values allowed by the specification are \"x86_64\", "
+                         "\"i686\"...",
                          NULL,
                          G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
                          G_PARAM_STATIC_STRINGS);
@@ -159,6 +168,13 @@ srt_openxr_1_runtime_class_init (SrtOpenxr1RuntimeClass *cls)
                          NULL,
                          G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
                          G_PARAM_STATIC_STRINGS);
+
+  openxr_1_runtime_properties[OPENXR_1_RUNTIME_PROP_IS_EXTRA] =
+    g_param_spec_boolean ("is-extra", "Is extra?",
+                          "TRUE if the driver is not active",
+                          FALSE,
+                          G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+                          G_PARAM_STATIC_STRINGS);
 
   g_object_class_install_properties (object_class, N_OPENXR_1_RUNTIME_PROPERTIES,
                                      openxr_1_runtime_properties);
@@ -180,6 +196,7 @@ srt_openxr_1_runtime_new (const gchar *json_path,
                           const gchar *name,
                           const gchar *library_path,
                           const gchar *library_arch,
+                          gboolean is_extra,
                           SrtLoadableIssues issues)
 {
   g_return_val_if_fail (json_path != NULL, NULL);
@@ -191,6 +208,7 @@ srt_openxr_1_runtime_new (const gchar *json_path,
                        "library-path", library_path,
                        "library-arch", library_arch,
                        "issues", issues,
+                       "is-extra", is_extra,
                        NULL);
 }
 
@@ -210,6 +228,21 @@ srt_openxr_1_runtime_new_error (const gchar *json_path,
                                                                          json_path,
                                                                          issues,
                                                                          error);
+}
+
+/**
+ * srt_openxr_1_runtime_is_extra:
+ * @self: The runtime
+ *
+ * Return a gboolean that indicates if the runtime won't be automatically loaded
+ *
+ * Returns: %TRUE if the runtime won't be automatically loaded
+ */
+gboolean
+srt_openxr_1_runtime_is_extra(SrtOpenxr1Runtime *self)
+{
+  g_return_val_if_fail (SRT_IS_OPENXR_1_RUNTIME(self), FALSE);
+  return self->parent.is_extra;
 }
 
 /**
@@ -407,16 +440,38 @@ srt_openxr_1_runtime_new_replace_library_path (SrtOpenxr1Runtime *self,
                                    self->parent.name,
                                    path,
                                    self->parent.library_arch,
+                                   self->parent.is_extra,
                                    base->issues);
 }
 
+struct openxr_search_context
+{
+  const char* active_directory; // Directory where an active runtime was found
+  GList *ret; // runtimes found
+};
+
 static void
 openxr_1_runtime_load_json_cb (SrtSysroot *sysroot,
+                               const char *dirname,
                                const char *filename,
-                         void *user_data)
+                               void *user_data)
 {
-  g_autofree gchar * absolute_filename = realpath(filename, NULL);
-  load_icd_from_json (SRT_TYPE_OPENXR_1_RUNTIME, sysroot, absolute_filename, user_data);
+  struct openxr_search_context *ctx = (struct openxr_search_context*)user_data;
+  const char* arch;
+  // Skip files that don't match naming pattern
+  if (!srt_openxr_1_arch_from_filename(filename, &arch))
+    {
+      return;
+    }
+  // If pointer is different, it is a separate iteration
+  // if we already found an active runtime, the following ones are extra
+  gboolean is_extra = ctx->active_directory && ctx->active_directory != dirname;
+  load_icd_from_json (SRT_TYPE_OPENXR_1_RUNTIME, sysroot, dirname, filename, is_extra, &ctx->ret);
+  if (ctx->ret && !ctx->active_directory)
+    {
+      // Record the directory where active runtime is found
+      ctx->active_directory = dirname;
+    }
 }
 
 /*
@@ -503,7 +558,7 @@ _srt_load_openxr_1_runtimes (SrtSysroot *sysroot,
   const gchar *value;
   /* To avoid O(n**2) performance, we build this list in reverse order,
    * then reverse it at the end. */
-  GList *ret = NULL;
+  struct openxr_search_context ctx = {0};
 
   g_return_val_if_fail (_srt_check_not_setuid (), NULL);
   g_return_val_if_fail (SRT_IS_SYSROOT (sysroot), NULL);
@@ -519,7 +574,10 @@ _srt_load_openxr_1_runtimes (SrtSysroot *sysroot,
     {
       g_debug ("OpenXR 1 runtime overridden to: %s", value);
 
-      load_icd_from_json (SRT_TYPE_OPENXR_1_RUNTIME, sysroot, value, &ret);
+      load_icd_from_json (SRT_TYPE_OPENXR_1_RUNTIME, sysroot, NULL, value, FALSE, &ctx.ret);
+      // discard architecture from filename if runtime is forced
+      g_return_val_if_fail (SRT_IS_OPENXR_1_RUNTIME (ctx.ret->data), NULL);
+      SRT_BASE_GRAPHICS_MODULE (ctx.ret->data)->library_path = NULL;
     }
   else
     {
@@ -530,12 +588,26 @@ _srt_load_openxr_1_runtimes (SrtSysroot *sysroot,
 
       g_debug ("Using normal OpenXR 1 manifest search path");
       load_json_dirs (sysroot, search_paths, NULL, READDIR_ORDER,
-                      openxr_1_runtime_load_json_cb, &ret);
+                      openxr_1_runtime_load_json_cb, &ctx);
     }
 
   if (!(check_flags & SRT_CHECK_FLAGS_SKIP_SLOW_CHECKS))
     _srt_loadable_flag_duplicates (SRT_TYPE_OPENXR_1_RUNTIME, runner,
-                                   multiarch_tuples, ret);
+                                   multiarch_tuples, ctx.ret);
 
-  return g_list_reverse (ret);
+  return g_list_reverse (ctx.ret);
+}
+
+gboolean srt_openxr_1_arch_from_filename(const gchar *filename,
+                                         const gchar **library_arch)
+{
+  if (strcmp(filename, "active_runtime.i686.json") == 0)
+    *library_arch = "i686";
+  else if (strcmp(filename, "active_runtime.x86_64.json") == 0)
+    *library_arch = "x86_64";
+  else if (strcmp(filename, "active_runtime.aarch64.json") == 0)
+    *library_arch = "aarch64";
+  else if (strcmp(filename, "active_runtime.json") != 0)
+    return FALSE;
+  return TRUE;
 }

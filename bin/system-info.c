@@ -1627,7 +1627,9 @@ main (int argc,
   json_builder_begin_object (builder);
   json_builder_set_member_name (builder, "runtimes");
   json_builder_begin_array (builder);
-  icds = srt_system_info_list_openxr_1_runtimes(info, multiarch_tuples);
+  icds = srt_system_info_list_openxr_1_runtimes(info,
+                                                multiarch_tuples,
+                                                extra_driver_flags);
 
   for (icd_iter = icds; icd_iter != NULL; icd_iter = icd_iter->next)
     {
@@ -1659,6 +1661,12 @@ main (int argc,
             {
               json_builder_set_member_name (builder, "name");
               json_builder_add_string_value (builder, name);
+            }
+
+          if (srt_openxr_1_runtime_is_extra(icd_iter->data))
+            {
+              json_builder_set_member_name (builder, "is_extra");
+              json_builder_add_boolean_value (builder, TRUE);
             }
 
           tmp = srt_openxr_1_runtime_resolve_library_path (icd_iter->data);

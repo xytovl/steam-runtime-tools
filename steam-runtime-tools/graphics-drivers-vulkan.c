@@ -438,10 +438,11 @@ srt_vulkan_icd_new_replace_library_path (SrtVulkanIcd *self,
 
 static void
 vulkan_icd_load_json_cb (SrtSysroot *sysroot,
+                         const char *dirname,
                          const char *filename,
                          void *user_data)
 {
-  load_icd_from_json (SRT_TYPE_VULKAN_ICD, sysroot, filename, user_data);
+  load_icd_from_json (SRT_TYPE_VULKAN_ICD, sysroot, dirname, filename, FALSE, user_data);
 }
 
 /*
@@ -650,7 +651,7 @@ _srt_load_vulkan_icds (SrtSysroot *sysroot,
       g_debug ("Vulkan driver search path overridden to: %s", value);
 
       for (i = 0; filenames[i] != NULL; i++)
-        load_icd_from_json (SRT_TYPE_VULKAN_ICD, sysroot, filenames[i], &ret);
+        load_icd_from_json (SRT_TYPE_VULKAN_ICD, sysroot, NULL, filenames[i], FALSE, &ret);
 
       g_strfreev (filenames);
     }
@@ -671,7 +672,7 @@ _srt_load_vulkan_icds (SrtSysroot *sysroot,
           g_debug ("Vulkan additional driver search path: %s", add);
 
           for (i = 0; filenames[i] != NULL; i++)
-            load_icd_from_json (SRT_TYPE_VULKAN_ICD, sysroot, filenames[i], &ret);
+            load_icd_from_json (SRT_TYPE_VULKAN_ICD, sysroot, NULL, filenames[i], FALSE, &ret);
         }
 
       g_debug ("Using normal Vulkan driver search path");
@@ -1433,10 +1434,12 @@ vulkan_layer_load_json (SrtSysroot *sysroot,
 
 static void
 vulkan_layer_load_json_cb (SrtSysroot *sysroot,
+                           const char *dirname,
                            const char *filename,
                            void *user_data)
 {
-  vulkan_layer_load_json (sysroot, filename, user_data);
+  g_autofree char* fullname = g_build_filename (dirname, filename, NULL);
+  vulkan_layer_load_json (sysroot, fullname, user_data);
 }
 
 /*

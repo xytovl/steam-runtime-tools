@@ -48,6 +48,8 @@ typedef struct _SrtOpenxr1RuntimeClass SrtOpenxr1RuntimeClass;
 
 _SRT_PUBLIC
 GType srt_openxr_1_runtime_get_type (void);
+_SRT_PUBLIC
+gboolean srt_openxr_1_runtime_is_extra (SrtOpenxr1Runtime *self);
 
 _SRT_PUBLIC
 gboolean srt_openxr_1_runtime_check_error (SrtOpenxr1Runtime *self,

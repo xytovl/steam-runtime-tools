@@ -312,6 +312,7 @@ get_driver_loadables_from_json_report (JsonObject *json_obj,
               const gchar *api_version = NULL;
               const gchar *implementation_version = NULL;
               gboolean portability_driver = FALSE;
+              gboolean is_extra = FALSE;
               g_auto(GStrv) component_layers = NULL;
               SrtVulkanLayer *layer = NULL;
               SrtLoadableIssues issues;
@@ -353,6 +354,8 @@ get_driver_loadables_from_json_report (JsonObject *json_obj,
               if (which == SRT_TYPE_OPENXR_1_RUNTIME)
                 {
                   name = json_object_get_string_member_with_default (json_elem_obj, "name", NULL);
+                  is_extra = json_object_get_boolean_member_with_default (json_elem_obj, "is_extra",
+                                                                          FALSE);
                 }
 
               library_path = json_object_get_string_member_with_default (json_elem_obj,
@@ -421,6 +424,7 @@ get_driver_loadables_from_json_report (JsonObject *json_obj,
                                                                                         name,
                                                                                         library_path,
                                                                                         library_arch,
+                                                                                        is_extra,
                                                                                         issues));
                   else
                     g_return_val_if_reached (NULL);

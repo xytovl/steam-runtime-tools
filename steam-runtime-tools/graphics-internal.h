@@ -402,8 +402,12 @@ SrtOpenxr1Runtime *srt_openxr_1_runtime_new (const gchar *json_path,
                                              const gchar *name,
                                              const gchar *library_path,
                                              const gchar *library_arch,
+                                             gboolean is_extra,
                                              SrtLoadableIssues issues);
 
 SrtOpenxr1Runtime *srt_openxr_1_runtime_new_error (const gchar *json_path,
                                                    SrtLoadableIssues issues,
                                                    const GError *error);
+
+gboolean srt_openxr_1_arch_from_filename(const gchar *filename,
+                                         const gchar **library_arch);

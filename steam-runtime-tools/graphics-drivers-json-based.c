@@ -706,7 +706,7 @@ load_json_dir (SrtSysroot *sysroot,
                const char *dir,
                const char *suffix,
                GCompareFunc sort,
-               void (*load_json_cb) (SrtSysroot *, const char *, void *),
+               void (*load_json_cb) (SrtSysroot *, const char *, const char*, void *),
                void *user_data)
 {
   g_autoptr(GError) error = NULL;
@@ -779,12 +779,8 @@ load_json_dir (SrtSysroot *sysroot,
 
   for (i = 0; i < members->len; i++)
     {
-      gchar *path;
-
       member = g_ptr_array_index (members, i);
-      path = g_build_filename (dir, member, NULL);
-      load_json_cb (sysroot, path, user_data);
-      g_free (path);
+      load_json_cb (sysroot, dir, member, user_data);
     }
 }
 
@@ -805,7 +801,7 @@ load_json_dirs (SrtSysroot *sysroot,
                 GStrv search_paths,
                 const char *suffix,
                 GCompareFunc sort,
-                void (*load_json_cb) (SrtSysroot *, const char *, void *),
+                void (*load_json_cb) (SrtSysroot *, const char *, const char*, void *),
                 void *user_data)
 {
   gchar **iter;
@@ -853,7 +849,9 @@ load_json_dirs (SrtSysroot *sysroot,
  * load_icd_from_json:
  * @type: %SRT_TYPE_EGL_ICD or %SRT_TYPE_EGL_EXTERNAL_PLATFORM or %SRT_TYPE_VULKAN_ICD
  * @sysroot: (not nullable): The root directory, usually `/`
+ * @dirname: The directory of the metadata
  * @filename: The filename of the metadata
+ * @is_extra: if the icd should not be loaded automatically
  * @list: (element-type GObject) (transfer full) (inout): Prepend the
  *  resulting #SrtEglIcd or #SrtEglExternalPlatform or #SrtVulkanIcd to this list
  *
@@ -862,10 +860,13 @@ load_json_dirs (SrtSysroot *sysroot,
 void
 load_icd_from_json (GType type,
                     SrtSysroot *sysroot,
+                    const char *dirname,
                     const char *filename,
+                    gboolean is_extra,
                     GList **list)
 {
   g_autoptr(JsonParser) parser = NULL;
+  g_autofree gchar *fullname = NULL;
   g_autofree gchar *canon = NULL;
   g_autofree gchar *contents = NULL;
   g_autoptr(GError) error = NULL;
@@ -892,7 +893,22 @@ load_icd_from_json (GType type,
   g_return_if_fail (SRT_IS_SYSROOT (sysroot));
   g_return_if_fail (list != NULL);
 
-  if (!g_path_is_absolute (filename))
+  if (type == SRT_TYPE_OPENXR_1_RUNTIME)
+    {
+      srt_openxr_1_arch_from_filename(filename, &library_arch);
+    }
+
+  if (dirname)
+    {
+      fullname = g_build_filename (dirname, filename, NULL);
+      filename = fullname;
+    }
+  if (type == SRT_TYPE_OPENXR_1_RUNTIME)
+    {
+      canon = realpath(filename, NULL);
+      filename = canon;
+    }
+  else if (!g_path_is_absolute (filename))
     {
       canon = g_canonicalize_filename (filename, NULL);
       filename = canon;
@@ -1142,6 +1158,7 @@ out:
                                               name,
                                               library_path,
                                               library_arch,
+                                              is_extra,
                                               issues);
           _srt_base_json_graphics_module_take_original_json (SRT_BASE_JSON_GRAPHICS_MODULE (runtime),
                                                              g_steal_pointer (&contents));

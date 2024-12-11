@@ -528,18 +528,20 @@ srt_egl_icd_write_to_file (SrtEglIcd *self,
 
 static void
 egl_icd_load_json_cb (SrtSysroot *sysroot,
+                      const char *dirname,
                       const char *filename,
                       void *user_data)
 {
-  load_icd_from_json (SRT_TYPE_EGL_ICD, sysroot, filename, user_data);
+  load_icd_from_json (SRT_TYPE_EGL_ICD, sysroot, dirname, filename, FALSE, user_data);
 }
 
 static void
 egl_external_platform_load_json_cb (SrtSysroot *sysroot,
+                                    const char *dirname,
                                     const char *filename,
                                     void *user_data)
 {
-  load_icd_from_json (SRT_TYPE_EGL_EXTERNAL_PLATFORM, sysroot, filename, user_data);
+  load_icd_from_json (SRT_TYPE_EGL_EXTERNAL_PLATFORM, sysroot, dirname, filename, FALSE, user_data);
 }
 
 #define EGL_VENDOR_SUFFIX "glvnd/egl_vendor.d"
@@ -600,7 +602,7 @@ _srt_load_egl_things (GType which,
   /* To avoid O(n**2) performance, we build this list in reverse order,
    * then reverse it at the end. */
   GList *ret = NULL;
-  void (*loader_cb) (SrtSysroot *, const char *, void *);
+  void (*loader_cb) (SrtSysroot *, const char *, const char *, void *);
   const char *filenames_var;
   const char *dirs_var;
   const char *suffix;
@@ -655,7 +657,7 @@ _srt_load_egl_things (GType which,
       g_auto(GStrv) filenames = g_strsplit (value, G_SEARCHPATH_SEPARATOR_S, -1);
 
       for (i = 0; filenames[i] != NULL; i++)
-        load_icd_from_json (which, sysroot, filenames[i], &ret);
+        load_icd_from_json (which, sysroot, NULL, filenames[i], FALSE, &ret);
     }
   else
     {
